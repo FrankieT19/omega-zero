@@ -1,0 +1,65 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: fmt and clippy
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the host build's system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev pkg-config
+
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy, host
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Clippy, device
+        run: cargo clippy -p slot --no-default-features --features device -- -D warnings
+
+  test:
+    name: tests
+    # The render tests draw through a headless CGL context, so they only run on macOS.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --workspace
+
+  card:
+    name: card scripts
+    # Ubuntu's /bin/sh is dash, which keeps the scripts honest about POSIX.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Test the scripts slot ships on the card
+        run: for t in card/test-*.sh; do sh "$t"; done

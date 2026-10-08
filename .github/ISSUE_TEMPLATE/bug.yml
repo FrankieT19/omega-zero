@@ -1,0 +1,43 @@
+name: Bug report
+description: Something in slot does not work the way it should.
+labels: [bug]
+body:
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - RG35XX SP
+        - RG35XX Plus / 2024
+        - RG35XX H
+        - RG35XX Pro
+        - RG34XX
+        - RG34XX SP
+        - RG SP
+        - RG40XX H
+        - RG40XX V
+        - RG CubeXX
+        - RG28XX
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: slot and BaseOS versions
+      description: slot's version is on the About label. BaseOS's is in /etc/baseos-release.
+      placeholder: slot v1.5.0, BaseOS v1.3.0
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what slot did instead.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: slot.log
+      description: Paste slot.log from the root of the card slot runs from.
+      render: text

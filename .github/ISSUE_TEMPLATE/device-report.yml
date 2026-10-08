@@ -1,0 +1,51 @@
+name: Device report
+description: Tell us how slot runs on your handheld, with a hardware probe attached.
+labels: [device-report]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing on your device! To make a probe report, create an empty file named
+        `RUN_PROBE` at the root of the card slot runs from and boot. slot writes
+        `probe-<device>-<date>.txt` next to it and deletes `RUN_PROBE`. Over SSH you can
+        also run `sh /mnt/sdcard/System/probe.sh` directly.
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      placeholder: RG35XX SP
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: slot and BaseOS versions
+      placeholder: slot v1.5.0, BaseOS v1.3.0
+    validations:
+      required: true
+  - type: checkboxes
+    id: works
+    attributes:
+      label: What works
+      options:
+        - label: Every button, including MENU, VOL+ / VOL- and POWER
+        - label: The game fills the screen correctly
+        - label: Closing and opening the lid (SP models)
+        - label: Speaker and headphones, switching when plugged in
+        - label: Brightness and blue light
+        - label: Rumble
+        - label: Battery and charging LEDs
+        - label: Link play with a second device
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Anything that misbehaved, and how.
+  - type: textarea
+    id: probe
+    attributes:
+      label: Probe report
+      description: Paste the whole probe-*.txt file.
+      render: text
+    validations:
+      required: true
