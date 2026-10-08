@@ -3,37 +3,71 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub const CARD_LOGO: &str = "System/bootlogo.bmp";
 const LOGO: &str = "bootlogo.bmp";
 const ORIGINAL: &str = "bootlogo.baseos.bmp";
 const PARTITION: &str = "boot-resource";
 const MOUNT: &str = "/tmp/slot-boot-resource";
-const SIZE: usize = 54 + 720 * 480 * 3;
+const HEADER: usize = 54;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Outcome {
     Same,
     Installed,
     Invalid,
+    /// The logo is not the size of the one already on the partition, which is the size the
+    /// bootloader draws on this device's panel.
+    WrongSize,
 }
 
-pub fn valid(bmp: &[u8]) -> bool {
+/// The width and height of an uncompressed, bottom-up, 24-bit bmp, the only kind the
+/// bootloader draws.
+pub fn dims(bmp: &[u8]) -> Option<(u32, u32)> {
+    if bmp.len() < HEADER || &bmp[0..2] != b"BM" {
+        return None;
+    }
     let u16_at = |i: usize| u16::from_le_bytes([bmp[i], bmp[i + 1]]);
     let u32_at = |i: usize| u32::from_le_bytes([bmp[i], bmp[i + 1], bmp[i + 2], bmp[i + 3]]);
-    bmp.len() == SIZE
-        && &bmp[0..2] == b"BM"
-        && u32_at(10) == 54
+    let (w, h) = (u32_at(18), u32_at(22));
+    let well_formed = u32_at(10) == HEADER as u32
         && u32_at(14) == 40
-        && u32_at(18) == 720
-        && u32_at(22) == 480
         && u16_at(26) == 1
         && u16_at(28) == 24
         && u32_at(30) == 0
+        && (1..=4096).contains(&w)
+        && (1..=4096).contains(&h);
+    let stride = (w as usize * 3).next_multiple_of(4);
+    (well_formed && bmp.len() == HEADER + stride * h as usize).then_some((w, h))
+}
+
+pub fn valid(bmp: &[u8]) -> bool {
+    dims(bmp).is_some()
+}
+
+/// The logo slot ships for a panel of `size`, from the card's System folder: the one named for
+/// that size, or the unsized one from before slot knew more than one panel, if it fits.
+pub fn choose(system: &Path, size: (u32, u32)) -> Option<PathBuf> {
+    let sized = system.join(format!("bootlogo-{}x{}.bmp", size.0, size.1));
+    if sized.is_file() {
+        return Some(sized);
+    }
+    let legacy = system.join(LOGO);
+    let fits = fs::read(&legacy).ok().and_then(|b| dims(&b)) == Some(size);
+    fits.then_some(legacy)
+}
+
+/// The panel size the bootloader on this partition draws at, read off the logo it came with.
+pub fn panel_size(dir: &Path) -> Option<(u32, u32)> {
+    [ORIGINAL, LOGO]
+        .iter()
+        .find_map(|name| fs::read(dir.join(name)).ok().and_then(|b| dims(&b)))
 }
 
 pub fn install(logo: &[u8], dir: &Path) -> io::Result<Outcome> {
-    if !valid(logo) {
+    let Some(size) = dims(logo) else {
         return Ok(Outcome::Invalid);
+    };
+    if panel_size(dir) != Some(size) {
+        return Ok(Outcome::WrongSize);
     }
     let current = fs::read(dir.join(LOGO)).ok();
     if current.as_deref() == Some(logo) {
@@ -58,14 +92,19 @@ fn replace(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<()> {
     File::open(dir)?.sync_all()
 }
 
+fn ships_a_logo(system: &Path) -> bool {
+    fs::read_dir(system).is_ok_and(|entries| {
+        entries.flatten().any(|e| {
+            let name = e.file_name();
+            let name = name.to_string_lossy();
+            name.starts_with("bootlogo") && name.ends_with(".bmp")
+        })
+    })
+}
+
 pub fn refresh(card: &Path) {
-    let Ok(logo) = fs::read(card.join(CARD_LOGO)) else {
-        return;
-    };
-    if !valid(&logo) {
-        eprintln!(
-            "slot: bootlogo: {CARD_LOGO} is not a 720x480 24-bit bmp, leaving the boot logo alone"
-        );
+    let system = card.join("System");
+    if !ships_a_logo(&system) {
         return;
     }
     let Some(device) = partition(PARTITION) else {
@@ -78,10 +117,22 @@ pub fn refresh(card: &Path) {
         eprintln!("slot: bootlogo: could not mount {device}");
         return;
     }
-    match install(&logo, Path::new(MOUNT)) {
-        Ok(Outcome::Installed) => eprintln!("slot: bootlogo: installed"),
-        Ok(_) => {}
-        Err(e) => eprintln!("slot: bootlogo: {e}"),
+    let mount = Path::new(MOUNT);
+    match panel_size(mount) {
+        None => eprintln!("slot: bootlogo: no logo on {device} to size ours by, leaving it alone"),
+        Some(size) => match choose(&system, size).map(|p| (fs::read(&p), p)) {
+            None => eprintln!(
+                "slot: bootlogo: no {}x{} logo in System/, leaving the boot logo alone",
+                size.0, size.1
+            ),
+            Some((Err(e), p)) => eprintln!("slot: bootlogo: {}: {e}", p.display()),
+            Some((Ok(logo), p)) => match install(&logo, mount) {
+                Ok(Outcome::Installed) => eprintln!("slot: bootlogo: installed {}", p.display()),
+                Ok(Outcome::Same) => {}
+                Ok(other) => eprintln!("slot: bootlogo: {}: {other:?}", p.display()),
+                Err(e) => eprintln!("slot: bootlogo: {e}"),
+            },
+        },
     }
     if !run("umount", &[MOUNT]) {
         eprintln!("slot: bootlogo: could not unmount {MOUNT}");
