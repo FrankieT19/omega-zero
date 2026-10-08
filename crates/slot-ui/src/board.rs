@@ -1,3 +1,4 @@
+use crate::stage::{stage_x, stage_y};
 use slot_gfx::out_w;
 use slot_store::{Cart, Core};
 
@@ -141,8 +142,13 @@ fn shade(c: [u8; 3], f: f32) -> [u8; 3] {
 const SOCKET_SVG: &str = include_str!("../assets/socket.svg");
 const CHIP_SVG: &str = include_str!("../assets/chip.svg");
 
-pub const BOARD_X: f32 = 174.0;
-pub const BOARD_Y: f32 = 150.0;
+pub fn board_x() -> f32 {
+    174.0 + stage_x()
+}
+
+pub fn board_y() -> f32 {
+    150.0 + stage_y()
+}
 
 pub const TURN_PAD: u32 = 2;
 
@@ -179,12 +185,14 @@ const NAME_MIN_PX: f32 = 8.0;
 const SOCKET_INK: [u8; 3] = [0xee, 0xf5, 0xe6];
 const CHIP_INK: [u8; 3] = [0xf2, 0xf2, 0xf2];
 
-const LID_REST: Placed = Placed {
-    x: 288.0,
-    y: 30.0,
-    w: 144.0,
-    h: 81.0,
-};
+fn lid_rest() -> Placed {
+    Placed {
+        x: 288.0 + stage_x(),
+        y: 30.0 + stage_y(),
+        w: 144.0,
+        h: 81.0,
+    }
+}
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Placed {
@@ -214,8 +222,8 @@ pub fn board_at(progress: f32) -> Placed {
 
 pub fn board_from(shelf: Placed, progress: f32) -> Placed {
     let rest = Placed {
-        x: BOARD_X,
-        y: BOARD_Y,
+        x: board_x(),
+        y: board_y(),
         w: BOARD_W as f32,
         h: BOARD_H as f32,
     };
@@ -232,7 +240,7 @@ pub fn lid_from(shelf: Placed, progress: f32) -> (Placed, f32) {
         ..shelf
     };
     let lift = lift_of(progress);
-    (lerp(slid, LID_REST, lift), LID_TURN * lift)
+    (lerp(slid, lid_rest(), lift), LID_TURN * lift)
 }
 
 const UNITS_W: f32 = 240.0;

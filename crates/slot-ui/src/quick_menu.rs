@@ -2,6 +2,7 @@ use crate::draw::{out_h, out_w, Draw, TexId};
 use crate::plate::{arrows_hint_face, centred_hints, hint_face, UndoFace, HINT_H, LEGEND_GAP};
 use crate::power_menu::{MENU_H, MENU_INK, MENU_PAD, MENU_PX};
 use crate::slot_chrome::{edge, opening};
+use crate::stage::stage_y;
 use crate::text;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -116,7 +117,9 @@ const BAR_INSET: f32 = 4.0;
 const TYPE_DROP: f32 = 4.0;
 const CARET_GAP: f32 = 14.0;
 const CARET_PX: f32 = 24.0;
-const LEGEND_Y: f32 = 427.0;
+fn legend_y() -> f32 {
+    427.0 + stage_y()
+}
 const DIM_INK: [u8; 3] = [0x9a, 0x9a, 0xa4];
 
 pub fn quick_label_face(row: QuickRow) -> UndoFace {
@@ -252,7 +255,7 @@ impl QuickMenu<'_> {
         let [back, change, open] = faces.legend;
         let other = if self.row.opens() { open } else { change };
         for (tex, w, x) in centred_hints(&[back, other], LEGEND_GAP) {
-            push(out, tex, x, LEGEND_Y, w, HINT_H);
+            push(out, tex, x, legend_y(), w, HINT_H);
         }
     }
 }

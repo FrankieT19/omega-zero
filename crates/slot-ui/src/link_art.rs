@@ -1,5 +1,6 @@
 use crate::art::render_svg;
 use crate::cart::CartFace;
+use crate::stage::{stage_x, stage_y};
 use crate::text;
 
 const PORT_SVG: &str = include_str!("../assets/link_port.svg");
@@ -9,7 +10,9 @@ const ADAPTER_SVG: &str = include_str!("../assets/link_adapter.svg");
 
 pub const PORT_W: u32 = 720;
 pub const PORT_H: u32 = 92;
-pub const PORT_Y: f32 = 388.0;
+pub fn port_y() -> f32 {
+    388.0 + stage_y()
+}
 pub const PLUG_W: u32 = 92;
 pub const PLUG_H: u32 = 244;
 pub const PLUG_TIP_X: f32 = 46.0;
@@ -17,20 +20,37 @@ pub const ADAPTER_W: u32 = 268;
 pub const ADAPTER_H: u32 = 182;
 pub const ADAPTER_BASE_X: f32 = 134.0;
 pub const ADAPTER_BASE_Y: f32 = 144.0;
-pub const ARCS: [(f32, f32, u32, u32); 3] = [
+const RINGS: [(f32, f32, u32, u32); 3] = [
     (508.0, 290.0, 16, 56),
     (530.0, 274.0, 20, 88),
     (552.0, 258.0, 25, 120),
 ];
-pub const CLICKS_X: f32 = 270.0;
-pub const CLICKS_Y: f32 = 360.0;
+
+pub fn arcs() -> [(f32, f32, u32, u32); 3] {
+    RINGS.map(|(x, y, w, h)| (x + stage_x(), y + stage_y(), w, h))
+}
+pub fn clicks_x() -> f32 {
+    270.0 + stage_x()
+}
+
+pub fn clicks_y() -> f32 {
+    360.0 + stage_y()
+}
 pub const CLICKS_W: u32 = 180;
 pub const CLICKS_H: u32 = 30;
 pub const ARROW_W: u32 = 16;
 pub const ARROW_H: u32 = 22;
-pub const ARROW_LEFT_X: f32 = 268.0;
-pub const ARROW_RIGHT_X: f32 = 436.0;
-pub const ARROW_Y: f32 = 52.0;
+pub fn arrow_left_x() -> f32 {
+    268.0 + stage_x()
+}
+
+pub fn arrow_right_x() -> f32 {
+    436.0 + stage_x()
+}
+
+pub fn arrow_y() -> f32 {
+    52.0 + stage_y()
+}
 
 const ADAPTER_SCALE: f32 = 1.75;
 const LABEL_INK: [u8; 3] = [0xec, 0xee, 0xef];
@@ -87,7 +107,7 @@ fn arrow_svg(path: &str) -> String {
 }
 
 fn arc_face(ring: usize) -> CartFace {
-    let (_, _, w, h) = ARCS[ring];
+    let (_, _, w, h) = RINGS[ring];
     let bulge = [16.0, 24.0, 34.0][ring];
     let path = format!("M4 4 Q{} {} 4 {}", 4.0 + bulge, h as f32 / 2.0, h - 4);
     svg_face(

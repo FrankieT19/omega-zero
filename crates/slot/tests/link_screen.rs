@@ -69,8 +69,8 @@ fn failed_lifts_tilts_and_dims_over_250ms() {
 #[test]
 fn the_adapter_seats_while_working_and_stays_seated() {
     assert_eq!(adapter_base(GameMenu::Pick(LinkRow::Join), 0), 336.0);
-    assert!((adapter_base(working(LinkRow::Join, 0), 200) - PORT_Y).abs() < 0.01);
-    assert!((adapter_base(failed(3000), 3250) - PORT_Y).abs() < 0.01);
+    assert!((adapter_base(working(LinkRow::Join, 0), 200) - port_y()).abs() < 0.01);
+    assert!((adapter_base(failed(3000), 3250) - port_y()).abs() < 0.01);
 }
 
 #[test]
@@ -98,7 +98,7 @@ fn sprites() -> LinkSprites {
         w,
         h,
     };
-    let arc = |n: usize, i: usize| s(n, ARCS[i].2, ARCS[i].3);
+    let arc = |n: usize, i: usize| s(n, arcs()[i].2, arcs()[i].3);
     LinkSprites {
         port: s(1, PORT_W, PORT_H),
         plug_host: s(2, PLUG_W, PLUG_H),
@@ -252,7 +252,7 @@ fn unplug_lifts_the_adapter_off_the_port_and_dies_its_arcs() {
         role: LinkRow::Join,
         since: 0,
     };
-    assert!((adapter_base(m, 0) - PORT_Y).abs() < 0.01);
+    assert!((adapter_base(m, 0) - port_y()).abs() < 0.01);
     assert!((adapter_base(m, 260) - 336.0).abs() < 0.01);
     assert_eq!(
         arc_alphas(m, 0),

@@ -1,7 +1,8 @@
 use slot_ui::{
-    ease, out_w, Draw, Millis, TexId, ADAPTER_BASE_X, ADAPTER_BASE_Y, ARCS, ARROW_LEFT_X,
-    ARROW_RIGHT_X, ARROW_Y, CLICKS_X, CLICKS_Y, PLUG_H, PLUG_TIP_X, PORT_Y,
+    arcs, arrow_left_x, arrow_right_x, arrow_y, clicks_x, clicks_y, ease, out_w, port_y, Draw,
+    Millis, TexId, ADAPTER_BASE_X, ADAPTER_BASE_Y, PLUG_H, PLUG_TIP_X,
 };
+use slot_ui::{stage_x, stage_y};
 
 use crate::app::{GameMenu, LinkRow};
 use crate::link_kind::LinkKind;
@@ -26,16 +27,27 @@ pub struct LinkSprites {
     pub arrow_right: Sprite,
 }
 
-const PICK_TIP: f32 = 330.0;
-const SEATED_TIP: f32 = 419.0;
-const FAILED_TIP: f32 = 276.0;
+fn pick_tip() -> f32 {
+    330.0 + stage_y()
+}
+
+fn seated_tip() -> f32 {
+    419.0 + stage_y()
+}
+
+fn failed_tip() -> f32 {
+    276.0 + stage_y()
+}
+
 const FAILED_TURN_DEG: f32 = 14.0;
 const FAILED_ALPHA: f32 = 0.45;
 const DROP_MS: Millis = 200;
 const SEAT_MS: Millis = 160;
 const LIFT_MS: Millis = 250;
 const UNPLUG_MS: Millis = 260;
-const PICK_BASE: f32 = 336.0;
+fn pick_base() -> f32 {
+    336.0 + stage_y()
+}
 const ARC_MS: f32 = 1200.0;
 const ARC_STAGGER_MS: f32 = 300.0;
 const ARROW_ALPHA: f32 = 0.7;
@@ -53,11 +65,11 @@ fn eased(now: Millis, since: Millis, ms: Millis) -> f32 {
 }
 
 fn working_tip(since: Millis, now: Millis) -> f32 {
-    lerp(PICK_TIP, SEATED_TIP, eased(now, since, DROP_MS))
+    lerp(pick_tip(), seated_tip(), eased(now, since, DROP_MS))
 }
 
 fn working_base(since: Millis, now: Millis) -> f32 {
-    lerp(PICK_BASE, PORT_Y, eased(now, since, DROP_MS))
+    lerp(pick_base(), port_y(), eased(now, since, DROP_MS))
 }
 
 fn working_arcs(since: Millis, now: Millis) -> [f32; 3] {
@@ -78,19 +90,21 @@ fn working_arcs(since: Millis, now: Millis) -> [f32; 3] {
 
 pub fn plug_tip(menu: GameMenu, now: Millis) -> f32 {
     match menu {
-        GameMenu::Pick(_) => PICK_TIP,
+        GameMenu::Pick(_) => pick_tip(),
         GameMenu::Working { since, .. } => working_tip(since, now),
         GameMenu::Linked { worked, since, .. } => lerp(
             working_tip(worked, since),
-            SEATED_TIP,
+            seated_tip(),
             eased(now, since, SEAT_MS),
         ),
         GameMenu::Failed { worked, since, .. } => lerp(
             working_tip(worked, since),
-            FAILED_TIP,
+            failed_tip(),
             eased(now, since, LIFT_MS),
         ),
-        GameMenu::Unplug { since, .. } => lerp(SEATED_TIP, PICK_TIP, eased(now, since, UNPLUG_MS)),
+        GameMenu::Unplug { since, .. } => {
+            lerp(seated_tip(), pick_tip(), eased(now, since, UNPLUG_MS))
+        }
     }
 }
 
@@ -110,15 +124,15 @@ pub fn art_alpha(menu: GameMenu, now: Millis) -> f32 {
 
 pub fn adapter_base(menu: GameMenu, now: Millis) -> f32 {
     match menu {
-        GameMenu::Pick(_) => PICK_BASE,
+        GameMenu::Pick(_) => pick_base(),
         GameMenu::Working { since, .. } => working_base(since, now),
         GameMenu::Linked { worked, since, .. } => lerp(
             working_base(worked, since),
-            PORT_Y,
+            port_y(),
             eased(now, since, SEAT_MS),
         ),
         GameMenu::Failed { worked, since, .. } => working_base(worked, since),
-        GameMenu::Unplug { since, .. } => lerp(PORT_Y, PICK_BASE, eased(now, since, UNPLUG_MS)),
+        GameMenu::Unplug { since, .. } => lerp(port_y(), pick_base(), eased(now, since, UNPLUG_MS)),
     }
 }
 
@@ -204,10 +218,10 @@ pub fn draw_link_art(
                     turn,
                 });
             }
-            tex(out, s.port, 0.0, PORT_Y, 1.0);
+            tex(out, s.port, stage_x(), port_y(), 1.0);
             let clicks = clicks_alpha(menu, now);
             if clicks > 0.0 {
-                tex(out, s.clicks, CLICKS_X, CLICKS_Y, clicks);
+                tex(out, s.clicks, clicks_x(), clicks_y(), clicks);
             }
         }
         LinkKind::Wireless => {
@@ -219,13 +233,13 @@ pub fn draw_link_art(
                 base - ADAPTER_BASE_Y,
                 alpha,
             );
-            tex(out, s.port, 0.0, PORT_Y, 1.0);
-            let dy = base - PORT_Y;
+            tex(out, s.port, stage_x(), port_y(), 1.0);
+            let dy = base - port_y();
             for (i, a) in arc_alphas(menu, now).into_iter().enumerate() {
                 if a <= 0.0 {
                     continue;
                 }
-                let (x, y, w, _) = ARCS[i];
+                let (x, y, w, _) = arcs()[i];
                 tex(out, s.arcs_right[i], x, y + dy, a);
                 tex(
                     out,
@@ -238,7 +252,7 @@ pub fn draw_link_art(
         }
     }
     if matches!(menu, GameMenu::Pick(_)) {
-        tex(out, s.arrow_left, ARROW_LEFT_X, ARROW_Y, ARROW_ALPHA);
-        tex(out, s.arrow_right, ARROW_RIGHT_X, ARROW_Y, ARROW_ALPHA);
+        tex(out, s.arrow_left, arrow_left_x(), arrow_y(), ARROW_ALPHA);
+        tex(out, s.arrow_right, arrow_right_x(), arrow_y(), ARROW_ALPHA);
     }
 }

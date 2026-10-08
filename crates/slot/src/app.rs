@@ -1,3 +1,4 @@
+use slot_ui::stage_y;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -10,12 +11,12 @@ use slot_store::{
     StateEntry, StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, FF_SPEEDS, RING_MAX, VOLUME_MAX,
 };
 use slot_ui::{
-    board_from, board_zoom, draw_backdrop, draw_empty_slot, draw_footer, draw_slot_name,
+    board_from, board_x, board_zoom, draw_backdrop, draw_empty_slot, draw_footer, draw_slot_name,
     draw_sticker, ease, grown, lid_at, lid_from, lift_of, on_board, shelf_cart_at, ClockPicker,
     Draw, FfState, GbShell, Hud, HudKind, Icon, LinkBadge, Millis, Placed, Polaroids, PowerChoice,
     QuickMenu, QuickMenuFaces, QuickRow, QuickValue, Refusal, Shelf, SlotChrome, TexId, Toast,
-    BOARD_W, BOARD_X, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT,
-    SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
+    BOARD_W, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H,
+    SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
 };
 
 use crate::audio::Sfx;
@@ -70,9 +71,18 @@ const SLOT_NAME_HOLD_MS: Millis = 1200;
 const SLOT_NAME_OUT_MS: Millis = 800;
 const SLOT_NAME_ALPHA: f32 = 0.4;
 const CORE_PICKER_DIM: f32 = 0.614;
-const CORE_LEGEND_Y: f32 = 386.0;
-const LINK_TEXT_Y: f32 = 44.0;
-const LINK_LEGEND_Y: f32 = 422.0;
+fn core_legend_y() -> f32 {
+    386.0 + stage_y()
+}
+
+fn link_text_y() -> f32 {
+    44.0 + stage_y()
+}
+
+fn link_legend_y() -> f32 {
+    422.0 + stage_y()
+}
+
 const LINK_LEGEND_GAP: f32 = 40.0;
 const LID_SHADOW_W: f32 = 168.0;
 const LID_SHADOW_H: f32 = 18.0;
@@ -2067,16 +2077,16 @@ impl App {
         }
 
         if let [cancel, swap, choose] = self.core_legend_faces.as_slice() {
-            let right = BOARD_X + BOARD_W as f32;
+            let right = board_x() + BOARD_W as f32;
             let seen = |w: u32| w.saturating_sub(HINT_EDGE) as f32;
             for (tex, w, x) in [
-                (cancel.0, cancel.1, BOARD_X),
+                (cancel.0, cancel.1, board_x()),
                 (swap.0, swap.1, (out_w() as f32 - seen(swap.1)) / 2.0),
                 (choose.0, choose.1, right - seen(choose.1)),
             ] {
                 out.push(Draw::Tex {
                     x: x.round(),
-                    y: CORE_LEGEND_Y,
+                    y: core_legend_y(),
                     w: w as f32,
                     h: HINT_H as f32,
                     tex,
@@ -2112,7 +2122,7 @@ impl App {
         if let Some((tex, w, h)) = line {
             out.push(Draw::Tex {
                 x: ((out_w() as f32 - w as f32) / 2.0).round(),
-                y: LINK_TEXT_Y,
+                y: link_text_y(),
                 w: w as f32,
                 h: h as f32,
                 tex,
@@ -2145,7 +2155,7 @@ impl App {
         for (tex, w) in faces {
             out.push(Draw::Tex {
                 x,
-                y: LINK_LEGEND_Y,
+                y: link_legend_y(),
                 w: w as f32,
                 h: HINT_H as f32,
                 tex,

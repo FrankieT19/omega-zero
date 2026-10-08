@@ -18,7 +18,7 @@ fn every_face_is_the_size_the_layout_expects() {
         assert_eq!((plug.w, plug.h), (PLUG_W, PLUG_H));
     }
     assert_eq!((a.adapter.w, a.adapter.h), (ADAPTER_W, ADAPTER_H));
-    for (i, (_, _, w, h)) in ARCS.iter().enumerate() {
+    for (i, (_, _, w, h)) in arcs().iter().enumerate() {
         assert_eq!((a.arcs_right[i].w, a.arcs_right[i].h), (*w, *h));
         assert_eq!((a.arcs_left[i].w, a.arcs_left[i].h), (*w, *h));
     }
