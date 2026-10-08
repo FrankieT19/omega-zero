@@ -72,6 +72,23 @@ tasks:
       - sh card/test-coresave.sh
       - sh card/test-probe.sh
 
+  screens:
+    desc: >-
+      Draw slot's main screens headless into OUT, defaults to target/screens. Run it with
+      OUT=target/screens-baseline before a change and screens:compare after it
+    vars:
+      OUT: '{{.OUT | default "target/screens"}}'
+    cmds:
+      - cargo run -q --release --example screens -p slot -- {{.OUT}}
+
+  screens:compare:
+    desc: Draw the screens again and fail on any pixel that differs from BASELINE, defaults to target/screens-baseline
+    vars:
+      OUT: '{{.OUT | default "target/screens"}}'
+      BASELINE: '{{.BASELINE | default "target/screens-baseline"}}'
+    cmds:
+      - cargo run -q --release --example screens -p slot -- {{.OUT}} {{.BASELINE}}
+
   core:
     desc: >-
       Build mGBA and fetch gpSP for this host. A missing core silently runs the mock (a test
