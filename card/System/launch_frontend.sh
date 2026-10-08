@@ -17,6 +17,11 @@ fi
 
 echo "|/bin/sh $SYS/coresave.sh %p %s %e %t" > /proc/sys/kernel/core_pattern 2>/dev/null
 
+if [ -f "$SD/RUN_PROBE" ]; then
+	rm -f "$SD/RUN_PROBE"
+	log "probe $(AGS_PROBE_NET_WAIT_S=15 sh "$SYS/probe.sh" 2>&1)"
+fi
+
 [ -f "$SD/slot.log" ] && mv -f "$SD/slot.log" "$SD/slot.log.1"
 log "exec $SYS/slot"
 

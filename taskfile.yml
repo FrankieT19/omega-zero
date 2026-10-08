@@ -70,6 +70,7 @@ tasks:
       - sh card/test-slotlink.sh
       - sh card/test-led.sh
       - sh card/test-coresave.sh
+      - sh card/test-probe.sh
 
   core:
     desc: >-
