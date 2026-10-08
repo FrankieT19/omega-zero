@@ -1,3 +1,4 @@
+use crate::canvas::canvas;
 use crate::surface::{GfxError, Surface};
 use glutin::config::{Config, ConfigTemplateBuilder, GlConfig};
 use glutin::context::{
@@ -13,8 +14,13 @@ use std::num::NonZeroU32;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::Window;
 
-const DEFAULT_W: u32 = 1440;
-const DEFAULT_H: u32 = 960;
+/// The window opens at twice the canvas, or at the canvas itself when twice would not fit a
+/// laptop screen.
+fn default_size() -> (u32, u32) {
+    let c = canvas();
+    let scale = if c.h > 480 { 1 } else { 2 };
+    (c.w * scale, c.h * scale)
+}
 
 pub struct HostSurface {
     window: Window,
@@ -35,7 +41,7 @@ impl HostSurface {
     pub fn new(events: &ActiveEventLoop) -> Result<Self, GfxError> {
         let mut attrs = Window::default_attributes()
             .with_title("slot.")
-            .with_inner_size(winit::dpi::PhysicalSize::new(DEFAULT_W, DEFAULT_H));
+            .with_inner_size(winit::dpi::PhysicalSize::<u32>::from(default_size()));
         if bare() {
             attrs = attrs.with_decorations(false);
         }

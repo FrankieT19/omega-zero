@@ -5,7 +5,7 @@ mod common;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use slot::app::App;
-use slot_gfx::{Compositor, HeadlessSurface, TexId, OUT_H, OUT_W};
+use slot_gfx::{out_h, out_w, Compositor, HeadlessSurface, TexId};
 use slot_input::{Action, Btn};
 use slot_store::{write_slot_state, Core, Platform, SlotState};
 use slot_ui::{
@@ -114,7 +114,7 @@ fn shot(app: &App, c: &mut Compositor, name: &str) -> Vec<u8> {
     if let Ok(dir) = std::env::var("SCRATCH_PNG_DIR") {
         let path = format!("{dir}/shelf-{name}.png");
         let file = std::fs::File::create(&path).expect("create png");
-        let mut e = png::Encoder::new(std::io::BufWriter::new(file), OUT_W, OUT_H);
+        let mut e = png::Encoder::new(std::io::BufWriter::new(file), out_w(), out_h());
         e.set_color(png::ColorType::Rgba);
         e.set_depth(png::BitDepth::Eight);
         e.write_header()
@@ -249,14 +249,14 @@ fn cartridge_rows(px: &[u8]) -> Option<(usize, usize)> {
             .iter()
             .any(|f| (0..3).all(|k| px[o + k].abs_diff((f[k] * 255.0).round() as u8) <= 8))
     };
-    let mut rows = (0..OUT_H as usize)
-        .filter(|y| (0..OUT_W as usize).any(|x| cart((y * OUT_W as usize + x) * 4)));
+    let mut rows = (0..out_h() as usize)
+        .filter(|y| (0..out_w() as usize).any(|x| cart((y * out_w() as usize + x) * 4)));
     let first = rows.next()?;
     Some((first, rows.next_back().unwrap_or(first)))
 }
 
 fn centre(px: &[u8], row: usize) -> [u8; 3] {
-    let o = (row * OUT_W as usize + (OUT_W / 2) as usize) * 4;
+    let o = (row * out_w() as usize + (out_w() / 2) as usize) * 4;
     [px[o], px[o + 1], px[o + 2]]
 }
 

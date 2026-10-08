@@ -1,6 +1,6 @@
 use slot_ui::{
-    ease, Draw, Millis, TexId, ADAPTER_BASE_X, ADAPTER_BASE_Y, ARCS, ARROW_LEFT_X, ARROW_RIGHT_X,
-    ARROW_Y, CLICKS_X, CLICKS_Y, OUT_W, PLUG_H, PLUG_TIP_X, PORT_Y,
+    ease, out_w, Draw, Millis, TexId, ADAPTER_BASE_X, ADAPTER_BASE_Y, ARCS, ARROW_LEFT_X,
+    ARROW_RIGHT_X, ARROW_Y, CLICKS_X, CLICKS_Y, PLUG_H, PLUG_TIP_X, PORT_Y,
 };
 
 use crate::app::{GameMenu, LinkRow};
@@ -184,7 +184,7 @@ pub fn draw_link_art(
 ) {
     let host = role_of(menu) == LinkRow::Host;
     let alpha = art_alpha(menu, now);
-    let centre = OUT_W as f32 / 2.0;
+    let centre = out_w() as f32 / 2.0;
     match kind {
         LinkKind::Cable => {
             let tip = plug_tip(menu, now);
@@ -227,7 +227,13 @@ pub fn draw_link_art(
                 }
                 let (x, y, w, _) = ARCS[i];
                 tex(out, s.arcs_right[i], x, y + dy, a);
-                tex(out, s.arcs_left[i], OUT_W as f32 - x - w as f32, y + dy, a);
+                tex(
+                    out,
+                    s.arcs_left[i],
+                    out_w() as f32 - x - w as f32,
+                    y + dy,
+                    a,
+                );
             }
         }
     }

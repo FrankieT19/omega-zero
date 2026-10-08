@@ -19,7 +19,7 @@ use slot::session::Session;
 use slot_input::{Action, Btn, Millis, RawEvent};
 use slot_retro::{ButtonMask, LinkChannel};
 use slot_store::{write_slot_state, Core, Platform, SlotState};
-use slot_ui::{arrows_hint_face, hint_face, opening, Draw, TexId, Toast, HINT_EDGE, OUT_H, OUT_W};
+use slot_ui::{arrows_hint_face, hint_face, opening, out_h, out_w, Draw, TexId, Toast, HINT_EDGE};
 use tempfile::TempDir;
 
 const BAIL: Duration = Duration::from_secs(5);
@@ -485,7 +485,7 @@ fn the_link_screen_draws_its_role_over_the_game() {
         .iter()
         .position(|d| {
             matches!(*d, Draw::Rect { w, h, colour, .. }
-        if w == OUT_W as f32 && h == OUT_H as f32 && colour == opening())
+        if w == out_w() as f32 && h == out_h() as f32 && colour == opening())
         })
         .expect("the screen drew no ground over the game");
     let host = out
@@ -1250,11 +1250,12 @@ fn pick_names_cancel_mode_swap_and_link_across_the_strip() {
     let (x, w, _) = keys[keys.len() - 1];
     let right = x + w - HINT_EDGE as f32;
     println!(
-        "pick legend: faces {:?} wide, drawn from x {left} to {right} of {OUT_W}",
-        keys.iter().map(|k| k.1).collect::<Vec<_>>()
+        "pick legend: faces {:?} wide, drawn from x {left} to {right} of {}",
+        keys.iter().map(|k| k.1).collect::<Vec<_>>(),
+        out_w()
     );
     assert!(
-        left >= 0.0 && right <= OUT_W as f32,
+        left >= 0.0 && right <= out_w() as f32,
         "the legend runs off the strip: {left}..{right}"
     );
 }

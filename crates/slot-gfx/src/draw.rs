@@ -1,6 +1,7 @@
+use crate::canvas::{out_h, out_w};
 use crate::quad::Quad;
 use crate::shaders::{SPRITE_FRAG, SPRITE_VERT};
-use crate::surface::{GfxError, OUT_H, OUT_W};
+use crate::surface::GfxError;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct TexId(usize);
@@ -70,8 +71,8 @@ impl Sprites {
             gl::Uniform1i(crate::gl::uniform_location(prog, "u_tex"), 0);
             gl::Uniform2f(
                 crate::gl::uniform_location(prog, "u_target"),
-                OUT_W as f32,
-                OUT_H as f32,
+                out_w() as f32,
+                out_h() as f32,
             );
             u_rect = crate::gl::uniform_location(prog, "u_rect");
             u_colour = crate::gl::uniform_location(prog, "u_colour");

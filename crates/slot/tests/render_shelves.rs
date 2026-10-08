@@ -8,7 +8,7 @@ use std::path::Path;
 use common::{clocked, repo_root, tmp_root_with_carts};
 use slot::app::{App, SEATED_AT};
 use slot::frontend::Frontend;
-use slot_gfx::{Compositor, HeadlessSurface, OUT_H, OUT_W};
+use slot_gfx::{out_h, out_w, Compositor, HeadlessSurface};
 use slot_input::{Action, Btn, InputSource, Millis, RawEvent};
 use slot_power::SimPlatform;
 use slot_store::{Cart, Platform as CartPlatform};
@@ -33,7 +33,7 @@ fn tap(f: &mut Frontend, input: &mut Script, btn: Btn) {
 }
 
 fn at(px: &[u8], x: usize, y: usize) -> [u8; 3] {
-    let o = (y * OUT_W as usize + x) * 4;
+    let o = (y * out_w() as usize + x) * 4;
     [px[o], px[o + 1], px[o + 2]]
 }
 
@@ -64,14 +64,14 @@ fn banner_ink(px: &[u8]) -> usize {
 }
 
 fn hud_ink(px: &[u8]) -> usize {
-    ((OUT_H as usize - 40)..OUT_H as usize)
-        .flat_map(|y| (0..OUT_W as usize).map(move |x| (x, y)))
+    ((out_h() as usize - 40)..out_h() as usize)
+        .flat_map(|y| (0..out_w() as usize).map(move |x| (x, y)))
         .filter(|(x, y)| at(px, *x, *y).iter().all(|c| *c > 0x80))
         .count()
 }
 
 fn name_window() -> (usize, usize, usize, usize) {
-    (OUT_W as usize / 2 - 70, OUT_H as usize - 49, 140, 27)
+    (out_w() as usize / 2 - 70, out_h() as usize - 49, 140, 27)
 }
 
 fn name_pixels(px: &[u8]) -> Vec<[u8; 3]> {
@@ -102,7 +102,7 @@ fn composed(f: &mut Frontend, c: &mut Compositor, name: &str) -> Vec<u8> {
     if let Ok(dir) = std::env::var("SCRATCH_PNG_DIR") {
         let path = format!("{dir}/shelves-{name}.png");
         let file = std::fs::File::create(&path).expect("create png");
-        let mut e = png::Encoder::new(std::io::BufWriter::new(file), OUT_W, OUT_H);
+        let mut e = png::Encoder::new(std::io::BufWriter::new(file), out_w(), out_h());
         e.set_color(png::ColorType::Rgba);
         e.set_depth(png::BitDepth::Eight);
         e.write_header()
@@ -136,7 +136,7 @@ fn gb_rom(cgb: u8) -> Vec<u8> {
 
 fn on_the_lone_pak(down: u32) -> (usize, usize) {
     (
-        (OUT_W / 2) as usize,
+        (out_w() / 2) as usize,
         (rest_y(GB_CART_H as f32) + down as f32) as usize,
     )
 }
@@ -491,8 +491,8 @@ fn a_scrolled_row_slides_by_a_pitch_rather_than_swapping_its_carts() {
             );
             let row: Vec<f32> = runs
                 .iter()
-                .filter(|(a, b)| *a > 0 && *b < OUT_W as usize - 1)
-                .map(|(a, b)| ((a + b) as f32 / 2.0 - OUT_W as f32 / 2.0) / CART_W as f32)
+                .filter(|(a, b)| *a > 0 && *b < out_w() as usize - 1)
+                .map(|(a, b)| ((a + b) as f32 / 2.0 - out_w() as f32 / 2.0) / CART_W as f32)
                 .collect();
             assert!(
                 !row.is_empty(),
@@ -545,7 +545,7 @@ fn row_runs(px: &[u8]) -> Vec<(usize, usize)> {
         })
     };
     let mut runs: Vec<(usize, usize)> = Vec::new();
-    for x in 0..OUT_W as usize {
+    for x in 0..out_w() as usize {
         match runs.last_mut() {
             Some(run) if run.1 + 1 == x && lit(x) => run.1 = x,
             _ if lit(x) => runs.push((x, x)),
@@ -559,8 +559,8 @@ fn span(px: &[u8], ink: [u8; 3]) -> (f32, usize) {
     let close = |c: [u8; 3]| (0..3).all(|k| c[k].abs_diff(ink[k]) <= 24);
     let mut cols: Vec<usize> = Vec::new();
     let mut bottom = 0;
-    for y in 0..OUT_H as usize {
-        for x in 0..OUT_W as usize {
+    for y in 0..out_h() as usize {
+        for x in 0..out_w() as usize {
             if close(at(px, x, y)) {
                 cols.push(x);
                 bottom = y;
@@ -592,7 +592,7 @@ fn frame_named(c: &mut Compositor, out: &[Draw], name: Option<&str>) -> Vec<u8> 
     if let (Some(name), Ok(dir)) = (name, std::env::var("SCRATCH_PNG_DIR")) {
         let path = format!("{dir}/shelves-{name}.png");
         let file = std::fs::File::create(&path).expect("create png");
-        let mut e = png::Encoder::new(std::io::BufWriter::new(file), OUT_W, OUT_H);
+        let mut e = png::Encoder::new(std::io::BufWriter::new(file), out_w(), out_h());
         e.set_color(png::ColorType::Rgba);
         e.set_depth(png::BitDepth::Eight);
         e.write_header()
@@ -643,7 +643,7 @@ fn label_top(p: CartPlatform) -> usize {
 fn paper_rows(px: &[u8], ink: [u8; 3]) -> Option<(usize, usize)> {
     let close = |c: [u8; 3]| (0..3).all(|k| c[k].abs_diff(ink[k]) <= 24);
     let mut rows =
-        (0..OUT_H as usize).filter(|y| (0..OUT_W as usize).any(|x| close(at(px, x, *y))));
+        (0..out_h() as usize).filter(|y| (0..out_w() as usize).any(|x| close(at(px, x, *y))));
     let first = rows.next()?;
     Some((first, rows.next_back().unwrap_or(first)))
 }
@@ -662,7 +662,8 @@ fn shell_rows(px: &[u8]) -> Option<(usize, usize)> {
             })
         })
     };
-    let mut rows = (0..OUT_H as usize).filter(|y| (0..OUT_W as usize).any(|x| cart(at(px, x, *y))));
+    let mut rows =
+        (0..out_h() as usize).filter(|y| (0..out_w() as usize).any(|x| cart(at(px, x, *y))));
     let first = rows.next()?;
     Some((first, rows.next_back().unwrap_or(first)))
 }
@@ -694,7 +695,7 @@ fn both_cartridges_go_into_the_slot_at_their_own_size() {
         );
         let tex = c.create_texture(face.w, face.h, &face.rgba);
         let ink = label_colour(&clean_label(&cart.stem));
-        let rest = (OUT_W - w) as f32 / 2.0;
+        let rest = (out_w() - w) as f32 / 2.0;
 
         for (beat, seat) in beats {
             let mut out = Vec::new();
@@ -785,7 +786,7 @@ fn no_frame_of_the_travel_jumps_further_than_the_cartridge_is_tall() {
                 SlotChrome {
                     cart: &cart,
                     face: None,
-                    rest: (OUT_W - w) as f32 / 2.0,
+                    rest: (out_w() - w) as f32 / 2.0,
                     scale: 1.0,
                     seat: (f as f32 / 27.0).min(1.0),
                     alert: None,

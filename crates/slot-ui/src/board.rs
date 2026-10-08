@@ -1,4 +1,4 @@
-use slot_gfx::OUT_W;
+use slot_gfx::out_w;
 use slot_store::{Cart, Core};
 
 use crate::art;
@@ -195,7 +195,7 @@ pub struct Placed {
 }
 
 pub fn shelf_cart() -> Placed {
-    shelf_cart_at((OUT_W - CART_W) as f32 / 2.0, 1.0)
+    shelf_cart_at((out_w() - CART_W) as f32 / 2.0, 1.0)
 }
 
 pub fn shelf_cart_at(x: f32, scale: f32) -> Placed {

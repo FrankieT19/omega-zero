@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use common::{clocked, core_lock, repo_root, tmp_root_with_gb_carts};
 use slot::frontend::Frontend;
-use slot_gfx::{Compositor, HeadlessSurface, OUT_H, OUT_W};
+use slot_gfx::{out_h, out_w, Compositor, HeadlessSurface};
 use slot_input::{Btn, InputSource, Millis, RawEvent};
 use slot_power::SimPlatform;
 use slot_store::{Core, Platform};
@@ -22,7 +22,7 @@ impl InputSource for Script {
 }
 
 fn at(px: &[u8], x: usize, y: usize) -> [u8; 3] {
-    let o = (y * OUT_W as usize + x) * 4;
+    let o = (y * out_w() as usize + x) * 4;
     [px[o], px[o + 1], px[o + 2]]
 }
 
@@ -52,12 +52,12 @@ fn write_png(name: &str, w: u32, h: u32, rgba: &[u8]) {
 }
 
 fn side_by_side(left: &[u8], right: &[u8], gap: usize) -> (u32, u32, Vec<u8>) {
-    let w = OUT_W as usize * 2 + gap;
-    let mut out = vec![0u8; w * OUT_H as usize * 4];
-    for y in 0..OUT_H as usize {
+    let w = out_w() as usize * 2 + gap;
+    let mut out = vec![0u8; w * out_h() as usize * 4];
+    for y in 0..out_h() as usize {
         let row = y * w * 4;
-        let src = y * OUT_W as usize * 4;
-        let line = OUT_W as usize * 4;
+        let src = y * out_w() as usize * 4;
+        let line = out_w() as usize * 4;
         out[row..row + line].copy_from_slice(&left[src..src + line]);
         let over = row + line;
         for p in out[over..over + gap * 4].chunks_exact_mut(4) {
@@ -66,7 +66,7 @@ fn side_by_side(left: &[u8], right: &[u8], gap: usize) -> (u32, u32, Vec<u8>) {
         let from = over + gap * 4;
         out[from..from + line].copy_from_slice(&right[src..src + line]);
     }
-    (w as u32, OUT_H, out)
+    (w as u32, out_h(), out)
 }
 
 fn zoom(
@@ -157,29 +157,29 @@ fn l_fills_the_panel_and_r_gives_back_the_centred_picture() {
 
     f.compose(&mut c);
     let actual = c.read_frame();
-    write_png("picture-actual", OUT_W, OUT_H, &actual);
+    write_png("picture-actual", out_w(), out_h(), &actual);
 
-    let mid_y = OUT_H as usize / 2 - 40..OUT_H as usize / 2 + 40;
+    let mid_y = out_h() as usize / 2 - 40..out_h() as usize / 2 + 40;
     assert!(
-        lit(&actual, BAR_W..OUT_W as usize - BAR_W, mid_y.clone()) > 1000,
+        lit(&actual, BAR_W..out_w() as usize - BAR_W, mid_y.clone()) > 1000,
         "nothing is playing: the panel is dark where the picture should be"
     );
     assert_eq!(
-        lit(&actual, 0..BAR_W, 0..OUT_H as usize),
+        lit(&actual, 0..BAR_W, 0..out_h() as usize),
         0,
         "actual size has something in the left margin"
     );
     assert_eq!(
         lit(
             &actual,
-            OUT_W as usize - BAR_W..OUT_W as usize,
-            0..OUT_H as usize
+            out_w() as usize - BAR_W..out_w() as usize,
+            0..out_h() as usize
         ),
         0,
         "actual size has something in the right margin"
     );
     assert_eq!(
-        lit(&actual, 0..OUT_W as usize, 0..BAR_H),
+        lit(&actual, 0..out_w() as usize, 0..BAR_H),
         0,
         "actual size has something above the picture"
     );
@@ -190,16 +190,16 @@ fn l_fills_the_panel_and_r_gives_back_the_centred_picture() {
     run_for(&mut f, &mut input, 1.0);
     f.compose(&mut c);
     let stretched = c.read_frame();
-    write_png("picture-stretch", OUT_W, OUT_H, &stretched);
+    write_png("picture-stretch", out_w(), out_h(), &stretched);
 
-    let left = lit(&stretched, 0..BAR_W, 0..OUT_H as usize);
-    let top = lit(&stretched, 0..OUT_W as usize, 0..BAR_H);
+    let left = lit(&stretched, 0..BAR_W, 0..out_h() as usize);
+    let top = lit(&stretched, 0..out_w() as usize, 0..BAR_H);
     assert!(
-        left > BAR_W * OUT_H as usize / 4,
+        left > BAR_W * out_h() as usize / 4,
         "the left margin is still mostly empty in fullscreen: {left} lit"
     );
     assert!(
-        top > OUT_W as usize * BAR_H / 4,
+        top > out_w() as usize * BAR_H / 4,
         "the top margin is still mostly empty in fullscreen: {top} lit"
     );
 
@@ -214,14 +214,14 @@ fn l_fills_the_panel_and_r_gives_back_the_centred_picture() {
     run_for(&mut f, &mut input, 1.0);
     f.compose(&mut c);
     let back = c.read_frame();
-    write_png("picture-back", OUT_W, OUT_H, &back);
+    write_png("picture-back", out_w(), out_h(), &back);
     assert_eq!(
-        lit(&back, 0..BAR_W, 0..OUT_H as usize),
+        lit(&back, 0..BAR_W, 0..out_h() as usize),
         0,
         "R did not give the margins back"
     );
     assert!(
-        lit(&back, BAR_W..OUT_W as usize - BAR_W, mid_y) > 1000,
+        lit(&back, BAR_W..out_w() as usize - BAR_W, mid_y) > 1000,
         "R left the panel dark"
     );
 }

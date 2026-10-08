@@ -1,11 +1,13 @@
-use slot_gfx::{Draw, TexId, OUT_H, OUT_W};
+use slot_gfx::{out_h, out_w, Draw, TexId};
 use slot_power::Battery;
 
 use crate::battery::{draw_gauge, GAUGE_H};
 use crate::plate::HINT_H;
 use crate::slot_chrome::MOUTH_H;
 
-const FOOTER_Y: f32 = OUT_H as f32 - MOUTH_H + (MOUTH_H - HINT_H as f32) / 2.0;
+fn footer_y() -> f32 {
+    out_h() as f32 - MOUTH_H + (MOUTH_H - HINT_H as f32) / 2.0
+}
 const FOOTER_MARGIN: f32 = 24.0;
 
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
@@ -30,9 +32,9 @@ pub fn draw_footer(
     clock: Printed,
     out: &mut Vec<Draw>,
 ) {
-    let y = FOOTER_Y + (HINT_H as f32 - GAUGE_H) / 2.0;
+    let y = footer_y() + (HINT_H as f32 - GAUGE_H) / 2.0;
     draw_gauge(FOOTER_MARGIN, y, battery, percent, bolt, out);
-    printed(OUT_W as f32 - FOOTER_MARGIN - clock.w as f32, clock, out);
+    printed(out_w() as f32 - FOOTER_MARGIN - clock.w as f32, clock, out);
 }
 
 pub(crate) fn draw_printed(x: f32, y: f32, p: Printed, out: &mut Vec<Draw>) {
@@ -60,5 +62,5 @@ pub(crate) fn draw_printed(x: f32, y: f32, p: Printed, out: &mut Vec<Draw>) {
 }
 
 fn printed(x: f32, p: Printed, out: &mut Vec<Draw>) {
-    draw_printed(x, FOOTER_Y, p, out);
+    draw_printed(x, footer_y(), p, out);
 }

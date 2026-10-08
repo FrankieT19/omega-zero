@@ -1,4 +1,4 @@
-use slot_gfx::{Draw, TexId, OUT_H, OUT_W};
+use slot_gfx::{out_h, out_w, Draw, TexId};
 use slot_store::Cart;
 
 use crate::cart::{cart_box, gb_shell_of, label_colour, label_text, CART_H, CART_W};
@@ -10,9 +10,9 @@ const SIDE_SCALE: f32 = 0.78;
 const SIDE_ALPHA: f32 = 0.55;
 pub fn rest_y(h: f32) -> f32 {
     if h > CART_H as f32 {
-        (OUT_H as f32 - MOUTH_H - h) / 2.0
+        (out_h() as f32 - MOUTH_H - h) / 2.0
     } else {
-        (OUT_H + CART_H) as f32 / 2.0 - h
+        (out_h() + CART_H) as f32 / 2.0 - h
     }
 }
 
@@ -237,7 +237,7 @@ impl Shelf {
             .map_or(CART_W, |c| cart_box(c.platform).0) as f32;
         let offset = self.scroll_target() - self.scroll;
         let scale = shrink(offset);
-        (OUT_W as f32 / 2.0 + offset * w - w * scale / 2.0, scale)
+        (out_w() as f32 / 2.0 + offset * w - w * scale / 2.0, scale)
     }
 
     pub fn update(&mut self, dt: f32) {
@@ -277,8 +277,8 @@ impl Shelf {
             let (cw, ch) = cart_box(cart.platform);
             let (w, h) = (cw as f32 * scale, ch as f32 * scale);
             let away = offset.signum() * (1.0 + offset.abs());
-            let x = OUT_W as f32 / 2.0 + offset * cw as f32 - w / 2.0 + away * PART * recede;
-            if x + w <= 0.0 || x >= OUT_W as f32 || alpha <= 0.0 {
+            let x = out_w() as f32 / 2.0 + offset * cw as f32 - w / 2.0 + away * PART * recede;
+            if x + w <= 0.0 || x >= out_w() as f32 || alpha <= 0.0 {
                 continue;
             }
             let x = x + shake;

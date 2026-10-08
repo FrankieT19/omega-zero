@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use slot_gfx::{Compositor, Draw, TexId, OUT_H, OUT_W};
+use slot_gfx::{out_h, out_w, Compositor, Draw, TexId};
 use slot_input::{InputSource, Millis};
 use slot_power::{Platform, Power};
 use slot_store::format_stamp;
@@ -269,7 +269,7 @@ impl Frontend {
         else {
             return;
         };
-        let id = compositor.create_texture(OUT_W, OUT_H, &rgba);
+        let id = compositor.create_texture(out_w(), out_h(), &rgba);
         self.session.app_mut().set_wallpaper(id);
     }
 

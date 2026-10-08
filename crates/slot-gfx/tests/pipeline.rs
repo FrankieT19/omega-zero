@@ -1,5 +1,5 @@
 use slot_gfx::{
-    blue_light_gain, lcd3x_mask, Compositor, Draw, HeadlessSurface, OUT_H, OUT_W, SRC_H, SRC_W,
+    blue_light_gain, lcd3x_mask, out_h, out_w, Compositor, Draw, HeadlessSurface, SRC_H, SRC_W,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -13,7 +13,7 @@ fn compositor() -> Option<(MutexGuard<'static, ()>, HeadlessSurface, Compositor)
 }
 
 fn px(frame: &[u8], x: usize, y: usize) -> [u8; 3] {
-    let o = (y * OUT_W as usize + x) * 4;
+    let o = (y * out_w() as usize + x) * 4;
     [frame[o], frame[o + 1], frame[o + 2]]
 }
 
@@ -82,8 +82,8 @@ fn game_pass_multiplies_every_output_cell_by_the_lcd3x_mask() {
 
     let mask = lcd3x_mask();
     let mut worst = 0i32;
-    for y in 0..OUT_H as usize {
-        for x in 0..OUT_W as usize {
+    for y in 0..out_h() as usize {
+        for x in 0..out_w() as usize {
             let got = px(&frame, x, y);
             for (ch, gain) in mask[y % 3][x % 3].iter().enumerate() {
                 let want = (128.0 * gain).round() as i32;
@@ -117,12 +117,12 @@ fn the_game_frame_keeps_its_orientation_from_upload_to_readback() {
     assert_eq!(px(&frame, 3, 0), [0, 0, 0], "bled one cell right");
     assert_eq!(px(&frame, 0, 3), [0, 0, 0], "bled one cell down");
     assert_eq!(
-        px(&frame, 0, OUT_H as usize - 1),
+        px(&frame, 0, out_h() as usize - 1),
         [0, 0, 0],
         "frame is upside down"
     );
     assert_eq!(
-        px(&frame, OUT_W as usize - 1, 0),
+        px(&frame, out_w() as usize - 1, 0),
         [0, 0, 0],
         "frame is mirrored"
     );
@@ -145,17 +145,20 @@ fn the_picture_strikes_as_a_band_at_the_centre_before_it_fills_the_frame() {
     };
 
     let (striking, bright) = peak(&mut c, 0.35);
-    let lit = |frame: &[u8], y: usize| (0..OUT_W as usize).any(|x| px(frame, x, y) != [0, 0, 0]);
-    assert!(lit(&striking, OUT_H as usize / 2), "nothing at the centre");
+    let lit = |frame: &[u8], y: usize| (0..out_w() as usize).any(|x| px(frame, x, y) != [0, 0, 0]);
+    assert!(
+        lit(&striking, out_h() as usize / 2),
+        "nothing at the centre"
+    );
     assert!(!lit(&striking, 1), "the picture already reaches the top");
     assert!(
-        !lit(&striking, OUT_H as usize - 2),
+        !lit(&striking, out_h() as usize - 2),
         "the picture already reaches the bottom"
     );
 
     let (settled, normal) = peak(&mut c, 1.0);
     assert!(
-        lit(&settled, 1) && lit(&settled, OUT_H as usize - 2),
+        lit(&settled, 1) && lit(&settled, out_h() as usize - 2),
         "the settled picture is short"
     );
     assert!(
@@ -173,8 +176,8 @@ fn the_game_marker_draws_the_picture_where_it_sits_in_the_list() {
     let full = |colour: [f32; 4]| Draw::Rect {
         x: 0.0,
         y: 0.0,
-        w: OUT_W as f32,
-        h: OUT_H as f32,
+        w: out_w() as f32,
+        h: out_h() as f32,
         colour,
     };
     c.set_screen_power(1.0);
@@ -190,7 +193,7 @@ fn the_game_marker_draws_the_picture_where_it_sits_in_the_list() {
     c.draw_list(&[Draw::Game, full([0.0, 0.0, 1.0, 1.0])]);
     let over = c.read_frame();
     assert_eq!(
-        px(&over, OUT_W as usize / 2, OUT_H as usize / 2),
+        px(&over, out_w() as usize / 2, out_h() as usize / 2),
         [0, 0, 255],
         "the picture was drawn over the item listed after it"
     );
@@ -209,8 +212,8 @@ fn a_saved_shot_is_drawn_through_the_lcd_pass() {
     c.draw_list(&[Draw::Tex {
         x: 0.0,
         y: 0.0,
-        w: OUT_W as f32,
-        h: OUT_H as f32,
+        w: out_w() as f32,
+        h: out_h() as f32,
         tex,
         alpha: 1.0,
     }]);
@@ -486,8 +489,8 @@ fn fullscreen_puts_the_pictures_corners_in_the_panels_corners() {
     c.draw_game();
     let full = c.read_frame();
 
-    let last_x = OUT_W as usize - 1;
-    let last_y = OUT_H as usize - 1;
+    let last_x = out_w() as usize - 1;
+    let last_y = out_h() as usize - 1;
     for (name, (x, y), rgb) in [
         ("top left", (0, 0), [255, 0, 0]),
         ("top right", (last_x, 0), [0, 255, 0]),
@@ -504,8 +507,8 @@ fn fullscreen_puts_the_pictures_corners_in_the_panels_corners() {
         }
     }
 
-    let strayed = (0..OUT_H as usize).any(|y| {
-        (0..OUT_W as usize).any(|x| {
+    let strayed = (0..out_h() as usize).any(|y| {
+        (0..out_w() as usize).any(|x| {
             let p = px(&full, x, y);
             p[1] > 60 && p[2] > 60 && p[0] < 20
         })
@@ -547,12 +550,12 @@ fn the_mask_period_is_three_pixels_in_both_modes() {
     );
 
     assert_eq!(
-        period_x(&full, 0..OUT_W as usize, 0..OUT_H as usize),
+        period_x(&full, 0..out_w() as usize, 0..out_h() as usize),
         Some(3),
         "fullscreen: the grille does not repeat every 3 px across"
     );
     assert_eq!(
-        period_y(&full, 0..OUT_W as usize, 0..OUT_H as usize),
+        period_y(&full, 0..out_w() as usize, 0..out_h() as usize),
         Some(3),
         "fullscreen: the grille does not repeat every 3 px down"
     );

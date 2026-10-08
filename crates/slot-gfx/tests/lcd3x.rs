@@ -3,8 +3,8 @@ use std::f64::consts::PI;
 
 const SRC_W: usize = 240;
 const SRC_H: usize = 160;
-const OUT_W: usize = 720;
-const OUT_H: usize = 480;
+const REF_W: usize = 720;
+const REF_H: usize = 480;
 const SCALE: usize = 3;
 
 const BRIGHTEN_SCANLINES: f64 = 16.0;
@@ -21,17 +21,17 @@ fn pseudorandom_240x160() -> Vec<u8> {
 }
 
 fn render_reference(src: &[u8]) -> Vec<u8> {
-    let mut out = vec![0u8; OUT_W * OUT_H * 3];
-    for oy in 0..OUT_H {
+    let mut out = vec![0u8; REF_W * REF_H * 3];
+    for oy in 0..REF_H {
         let yfactor = (BRIGHTEN_SCANLINES + (PI * (oy as f64 + 0.5) * 2.0 / 3.0).sin())
             / (BRIGHTEN_SCANLINES + 1.0);
-        for ox in 0..OUT_W {
+        for ox in 0..REF_W {
             for c in 0..3 {
                 let xfactor = (BRIGHTEN_LCD
                     + (PI * (ox as f64 + 0.5) * 2.0 / 3.0 + c as f64 * 2.0 * PI / 3.0).sin())
                     / (BRIGHTEN_LCD + 1.0);
                 let texel = src[((oy / SCALE) * SRC_W + ox / SCALE) * 3 + c] as f64;
-                out[(oy * OUT_W + ox) * 3 + c] = (texel * yfactor * xfactor).round() as u8;
+                out[(oy * REF_W + ox) * 3 + c] = (texel * yfactor * xfactor).round() as u8;
             }
         }
     }
@@ -39,13 +39,13 @@ fn render_reference(src: &[u8]) -> Vec<u8> {
 }
 
 fn render_with_mask(src: &[u8], mask: &[[[f32; 3]; 3]; 3]) -> Vec<u8> {
-    let mut out = vec![0u8; OUT_W * OUT_H * 3];
-    for oy in 0..OUT_H {
-        for ox in 0..OUT_W {
+    let mut out = vec![0u8; REF_W * REF_H * 3];
+    for oy in 0..REF_H {
+        for ox in 0..REF_W {
             let cell = &mask[oy % 3][ox % 3];
             for c in 0..3 {
                 let texel = src[((oy / SCALE) * SRC_W + ox / SCALE) * 3 + c] as f32;
-                out[(oy * OUT_W + ox) * 3 + c] = (texel * cell[c]).round() as u8;
+                out[(oy * REF_W + ox) * 3 + c] = (texel * cell[c]).round() as u8;
             }
         }
     }

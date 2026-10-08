@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use slot::frontend::Frontend;
 use slot::video_mode::{source_rect, VideoMode};
-use slot_gfx::{Compositor, HeadlessSurface, OUT_H, OUT_W};
+use slot_gfx::{out_h, out_w, Compositor, HeadlessSurface};
 use slot_input::{Btn, InputSource, Millis, RawEvent};
 use slot_power::SimPlatform;
 use slot_store::{write_slot_state, Platform, SlotState};
@@ -236,7 +236,7 @@ fn still_frame() -> Vec<u8> {
 
 fn write_png(path: &Path, rgba: &[u8]) {
     let file = std::fs::File::create(path).expect("create the png");
-    let mut e = png::Encoder::new(std::io::BufWriter::new(file), OUT_W, OUT_H);
+    let mut e = png::Encoder::new(std::io::BufWriter::new(file), out_w(), out_h());
     e.set_color(png::ColorType::Rgba);
     e.set_depth(png::BitDepth::Eight);
     e.write_header()
@@ -259,9 +259,11 @@ fn compare(name: &str, rgba: &[u8], baseline: &Path) -> Result<(), String> {
     let Some((w, h, want)) = read_png(&path) else {
         return Err(format!("{name}: no baseline at {}", path.display()));
     };
-    if (w, h) != (OUT_W, OUT_H) {
+    if (w, h) != (out_w(), out_h()) {
         return Err(format!(
-            "{name}: baseline is {w}x{h}, the shot is {OUT_W}x{OUT_H}"
+            "{name}: baseline is {w}x{h}, the shot is {}x{}",
+            out_w(),
+            out_h()
         ));
     }
     let differ = rgba

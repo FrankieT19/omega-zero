@@ -1,8 +1,9 @@
+use crate::canvas::{out_h, out_w};
 use crate::lcd3x::mask_texture_rgba8;
 use crate::power::{screen_brightness, screen_rect};
 use crate::quad::Quad;
 use crate::shaders::{GAME_FRAG, RECT_VERT};
-use crate::surface::{GfxError, OUT_H, OUT_W};
+use crate::surface::GfxError;
 
 /// The whole-number scale the LCD mask is drawn for, three panel pixels to a game pixel.
 pub const SCALE: u32 = 3;
@@ -47,8 +48,8 @@ impl GamePass {
             );
             gl::Uniform2f(
                 crate::gl::uniform_location(prog, "u_target"),
-                OUT_W as f32,
-                OUT_H as f32,
+                out_w() as f32,
+                out_h() as f32,
             );
             u_rect = crate::gl::uniform_location(prog, "u_rect");
             u_bright = crate::gl::uniform_location(prog, "u_bright");

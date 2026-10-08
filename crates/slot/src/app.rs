@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use slot_gfx::{OUT_H, OUT_W};
+use slot_gfx::{out_h, out_w};
 use slot_input::{Action, Btn, MUTE_CHORD_MS};
 use slot_power::{Battery, Charge, LedState, LidPolicy, Power};
 use slot_retro::LinkChannel;
@@ -1684,8 +1684,8 @@ impl App {
             out.push(Draw::Rect {
                 x: 0.0,
                 y: 0.0,
-                w: OUT_W as f32,
-                h: OUT_H as f32,
+                w: out_w() as f32,
+                h: out_h() as f32,
                 colour: [0.0, 0.0, 0.0, 1.0],
             });
             let which = if self.restarting {
@@ -1695,8 +1695,8 @@ impl App {
             };
             if let Some((tex, w, h)) = self.shutdown_faces.get(which.index()).copied() {
                 out.push(Draw::Tex {
-                    x: ((OUT_W - w) / 2) as f32,
-                    y: ((OUT_H - h) / 2) as f32,
+                    x: ((out_w() - w) / 2) as f32,
+                    y: ((out_h() - h) / 2) as f32,
                     w: w as f32,
                     h: h as f32,
                     tex,
@@ -1788,8 +1788,8 @@ impl App {
                 out.push(Draw::Rect {
                     x: 0.0,
                     y: 0.0,
-                    w: OUT_W as f32,
-                    h: OUT_H as f32,
+                    w: out_w() as f32,
+                    h: out_h() as f32,
                     colour: [0.0, 0.0, 0.0, 1.0],
                 });
                 return;
@@ -1932,8 +1932,8 @@ impl App {
         out.push(Draw::Rect {
             x: 0.0,
             y: 0.0,
-            w: OUT_W as f32,
-            h: OUT_H as f32,
+            w: out_w() as f32,
+            h: out_h() as f32,
             colour: slot_ui::opening(),
         });
         draw_menu_rows(
@@ -2071,7 +2071,7 @@ impl App {
             let seen = |w: u32| w.saturating_sub(HINT_EDGE) as f32;
             for (tex, w, x) in [
                 (cancel.0, cancel.1, BOARD_X),
-                (swap.0, swap.1, (OUT_W as f32 - seen(swap.1)) / 2.0),
+                (swap.0, swap.1, (out_w() as f32 - seen(swap.1)) / 2.0),
                 (choose.0, choose.1, right - seen(choose.1)),
             ] {
                 out.push(Draw::Tex {
@@ -2090,8 +2090,8 @@ impl App {
         out.push(Draw::Rect {
             x: 0.0,
             y: 0.0,
-            w: OUT_W as f32,
-            h: OUT_H as f32,
+            w: out_w() as f32,
+            h: out_h() as f32,
             colour: slot_ui::opening(),
         });
         if let Some(sprites) = &self.link_sprites {
@@ -2111,7 +2111,7 @@ impl App {
         };
         if let Some((tex, w, h)) = line {
             out.push(Draw::Tex {
-                x: ((OUT_W as f32 - w as f32) / 2.0).round(),
+                x: ((out_w() as f32 - w as f32) / 2.0).round(),
                 y: LINK_TEXT_Y,
                 w: w as f32,
                 h: h as f32,
@@ -2141,7 +2141,7 @@ impl App {
         let seen = |w: u32| w.saturating_sub(HINT_EDGE) as f32;
         let total: f32 = faces.iter().map(|(_, w)| seen(*w)).sum::<f32>()
             + LINK_LEGEND_GAP * faces.len().saturating_sub(1) as f32;
-        let mut x = ((OUT_W as f32 - total) / 2.0).round();
+        let mut x = ((out_w() as f32 - total) / 2.0).round();
         for (tex, w) in faces {
             out.push(Draw::Tex {
                 x,
@@ -3130,7 +3130,7 @@ fn free_stamp(ring: &StateRing, now: i64) -> String {
 }
 
 fn centred_top(rows: usize) -> f32 {
-    (OUT_H as f32 - POWER_MENU_PITCH * rows as f32) / 2.0
+    (out_h() as f32 - POWER_MENU_PITCH * rows as f32) / 2.0
 }
 
 fn draw_menu_rows(
@@ -3141,7 +3141,7 @@ fn draw_menu_rows(
 ) {
     for (row, (tex, w, h)) in faces.iter().copied().enumerate() {
         let y = top + POWER_MENU_PITCH * row as f32;
-        let x = ((OUT_W as f32 - w as f32) / 2.0).round();
+        let x = ((out_w() as f32 - w as f32) / 2.0).round();
         if index == Some(row) {
             out.push(Draw::Rect {
                 x,

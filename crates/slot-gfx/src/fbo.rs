@@ -1,9 +1,10 @@
+use crate::canvas::{out_h, out_w};
 use crate::draw::{Draw, Sprites, TexId};
 use crate::grade::blue_light_gain;
 use crate::pipeline::GamePass;
 use crate::quad::Quad;
 use crate::shaders::{BLIT_FRAG, BLIT_VERT};
-use crate::surface::{blit_rect, GfxError, Surface, OUT_H, OUT_W};
+use crate::surface::{blit_rect, GfxError, Surface};
 
 pub const BACKDROP: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 
@@ -23,7 +24,14 @@ impl Compositor {
     pub fn new(surface: &dyn Surface) -> Result<Self, GfxError> {
         crate::gl::load(surface);
         let blit = crate::shaders::program(BLIT_VERT, BLIT_FRAG)?;
-        let tex = crate::gl::texture(OUT_W, OUT_H, gl::NEAREST, gl::CLAMP_TO_EDGE, gl::RGBA, None);
+        let tex = crate::gl::texture(
+            out_w(),
+            out_h(),
+            gl::NEAREST,
+            gl::CLAMP_TO_EDGE,
+            gl::RGBA,
+            None,
+        );
         unsafe {
             let mut fbo = 0;
             gl::GenFramebuffers(1, &mut fbo);
@@ -119,16 +127,16 @@ impl Compositor {
     }
 
     pub fn read_frame(&self) -> Vec<u8> {
-        let stride = OUT_W as usize * 4;
-        let mut buf = vec![0u8; stride * OUT_H as usize];
+        let stride = out_w() as usize * 4;
+        let mut buf = vec![0u8; stride * out_h() as usize];
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, self.fbo);
             gl::PixelStorei(gl::PACK_ALIGNMENT, 1);
             gl::ReadPixels(
                 0,
                 0,
-                OUT_W as i32,
-                OUT_H as i32,
+                out_w() as i32,
+                out_h() as i32,
                 gl::RGBA,
                 gl::UNSIGNED_BYTE,
                 buf.as_mut_ptr() as *mut std::ffi::c_void,
@@ -144,7 +152,7 @@ impl Compositor {
     pub fn begin_frame(&mut self) {
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, self.fbo);
-            gl::Viewport(0, 0, OUT_W as i32, OUT_H as i32);
+            gl::Viewport(0, 0, out_w() as i32, out_h() as i32);
             gl::ClearColor(BACKDROP[0], BACKDROP[1], BACKDROP[2], BACKDROP[3]);
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }

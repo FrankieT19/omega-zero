@@ -8,8 +8,8 @@ use slot::app::{App, Phase};
 use slot_input::{Action, Btn};
 use slot_store::{read_slot_state, write_slot_state, SlotState};
 use slot_ui::{
-    edge, Draw, Icon, QuickMenuFaces, QuickRow, QuickValue, TexId, MENU_PAD, OUT_W, QUICK_EDGE,
-    QUICK_PITCH, QUICK_TOP,
+    edge, out_w, quick_top, Draw, Icon, QuickMenuFaces, QuickRow, QuickValue, TexId, MENU_PAD,
+    QUICK_EDGE, QUICK_PITCH,
 };
 use tempfile::TempDir;
 
@@ -468,10 +468,10 @@ fn the_bar_runs_edge_to_edge_behind_the_selected_row() {
                 _ => None,
             })
             .collect();
-        let top = QUICK_TOP + QUICK_PITCH * row.index() as f32;
+        let top = quick_top() + QUICK_PITCH * row.index() as f32;
         assert_eq!(
             bars,
-            vec![[0.0, top + 4.0, OUT_W as f32, QUICK_PITCH - 8.0]],
+            vec![[0.0, top + 4.0, out_w() as f32, QUICK_PITCH - 8.0]],
             "{row:?}"
         );
         press(&mut a, Btn::Down);
@@ -484,7 +484,7 @@ fn labels_start_and_values_end_thirty_two_pixels_in() {
     fake_faces(&mut a);
     a.apply(Action::QuickMenu);
     let out = frame(&a);
-    let right = OUT_W as f32 - QUICK_EDGE;
+    let right = out_w() as f32 - QUICK_EDGE;
     for row in QuickRow::ALL {
         let [x, ..] = placed(&out, 100 + row.index()).expect("a label was not drawn");
         assert_eq!(x + MENU_PAD as f32, QUICK_EDGE, "{row:?}'s label");

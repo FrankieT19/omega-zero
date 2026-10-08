@@ -1,14 +1,16 @@
 use slot_store::{Cart, Platform};
 use slot_ui::{
-    cart_box, draw_empty_slot, edge, foot_y, housing, icon_box, opening, recess, seated_box, Draw,
-    Shelf, SlotChrome, TexId, ALERT_PX, CART_H, CART_W, GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y,
-    MOUTH_H, OUT_H, OUT_W,
+    cart_box, draw_empty_slot, edge, foot_y, housing, icon_box, opening, out_h, out_w, recess,
+    seated_box, Draw, Shelf, SlotChrome, TexId, ALERT_PX, CART_H, CART_W, GB_LABEL_H, GB_LABEL_Y,
+    LABEL_H, LABEL_Y, MOUTH_H,
 };
 
-const CENTRED: f32 = (OUT_W - CART_W) as f32 / 2.0;
+fn centre_x() -> f32 {
+    (out_w() - CART_W) as f32 / 2.0
+}
 
 fn centred(c: &Cart) -> f32 {
-    (OUT_W - cart_box(c.platform).0) as f32 / 2.0
+    (out_w() - cart_box(c.platform).0) as f32 / 2.0
 }
 
 fn cart() -> Cart {
@@ -64,8 +66,8 @@ fn quad(d: &Draw) -> Quad {
         Draw::Game | Draw::Shot { .. } => Quad {
             x: 0.0,
             y: 0.0,
-            w: OUT_W as f32,
-            h: OUT_H as f32,
+            w: out_w() as f32,
+            h: out_h() as f32,
         },
     }
 }
@@ -73,7 +75,7 @@ fn quad(d: &Draw) -> Quad {
 fn is_cart(d: &Draw) -> bool {
     let cover = matches!(*d, Draw::Rect { colour, .. } if colour == [0.0, 0.0, 0.0, 1.0]);
     !(is_mouth(d) || is_lip(d) || is_housing(d) || tinted(d, recess()) || cover)
-        && quad(d).w < OUT_W as f32
+        && quad(d).w < out_w() as f32
 }
 
 fn is_game_layer(d: &Draw) -> bool {
@@ -160,7 +162,7 @@ fn a_cart_the_row_had_not_finished_moving_slides_across_as_it_goes_in() {
     shelf.update(1.0 / 60.0);
     let (rest, scale) = shelf.selected_at();
     assert!(
-        (rest - CENTRED).abs() > 100.0 && scale < 0.95,
+        (rest - centre_x()).abs() > 100.0 && scale < 0.95,
         "the row settled before the press: this proves nothing at {rest} and {scale}"
     );
     let face = TexId::from_raw(3);
@@ -195,7 +197,7 @@ fn a_cart_the_row_had_not_finished_moving_slides_across_as_it_goes_in() {
     );
     let seated = at(1.0);
     let sw = seated_box(c.platform).0 as f32;
-    let mid = OUT_W as f32 / 2.0;
+    let mid = out_w() as f32 / 2.0;
     assert!(
         (seated.x + seated.w / 2.0 - mid).abs() < 0.01 && (seated.w - sw).abs() < 0.01,
         "the cart seats at {seated:?} rather than the slot's size in the mouth"
@@ -225,7 +227,7 @@ fn draw_powering_on(t: f32, out: &mut Vec<Draw>) {
     SlotChrome {
         cart: &c,
         face: None,
-        rest: CENTRED,
+        rest: centre_x(),
         scale: 1.0,
         seat: 1.0,
         alert: None,
@@ -279,7 +281,7 @@ fn the_slot_is_at_the_bottom_of_the_screen() {
     draw_inserting(&cart(), 0.5, &mut out);
     let mouth = out.iter().find_map(as_mouth).expect("no mouth drawn");
     assert!(
-        mouth.y >= OUT_H as f32 - MOUTH_H - 1.0,
+        mouth.y >= out_h() as f32 - MOUTH_H - 1.0,
         "the mouth is not on the bottom edge"
     );
 }
@@ -345,7 +347,7 @@ fn an_unseated_cart_stands_where_the_shelf_left_it() {
 
 #[test]
 fn a_cart_shrinks_to_the_slot_by_the_lip() {
-    let lip = OUT_H as f32 - MOUTH_H;
+    let lip = out_h() as f32 - MOUTH_H;
     for (name, c) in both() {
         let (w, h) = cart_box(c.platform);
         let (sw, sh) = seated_box(c.platform);
@@ -397,7 +399,7 @@ fn every_cartridge_seats_to_the_same_depth() {
 
 #[test]
 fn every_cartridge_lands_its_foot_on_the_lip_at_the_same_moment() {
-    let lip = OUT_H as f32 - MOUTH_H;
+    let lip = out_h() as f32 - MOUTH_H;
     let landings: Vec<(&str, f32, f32)> = both()
         .iter()
         .map(|(name, c)| {
@@ -456,7 +458,7 @@ fn a_seated_cart_stops_in_the_opening_and_covers_its_base() {
             "{name} does not reach the bottom of the recess"
         );
         assert!(
-            cart.y >= OUT_H as f32 - MOUTH_H,
+            cart.y >= out_h() as f32 - MOUTH_H,
             "{name} is left standing above the case"
         );
     }
@@ -635,7 +637,7 @@ fn the_empty_slot_is_the_same_slot_the_chrome_draws() {
     SlotChrome {
         cart: &c,
         face: None,
-        rest: CENTRED,
+        rest: centre_x(),
         scale: 1.0,
         seat: 1.0,
         alert: None,
@@ -709,7 +711,7 @@ fn nothing_is_ever_ruled_across_the_cart() {
                 }
                 if let Some((_, bottom)) = run {
                     assert!(
-                        bottom >= OUT_H as f32 - 0.01,
+                        bottom >= out_h() as f32 - 0.01,
                         "at {seat}, x {x}: cover stops at {bottom}, short of the bottom"
                     );
                 }
@@ -764,7 +766,7 @@ fn the_slot_has_a_thumb_scoop_across_its_middle() {
         (l, r)
     };
     let (l, r) = span_of(&|_| true);
-    let centre = OUT_W as f32 / 2.0;
+    let centre = out_w() as f32 / 2.0;
     assert!(
         ((l + r) / 2.0 - centre).abs() < 1.0,
         "the scoop runs {l}..{r} and is not centred"
@@ -829,7 +831,7 @@ fn the_slot_sits_in_a_recessed_bay() {
 
 #[test]
 fn the_cart_catches_on_the_top_edge_of_the_slot() {
-    let lip = OUT_H as f32 - MOUTH_H;
+    let lip = out_h() as f32 - MOUTH_H;
     for (name, c) in both() {
         let bottom_at = |t: f32| {
             let out = chrome(&c, t);

@@ -1,10 +1,14 @@
-use slot_gfx::{Draw, OUT_H, OUT_W};
+use slot_gfx::{out_h, out_w, Draw};
 use slot_store::{Cart, Platform};
 use slot_ui::Shelf;
 
 const SHRINK: usize = 3;
-const CELL_W: usize = OUT_W as usize / SHRINK;
-const CELL_H: usize = OUT_H as usize / SHRINK;
+fn cell_w() -> usize {
+    out_w() as usize / SHRINK
+}
+fn cell_h() -> usize {
+    out_h() as usize / SHRINK
+}
 const COLS: usize = 8;
 const DT: f32 = 1.0 / 60.0;
 const FRAME_MS: u64 = 1000 / 60;
@@ -26,7 +30,7 @@ fn shelf_with(n: usize) -> Shelf {
 }
 
 fn frame(s: &Shelf) -> Vec<u8> {
-    let mut px = vec![0u8; CELL_W * CELL_H * 3];
+    let mut px = vec![0u8; cell_w() * cell_h() * 3];
     for p in px.chunks_mut(3) {
         p.copy_from_slice(&[18, 18, 22]);
     }
@@ -38,9 +42,9 @@ fn frame(s: &Shelf) -> Vec<u8> {
         };
         let (x0, y0) = (x / SHRINK as f32, y / SHRINK as f32);
         let (x1, y1) = ((x + w) / SHRINK as f32, (y + h) / SHRINK as f32);
-        for yy in y0.max(0.0) as usize..(y1.max(0.0) as usize).min(CELL_H) {
-            for xx in x0.max(0.0) as usize..(x1.max(0.0) as usize).min(CELL_W) {
-                let at = (yy * CELL_W + xx) * 3;
+        for yy in y0.max(0.0) as usize..(y1.max(0.0) as usize).min(cell_h()) {
+            for xx in x0.max(0.0) as usize..(x1.max(0.0) as usize).min(cell_w()) {
+                let at = (yy * cell_w() + xx) * 3;
                 for k in 0..3 {
                     let a = colour[3];
                     px[at + k] = (colour[k] * 255.0 * a + px[at + k] as f32 * (1.0 - a)) as u8;
@@ -48,9 +52,9 @@ fn frame(s: &Shelf) -> Vec<u8> {
             }
         }
     }
-    for yy in CELL_H - 3..CELL_H {
-        for xx in CELL_W / 2 - 1..CELL_W / 2 + 1 {
-            px[(yy * CELL_W + xx) * 3..][..3].copy_from_slice(&[255, 255, 255]);
+    for yy in cell_h() - 3..cell_h() {
+        for xx in cell_w() / 2 - 1..cell_w() / 2 + 1 {
+            px[(yy * cell_w() + xx) * 3..][..3].copy_from_slice(&[255, 255, 255]);
         }
     }
     px
@@ -58,13 +62,16 @@ fn frame(s: &Shelf) -> Vec<u8> {
 
 fn sheet(frames: &[Vec<u8>], path: &str) {
     let rows = frames.len().div_ceil(COLS);
-    let (w, h) = (COLS * (CELL_W + 1) + 1, rows * (CELL_H + 1) + 1);
+    let (w, h) = (COLS * (cell_w() + 1) + 1, rows * (cell_h() + 1) + 1);
     let mut px = vec![90u8; w * h * 3];
     for (i, f) in frames.iter().enumerate() {
-        let (cx, cy) = ((i % COLS) * (CELL_W + 1) + 1, (i / COLS) * (CELL_H + 1) + 1);
-        for row in 0..CELL_H {
+        let (cx, cy) = (
+            (i % COLS) * (cell_w() + 1) + 1,
+            (i / COLS) * (cell_h() + 1) + 1,
+        );
+        for row in 0..cell_h() {
             let dst = ((cy + row) * w + cx) * 3;
-            px[dst..dst + CELL_W * 3].copy_from_slice(&f[row * CELL_W * 3..][..CELL_W * 3]);
+            px[dst..dst + cell_w() * 3].copy_from_slice(&f[row * cell_w() * 3..][..cell_w() * 3]);
         }
     }
     let file = std::fs::File::create(path).unwrap();
@@ -140,11 +147,11 @@ fn double_tap(n: usize, start: usize, way: i32, gap: usize, frames: usize) -> Ru
 fn widest_gap(s: &Shelf) -> (f32, f32) {
     let mut list = Vec::new();
     s.draw_row(None, 0.0, 0.0, 1.0, &mut list);
-    let (mut left, mut right) = (OUT_W as f32, OUT_W as f32);
+    let (mut left, mut right) = (out_w() as f32, out_w() as f32);
     for d in &list {
         if let Draw::Rect { x, w, .. } = *d {
             left = left.min(x.max(0.0));
-            right = right.min((OUT_W as f32 - (x + w)).max(0.0));
+            right = right.min((out_w() as f32 - (x + w)).max(0.0));
         }
     }
     (left, right)

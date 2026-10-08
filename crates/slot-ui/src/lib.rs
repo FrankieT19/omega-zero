@@ -40,7 +40,7 @@ pub use cart::{
     LABEL_X, LABEL_Y,
 };
 pub use clock::{clock_label, date_time_text, hhmm, set_clock_hint_face, ClockPicker, Field};
-pub use draw::{Draw, TexId, OUT_H, OUT_W};
+pub use draw::{out_h, out_w, Draw, TexId};
 pub use footer::{draw_footer, Printed};
 pub use hud::{
     badge_at, ff_badge, FfState, Hud, HudKind, LinkBadge, Millis, HUD_ICON_PX, HUD_INK, HUD_MS,
@@ -60,8 +60,8 @@ pub use plate::{
 pub use polaroids::{photo_face, PhotoFace, Polaroids, DOT, LEGEND, PHOTO_H, PHOTO_W};
 pub use power_menu::{menu_face, PowerChoice, MENU_PAD};
 pub use quick_menu::{
-    quick_caret_face, quick_label_face, quick_legend_faces, quick_value_face, QuickMenu,
-    QuickMenuFaces, QuickRow, QuickValue, QUICK_EDGE, QUICK_PITCH, QUICK_TOP,
+    quick_caret_face, quick_label_face, quick_legend_faces, quick_top, quick_value_face, QuickMenu,
+    QuickMenuFaces, QuickRow, QuickValue, QUICK_EDGE, QUICK_PITCH,
 };
 pub use refusal::Refusal;
 pub use shelf::{foot_y, rest_y, Shelf};
