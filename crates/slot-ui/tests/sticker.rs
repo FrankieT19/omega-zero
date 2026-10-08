@@ -93,3 +93,23 @@ fn the_wordmarks_top_edge_is_antialiased_not_a_hard_step() {
         "every sampled column's top edge jumps straight from the ground to the ink: {edges:?}"
     );
 }
+
+#[test]
+fn the_sticker_fits_the_canvas_with_room_either_side() {
+    let (x, y, w, h) = slot_ui::sticker_rect();
+    let (cw, ch) = (slot_ui::out_w() as f32, slot_ui::out_h() as f32);
+    assert!(x >= 20.0 && x + w <= cw - 20.0, "{x}+{w} on a {cw} canvas");
+    assert!(y >= 0.0 && y + h <= ch, "{y}+{h} on a {ch} canvas");
+    let printed = slot_ui::STICKER_W as f32 / slot_ui::STICKER_H as f32;
+    assert!(
+        (w / h - printed).abs() < 0.02,
+        "the sticker was squashed to {w}x{h}"
+    );
+    if cw >= 700.0 {
+        assert_eq!(
+            (w, h),
+            (slot_ui::STICKER_W as f32, slot_ui::STICKER_H as f32),
+            "a canvas with room shrank the sticker"
+        );
+    }
+}

@@ -307,15 +307,31 @@ fn wordmark(w: u32) -> Option<(Vec<u8>, (u32, u32))> {
     Some((render_svg(WORDMARK_SVG, w, h)?, (w, h)))
 }
 
+/// The least room left either side of the sticker. A canvas too narrow to hold it at its
+/// printed size with this margin shows it shrunk to fit.
+const STICKER_SIDE: f32 = 20.0;
+
+/// Where the sticker sits on the canvas: centred, at its printed size if it fits.
+pub fn sticker_rect() -> (f32, f32, f32, f32) {
+    let (cw, ch) = (slot_gfx::out_w() as f32, slot_gfx::out_h() as f32);
+    let scale = ((cw - 2.0 * STICKER_SIDE) / STICKER_W as f32).min(1.0);
+    let (w, h) = (
+        (STICKER_W as f32 * scale).round(),
+        (STICKER_H as f32 * scale).round(),
+    );
+    (((cw - w) / 2.0).round(), ((ch - h) / 2.0).round(), w, h)
+}
+
 pub fn draw_sticker(face: Option<TexId>, out: &mut Vec<Draw>) {
     let Some(tex) = face else {
         return;
     };
+    let (x, y, w, h) = sticker_rect();
     out.push(Draw::Tex {
-        x: (slot_gfx::out_w() as f32 - STICKER_W as f32) / 2.0,
-        y: (slot_gfx::out_h() as f32 - STICKER_H as f32) / 2.0,
-        w: STICKER_W as f32,
-        h: STICKER_H as f32,
+        x,
+        y,
+        w,
+        h,
         tex,
         alpha: 1.0,
     });

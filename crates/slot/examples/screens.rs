@@ -40,6 +40,28 @@ wait 60
 tap menu
 wait 60
 shot quick-menu
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
+tap a
+settle
+wait 60
+shot clock
+tap b
+wait 60
+tap down
+wait 10
+tap a
+settle
+wait 90
+look about
+tap b
+wait 60
 tap b
 wait 60
 tap r1
