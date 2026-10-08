@@ -14,7 +14,8 @@ use slot_power::SimPlatform;
 use slot_store::{Cart, Platform as CartPlatform};
 use slot_ui::{
     cart_box, cart_face, clean_label, edge, housing, label_colour, label_text, opening, recess,
-    rest_y, Draw, SlotChrome, CART_W, GB_CART_H, GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, PLATE_H,
+    rest_y, stage_x, stage_y, Draw, SlotChrome, CART_W, GB_CART_H, GB_LABEL_H, GB_LABEL_Y, LABEL_H,
+    LABEL_Y, PLATE_H,
 };
 
 struct Script(VecDeque<Vec<RawEvent>>);
@@ -149,9 +150,23 @@ fn alone_label() -> (usize, usize) {
     on_the_lone_pak(GB_LABEL_Y + GB_LABEL_H / 2)
 }
 
-const SIDE_LEFT: (usize, usize) = (90, 250);
-const SIDE_RIGHT: (usize, usize) = (630, 250);
-const MIDDLE: (usize, usize) = (360, 250);
+/// Where the left and right neighbours and the selection stand, on the 720x480 mockup and
+/// so wherever the stage puts them.
+fn on_stage(x: f32, y: f32) -> (usize, usize) {
+    ((x + stage_x()) as usize, (y + stage_y()) as usize)
+}
+
+fn side_left() -> (usize, usize) {
+    on_stage(90.0, 250.0)
+}
+
+fn side_right() -> (usize, usize) {
+    on_stage(630.0, 250.0)
+}
+
+fn middle() -> (usize, usize) {
+    on_stage(360.0, 250.0)
+}
 const GROUND: [u32; 3] = [0x05, 0x05, 0x08];
 
 #[test]
@@ -182,9 +197,9 @@ fn the_shoulders_ring_over_a_shelf_for_each_system() {
         "the plate corner came up with no mark in it at all: {} lit pixels",
         name_ink(&gba)
     );
-    let left = patch(&gba, SIDE_LEFT.0, SIDE_LEFT.1);
-    let right = patch(&gba, SIDE_RIGHT.0, SIDE_RIGHT.1);
-    let middle = patch(&gba, MIDDLE.0, MIDDLE.1);
+    let left = patch(&gba, side_left().0, side_left().1);
+    let right = patch(&gba, side_right().0, side_right().1);
+    let middle = patch(&gba, middle().0, middle().1);
     for (name, slot) in [("left", left), ("middle", middle), ("right", right)] {
         assert!(
             apart(slot, GROUND) > 60,
@@ -218,7 +233,7 @@ fn the_shoulders_ring_over_a_shelf_for_each_system() {
             apart(cart, GROUND) > 60,
             "no cart in the middle of the {banner} shelf: {cart:?}"
         );
-        for (side, (x, y)) in [("left", SIDE_LEFT), ("right", SIDE_RIGHT)] {
+        for (side, (x, y)) in [("left", side_left()), ("right", side_right())] {
             let beside = patch(&px, x, y);
             assert!(
                 apart(beside, GROUND) < 30,
@@ -253,7 +268,7 @@ fn the_shoulders_ring_over_a_shelf_for_each_system() {
     let_the_name_in(&mut f, &mut c, &mut input);
     let back = composed(&mut f, &mut c, "gba-again");
     assert!(
-        apart(patch(&back, SIDE_LEFT.0, SIDE_LEFT.1), left) < 30,
+        apart(patch(&back, side_left().0, side_left().1), left) < 30,
         "the ring did not come back to the cart the first shelf was left on"
     );
     assert_eq!(banner_ink(&back), 0, "the way back put a banner up");
@@ -294,7 +309,7 @@ fn a_card_nobody_has_organised_comes_up_an_empty_shelf() {
     f.advance(&mut input);
     let empty = composed(&mut f, &mut c, "loose-card");
 
-    let plate = patch(&empty, 150, 470);
+    let plate = patch(&empty, 150, 470 + stage_y() as usize);
     assert!(
         apart(plate, GROUND) > 20,
         "the bottom plate is not there, so this is a blank screen rather than an empty shelf: \
@@ -306,9 +321,9 @@ fn a_card_nobody_has_organised_comes_up_an_empty_shelf() {
         hud_ink(&empty)
     );
     for (name, (x, y)) in [
-        ("left", SIDE_LEFT),
-        ("middle", MIDDLE),
-        ("right", SIDE_RIGHT),
+        ("left", side_left()),
+        ("middle", middle()),
+        ("right", side_right()),
     ] {
         let slot = patch(&empty, x, y);
         assert!(
@@ -322,9 +337,9 @@ fn a_card_nobody_has_organised_comes_up_an_empty_shelf() {
     }
     let later = composed(&mut f, &mut c, "loose-card-later");
     for (name, (x, y)) in [
-        ("left", SIDE_LEFT),
-        ("middle", MIDDLE),
-        ("right", SIDE_RIGHT),
+        ("left", side_left()),
+        ("middle", middle()),
+        ("right", side_right()),
     ] {
         let slot = patch(&later, x, y);
         assert!(
@@ -340,7 +355,7 @@ fn a_card_nobody_has_organised_comes_up_an_empty_shelf() {
     f.upload_faces(&mut c);
     f.advance(&mut input);
     let full = composed(&mut f, &mut c, "organised-card");
-    let middle = patch(&full, MIDDLE.0, MIDDLE.1);
+    let middle = patch(&full, middle().0, middle().1);
     assert!(
         apart(middle, GROUND) > 60,
         "the organised card's own shelf is bare too, so this test cannot see a cart at all: \
@@ -408,8 +423,8 @@ fn a_cart_going_in_from_a_repeated_row_takes_both_copies_of_its_neighbour_with_i
 
     let standing = shot(&app, &mut c, Some("insert-0-standing"));
     let (from, _) = span(&standing, ink);
-    let west = patch(&standing, SIDE_LEFT.0, SIDE_LEFT.1);
-    let east = patch(&standing, SIDE_RIGHT.0, SIDE_RIGHT.1);
+    let west = patch(&standing, side_left().0, side_left().1);
+    let east = patch(&standing, side_right().0, side_right().1);
     app.apply(Action::Insert);
     app.update(SEATED_AT / 2.0);
     let halfway = shot(&app, &mut c, Some("insert-1-halfway"));
@@ -431,11 +446,11 @@ fn a_cart_going_in_from_a_repeated_row_takes_both_copies_of_its_neighbour_with_i
         "the other cart was not repeated on both sides of the selection: {west:?} and {east:?}"
     );
     assert!(
-        (from - 360.0).abs() < 8.0,
+        (from - out_w() as f32 / 2.0).abs() < 8.0,
         "the row did not stand its selection in the middle: {from}"
     );
     assert!(
-        (home - 360.0).abs() < 8.0,
+        (home - out_w() as f32 / 2.0).abs() < 8.0,
         "the cart did not seat in the middle of the slot: {home}"
     );
     assert!(
@@ -446,7 +461,7 @@ fn a_cart_going_in_from_a_repeated_row_takes_both_copies_of_its_neighbour_with_i
         home_y > y,
         "the cart did not go down the slot: {y} then {home_y}"
     );
-    for (side, (x, y)) in [("left", SIDE_LEFT), ("right", SIDE_RIGHT)] {
+    for (side, (x, y)) in [("left", side_left()), ("right", side_right())] {
         let slot = patch(&seated, x, y);
         assert!(
             apart(slot, GROUND) < 30,
@@ -481,19 +496,26 @@ fn a_scrolled_row_slides_by_a_pitch_rather_than_swapping_its_carts() {
         }
 
         let mut stood = 1.0f32;
+        let mut frames_since = 1.0f32;
         for (f, px) in frames.iter().enumerate() {
             let runs = row_runs(px);
             assert!(
                 (least..=4).contains(&runs.len()),
                 "{carts} carts, frame {f}: {} carts on screen, not the {least} to four a \
-                 720 px row of them holds",
-                runs.len()
+                 {} px row of them holds",
+                runs.len(),
+                out_w()
             );
             let row: Vec<f32> = runs
                 .iter()
                 .filter(|(a, b)| *a > 0 && *b < out_w() as usize - 1)
                 .map(|(a, b)| ((a + b) as f32 / 2.0 - out_w() as f32 / 2.0) / CART_W as f32)
                 .collect();
+            if row.is_empty() && out_w() < 720 {
+                // Mid-scroll, a row narrower than the mockup can hold no cart whole.
+                frames_since += 1.0;
+                continue;
+            }
             assert!(
                 !row.is_empty(),
                 "{carts} carts, frame {f}: only {} carts are wholly on screen, so there is \
@@ -523,12 +545,13 @@ fn a_scrolled_row_slides_by_a_pitch_rather_than_swapping_its_carts() {
                 "{carts} carts, frame {f}: the row turned round, from {stood} to {now}"
             );
             assert!(
-                stood - now < 0.12,
+                stood - now < 0.12 * frames_since,
                 "{carts} carts, frame {f}: the row jumped {} of a pitch, which is a cart \
                  teleporting rather than sliding",
                 stood - now
             );
             stood = now;
+            frames_since = 1.0;
         }
         assert!(
             stood.abs() < 0.01,
@@ -540,7 +563,7 @@ fn a_scrolled_row_slides_by_a_pitch_rather_than_swapping_its_carts() {
 fn row_runs(px: &[u8]) -> Vec<(usize, usize)> {
     let lit = |x: usize| {
         (210..300).any(|y| {
-            let c = at(px, x, y);
+            let c = at(px, x, y + stage_y() as usize);
             c.iter().map(|v| *v as u32).sum::<u32>() > 60
         })
     };

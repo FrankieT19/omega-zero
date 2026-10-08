@@ -9,7 +9,7 @@ use slot::frontend::Frontend;
 use slot_gfx::{out_h, out_w, Compositor, HeadlessSurface};
 use slot_input::{Btn, InputSource, Millis, RawEvent};
 use slot_power::SimPlatform;
-use slot_ui::{quick_top, QuickRow, QUICK_PITCH};
+use slot_ui::{quick_top, stage_x, QuickRow, QUICK_PITCH};
 
 struct Script(VecDeque<Vec<RawEvent>>);
 
@@ -93,7 +93,7 @@ fn the_quick_menu_renders_full_screen() {
             "{name}: the bar breaks somewhere across the row"
         );
         assert_eq!(
-            at(&px, 360, top + 1),
+            at(&px, out_w() as usize / 2, top + 1),
             ground,
             "{name}: the bar is not inset"
         );
@@ -105,7 +105,7 @@ fn the_quick_menu_renders_full_screen() {
 
         for row in QuickRow::ALL {
             let top = (quick_top() + QUICK_PITCH * row.index() as f32) as usize;
-            let label = inked(&px, 0..360, top);
+            let label = inked(&px, 0..out_w() as usize / 2, top);
             let first = *label.first().expect("a row with no label");
             assert!(
                 (32..=36).contains(&first),
@@ -114,10 +114,10 @@ fn the_quick_menu_renders_full_screen() {
             if row == QuickRow::About {
                 continue;
             }
-            let value = inked(&px, 360..out_w() as usize, top);
+            let value = inked(&px, out_w() as usize / 2..out_w() as usize, top);
             let last = *value.last().expect("a row with no value");
             assert!(
-                (679..=688).contains(&last),
+                (out_w() as usize - 41..=out_w() as usize - 32).contains(&last),
                 "{name}: {row:?}'s value ends at x {last}"
             );
         }
@@ -127,7 +127,11 @@ fn the_quick_menu_renders_full_screen() {
     tap(&mut f, &mut input, Btn::A);
     let px = composed(&mut f, &mut c, "clock");
     assert!(
-        (200..270).any(|x| at(&px, x, 298) == [0xf6, 0xf4, 0xef]),
+        (200..270).any(|x| at(
+            &px,
+            (x as f32 + stage_x()) as usize,
+            298 + (out_h() as usize - 480) / 2
+        ) == [0xf6, 0xf4, 0xef]),
         "the clock from the menu does not offer B BACK"
     );
 }
@@ -152,16 +156,21 @@ fn every_fast_forward_speed_sits_on_the_rows_right_edge_and_clears_the_label() {
     let top = quick_top() as usize;
     for name in ["2x", "3x", "4x", "6x", "8x"] {
         let px = composed(&mut f, &mut c, name);
-        let value = inked(&px, 360..out_w() as usize, top);
+        let value = inked(&px, out_w() as usize / 2..out_w() as usize, top);
         let last = *value
             .last()
             .unwrap_or_else(|| panic!("{name}: the Fast Forward row has no value"));
         assert!(
-            (679..=688).contains(&last),
+            (out_w() as usize - 41..=out_w() as usize - 32).contains(&last),
             "{name} ends at x {last}, off the edge every other value keeps"
         );
         assert!(
-            inked(&px, 350..370, top).is_empty(),
+            inked(
+                &px,
+                out_w() as usize / 2 - 10..out_w() as usize / 2 + 10,
+                top
+            )
+            .is_empty(),
             "{name} and its arrows reach the middle of the row"
         );
         let label = inked(&px, 0..350, top);

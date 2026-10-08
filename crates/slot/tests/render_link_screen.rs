@@ -14,8 +14,8 @@ use slot::link_start::{LinkFail, LinkStarter, LinkStep};
 use slot_input::Action;
 use slot_store::Core;
 use slot_ui::{
-    arrows_hint_face, hint_face, link_art, menu_face, out_h, out_w, toast_face, CartFace, Draw,
-    TexId, Toast, UndoFace,
+    arrows_hint_face, hint_face, link_art, menu_face, out_h, out_w, stage_x, stage_y, toast_face,
+    CartFace, Draw, TexId, Toast, UndoFace,
 };
 
 struct Face {
@@ -179,12 +179,12 @@ fn the_host_picks_a_purple_plug_over_the_port() {
         0,
         "cable-host-pick",
     );
-    let housing = at(&px, 356, 330 - 60);
+    let housing = on_stage(&px, 356, 330 - 60);
     assert!(
         housing[2] > housing[1] + 30,
         "no purple housing above the port: {housing:?}"
     );
-    let slot = at(&px, 360, 406);
+    let slot = on_stage(&px, 360, 406);
     assert!(
         slot.iter().all(|c| *c < 0x14),
         "no port under the plug: {slot:?}"
@@ -199,7 +199,7 @@ fn a_joiner_picks_a_gray_plug() {
         0,
         "cable-join-pick",
     );
-    let housing = at(&px, 356, 330 - 60);
+    let housing = on_stage(&px, 356, 330 - 60);
     assert!(
         (housing[0] as i32 - housing[2] as i32).abs() < 14 && housing[0] > 0x70,
         "not gray: {housing:?}"
@@ -215,7 +215,7 @@ fn a_wireless_link_seats_the_adapter_with_its_label_plate() {
         opened: false,
     };
     let px = render(menu, LinkKind::Wireless, 2000, "wireless-linked");
-    let plate = at(&px, 360, 388 - 12);
+    let plate = on_stage(&px, 360, 388 - 12);
     assert!(
         plate[0] > 0x28 && plate[0] < 0x70,
         "no plate where the seated adapter's label goes: {plate:?}"
@@ -239,10 +239,16 @@ fn a_failed_plug_leaves_where_it_waited() {
     let gone = render(failed, LinkKind::Cable, 1600, "cable-failed");
     let spot = (356, 350 - 60);
     assert_ne!(
-        at(&waiting, spot.0, spot.1),
-        at(&gone, spot.0, spot.1),
+        on_stage(&waiting, spot.0, spot.1),
+        on_stage(&gone, spot.0, spot.1),
         "the plug never lifted away"
     );
+}
+
+/// The pixel at a point on the 720x480 mockup, wherever the stage puts it on this canvas.
+fn on_stage(px: &[u8], x: usize, y: usize) -> [u8; 3] {
+    let (sx, sy) = (stage_x() as i32, stage_y() as i32);
+    at(px, (x as i32 + sx) as usize, (y as i32 + sy) as usize)
 }
 
 const GROUND: [u8; 3] = [0x05, 0x05, 0x08];
@@ -257,12 +263,12 @@ fn ending_a_link_pulls_the_plug_back_out_of_the_port() {
     let gone = render(menu, LinkKind::Cable, 400, "cable-unplug-end");
     let (x, y) = (356, 359);
     assert_ne!(
-        at(&seated, x, y),
+        on_stage(&seated, x, y),
         GROUND,
         "no plug in the port on the frame the unplug begins"
     );
     assert_eq!(
-        at(&gone, x, y),
+        on_stage(&gone, x, y),
         GROUND,
         "the plug never came back out of the port"
     );
@@ -278,12 +284,12 @@ fn ending_a_wireless_link_lifts_the_adapter_off_the_port() {
     let gone = render(menu, LinkKind::Wireless, 400, "wireless-unplug-end");
     let (x, y) = (360, 380);
     assert_ne!(
-        at(&seated, x, y),
+        on_stage(&seated, x, y),
         GROUND,
         "no adapter on the port on the frame the unplug begins"
     );
     assert_eq!(
-        at(&gone, x, y),
+        on_stage(&gone, x, y),
         GROUND,
         "the adapter never lifted off the port"
     );

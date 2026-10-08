@@ -1,19 +1,21 @@
-use slot_gfx::{out_h, out_w, Draw, TexId};
+use slot_gfx::{out_w, Draw, TexId};
 use slot_store::Cart;
 
 use crate::cart::{cart_box, gb_shell_of, label_colour, label_text, CART_H, CART_W};
 use crate::hud::Millis;
 use crate::silhouette::GbShell;
 use crate::slot_chrome::{draw_empty_slot, MOUTH_H};
+use crate::stage::{stage_y, MOCKUP_H};
 
 const SIDE_SCALE: f32 = 0.78;
 const SIDE_ALPHA: f32 = 0.55;
 pub fn rest_y(h: f32) -> f32 {
-    if h > CART_H as f32 {
-        (out_h() as f32 - MOUTH_H - h) / 2.0
+    let y = if h > CART_H as f32 {
+        (MOCKUP_H - MOUTH_H - h) / 2.0
     } else {
-        (out_h() + CART_H) as f32 / 2.0 - h
-    }
+        (MOCKUP_H + CART_H as f32) / 2.0 - h
+    };
+    y + stage_y()
 }
 
 pub fn foot_y(h: f32) -> f32 {

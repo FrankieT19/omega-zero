@@ -5,6 +5,7 @@ use slot_ui::{
     BOARD_H, BOARD_W, CART_H, CHIP_H, CHIP_W, DEFAULT_SHELL, LID_TURN, ROM_H, ROM_W, SHADOW_H,
     SHADOW_W, SLIDE_SHARE, SLIDE_UP, SOCKET_H, SOCKET_W, TURN_PAD,
 };
+use slot_ui::{out_h, stage_x, stage_y};
 
 fn cart(stem: &str, code: &str) -> Cart {
     Cart {
@@ -125,23 +126,28 @@ fn alpha(face: &CartFace, x: u32, y: u32) -> u8 {
     face.rgba[((y * face.w + x) * 4 + 3) as usize]
 }
 
+/// A point on the 720x480 mockup, where it lands on this canvas.
+fn mock(x: f32, y: f32) -> (f32, f32) {
+    (x + stage_x(), y + stage_y())
+}
+
 #[test]
 fn the_open_cart_starts_as_the_shelf_cart_and_lands_where_the_mockup_has_it() {
+    let shelf = shelf_cart();
     assert_eq!(
-        shelf_cart(),
-        Placed {
-            x: 180.0,
-            y: 134.0,
-            w: 360.0,
-            h: 212.0
-        }
+        (shelf.x, shelf.w, shelf.h),
+        (mock(180.0, 0.0).0, 360.0, 212.0)
     );
+    if out_h() == 480 {
+        assert_eq!(shelf.y, 134.0);
+    }
     assert_eq!(board_at(0.0), shelf_cart());
+    let (x, y) = mock(174.0, 150.0);
     assert_eq!(
         board_at(1.0),
         Placed {
-            x: 174.0,
-            y: 150.0,
+            x,
+            y,
             w: 372.0,
             h: 209.0
         }
@@ -153,11 +159,12 @@ fn the_open_cart_starts_as_the_shelf_cart_and_lands_where_the_mockup_has_it() {
 fn the_lid_leaves_level_and_rests_turned() {
     assert_eq!(lid_at(0.0), (shelf_cart(), 0.0));
     let (rest, turn) = lid_at(1.0);
+    let (x, y) = mock(288.0, 30.0);
     assert_eq!(
         rest,
         Placed {
-            x: 288.0,
-            y: 30.0,
+            x,
+            y,
             w: 144.0,
             h: 81.0
         }
@@ -212,8 +219,8 @@ fn the_lift_starts_where_the_slide_ends() {
 #[test]
 fn board_units_land_on_the_panel_at_one_and_a_half_times() {
     let board = board_at(1.0);
-    assert_eq!(on_board(board, 0.0, 0.0), (174.0, 150.0));
-    assert_eq!(on_board(board, 240.0, 135.0), (546.0, 359.0));
+    assert_eq!(on_board(board, 0.0, 0.0), mock(174.0, 150.0));
+    assert_eq!(on_board(board, 240.0, 135.0), mock(546.0, 359.0));
 }
 
 #[test]
