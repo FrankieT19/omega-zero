@@ -4,9 +4,11 @@ use crate::quad::Quad;
 use crate::shaders::{GAME_FRAG, RECT_VERT};
 use crate::surface::{GfxError, OUT_H, OUT_W};
 
+/// The whole-number scale the LCD mask is drawn for, three panel pixels to a game pixel.
 pub const SCALE: u32 = 3;
-pub const SRC_W: u32 = OUT_W / SCALE;
-pub const SRC_H: u32 = OUT_H / SCALE;
+/// The game texture, a GBA frame. Game Boy pictures arrive centred inside it.
+pub const SRC_W: u32 = 240;
+pub const SRC_H: u32 = 160;
 
 pub const WHOLE_TEXTURE: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
 

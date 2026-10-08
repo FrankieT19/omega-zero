@@ -5,6 +5,11 @@ use slot_store::{ini, Platform};
 
 pub const VIDEO_MODE_FILE: &str = "Config/video_mode.ini";
 
+const _: () = assert!(
+    SRC_W == slot_retro::GBA_W && SRC_H == slot_retro::GBA_H,
+    "the game texture is not the size of the frames the cores publish"
+);
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum VideoMode {
     #[default]
