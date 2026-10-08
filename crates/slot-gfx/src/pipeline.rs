@@ -1,8 +1,8 @@
 use crate::canvas::{out_h, out_w};
 use crate::lcd3x::mask_texture_rgba8;
-use crate::power::{screen_brightness, screen_rect};
+use crate::power::{screen_brightness, screen_rect_in};
 use crate::quad::Quad;
-use crate::shaders::{GAME_FRAG, RECT_VERT};
+use crate::shaders::{GAME_FRAG, GAME_SHARP_FRAG, RECT_VERT};
 use crate::surface::GfxError;
 
 /// The whole-number scale the LCD mask is drawn for, three panel pixels to a game pixel.
@@ -13,20 +13,69 @@ pub const SRC_H: u32 = 160;
 
 pub const WHOLE_TEXTURE: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
 
-pub struct GamePass {
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum Filter {
+    /// Three panel pixels to a game pixel, through the LCD mask.
+    Lcd3x,
+    /// Any other scale, each game pixel kept square with a one pixel blend where two meet.
+    Sharp,
+}
+
+/// How the game is laid on the canvas: the part of the game texture shown, the rect it fills
+/// with the screen on, and how it is scaled into it.
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub struct GameView {
+    pub rect: [f32; 4],
+    pub uv: [f32; 4],
+    pub filter: Filter,
+}
+
+impl GameView {
+    /// `uv` of the game texture over the whole canvas, through the LCD mask: the only view
+    /// there was on 720x480.
+    pub fn canvas(uv: [f32; 4]) -> GameView {
+        GameView {
+            rect: [0.0, 0.0, out_w() as f32, out_h() as f32],
+            uv,
+            filter: Filter::Lcd3x,
+        }
+    }
+}
+
+struct Lcd {
     prog: gl::types::GLuint,
-    game: gl::types::GLuint,
-    mask: gl::types::GLuint,
     u_rect: gl::types::GLint,
     u_bright: gl::types::GLint,
     u_uv: gl::types::GLint,
+    u_src: gl::types::GLint,
+}
+
+struct Sharp {
+    prog: gl::types::GLuint,
+    u_rect: gl::types::GLint,
+    u_bright: gl::types::GLint,
+    u_uv: gl::types::GLint,
+    u_scale: gl::types::GLint,
+}
+
+pub struct GamePass {
+    lcd: Lcd,
+    sharp: Sharp,
+    game: gl::types::GLuint,
+    mask: gl::types::GLuint,
     power: f32,
-    src: [f32; 4],
+    view: Option<GameView>,
+    still: Option<GameView>,
+}
+
+fn uniform(prog: gl::types::GLuint, name: &str) -> gl::types::GLint {
+    crate::gl::uniform_location(prog, name)
 }
 
 impl GamePass {
     pub fn new() -> Result<Self, GfxError> {
-        let prog = crate::shaders::program(RECT_VERT, GAME_FRAG)?;
+        let lcd = crate::shaders::program(RECT_VERT, GAME_FRAG)?;
+        let sharp = crate::shaders::program(RECT_VERT, GAME_SHARP_FRAG)?;
         let game = crate::gl::texture(SRC_W, SRC_H, gl::NEAREST, gl::CLAMP_TO_EDGE, gl::BGRA, None);
         let mask = crate::gl::texture(
             3,
@@ -36,34 +85,36 @@ impl GamePass {
             gl::RGBA,
             Some(&mask_texture_rgba8()),
         );
-        let (u_rect, u_bright, u_uv);
         unsafe {
-            gl::UseProgram(prog);
-            gl::Uniform1i(crate::gl::uniform_location(prog, "u_game"), 0);
-            gl::Uniform1i(crate::gl::uniform_location(prog, "u_mask"), 1);
-            gl::Uniform2f(
-                crate::gl::uniform_location(prog, "u_src"),
-                SRC_W as f32,
-                SRC_H as f32,
-            );
-            gl::Uniform2f(
-                crate::gl::uniform_location(prog, "u_target"),
-                out_w() as f32,
-                out_h() as f32,
-            );
-            u_rect = crate::gl::uniform_location(prog, "u_rect");
-            u_bright = crate::gl::uniform_location(prog, "u_bright");
-            u_uv = crate::gl::uniform_location(prog, "u_uv");
+            gl::UseProgram(lcd);
+            gl::Uniform1i(uniform(lcd, "u_game"), 0);
+            gl::Uniform1i(uniform(lcd, "u_mask"), 1);
+            gl::Uniform2f(uniform(lcd, "u_target"), out_w() as f32, out_h() as f32);
+            gl::UseProgram(sharp);
+            gl::Uniform1i(uniform(sharp, "u_game"), 0);
+            gl::Uniform2f(uniform(sharp, "u_src"), SRC_W as f32, SRC_H as f32);
+            gl::Uniform2f(uniform(sharp, "u_target"), out_w() as f32, out_h() as f32);
         }
         Ok(GamePass {
-            prog,
+            lcd: Lcd {
+                prog: lcd,
+                u_rect: uniform(lcd, "u_rect"),
+                u_bright: uniform(lcd, "u_bright"),
+                u_uv: uniform(lcd, "u_uv"),
+                u_src: uniform(lcd, "u_src"),
+            },
+            sharp: Sharp {
+                prog: sharp,
+                u_rect: uniform(sharp, "u_rect"),
+                u_bright: uniform(sharp, "u_bright"),
+                u_uv: uniform(sharp, "u_uv"),
+                u_scale: uniform(sharp, "u_scale"),
+            },
             game,
             mask,
-            u_rect,
-            u_bright,
-            u_uv,
             power: 1.0,
-            src: WHOLE_TEXTURE,
+            view: None,
+            still: None,
         })
     }
 
@@ -71,8 +122,19 @@ impl GamePass {
         self.power = t.clamp(0.0, 1.0);
     }
 
+    /// Shows `rect` of the game texture over the whole canvas, as slot did before a canvas
+    /// could be any other shape.
     pub fn set_source_rect(&mut self, rect: [f32; 4]) {
-        self.src = rect;
+        self.view = Some(GameView::canvas(rect));
+    }
+
+    pub fn set_view(&mut self, view: GameView) {
+        self.view = Some(view);
+    }
+
+    /// The view a still, a save state's screenshot, is shown in.
+    pub fn set_still_view(&mut self, view: GameView) {
+        self.still = Some(view);
     }
 
     pub fn upload(&mut self, xrgb8888: &[u8]) {
@@ -97,28 +159,64 @@ impl GamePass {
     }
 
     pub fn draw(&self, quad: &Quad) {
-        self.draw_source(self.game, quad, self.src);
+        let view = self.view.unwrap_or_else(|| GameView::canvas(WHOLE_TEXTURE));
+        self.draw_source(self.game, quad, view);
     }
 
     pub fn draw_still(&self, tex: gl::types::GLuint, quad: &Quad) {
-        self.draw_source(tex, quad, WHOLE_TEXTURE);
+        let view = self
+            .still
+            .unwrap_or_else(|| GameView::canvas(WHOLE_TEXTURE));
+        self.draw_source(tex, quad, view);
     }
 
-    fn draw_source(&self, tex: gl::types::GLuint, quad: &Quad, src: [f32; 4]) {
-        let (x, y, w, h) = screen_rect(self.power);
-        unsafe {
-            gl::UseProgram(self.prog);
-            gl::Uniform4f(self.u_rect, x, y, w, h);
-            gl::Uniform4f(self.u_uv, src[0], src[1], src[2], src[3]);
-            gl::Uniform1f(self.u_bright, screen_brightness(self.power));
-            gl::ActiveTexture(gl::TEXTURE0);
-            gl::BindTexture(gl::TEXTURE_2D, tex);
-            gl::ActiveTexture(gl::TEXTURE1);
-            gl::BindTexture(gl::TEXTURE_2D, self.mask);
-            gl::ActiveTexture(gl::TEXTURE0);
+    fn draw_source(&self, tex: gl::types::GLuint, quad: &Quad, view: GameView) {
+        let (x, y, w, h) = screen_rect_in(self.power, view.rect);
+        let uv = view.uv;
+        match view.filter {
+            Filter::Lcd3x => unsafe {
+                gl::UseProgram(self.lcd.prog);
+                gl::Uniform4f(self.lcd.u_rect, x, y, w, h);
+                gl::Uniform4f(self.lcd.u_uv, uv[0], uv[1], uv[2], uv[3]);
+                gl::Uniform2f(
+                    self.lcd.u_src,
+                    view.rect[2] / SCALE as f32,
+                    view.rect[3] / SCALE as f32,
+                );
+                gl::Uniform1f(self.lcd.u_bright, screen_brightness(self.power));
+                gl::ActiveTexture(gl::TEXTURE0);
+                gl::BindTexture(gl::TEXTURE_2D, tex);
+                gl::ActiveTexture(gl::TEXTURE1);
+                gl::BindTexture(gl::TEXTURE_2D, self.mask);
+                gl::ActiveTexture(gl::TEXTURE0);
+            },
+            Filter::Sharp => unsafe {
+                gl::UseProgram(self.sharp.prog);
+                gl::Uniform4f(self.sharp.u_rect, x, y, w, h);
+                gl::Uniform4f(self.sharp.u_uv, uv[0], uv[1], uv[2], uv[3]);
+                gl::Uniform2f(
+                    self.sharp.u_scale,
+                    view.rect[2] / (uv[2] * SRC_W as f32),
+                    view.rect[3] / (uv[3] * SRC_H as f32),
+                );
+                gl::Uniform1f(self.sharp.u_bright, screen_brightness(self.power));
+                gl::ActiveTexture(gl::TEXTURE0);
+                gl::BindTexture(gl::TEXTURE_2D, tex);
+                filter(gl::LINEAR);
+            },
         }
         quad.draw();
+        if view.filter == Filter::Sharp {
+            unsafe { filter(gl::NEAREST) };
+        }
     }
+}
+
+/// GLES2 has no sampler objects, so the sharp view sets the bound texture's own filter for
+/// its draw and puts it back after.
+unsafe fn filter(f: gl::types::GLenum) {
+    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, f as i32);
+    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, f as i32);
 }
 
 impl Drop for GamePass {
@@ -126,7 +224,8 @@ impl Drop for GamePass {
         unsafe {
             gl::DeleteTextures(1, &self.game);
             gl::DeleteTextures(1, &self.mask);
-            gl::DeleteProgram(self.prog);
+            gl::DeleteProgram(self.lcd.prog);
+            gl::DeleteProgram(self.sharp.prog);
         }
     }
 }

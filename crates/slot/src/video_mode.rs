@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use slot_gfx::{SRC_H, SRC_W, WHOLE_TEXTURE};
+use slot_gfx::{canvas, Canvas, Filter, GameView, SCALE, SRC_H, SRC_W, WHOLE_TEXTURE};
 use slot_store::{ini, Platform};
 
 pub const VIDEO_MODE_FILE: &str = "Config/video_mode.ini";
@@ -58,4 +58,96 @@ pub fn source_rect(platform: Platform, mode: VideoMode) -> [f32; 4] {
         w as f32 / SRC_W as f32,
         h as f32 / SRC_H as f32,
     ]
+}
+
+/// How the game sits on the canvas for one picture mode: the live view, the view a save
+/// state's screenshot is shown in, and the bands of canvas the picture leaves for the
+/// console's body.
+#[derive(Clone, PartialEq, Debug)]
+pub struct Screen {
+    pub view: GameView,
+    pub still: GameView,
+    pub bands: Vec<[f32; 4]>,
+}
+
+pub fn screen(platform: Platform, mode: VideoMode) -> Screen {
+    screen_on(canvas(), platform, mode)
+}
+
+/// The GBA frame at three panel pixels to a game pixel, which every canvas but 640x480 holds.
+const FRAME: (f32, f32) = ((SRC_W * SCALE) as f32, (SRC_H * SCALE) as f32);
+
+/// Above this much spare height the frame stops sitting on the top edge and stands a little
+/// above the middle, as a screen does in a console's face.
+const TOP_ROOM: f32 = 120.0;
+
+pub fn screen_on(c: Canvas, platform: Platform, mode: VideoMode) -> Screen {
+    let uv = source_rect(platform, mode);
+    let actual = source_rect(platform, VideoMode::Actual);
+    let (cw, ch) = (c.w as f32, c.h as f32);
+    if cw >= FRAME.0 && ch >= FRAME.1 {
+        let spare = ch - FRAME.1;
+        let top = if spare < TOP_ROOM {
+            0.0
+        } else {
+            (spare * 3.0 / 8.0).round()
+        };
+        let rect = [(cw - FRAME.0) / 2.0, top, FRAME.0, FRAME.1];
+        return Screen {
+            view: lcd(rect, uv),
+            still: lcd(rect, actual),
+            bands: around(c, rect),
+        };
+    }
+    match platform {
+        Platform::Gba => {
+            let h = (cw * SRC_H as f32 / SRC_W as f32).round();
+            let view = GameView {
+                rect: [0.0, 0.0, cw, h],
+                uv: actual,
+                filter: Filter::Sharp,
+            };
+            Screen {
+                view,
+                still: view,
+                bands: around(c, view.rect),
+            }
+        }
+        Platform::Gb | Platform::Gbc => {
+            let whole = [(cw - FRAME.0) / 2.0, (ch - FRAME.1) / 2.0, FRAME.0, FRAME.1];
+            let view = match mode {
+                VideoMode::Actual => lcd(whole, actual),
+                VideoMode::Stretch => lcd([0.0, 0.0, cw, ch], uv),
+            };
+            Screen {
+                view,
+                still: lcd(whole, actual),
+                bands: around(c, view.rect),
+            }
+        }
+    }
+}
+
+fn lcd(rect: [f32; 4], uv: [f32; 4]) -> GameView {
+    GameView {
+        rect,
+        uv,
+        filter: Filter::Lcd3x,
+    }
+}
+
+/// The parts of the canvas outside `r`.
+fn around(c: Canvas, r: [f32; 4]) -> Vec<[f32; 4]> {
+    let (cw, ch) = (c.w as f32, c.h as f32);
+    let (x0, y0) = (r[0].max(0.0), r[1].max(0.0));
+    let (x1, y1) = ((r[0] + r[2]).min(cw), (r[1] + r[3]).min(ch));
+    [
+        [0.0, 0.0, cw, y0],
+        [0.0, y1, cw, ch - y1],
+        [0.0, y0, x0, y1 - y0],
+        [x1, y0, cw - x1, y1 - y0],
+    ]
+    .into_iter()
+    .filter(|b| b[2] > 0.0 && b[3] > 0.0)
+    .collect()
 }

@@ -60,6 +60,30 @@ void main() {
 }
 "#;
 
+/// The game at a scale that is not a whole number: each game pixel stays a sharp square, and
+/// only the one panel pixel where two meet is blended, so nothing shimmers as it scrolls.
+pub const GAME_SHARP_FRAG: &str = r#"
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform sampler2D u_game;
+uniform vec2 u_src;
+uniform vec4 u_uv;
+uniform vec2 u_scale;
+uniform float u_bright;
+varying vec2 v_uv;
+void main() {
+    vec2 texel = (u_uv.xy + v_uv * u_uv.zw) * u_src;
+    vec2 from_centre = fract(texel) - 0.5;
+    vec2 region = 0.5 - 0.5 / u_scale;
+    vec2 f = (from_centre - clamp(from_centre, -region, region)) * u_scale + 0.5;
+    vec3 rgb = texture2D(u_game, (floor(texel) + f) / u_src).rgb;
+    FRAG_COLOR = vec4(rgb * u_bright, 1.0);
+}
+"#;
+
 pub const SPRITE_FRAG: &str = r#"
 precision mediump float;
 uniform sampler2D u_tex;

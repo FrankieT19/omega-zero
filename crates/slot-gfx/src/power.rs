@@ -21,8 +21,10 @@ pub fn screen_brightness(t: f32) -> f32 {
     1.0 + OVERSHOOT * left * left
 }
 
-pub fn screen_rect(t: f32) -> (f32, f32, f32, f32) {
-    let w = out_w() as f32 * screen_width(t);
-    let h = out_h() as f32 * screen_scale(t);
-    ((out_w() as f32 - w) / 2.0, (out_h() as f32 - h) / 2.0, w, h)
+/// Where a picture that fills `r` when the screen is on stands at power `t`, collapsing to a
+/// line across the middle of `r` as the screen goes off.
+pub fn screen_rect_in(t: f32, r: [f32; 4]) -> (f32, f32, f32, f32) {
+    let w = r[2] * screen_width(t);
+    let h = r[3] * screen_scale(t);
+    (r[0] + (r[2] - w) / 2.0, r[1] + (r[3] - h) / 2.0, w, h)
 }

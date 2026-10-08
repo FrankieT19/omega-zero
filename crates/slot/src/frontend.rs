@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use slot_gfx::{out_h, out_w, Compositor, Draw, TexId};
+use slot_gfx::{out_h, out_w, Bezel, Compositor, Draw, TexId};
 use slot_input::{InputSource, Millis};
 use slot_power::{Platform, Power};
 use slot_store::format_stamp;
@@ -10,7 +10,7 @@ use slot_ui::{
     quick_caret_face, quick_label_face, quick_legend_faces, quick_value_face, set_clock_hint_face,
     socket_face, sticker_face, title_face, toast_face, wallpaper_face, word_face, GbShell, Icon,
     LinkBadge, PowerChoice, QuickMenuFaces, QuickRow, QuickValue, StickerFields, Toast, UndoFace,
-    ALERT_PX, BOLT_PX, HUD_ICON_PX, HUD_INK, LEGEND,
+    ALERT_PX, BEZEL_FILL, BOLT_PX, HUD_ICON_PX, HUD_INK, LEGEND,
 };
 
 use crate::app::{App, LinkRow, Phase};
@@ -282,7 +282,14 @@ impl Frontend {
         compositor.set_blue_light(self.session.app().blue_light());
         compositor.set_shake(self.session.app().screen_shake());
         compositor.set_screen_power(self.session.app().screen_power());
-        compositor.set_game_source_rect(self.session.app().source_rect());
+        let screen = self.session.app().screen();
+        compositor.set_game_view(screen.view);
+        compositor.set_still_view(screen.still);
+        compositor.set_bezel((!screen.bands.is_empty()).then(|| Bezel {
+            bands: screen.bands,
+            fill: BEZEL_FILL,
+            ..Bezel::default()
+        }));
         compositor.begin_frame();
         if let Some(frame) = self.session.frame() {
             compositor.upload_game(&frame);

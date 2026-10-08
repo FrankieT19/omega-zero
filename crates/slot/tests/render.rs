@@ -4,7 +4,10 @@ use std::path::Path;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use slot::thumb;
-use slot_gfx::{lcd3x_mask, out_w, Compositor, Draw, HeadlessSurface, SRC_H, SRC_W};
+use slot::video_mode::{screen, VideoMode};
+use slot_gfx::{
+    lcd3x_mask, out_h, out_w, Compositor, Draw, Filter, GameView, HeadlessSurface, SRC_H, SRC_W,
+};
 use slot_retro::{ButtonMask, MockCore, RetroCore};
 use slot_store::{Core, Platform, StateRing};
 use slot_ui::{photo_face, Polaroids, Printed};
@@ -21,6 +24,50 @@ fn compositor() -> Option<(MutexGuard<'static, ()>, HeadlessSurface, Compositor)
 fn px(frame: &[u8], x: usize, y: usize) -> [u8; 3] {
     let o = (y * out_w() as usize + x) * 4;
     [frame[o], frame[o + 1], frame[o + 2]]
+}
+
+/// How far `frame` strays from `src` shown through `view`: at each sampled game pixel, every
+/// panel pixel of its 3x3 LCD cell, or the panel pixel at its centre for a sharp view, which
+/// must carry its colour untouched.
+fn deviation(frame: &[u8], src: &[u8], view: GameView, samples: &[(usize, usize)]) -> i32 {
+    let [rx, ry, rw, rh] = view.rect;
+    let (sx_px, sy_px) = (rw / SRC_W as f32, rh / SRC_H as f32);
+    let on_canvas = |x: f32, y: f32| {
+        (x >= 0.0 && y >= 0.0 && x < out_w() as f32 && y < out_h() as f32)
+            .then(|| px(frame, x as usize, y as usize))
+    };
+    let mut worst = 0i32;
+    for &(sx, sy) in samples {
+        let o = (sy * SRC_W as usize + sx) * 4;
+        let want_rgb = [src[o + 2], src[o + 1], src[o]];
+        match view.filter {
+            Filter::Lcd3x => {
+                for (oy, row) in lcd3x_mask().iter().enumerate() {
+                    for (ox, cell) in row.iter().enumerate() {
+                        let x = rx + (sx * 3 + ox) as f32;
+                        let y = ry + (sy * 3 + oy) as f32;
+                        let Some(got) = on_canvas(x, y) else {
+                            continue;
+                        };
+                        for (ch, gain) in cell.iter().enumerate() {
+                            let want = (want_rgb[ch] as f32 * gain).round() as i32;
+                            worst = worst.max((want - got[ch] as i32).abs());
+                        }
+                    }
+                }
+            }
+            Filter::Sharp => {
+                let x = rx + (sx as f32 + 0.5) * sx_px;
+                let y = ry + (sy as f32 + 0.5) * sy_px;
+                if let Some(got) = on_canvas(x, y) {
+                    for ch in 0..3 {
+                        worst = worst.max((want_rgb[ch] as i32 - got[ch] as i32).abs());
+                    }
+                }
+            }
+        }
+    }
+    worst
 }
 
 fn switcher_photo(p: &Polaroids) -> Vec<Draw> {
@@ -49,27 +96,20 @@ fn a_mock_frame_keeps_its_colours_through_the_game_pass() {
         return;
     };
     let src = mock_frame(7);
+    let view = screen(Platform::Gba, VideoMode::Actual).view;
 
+    c.set_game_view(view);
     c.begin_frame();
     c.upload_game(&src);
     c.draw_game();
     let frame = c.read_frame();
 
-    let mask = lcd3x_mask();
-    let mut worst = 0i32;
-    for (sx, sy) in [(0, 0), (5, 1), (113, 37), (120, 80), (239, 159)] {
-        let o = (sy * SRC_W as usize + sx) * 4;
-        let want_rgb = [src[o + 2], src[o + 1], src[o]];
-        for (oy, row) in mask.iter().enumerate() {
-            for (ox, cell) in row.iter().enumerate() {
-                let got = px(&frame, sx * 3 + ox, sy * 3 + oy);
-                for (ch, gain) in cell.iter().enumerate() {
-                    let want = (want_rgb[ch] as f32 * gain).round() as i32;
-                    worst = worst.max((want - got[ch] as i32).abs());
-                }
-            }
-        }
-    }
+    let worst = deviation(
+        &frame,
+        &src,
+        view,
+        &[(0, 0), (5, 1), (113, 37), (120, 80), (239, 159)],
+    );
     assert!(
         worst <= 1,
         "max channel deviation {worst} from the mock frame"
@@ -130,31 +170,26 @@ fn the_switcher_magnifies_its_screenshot_without_resampling_it() {
     let tex = c.create_texture_nearest(face.w, face.h, &face.rgba);
     let mut switcher = Polaroids::new(entries);
     switcher.set_faces(vec![tex]);
+    let still = screen(Platform::Gba, VideoMode::Actual).still;
+    c.set_still_view(still);
     c.set_screen_power(1.0);
     c.begin_frame();
     c.draw_list(&switcher_photo(&switcher));
     let frame = c.read_frame();
 
-    let mask = lcd3x_mask();
-    for (sx, sy) in [
-        (0, 0),
-        (1, 0),
-        (113, 37),
-        (SRC_W as usize - 1, SRC_H as usize - 1),
-    ] {
-        let o = (sy * SRC_W as usize + sx) * 4;
-        let want_rgb = [src[o + 2], src[o + 1], src[o]];
-        for (oy, row) in mask.iter().enumerate() {
-            for (ox, cell) in row.iter().enumerate() {
-                let got = px(&frame, sx * 3 + ox, sy * 3 + oy);
-                for (ch, gain) in cell.iter().enumerate() {
-                    let want = (want_rgb[ch] as f32 * gain).round() as i32;
-                    assert!(
-                        (want - got[ch] as i32).abs() <= 1,
-                        "source pixel {sx},{sy} bled into its neighbours"
-                    );
-                }
-            }
-        }
-    }
+    let worst = deviation(
+        &frame,
+        &src,
+        still,
+        &[
+            (0, 0),
+            (1, 0),
+            (113, 37),
+            (SRC_W as usize - 1, SRC_H as usize - 1),
+        ],
+    );
+    assert!(
+        worst <= 1,
+        "a source pixel bled into its neighbours by {worst}"
+    );
 }

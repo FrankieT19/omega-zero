@@ -1,12 +1,22 @@
 use crate::canvas::{out_h, out_w};
 use crate::draw::{Draw, Sprites, TexId};
 use crate::grade::blue_light_gain;
-use crate::pipeline::GamePass;
+use crate::pipeline::{GamePass, GameView};
 use crate::quad::Quad;
 use crate::shaders::{BLIT_FRAG, BLIT_VERT};
 use crate::surface::{blit_rect, GfxError, Surface};
 
 pub const BACKDROP: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
+
+/// The console's body around a picture that does not fill the canvas: the bands it leaves,
+/// painted `fill`, the marks printed on them, and an overlay laid over all of it.
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct Bezel {
+    pub bands: Vec<[f32; 4]>,
+    pub fill: [f32; 4],
+    pub marks: Vec<(TexId, [f32; 4])>,
+    pub overlay: Option<TexId>,
+}
 
 pub struct Compositor {
     fbo: gl::types::GLuint,
@@ -18,6 +28,7 @@ pub struct Compositor {
     quad: Quad,
     game: GamePass,
     sprites: Sprites,
+    bezel: Option<Bezel>,
 }
 
 impl Compositor {
@@ -65,6 +76,7 @@ impl Compositor {
                 quad: Quad::new(),
                 game: GamePass::new()?,
                 sprites: Sprites::new()?,
+                bezel: None,
             })
         }
     }
@@ -84,12 +96,14 @@ impl Compositor {
                 Draw::Game => {
                     self.sprites.draw(&items[from..i], &self.quad);
                     self.game.draw(&self.quad);
+                    self.draw_bezel();
                 }
                 Draw::Shot { tex } => {
                     self.sprites.draw(&items[from..i], &self.quad);
                     if let Some(tex) = self.sprites.source(tex) {
                         self.game.draw_still(tex, &self.quad);
                     }
+                    self.draw_bezel();
                 }
                 _ => continue,
             }
@@ -120,6 +134,54 @@ impl Compositor {
 
     pub fn set_game_source_rect(&mut self, rect: [f32; 4]) {
         self.game.set_source_rect(rect);
+    }
+
+    pub fn set_game_view(&mut self, view: GameView) {
+        self.game.set_view(view);
+    }
+
+    pub fn set_still_view(&mut self, view: GameView) {
+        self.game.set_still_view(view);
+    }
+
+    pub fn set_bezel(&mut self, bezel: Option<Bezel>) {
+        self.bezel = bezel;
+    }
+
+    fn draw_bezel(&self) {
+        let Some(b) = &self.bezel else {
+            return;
+        };
+        let mut items: Vec<Draw> = b
+            .bands
+            .iter()
+            .map(|r| Draw::Rect {
+                x: r[0],
+                y: r[1],
+                w: r[2],
+                h: r[3],
+                colour: b.fill,
+            })
+            .collect();
+        items.extend(b.marks.iter().map(|(tex, r)| Draw::Tex {
+            x: r[0],
+            y: r[1],
+            w: r[2],
+            h: r[3],
+            tex: *tex,
+            alpha: 1.0,
+        }));
+        if let Some(tex) = b.overlay {
+            items.push(Draw::Tex {
+                x: 0.0,
+                y: 0.0,
+                w: out_w() as f32,
+                h: out_h() as f32,
+                tex,
+                alpha: 1.0,
+            });
+        }
+        self.sprites.draw(&items, &self.quad);
     }
 
     pub fn set_shake(&mut self, dx: f32) {

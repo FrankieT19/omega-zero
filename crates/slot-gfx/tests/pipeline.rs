@@ -1,5 +1,6 @@
 use slot_gfx::{
-    blue_light_gain, lcd3x_mask, out_h, out_w, Compositor, Draw, HeadlessSurface, SRC_H, SRC_W,
+    blue_light_gain, lcd3x_mask, out_h, out_w, Compositor, Draw, Filter, GameView, HeadlessSurface,
+    SRC_H, SRC_W,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -36,6 +37,33 @@ const GB_RECT: [f32; 4] = [
 ];
 
 const WHOLE: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
+
+/// The GBA frame at 3x, centred on the canvas: where every view through the LCD mask lays
+/// the game texture, overhanging a canvas narrower than 720.
+fn frame_rect() -> [f32; 4] {
+    [
+        (out_w() as f32 - 720.0) / 2.0,
+        (out_h() as f32 - 480.0) / 2.0,
+        720.0,
+        480.0,
+    ]
+}
+
+fn at_3x(uv: [f32; 4]) -> GameView {
+    GameView {
+        rect: frame_rect(),
+        uv,
+        filter: Filter::Lcd3x,
+    }
+}
+
+/// The canvas pixel `x`, `y` of the 3x frame lands on, if it is on the canvas at all.
+fn on_canvas(x: usize, y: usize) -> Option<(usize, usize)> {
+    let r = frame_rect();
+    let (cx, cy) = (x as f32 + r[0], y as f32 + r[1]);
+    let inside = cx >= 0.0 && cy >= 0.0 && cx < out_w() as f32 && cy < out_h() as f32;
+    inside.then_some((cx as usize, cy as usize))
+}
 
 fn gb_shaped(inside: impl Fn(usize, usize) -> [u8; 3], margin: [u8; 3]) -> Vec<u8> {
     let mut buf = Vec::with_capacity((SRC_W * SRC_H * 4) as usize);
@@ -427,12 +455,37 @@ fn the_default_source_rect_draws_exactly_as_before() {
     c.draw_game();
     let default = c.read_frame();
 
-    for (sx, sy) in [(0, 0), (1, 0), (0, 1), (113, 37), (120, 80), (239, 159)] {
+    c.set_game_view(GameView::canvas(WHOLE));
+    c.begin_frame();
+    c.upload_game(&src);
+    c.draw_game();
+    assert!(
+        c.read_frame() == default,
+        "the default view is not the whole texture over the whole canvas"
+    );
+
+    c.set_game_view(at_3x(WHOLE));
+    c.begin_frame();
+    c.upload_game(&src);
+    c.draw_game();
+    let tripled = c.read_frame();
+    for (sx, sy) in [
+        (0, 0),
+        (1, 0),
+        (0, 1),
+        (113, 37),
+        (120, 80),
+        (239, 159),
+        (20, 5),
+    ] {
         let o = (sy * SRC_W as usize + sx) * 4;
         let want_rgb = [src[o + 2], src[o + 1], src[o]];
         for oy in 0..3 {
             for ox in 0..3 {
-                let got = px(&default, sx * 3 + ox, sy * 3 + oy);
+                let Some((x, y)) = on_canvas(sx * 3 + ox, sy * 3 + oy) else {
+                    continue;
+                };
+                let got = px(&tripled, x, y);
                 for (ch, want) in masked(want_rgb, ox, oy).iter().enumerate() {
                     assert!(
                         (want - got[ch] as i32).abs() <= 1,
@@ -452,6 +505,12 @@ fn the_default_source_rect_draws_exactly_as_before() {
         c.read_frame() == default,
         "the whole texture asked for is not the whole texture by default"
     );
+    if (out_w(), out_h()) == (720, 480) {
+        assert!(
+            tripled == default,
+            "on 720x480 the 3x frame is not the whole canvas"
+        );
+    }
 }
 
 #[test]
@@ -524,7 +583,7 @@ fn the_mask_period_is_three_pixels_in_both_modes() {
     let src = gb_shaped(|_, _| [0x80, 0x80, 0x80], [0, 0, 0]);
     c.set_screen_power(1.0);
 
-    c.set_game_source_rect(WHOLE);
+    c.set_game_view(at_3x(WHOLE));
     c.begin_frame();
     c.upload_game(&src);
     c.draw_game();
@@ -536,8 +595,11 @@ fn the_mask_period_is_three_pixels_in_both_modes() {
     c.draw_game();
     let full = c.read_frame();
 
-    let lit_x = GB_X * 3..(GB_X + GB_W) * 3;
-    let lit_y = GB_Y * 3..(GB_Y + GB_H) * 3;
+    let r = frame_rect();
+    let fx = (GB_X as f32 * 3.0 + r[0]) as usize;
+    let fy = (GB_Y as f32 * 3.0 + r[1]) as usize;
+    let lit_x = fx..fx + GB_W * 3;
+    let lit_y = fy..fy + GB_H * 3;
     assert_eq!(
         period_x(&actual, lit_x.clone(), lit_y.clone()),
         Some(3),

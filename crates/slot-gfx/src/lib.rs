@@ -18,13 +18,13 @@ mod surface;
 pub use canvas::{canvas, out_h, out_w, set_canvas, Canvas, CANVAS_ENV};
 pub use draw::{Draw, TexId};
 pub use fbdev::{egl_error, panel_mode, panel_size, FbdevSurface};
-pub use fbo::{Compositor, BACKDROP};
+pub use fbo::{Bezel, Compositor, BACKDROP};
 pub use grade::{blue_light_gain, BLUE_LIGHT_MAX};
 #[cfg(target_os = "macos")]
 pub use headless::HeadlessSurface;
 #[cfg(feature = "host")]
 pub use host::HostSurface;
 pub use lcd3x::{lcd3x_mask, mask_texture_rgba8};
-pub use pipeline::{SCALE, SRC_H, SRC_W, WHOLE_TEXTURE};
-pub use power::{screen_brightness, screen_scale, screen_width};
+pub use pipeline::{Filter, GameView, SCALE, SRC_H, SRC_W, WHOLE_TEXTURE};
+pub use power::{screen_brightness, screen_rect_in, screen_scale, screen_width};
 pub use surface::{blit_rect, blit_rect_fit, fit_rect, fit_scale, GfxError, Surface};

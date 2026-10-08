@@ -758,6 +758,10 @@ impl App {
         video_mode::source_rect(self.platform, self.video_mode)
     }
 
+    pub fn screen(&self) -> video_mode::Screen {
+        video_mode::screen(self.platform, self.video_mode)
+    }
+
     fn slot_owns_the_shoulders(&self) -> bool {
         matches!(self.phase, Phase::Playing { .. }) && self.platform != Platform::Gba
     }

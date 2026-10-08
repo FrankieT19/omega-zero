@@ -90,14 +90,19 @@ fn has_hint(p: &Polaroids, out: &[Draw], key: &str) -> bool {
 }
 
 #[test]
-fn the_screenshot_fills_the_screen_at_exactly_3x() {
+fn the_screenshot_is_the_first_thing_drawn_over_the_whole_screen() {
     let p = switcher_with(3);
     let out = draw(&p);
     let photo = *quads(&out).first().expect("no screenshot drawn");
     assert_eq!((photo.w, photo.h), (out_w() as f32, out_h() as f32));
     assert_eq!((photo.x, photo.y), (0.0, 0.0));
-    assert_eq!(out_w() / PHOTO_W, 3);
-    assert_eq!(out_h() / PHOTO_H, 3);
+    if (out_w(), out_h()) == (720, 480) {
+        assert_eq!(
+            (out_w() / PHOTO_W, out_h() / PHOTO_H),
+            (3, 3),
+            "on 720x480 the screenshot is exactly 3x"
+        );
+    }
 }
 
 #[test]

@@ -8,11 +8,12 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use slot::frontend::Frontend;
-use slot::video_mode::{source_rect, VideoMode};
-use slot_gfx::{out_h, out_w, Compositor, HeadlessSurface};
+use slot::video_mode::{screen, VideoMode};
+use slot_gfx::{out_h, out_w, Bezel, Compositor, Draw, HeadlessSurface};
 use slot_input::{Btn, InputSource, Millis, RawEvent};
 use slot_power::SimPlatform;
 use slot_store::{write_slot_state, Platform, SlotState};
+use slot_ui::BEZEL_FILL;
 
 const FPS: f64 = 60.0;
 
@@ -373,11 +374,17 @@ fn main() {
         for mode in [VideoMode::Actual, VideoMode::Stretch] {
             for power in [0.05, 0.5, 1.0] {
                 let name = format!("view-{}-{}-{power}", platform.dir_name(), mode.as_str());
+                let screen = screen(platform, mode);
                 compositor.upload_game(&still_frame());
-                compositor.set_game_source_rect(source_rect(platform, mode));
+                compositor.set_game_view(screen.view);
+                compositor.set_bezel((!screen.bands.is_empty()).then(|| Bezel {
+                    bands: screen.bands,
+                    fill: BEZEL_FILL,
+                    ..Bezel::default()
+                }));
                 compositor.set_screen_power(power);
                 compositor.begin_frame();
-                compositor.draw_game();
+                compositor.draw_list(&[Draw::Game]);
                 let rgba = compositor.read_frame();
                 write_png(&out.join(format!("{name}.png")), &rgba);
                 if let Some(baseline) = &baseline {
