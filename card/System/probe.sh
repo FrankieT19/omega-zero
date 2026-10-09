@@ -34,6 +34,17 @@ cmd() {
 	fi
 }
 
+# Where each tool is, or that it is missing.
+where_are() {
+	for b in "$@"; do
+		if command -v "$b" > /dev/null 2>&1; then
+			printf '%s = %s\n' "$b" "$(command -v "$b")"
+		else
+			printf '%s = not found\n' "$b"
+		fi
+	done
+}
+
 values_in() {
 	[ -d "$1" ] || return 0
 	for f in "$1"/*; do
@@ -135,18 +146,15 @@ network() {
 	cmd iw dev
 	cmd iw list
 	cmd rfkill list
+	where_are wpa_supplicant wpa_cli udhcpc ntpd timedatectl dropbear
+	cmd wpa_supplicant -v
+	printf 'hostname = %s\n' "$(cat "$PROC/sys/kernel/hostname" 2>/dev/null)"
 	dump "$PROC/modules"
 }
 
 bluetooth() {
 	section bluetooth
-	for b in rtk_hciattach hciattach bluetoothd bluetoothctl bluealsa bluealsa-aplay dbus-daemon; do
-		if command -v "$b" > /dev/null 2>&1; then
-			printf '%s = %s\n' "$b" "$(command -v "$b")"
-		else
-			printf '%s = not found\n' "$b"
-		fi
-	done
+	where_are rtk_hciattach hciattach bluetoothd bluetoothctl bluealsa bluealsa-aplay dbus-daemon
 	for d in uhid uinput; do
 		[ -e "$DEV/$d" ] && echo "$DEV/$d present"
 	done

@@ -48,7 +48,8 @@ put "$TMP/proc/modules" '8821cs 2863104 0 - Live 0x0
 hidp 20480 0 - Live 0x0'
 mkdir -p "$TMP/sys/class/net/wlan0" "$TMP/sys/class/net/wlan1"
 : > "$TMP/dev/uhid"
-for c in aplay amixer ip iw; do fake "$c"; done
+for c in aplay amixer ip iw wpa_cli; do fake "$c"; done
+put "$TMP/proc/sys/kernel/hostname" 'rg35xxsp'
 : > "$TMP/card/System/slot"
 
 probe() {
@@ -77,6 +78,8 @@ has 'wlan1'
 has "$TMP/dev/uhid present"
 has 'hidp 20480'
 has 'bluetoothctl = '
+has "wpa_cli = $TMP/bin/wpa_cli"
+has 'hostname = rg35xxsp'
 
 file="$(probe)"
 case "$file" in
