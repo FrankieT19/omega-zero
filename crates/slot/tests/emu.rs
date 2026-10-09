@@ -1055,8 +1055,10 @@ fn a_stalled_display_does_not_stall_the_worker() {
     let before = emu.published_count();
     std::thread::sleep(Duration::from_millis(200));
     let ran = emu.published_count() - before;
+    // A worker waiting on the stalled display would run none. Its own 60 Hz runs about 11,
+    // fewer where the host's timers slip, as a busy desktop's do.
     assert!(
-        (9..=14).contains(&ran),
+        (6..=14).contains(&ran),
         "{ran} frames in a 200 ms stall, where its own 60 Hz would run about 11"
     );
 }
