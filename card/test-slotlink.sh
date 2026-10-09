@@ -39,6 +39,7 @@ reset() {
 	make_fake ip "$TMP/ip.log"
 	make_fake insmod "$TMP/mod.log"
 	make_fake legacy "$TMP/legacy.log"
+	make_fake wifi.sh "$TMP/wifi.log" "[ -e \"$TMP/run/slotlink.session\" ] && echo 'in a link' >> \"$TMP/wifi.log\""
 }
 
 run() {
@@ -47,7 +48,7 @@ run() {
 		AGS_MODULES="$TMP/modules" AGS_NET_SYS="$TMP/net" AGS_RUN="$TMP/run" \
 		AGS_CTRL_DIR="$TMP/ctrl" AGS_PROC_MODULES="$TMP/proc-modules" \
 		AGS_WPA_SUPPLICANT="$TMP/bin/wpa_supplicant" AGS_WPA_CLI="$TMP/bin/wpa_cli" \
-		AGS_IP="$TMP/bin/ip" AGS_INSMOD="$TMP/bin/insmod" \
+		AGS_IP="$TMP/bin/ip" AGS_INSMOD="$TMP/bin/insmod" AGS_HOME_WIFI="$TMP/bin/wifi.sh" \
 		AGS_LINK_WAIT_S="${WAIT_S:-1}" AGS_LINK_PIN_WAIT_S="${WAIT_S:-1}" \
 		sh "$SCRIPT" "$@"
 }
@@ -110,6 +111,16 @@ run absent link down && rc=0 || rc=$?
 for f in slotlink-ap.conf slotlink-sta.conf slotlink.session; do
 	[ -e "$TMP/run/$f" ] && fail "down left $f"
 done
+
+reset yes
+run absent link host >/dev/null
+[ "$(head -n 1 "$TMP/wifi.log")" = pause ] || fail "host did not pause home Wi-Fi first"
+: > "$TMP/wifi.log"
+run absent link join >/dev/null
+grep -qx pause "$TMP/wifi.log" || fail "join did not pause home Wi-Fi"
+: > "$TMP/wifi.log"
+run absent link down >/dev/null
+[ "$(tail -n 1 "$TMP/wifi.log")" = resume ] || fail "down did not hand home Wi-Fi back last"
 
 reset yes
 run absent link cool && rc=0 || rc=$?

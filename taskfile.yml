@@ -79,6 +79,7 @@ tasks:
       - sh card/test-led.sh
       - sh card/test-coresave.sh
       - sh card/test-probe.sh
+      - sh card/test-wifi.sh
 
   screens:
     desc: >-

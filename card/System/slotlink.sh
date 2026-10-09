@@ -17,6 +17,8 @@ LINK_TRACE="${AGS_LINK_TRACE:-}"
 LINK_MARK="$RUN/slotlink.session"
 AP_MARK="$RUN/slotlink.ap"
 
+HOME_WIFI="${AGS_HOME_WIFI:-$(dirname "$0")/wifi.sh}"
+
 WPA_SUPPLICANT="${AGS_WPA_SUPPLICANT:-wpa_supplicant}"
 WPA_CLI="${AGS_WPA_CLI:-wpa_cli}"
 IP="${AGS_IP:-ip}"
@@ -64,6 +66,9 @@ ap_if() {
 }
 
 link_clear() {
+	# Home Wi-Fi gives wlan0 up to the link, its lease client included: one left running
+	# would drop the link's address when it finds no DHCP server.
+	sh "$HOME_WIFI" pause >/dev/null 2>&1 || true
 	ap="$(ap_if)"
 	supplicant_stop "$RUN/wpa_ap" "$ap"
 	$IP addr flush dev "$ap" 2>/dev/null || true
@@ -202,6 +207,7 @@ link_down() {
 	true
 	rmdir "$RUN/wpa_ap" 2>/dev/null || true
 	/bin/rm -f "$LINK_MARK"
+	sh "$HOME_WIFI" resume >/dev/null 2>&1 || true
 	return 0
 }
 
