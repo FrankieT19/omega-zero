@@ -219,9 +219,9 @@ pub fn bottom_label(key: Key, layer: Layer) -> &'static str {
     }
 }
 
-const GLYPH_PX: f32 = 26.0;
+const GLYPH_PX: f32 = 27.0;
 const BOTTOM_PX: f32 = 18.0;
-const FIELD_PX: f32 = 26.0;
+const FIELD_PX: f32 = 27.0;
 const DIM_INK: [u8; 3] = [0x9a, 0x9a, 0xa4];
 pub const SHIFT_INK: [u8; 3] = [0xf0, 0xb4, 0x3c];
 
@@ -242,7 +242,7 @@ pub fn bottom_key_face(label: &str, w: u32, ink: [u8; 3]) -> UndoFace {
     let Some(font) = text::label_font() else {
         return blank(w, KEY_H as u32);
     };
-    let layout = text::fit(font, label, w as f32 - 8.0, 1, BOTTOM_PX, 12.0);
+    let layout = text::fit(font, label, w as f32 - 8.0, 1, BOTTOM_PX, 9.0);
     let mut rgba = vec![0u8; (w * KEY_H as u32 * 4) as usize];
     text::draw_centred(&mut rgba, w, KEY_H as u32, &layout, ink);
     UndoFace {

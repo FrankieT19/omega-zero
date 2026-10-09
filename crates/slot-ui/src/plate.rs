@@ -4,24 +4,24 @@ use crate::text;
 pub const HINT_H: u32 = 24;
 pub const CAP: u32 = 20;
 const CAP_PAD: u32 = 4;
-const CAP_MAX_W: f32 = 64.0;
+const CAP_MAX_W: f32 = 80.0;
 pub const HINT_GAP: f32 = 14.0;
 
 pub const CAP_GAP: u32 = 5;
 const EDGE: u32 = 2;
 pub const HINT_EDGE: u32 = EDGE;
-const LABEL_MAX_W: f32 = 140.0;
+const LABEL_MAX_W: f32 = 200.0;
 
 pub const TITLE_W: u32 = 360;
 pub const TITLE_H: u32 = 24;
 
 const INK: [u8; 3] = [0xf6, 0xf4, 0xef];
 const CAP_INK: [u8; 3] = [0x1a, 0x19, 0x17];
-const KEY_PX: f32 = 14.0;
-const LABEL_PX: f32 = 16.0;
-const LABEL_MIN_PX: f32 = 10.0;
-const TITLE_PX: f32 = 20.0;
-const TITLE_MIN_PX: f32 = 12.0;
+const KEY_PX: f32 = 18.0;
+const LABEL_PX: f32 = 18.0;
+const LABEL_MIN_PX: f32 = 9.0;
+const TITLE_PX: f32 = 18.0;
+const TITLE_MIN_PX: f32 = 9.0;
 
 pub struct UndoFace {
     pub rgba: Vec<u8>,
