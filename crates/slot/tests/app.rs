@@ -1336,7 +1336,7 @@ fn the_open_cart_rests_over_the_shelf_with_its_lid_turned() {
     let (sx, sy) = (stage_x(), stage_y());
     assert!(
         (s[0] + s[2] / 2.0 - (360.0 + sx)).abs() < 0.01
-            && (s[1] + s[3] / 2.0 - (140.0 + sy)).abs() < 0.01,
+            && (s[1] + s[3] / 2.0 - (154.0 + sy)).abs() < 0.01,
         "the lid's shadow is not under it: {s:?}"
     );
     assert!(shadow_i < lid_i, "the lid's shadow is drawn over the lid");
@@ -1346,7 +1346,7 @@ fn the_open_cart_rests_over_the_shelf_with_its_lid_turned() {
     let seen = |w: u32| (w - HINT_EDGE) as f32;
     assert_eq!(
         at(cancel.0),
-        [174.0 + sx, 386.0 + sy, cancel.1 as f32, HINT_H as f32]
+        [174.0 + sx, 362.0 + sy, cancel.1 as f32, HINT_H as f32]
     );
     assert_eq!(
         at(swap.0)[0] + seen(swap.1) / 2.0,
@@ -1358,7 +1358,7 @@ fn the_open_cart_rests_over_the_shelf_with_its_lid_turned() {
         546.0 + sx,
         "Choose does not end at the cart's edge"
     );
-    assert_eq!((at(swap.0)[1], at(choose.0)[1]), (386.0 + sy, 386.0 + sy));
+    assert_eq!((at(swap.0)[1], at(choose.0)[1]), (362.0 + sy, 362.0 + sy));
 }
 
 #[test]

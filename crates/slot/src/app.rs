@@ -80,7 +80,7 @@ const SLOT_NAME_OUT_MS: Millis = 800;
 const SLOT_NAME_ALPHA: f32 = 0.4;
 const CORE_PICKER_DIM: f32 = 0.614;
 fn core_legend_y() -> f32 {
-    386.0 + stage_y()
+    362.0 + stage_y()
 }
 
 fn link_text_y() -> f32 {

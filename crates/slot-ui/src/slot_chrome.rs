@@ -4,31 +4,38 @@ use slot_gfx::{out_h, out_w, Draw, TexId};
 use slot_store::Cart;
 use slot_store::Theme;
 
-use crate::cart::{cart_box, label_colour, label_text, seated_box, SEATED_W};
+use crate::cart::{cart_box, label_colour, label_text, CART_W, SEATED_W};
 use crate::footer::Printed;
 use crate::icon::icon_box;
 use crate::plate::HINT_H;
 use crate::shelf::foot_y;
 
-pub const ALERT_PX: f32 = 44.0;
+/// The alert shown on a refused cart as it comes back out, sized to the cart, which now
+/// keeps its shelf size in the slot.
+pub const ALERT_PX: f32 = 66.0;
 
-pub const MOUTH_H: f32 = 58.0;
+/// How much larger the slot is drawn than the one a seated-size cart went into: a cart keeps
+/// the size it has on the shelf all the way in, so the slot is built around that size.
+const K: f32 = CART_W as f32 / SEATED_W as f32;
+
+/// The bar across the bottom that holds the slot.
+pub const MOUTH_H: f32 = 80.0;
 fn band_y() -> f32 {
     out_h() as f32 - MOUTH_H
 }
 
-pub const MOUTH_W: f32 = SEATED_W as f32 + 14.0;
-const SLIT_H: f32 = 9.0;
+pub const MOUTH_W: f32 = CART_W as f32 + 14.0 * K;
+const SLIT_H: f32 = 9.0 * K;
 fn mouth_x() -> f32 {
     (out_w() as f32 - MOUTH_W) / 2.0
 }
 fn slit_y() -> f32 {
-    bay_y() + 5.0
+    bay_y() + 5.0 * K
 }
 
-pub const LIP_H: f32 = 2.0;
+pub const LIP_H: f32 = 2.0 * K;
 
-const BAY_W: f32 = MOUTH_W + 18.0;
+const BAY_W: f32 = MOUTH_W + 18.0 * K;
 fn bay_x() -> f32 {
     (out_w() as f32 - BAY_W) / 2.0
 }
@@ -43,8 +50,8 @@ fn scoop_y() -> f32 {
     slit_y() + SLIT_H
 }
 
-const RECESS_H: f32 = 42.0;
-const RIM_W: f32 = 2.0;
+const RECESS_H: f32 = 42.0 * K;
+const RIM_W: f32 = 2.0 * K;
 fn cx() -> f32 {
     out_w() as f32 / 2.0
 }
@@ -90,7 +97,7 @@ fn lip_y() -> f32 {
 }
 
 fn seated_y() -> f32 {
-    bay_y() + 4.0
+    bay_y() + 4.0 * K
 }
 
 fn catch_at(foot: f32, seated_foot: f32) -> f32 {
@@ -99,7 +106,9 @@ fn catch_at(foot: f32, seated_foot: f32) -> f32 {
 
 const CATCH_IN: f32 = 0.42;
 const CATCH_OUT: f32 = 0.62;
-const CREEP: f32 = 0.03;
+/// How far a cart creeps on the lip before it goes in, as a share of the way it came down to
+/// it: a tall pak that stands just over the slot still visibly stops there.
+const CREEP: f32 = 0.1;
 
 pub struct SlotChrome<'a> {
     pub cart: &'a Cart,
@@ -134,15 +143,16 @@ impl SlotChrome<'_> {
         let (cw, ch) = cart_box(self.cart.platform);
         let (cw, ch) = (cw as f32, ch as f32);
 
+        // A cart the row had not finished growing comes up to its own size by the lip, and
+        // keeps it the rest of the way in.
         let scale = self.scale.clamp(0.0, 1.0);
-        let (w0, h0) = (cw * scale, ch * scale);
-        let (sw, sh) = seated_box(self.cart.platform);
-        let (sw, sh) = (sw as f32, sh as f32);
-        let (foot0, seated_foot) = (foot_y(ch), seated_y() + sh);
+        let w0 = cw * scale;
+        let (foot0, seated_foot) = (foot_y(ch), seated_y() + ch);
         let catch = catch_at(foot0, seated_foot);
         let travel = travel(seat, catch);
         let k = (travel / catch).min(1.0);
-        let (cw, ch) = (w0 + (sw - w0) * k, h0 + (sh - h0) * k);
+        let grown = scale + (1.0 - scale) * k;
+        let (cw, ch) = (cw * grown, ch * grown);
         let centre = self.rest + w0 / 2.0;
         let x = centre + (cx() - centre) * k - cw / 2.0;
         let y = foot0 + (seated_foot - foot0) * travel - ch;
@@ -294,12 +304,13 @@ pub fn draw_empty_slot(out: &mut Vec<Draw>) {
 }
 
 fn travel(seat: f32, catch: f32) -> f32 {
+    let creep = CREEP * catch;
     if seat < CATCH_IN {
         catch * ease(seat / CATCH_IN)
     } else if seat < CATCH_OUT {
-        catch + CREEP * (seat - CATCH_IN) / (CATCH_OUT - CATCH_IN)
+        catch + creep * (seat - CATCH_IN) / (CATCH_OUT - CATCH_IN)
     } else {
-        let caught = catch + CREEP;
+        let caught = catch + creep;
         caught + (1.0 - caught) * ease((seat - CATCH_OUT) / (1.0 - CATCH_OUT))
     }
 }
