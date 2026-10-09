@@ -119,7 +119,7 @@ impl Labels {
         if !self.jobs.present() || self.state == SyncState::Failed(SyncFail::NoKey) {
             return said(
                 "This build of slot has no ScreenScraper key.",
-                "Labels can still be copied into Labels/ by hand.",
+                "Labels can still be copied into Labels/.",
             );
         }
         match &self.state {
@@ -134,8 +134,8 @@ impl Labels {
         }
         if self.account.is_none() {
             return said(
-                "Sign in with your ScreenScraper account, free at",
-                "screenscraper.fr, to fetch the real labels of your carts.",
+                "Sign in with your free ScreenScraper account",
+                "to fetch the real labels of your carts.",
             );
         }
         if !online {
@@ -148,7 +148,7 @@ impl Labels {
             .quota
             .map(|q| format!("{} lookups left today.", q.left))
             .unwrap_or_default();
-        said("Fetches the real label of every cart that has none.", &left)
+        said("Fetches real labels for carts with none.", &left)
     }
 }
 
@@ -163,7 +163,7 @@ fn said(first: &str, second: &str) -> Vec<String> {
 fn failed_lines(fail: SyncFail) -> Vec<String> {
     match fail {
         SyncFail::Refused(Who::Player) => said(
-            "ScreenScraper refused that user name or password.",
+            "ScreenScraper refused that name or password.",
             "Press A on ScreenScraper to sign in again.",
         ),
         SyncFail::Refused(Who::Program) => said(
@@ -171,11 +171,11 @@ fn failed_lines(fail: SyncFail) -> Vec<String> {
             "A newer slot may be let in.",
         ),
         SyncFail::Spent => said(
-            "Your ScreenScraper lookups for today are spent.",
+            "Today's ScreenScraper lookups are spent.",
             "They come back at midnight, French time.",
         ),
         SyncFail::Down => said(
-            "ScreenScraper is not taking requests just now.",
+            "ScreenScraper is not answering just now.",
             "Try again later.",
         ),
         SyncFail::Offline | SyncFail::NoKey => said(
@@ -202,7 +202,7 @@ fn done_lines(t: &Tally) -> Vec<String> {
             plural(unknown, "cart is", "carts are")
         ),
         (bare, unknown) => format!(
-            "{} no label scan, {} not on ScreenScraper.",
+            "{} no scan, {} not on ScreenScraper.",
             plural(bare, "has", "have"),
             plural(unknown, "is", "are")
         ),

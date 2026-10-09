@@ -340,7 +340,7 @@ fn the_screen_follows_the_sync_and_a_stops_it() {
         r.status(),
         [
             "Done: 1 new label.",
-            "1 has no label scan, 1 is not on ScreenScraper."
+            "1 has no scan, 1 is not on ScreenScraper."
         ]
     );
 }
@@ -357,7 +357,7 @@ fn a_refusal_says_what_to_do() {
     r.tick(16);
     assert_eq!(
         r.status()[0],
-        "ScreenScraper refused that user name or password."
+        "ScreenScraper refused that name or password."
     );
     assert!(!r.a.labels().working());
 }

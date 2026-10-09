@@ -328,7 +328,7 @@ impl Wifi {
         }
     }
 
-    /// The lines under the list.
+    /// The lines under the list, each short enough for a 640-wide screen.
     pub fn status_lines(&self) -> Vec<String> {
         if !self.present() {
             return vec!["This handheld has no Wi-Fi.".into()];
@@ -339,7 +339,10 @@ impl Wifi {
         match &self.note {
             Some(Note::NoRadio) => return vec!["The Wi-Fi radio did not start.".into()],
             Some(Note::WrongPassphrase(s)) => {
-                return vec![format!("Could not join {}. Wrong passphrase?", shown(s))]
+                return vec![
+                    format!("Could not join {}.", shown(s)),
+                    "Wrong passphrase?".into(),
+                ]
             }
             Some(Note::NoJoin(s)) => return vec![format!("Could not join {}.", shown(s))],
             None => {}
@@ -351,14 +354,17 @@ impl Wifi {
             return vec!["Not connected. Pick a network to join.".into()];
         };
         let Some(ip) = &self.status.ip else {
-            return vec![format!("Joined {}, waiting for an address…", shown(ssid))];
+            return vec![
+                format!("Joined {}.", shown(ssid)),
+                "Waiting for an address…".into(),
+            ];
         };
         let mut lines = vec![format!("Connected to {} as {ip}", shown(ssid))];
         let host = &self.status.hostname;
         lines.push(if host.is_empty() {
             format!("SSH and SFTP: root@{ip}")
         } else {
-            format!("SSH and SFTP: root@{host}.local or root@{ip}")
+            format!("SSH and SFTP: root@{host}.local")
         });
         lines
     }

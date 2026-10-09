@@ -444,7 +444,7 @@ fn a_passphrase_turned_away_says_so_and_is_asked_for_again() {
         refused: true,
     }]));
     r.tick(16);
-    assert_eq!(r.status(), ["Could not join Home. Wrong passphrase?"]);
+    assert_eq!(r.status(), ["Could not join Home.", "Wrong passphrase?"]);
     r.radio.forget_asked();
     r.press(Btn::A);
     assert_eq!(
@@ -474,14 +474,14 @@ fn joined_it_says_where_to_reach_it_over_ssh() {
     r.on_with(&[("Home", -48, true)], &[(0, "Home")]);
     r.radio.say(joined("Home", None));
     r.tick(16);
-    assert_eq!(r.status(), ["Joined Home, waiting for an address…"]);
+    assert_eq!(r.status(), ["Joined Home.", "Waiting for an address…"]);
     r.radio.say(joined("Home", Some("192.168.1.20")));
     r.tick(16);
     assert_eq!(
         r.status(),
         [
             "Connected to Home as 192.168.1.20",
-            "SSH and SFTP: root@rg35xxsp.local or root@192.168.1.20"
+            "SSH and SFTP: root@rg35xxsp.local"
         ]
     );
     assert_eq!(r.a.wifi_summary(), Summary::Joined("Home".into()));
