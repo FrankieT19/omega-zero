@@ -28,6 +28,7 @@ fn bezel(mark: TexId) -> Bezel {
     Bezel {
         bands: vec![band()],
         fill: FILL,
+        rims: vec![[0.0, out_h() as f32 - 40.0, out_w() as f32, 4.0]],
         marks: vec![(mark, [10.0, out_h() as f32 - 30.0, 20.0, 20.0])],
         overlay: None,
     }
@@ -54,6 +55,11 @@ fn the_body_is_painted_over_the_bands_the_picture_leaves() {
         [255, 255, 255],
         "the mark is not printed on the band"
     );
+    assert_eq!(
+        px(&frame, 100, out_h() as usize - 38),
+        [0, 0, 0],
+        "the screen has no rim where it meets the band"
+    );
 }
 
 #[test]
@@ -68,6 +74,11 @@ fn a_screenshot_gets_the_bands_without_the_mark() {
     c.draw_list(&[Draw::Shot { tex: shot }]);
     let frame = c.read_frame();
     assert!(near(px(&frame, 15, out_h() as usize - 20), FILL_RGB));
+    assert_eq!(
+        px(&frame, 100, out_h() as usize - 38),
+        [0, 0, 0],
+        "a screenshot's screen has no rim"
+    );
 }
 
 #[test]

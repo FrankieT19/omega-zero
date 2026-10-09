@@ -6,16 +6,19 @@ use slot_store::Platform;
 use crate::plate::UndoFace;
 
 /// The console's body, where a picture that does not fill the canvas leaves it bare: the
-/// near-black of a GBA's face around its screen.
+/// dark grey of a GBA's lens around its screen.
 pub const BEZEL_FILL: [f32; 4] = [
-    0x0d as f32 / 255.0,
-    0x0d as f32 / 255.0,
-    0x0f as f32 / 255.0,
+    0x19 as f32 / 255.0,
+    0x19 as f32 / 255.0,
+    0x19 as f32 / 255.0,
     1.0,
 ];
 
-/// The grey the marks are printed in.
+/// The grey a mark without colours of its own is printed in.
 pub const BEZEL_INK: [u8; 3] = [0x8a, 0x8a, 0x92];
+
+/// How wide the screen's black rim is where the picture meets the body.
+pub const RIM_W: f32 = 5.0;
 
 const GBA_MARK: &[u8] = include_bytes!("../assets/bezel_gba.png");
 const GB_MARK: &[u8] = include_bytes!("../assets/bezel_gb.png");
@@ -23,24 +26,45 @@ const GBC_MARK: &[u8] = include_bytes!("../assets/bezel_gbc.png");
 
 /// How tall the mark is printed in a band `band_h` tall.
 pub fn mark_height(band_h: f32) -> u32 {
-    (band_h * 0.38).round().clamp(16.0, 32.0) as u32
+    (band_h * 0.55).round().clamp(16.0, 36.0) as u32
 }
 
-/// The console's wordmark for `platform`, `height` pixels tall, in [`BEZEL_INK`].
+/// The console's wordmark for `platform`, `height` pixels tall: in its own white and black
+/// where it has them, otherwise in [`BEZEL_INK`].
 pub fn bezel_mark_face(platform: Platform, height: u32) -> Option<UndoFace> {
     let png = match platform {
         Platform::Gba => GBA_MARK,
         Platform::Gb => GB_MARK,
         Platform::Gbc => GBC_MARK,
     };
-    let (sw, sh, mask) = decode(png)?;
+    let mark = decode(png)?;
+    let (sw, sh) = (mark.w, mark.h);
     let h = height.clamp(1, sh);
     let w = ((sw as f32 * h as f32 / sh as f32).round() as u32).max(1);
-    let shrunk = shrink(&mask, (sw, sh), (w, h));
-    let rgba = shrunk
-        .iter()
-        .flat_map(|a| [BEZEL_INK[0], BEZEL_INK[1], BEZEL_INK[2], *a])
-        .collect();
+    let alpha = shrink(&mark.alpha, (sw, sh), (w, h));
+    let rgba = match &mark.grey {
+        Some(grey) => {
+            let lit: Vec<u8> = grey
+                .iter()
+                .zip(&mark.alpha)
+                .map(|(g, a)| (*g as u32 * *a as u32 / 255) as u8)
+                .collect();
+            shrink(&lit, (sw, sh), (w, h))
+                .iter()
+                .zip(&alpha)
+                .flat_map(|(l, a)| {
+                    let g = (*l as u32 * 255)
+                        .checked_div(*a as u32)
+                        .map_or(0, |g| g.min(255) as u8);
+                    [g, g, g, *a]
+                })
+                .collect()
+        }
+        None => alpha
+            .iter()
+            .flat_map(|a| [BEZEL_INK[0], BEZEL_INK[1], BEZEL_INK[2], *a])
+            .collect(),
+    };
     Some(UndoFace { rgba, w, h })
 }
 
@@ -57,18 +81,75 @@ pub fn mark_rect(band: [f32; 4], w: u32, h: u32) -> [f32; 4] {
     [x, y.round(), w, h]
 }
 
-fn decode(png: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
+/// The screen's black rim along the side of `picture` that `band` meets, reaching round its
+/// corners, and what is left of the band beside it. A band that meets the picture nowhere
+/// has no rim.
+pub fn rim(band: [f32; 4], picture: [f32; 4]) -> ([f32; 4], Option<[f32; 4]>) {
+    let [bx, by, bw, bh] = band;
+    let [px, py, pw, ph] = picture;
+    let meets = |a: f32, b: f32| (a - b).abs() < 0.5;
+    let across = || {
+        let x0 = bx.max(px - RIM_W);
+        (x0, bw.min(px + pw + RIM_W - bx) - (x0 - bx))
+    };
+    let down = || {
+        let y0 = by.max(py - RIM_W);
+        (y0, bh.min(py + ph + RIM_W - by) - (y0 - by))
+    };
+    if meets(by, py + ph) {
+        let (r, (x, w)) = (RIM_W.min(bh), across());
+        ([bx, by + r, bw, bh - r], Some([x, by, w, r]))
+    } else if meets(by + bh, py) {
+        let (r, (x, w)) = (RIM_W.min(bh), across());
+        ([bx, by, bw, bh - r], Some([x, by + bh - r, w, r]))
+    } else if meets(bx + bw, px) {
+        let (r, (y, h)) = (RIM_W.min(bw), down());
+        ([bx, by, bw - r, bh], Some([bx + bw - r, y, r, h]))
+    } else if meets(bx, px + pw) {
+        let (r, (y, h)) = (RIM_W.min(bw), down());
+        ([bx + r, by, bw - r, bh], Some([bx, y, r, h]))
+    } else {
+        (band, None)
+    }
+}
+
+struct Mark {
+    w: u32,
+    h: u32,
+    alpha: Vec<u8>,
+    /// The grey of each pixel, for a mark drawn in its own white and black.
+    grey: Option<Vec<u8>>,
+}
+
+fn decode(png: &[u8]) -> Option<Mark> {
     let mut reader = png::Decoder::new(std::io::Cursor::new(png))
         .read_info()
         .ok()?;
     let mut buf = vec![0; reader.output_buffer_size()];
     let info = reader.next_frame(&mut buf).ok()?;
-    let grey =
-        info.color_type == png::ColorType::Grayscale && info.bit_depth == png::BitDepth::Eight;
-    grey.then(|| {
-        buf.truncate((info.width * info.height) as usize);
-        (info.width, info.height, buf)
-    })
+    if info.bit_depth != png::BitDepth::Eight {
+        return None;
+    }
+    let (w, h) = (info.width, info.height);
+    let n = (w * h) as usize;
+    match info.color_type {
+        png::ColorType::Grayscale => {
+            buf.truncate(n);
+            Some(Mark {
+                w,
+                h,
+                alpha: buf,
+                grey: None,
+            })
+        }
+        png::ColorType::GrayscaleAlpha => Some(Mark {
+            w,
+            h,
+            alpha: buf[..2 * n].iter().skip(1).step_by(2).copied().collect(),
+            grey: Some(buf[..2 * n].iter().step_by(2).copied().collect()),
+        }),
+        _ => None,
+    }
 }
 
 /// Averages every source pixel under each destination pixel, so a mark drawn large keeps its

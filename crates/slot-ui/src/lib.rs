@@ -31,8 +31,8 @@ pub use backdrop::{draw_backdrop, wallpaper_face};
 pub use barcode::{code39, CODE39_NARROW, CODE39_WIDE};
 pub use battery::{draw_gauge, BOLT_PX, GAUGE_H, GAUGE_W, WALL};
 pub use bezel::{
-    bezel_mark_face, mark_height, mark_rect, overlay_clear, overlay_face, overlay_path, BEZEL_FILL,
-    BEZEL_INK,
+    bezel_mark_face, mark_height, mark_rect, overlay_clear, overlay_face, overlay_path, rim,
+    BEZEL_FILL, BEZEL_INK, RIM_W,
 };
 pub use board::{
     board_at, board_face, board_from, board_x, board_y, board_zoom, chip_face, chip_shadow_face,

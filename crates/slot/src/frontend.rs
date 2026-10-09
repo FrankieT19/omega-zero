@@ -8,7 +8,7 @@ use slot_ui::{
     arrows_hint_face, badge_face, bezel_mark_face, cart_face, cart_shadow, chip_face,
     chip_shadow_face, date_time_text, gb_cart_shadow, hhmm, hint_face, icon_face, mark_height,
     mark_rect, menu_face, photo_face, quick_caret_face, quick_label_face, quick_legend_faces,
-    quick_value_face, set_clock_hint_face, socket_face, sticker_face, title_face, toast_face,
+    quick_value_face, rim, set_clock_hint_face, socket_face, sticker_face, title_face, toast_face,
     wallpaper_face, word_face, GbShell, Icon, LinkBadge, PowerChoice, QuickMenuFaces, QuickRow,
     QuickValue, StickerFields, Toast, UndoFace, ALERT_PX, BEZEL_FILL, BOLT_PX, HUD_ICON_PX,
     HUD_INK, LEGEND,
@@ -337,7 +337,7 @@ impl Frontend {
         compositor.set_still_view(screen.still);
         let picture = crate::video_mode::picture_rect(platform, screen.view);
         let overlay = self.overlay(platform, picture, compositor);
-        let bezel = self.bezel(platform, screen.bands, overlay, compositor);
+        let bezel = self.bezel(platform, screen.bands, picture, overlay, compositor);
         compositor.set_bezel(bezel);
         compositor.begin_frame();
         if let Some(frame) = self.session.frame() {
@@ -402,12 +402,13 @@ impl Frontend {
         compositor.draw_list(&self.draws);
     }
 
-    /// The console's body for the bands the picture leaves, with its wordmark printed on the
-    /// deepest band that runs the width of the canvas.
+    /// The console's body for the bands the picture leaves, rimmed in black where they meet
+    /// it, with its wordmark printed on the deepest band that runs the width of the canvas.
     fn bezel(
         &mut self,
         platform: slot_store::Platform,
         bands: Vec<[f32; 4]>,
+        picture: [f32; 4],
         overlay: Option<TexId>,
         compositor: &mut Compositor,
     ) -> Option<Bezel> {
@@ -415,6 +416,7 @@ impl Frontend {
             return Some(Bezel {
                 bands,
                 fill: BEZEL_FILL,
+                rims: Vec::new(),
                 marks: Vec::new(),
                 overlay,
             });
@@ -422,11 +424,13 @@ impl Frontend {
         if bands.is_empty() {
             return None;
         }
+        let rims = bands.iter().filter_map(|b| rim(*b, picture).1).collect();
         let printed = bands
             .iter()
             .copied()
             .filter(|b| b[2] >= out_w() as f32)
-            .max_by(|a, b| a[3].total_cmp(&b[3]));
+            .max_by(|a, b| a[3].total_cmp(&b[3]))
+            .map(|b| rim(b, picture).0);
         let marks = printed
             .and_then(|band| {
                 let m = self.bezel_mark(platform, mark_height(band[3]), compositor)?;
@@ -437,6 +441,7 @@ impl Frontend {
         Some(Bezel {
             bands,
             fill: BEZEL_FILL,
+            rims,
             marks,
             overlay: None,
         })

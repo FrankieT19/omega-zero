@@ -9,11 +9,13 @@ use crate::surface::{blit_rect, panel_rect, GfxError, Rotation, Surface};
 pub const BACKDROP: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 
 /// The console's body around a picture that does not fill the canvas: the bands it leaves,
-/// painted `fill`, the marks printed on them, and an overlay laid over all of it.
+/// painted `fill`, the screen's black rims where they meet the picture, the marks printed on
+/// them, and an overlay laid over all of it.
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct Bezel {
     pub bands: Vec<[f32; 4]>,
     pub fill: [f32; 4],
+    pub rims: Vec<[f32; 4]>,
     pub marks: Vec<(TexId, [f32; 4])>,
     pub overlay: Option<TexId>,
 }
@@ -176,6 +178,13 @@ impl Compositor {
                 colour: b.fill,
             })
             .collect();
+        items.extend(b.rims.iter().map(|r| Draw::Rect {
+            x: r[0],
+            y: r[1],
+            w: r[2],
+            h: r[3],
+            colour: [0.0, 0.0, 0.0, 1.0],
+        }));
         items.extend(b.marks.iter().filter(|_| marked).map(|(tex, r)| Draw::Tex {
             x: r[0],
             y: r[1],

@@ -1,13 +1,17 @@
 use slot_store::Platform;
-use slot_ui::{bezel_mark_face, mark_height, mark_rect, BEZEL_INK};
+use slot_ui::{bezel_mark_face, mark_height, mark_rect, rim, BEZEL_INK, RIM_W};
 
 #[test]
 fn the_mark_is_printed_at_a_size_the_band_can_carry() {
-    assert_eq!(mark_height(53.0), 20, "the band a 640x480 panel leaves");
+    assert_eq!(
+        mark_height(48.0),
+        26,
+        "the band a 640x480 panel leaves inside the rim"
+    );
     assert_eq!(
         mark_height(150.0),
-        32,
-        "a deep band prints no larger than 32"
+        36,
+        "a deep band prints no larger than 36"
     );
     assert_eq!(
         mark_height(20.0),
@@ -22,7 +26,7 @@ fn every_system_has_its_mark_at_the_height_asked_for() {
         let face = bezel_mark_face(platform, 20).expect("no mark");
         assert_eq!(face.h, 20, "{platform:?}");
         assert!(
-            (200..400).contains(&face.w),
+            (150..400).contains(&face.w),
             "{platform:?}: a {}x20 mark is not a wordmark's shape",
             face.w
         );
@@ -32,11 +36,70 @@ fn every_system_has_its_mark_at_the_height_asked_for() {
             inked > (face.w * face.h) as usize / 8,
             "{platform:?}: only {inked} pixels of ink"
         );
+    }
+    for platform in [Platform::Gb, Platform::Gbc] {
+        let face = bezel_mark_face(platform, 20).expect("no mark");
         assert!(
             face.rgba.chunks_exact(4).all(|p| p[..3] == BEZEL_INK),
             "{platform:?}: the mark is not printed in the bezel ink"
         );
     }
+}
+
+#[test]
+fn the_gba_mark_is_white_edged_in_black() {
+    let face = bezel_mark_face(Platform::Gba, 26).expect("no mark");
+    let solid = |p: &&[u8]| p[3] == 255;
+    let white = face
+        .rgba
+        .chunks_exact(4)
+        .filter(solid)
+        .filter(|p| p[0] > 240)
+        .count();
+    let black = face
+        .rgba
+        .chunks_exact(4)
+        .filter(solid)
+        .filter(|p| p[0] < 16)
+        .count();
+    assert!(white > 400, "only {white} white pixels");
+    assert!(black > 400, "only {black} black pixels round the white");
+    let (x, y) = (0, face.h as usize / 2);
+    let edge = &face.rgba[(y * face.w as usize + x) * 4..][..4];
+    assert!(
+        edge[3] == 0 || edge[0] < 64,
+        "the mark's left side is not edged: {edge:?}"
+    );
+}
+
+#[test]
+fn a_band_under_the_picture_carries_the_screens_rim_along_its_top() {
+    let picture = [0.0, 0.0, 640.0, 427.0];
+    let (rest, rim_at) = rim([0.0, 427.0, 640.0, 53.0], picture);
+    assert_eq!(rim_at, Some([0.0, 427.0, 640.0, RIM_W]));
+    assert_eq!(rest, [0.0, 427.0 + RIM_W, 640.0, 53.0 - RIM_W]);
+}
+
+#[test]
+fn a_rim_reaches_round_the_corners_of_a_narrower_picture_and_no_further() {
+    let picture = [80.0, 24.0, 480.0, 432.0];
+    let (_, above) = rim([0.0, 0.0, 640.0, 24.0], picture);
+    assert_eq!(
+        above,
+        Some([80.0 - RIM_W, 24.0 - RIM_W, 480.0 + 2.0 * RIM_W, RIM_W])
+    );
+    let (rest, left) = rim([0.0, 24.0, 80.0, 432.0], picture);
+    assert_eq!(left, Some([80.0 - RIM_W, 24.0, RIM_W, 432.0]));
+    assert_eq!(rest, [0.0, 24.0, 80.0 - RIM_W, 432.0]);
+    let (rest, right) = rim([560.0, 24.0, 80.0, 432.0], picture);
+    assert_eq!(right, Some([560.0, 24.0, RIM_W, 432.0]));
+    assert_eq!(rest, [560.0 + RIM_W, 24.0, 80.0 - RIM_W, 432.0]);
+}
+
+#[test]
+fn a_band_that_meets_the_picture_nowhere_has_no_rim() {
+    let band = [0.0, 0.0, 720.0, 90.0];
+    assert_eq!(rim(band, [0.0, 200.0, 720.0, 480.0]), (band, None));
 }
 
 #[test]
