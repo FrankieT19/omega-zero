@@ -169,7 +169,7 @@ card() {
 }
 
 report() {
-	printf '# slot probe %s\n' "$(date '+%F %T' 2>/dev/null)"
+	printf '# omega-zero probe %s\n' "$(date '+%F %T' 2>/dev/null)"
 	identity
 	display
 	input

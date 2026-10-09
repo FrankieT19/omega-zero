@@ -28,20 +28,20 @@ jobs:
 
       - name: Build the tree
         env:
-          # ScreenScraper's key for slot, for the Cart Labels screen. Without it the
+          # ScreenScraper's key for omega-zero, for the Cart Labels screen. Without it the
           # screen says the build cannot reach ScreenScraper.
           SLOT_SS_DEVID: ${{ secrets.SLOT_SS_DEVID }}
           SLOT_SS_DEVPASSWORD: ${{ secrets.SLOT_SS_DEVPASSWORD }}
-        run: task dist:device OUT="slot-${GITHUB_REF_NAME}"
+        run: task dist:device OUT="omega-zero-${GITHUB_REF_NAME}"
 
       - name: Check what is about to ship
         run: |
           set -eu
-          out="slot-${GITHUB_REF_NAME}"
-          file "$out/System/slot" | grep -q aarch64
+          out="omega-zero-${GITHUB_REF_NAME}"
+          file "$out/System/omega-zero" | grep -q aarch64
           file "$out/System/mgba_libretro.so" | grep -q aarch64
           file "$out/System/gpsp_libretro.so" | grep -q aarch64
-          test -x "$out/System/slot"
+          test -x "$out/System/omega-zero"
           for size in 640x480 720x480 720x720; do
             test -f "$out/System/bootlogo-$size.bmp"
           done
@@ -63,7 +63,7 @@ jobs:
         id: package
         run: |
           set -eu
-          out="slot-${GITHUB_REF_NAME}"
+          out="omega-zero-${GITHUB_REF_NAME}"
           zip="$out-h700.zip"
           zip -qry "$zip" "$out"
           echo "zip=$zip" >> "$GITHUB_OUTPUT"
@@ -93,11 +93,11 @@ jobs:
         run: |
           set -eu
           cat > notes.md <<NOTES
-          For Anbernic H700 handhelds running [BaseOS](https://github.com/pvaibhav/BaseOS): made for the RG35XX SP, and the RG SP slot was first written for. Other BaseOS devices are untested; see the README.
+          For Anbernic H700 handhelds running [BaseOS](https://github.com/pvaibhav/BaseOS): made for the RG35XX SP, and also run on the RG SP, the handheld slot (which omega-zero grew from) was written for. Other BaseOS devices are untested; see the README.
 
-          Unzip and copy the contents of \`slot-${GITHUB_REF_NAME}/\` to the root of the card slot runs from (SD1 on its own, or SD2 beside it). See the [changelog](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md).
+          Unzip and copy the contents of \`omega-zero-${GITHUB_REF_NAME}/\` to the root of the card omega-zero runs from (SD1 on its own, or SD2 beside it). See the [changelog](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md).
 
-          Emulation by mGBA (MPL-2.0) and gpSP (GPL-2.0). Their licences, patches and gpSP's source are in \`System/licenses/\`. slot is a fork of [BrandonKowalski/slot](https://github.com/BrandonKowalski/slot) (GPL-3.0).
+          Emulation by mGBA (MPL-2.0) and gpSP (GPL-2.0). Their licences, patches and gpSP's source are in \`System/licenses/\`. omega-zero is derived from [slot](https://github.com/BrandonKowalski/slot) by Brandon Kowalski (GPL-3.0).
           NOTES
           gh release create "$GITHUB_REF_NAME" "$ZIP" --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" --notes-file notes.md

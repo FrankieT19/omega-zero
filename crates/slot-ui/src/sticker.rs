@@ -37,21 +37,21 @@ pub struct StickerFields<'a> {
 }
 
 pub const CREDITS: [&str; 10] = [
-    "EMULATION POWERED BY MGBA",
+    "BASED ON SLOT BY BRANDON T.",
+    "KOWALSKI. EMULATION BY MGBA",
     "AND GPSP. UNDERLYING OS IS",
     "BASEOS BY PVAIBHAV. TYPE IS",
     "PIXEL CODE BY QWERASD AND",
     "NERD FONTS SYMBOLS BY RYAN",
     "L MCINTYRE. PANEL MASK FROM",
     "GIGAHERZ'S LCD3X. THE CART",
-    "SOUNDS ARE MY CHILDHOOD",
-    "GAMEBOY. I WASTED WATER",
-    "BUILDING THIS WITH CLAUDE.",
+    "SOUNDS: BRANDON'S GAMEBOY.",
+    "BUILT WITH CLAUDE.",
 ];
 
-pub const ORIGIN: [&str; 2] = ["S/LOT-USA", "MADE IN ITHACA"];
+pub const ORIGIN: [&str; 2] = ["S/OMEGA-ZERO", "MADE ON BASEOS"];
 
-pub const COPYRIGHT: &str = "\u{a9} 2026 BRANDON T. KOWALSKI";
+pub const COPYRIGHT: &str = "\u{a9} 2026 OAURAMOS, B. KOWALSKI";
 
 pub const HOME: &str = "SEE README.";
 

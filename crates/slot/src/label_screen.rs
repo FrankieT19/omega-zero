@@ -118,7 +118,7 @@ impl Labels {
     pub fn status_lines(&self, online: bool) -> Vec<String> {
         if !self.jobs.present() || self.state == SyncState::Failed(SyncFail::NoKey) {
             return said(
-                "This build of slot has no ScreenScraper key.",
+                "This build of omega-zero has no ScreenScraper key.",
                 "Labels can still be copied into Labels/.",
             );
         }
@@ -167,8 +167,8 @@ fn failed_lines(fail: SyncFail) -> Vec<String> {
             "Press A on ScreenScraper to sign in again.",
         ),
         SyncFail::Refused(Who::Program) => said(
-            "ScreenScraper refused this build of slot.",
-            "A newer slot may be let in.",
+            "ScreenScraper refused this build of omega-zero.",
+            "A newer omega-zero may be let in.",
         ),
         SyncFail::Spent => said(
             "Today's ScreenScraper lookups are spent.",

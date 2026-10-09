@@ -16,7 +16,7 @@ use slot_store::Platform;
 use crate::json::Json;
 
 const API: &str = "https://api.screenscraper.fr/api2";
-pub const SOFTNAME: &str = "slot-rg35xxsp";
+pub const SOFTNAME: &str = "omega-zero";
 pub const ACCOUNT_FILE: &str = "Config/screenscraper.conf";
 
 /// The widest label scan worth fetching: the shelf's labels are narrower than this even
@@ -359,7 +359,7 @@ pub struct Tally {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SyncFail {
-    /// This build of slot was made without ScreenScraper's key.
+    /// This build of omega-zero was made without ScreenScraper's key.
     NoKey,
     Refused(Who),
     Spent,

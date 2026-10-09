@@ -50,7 +50,7 @@ mkdir -p "$TMP/sys/class/net/wlan0" "$TMP/sys/class/net/wlan1"
 : > "$TMP/dev/uhid"
 for c in aplay amixer ip iw wpa_cli; do fake "$c"; done
 put "$TMP/proc/sys/kernel/hostname" 'rg35xxsp'
-: > "$TMP/card/System/slot"
+: > "$TMP/card/System/omega-zero"
 
 probe() {
 	PATH="$TMP/bin:$PATH" \

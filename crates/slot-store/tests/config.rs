@@ -15,7 +15,7 @@ fn the_players_files_move_from_system_to_config() {
     for f in FILES {
         std::fs::write(d.path().join("System").join(f), f).unwrap();
     }
-    std::fs::write(d.path().join("System/slot"), "binary").unwrap();
+    std::fs::write(d.path().join("System/omega-zero"), "binary").unwrap();
 
     move_config(d.path()).unwrap();
 
@@ -30,7 +30,7 @@ fn the_players_files_move_from_system_to_config() {
         );
     }
     assert!(
-        d.path().join("System/slot").exists(),
+        d.path().join("System/omega-zero").exists(),
         "a shipped file moved"
     );
 }

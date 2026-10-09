@@ -66,5 +66,5 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Test the scripts slot ships on the card
+      - name: Test the scripts omega-zero ships on the card
         run: for t in card/test-*.sh; do sh "$t"; done

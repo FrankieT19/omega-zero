@@ -397,6 +397,6 @@ fn a_build_without_screenscrapers_key_says_so() {
     r.open_labels();
     assert_eq!(
         r.status()[0],
-        "This build of slot has no ScreenScraper key."
+        "This build of omega-zero has no ScreenScraper key."
     );
 }

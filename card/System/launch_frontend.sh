@@ -5,7 +5,7 @@ RUN="${AGS_RUN:-/run}"
 export SLOT_ROOT="$SD"
 
 log() {
-	echo "$(date '+%H:%M:%S') $*" >> "$SD/slot-session.log" 2>/dev/null
+	echo "$(date '+%H:%M:%S') $*" >> "$SD/omega-zero-session.log" 2>/dev/null
 }
 
 pid="$(cat "$RUN/slot-led.pid" 2>/dev/null)"
@@ -22,7 +22,7 @@ if [ -f "$SD/RUN_PROBE" ]; then
 	log "probe $(AGS_PROBE_NET_WAIT_S=15 sh "$SYS/probe.sh" 2>&1)"
 fi
 
-[ -f "$SD/slot.log" ] && mv -f "$SD/slot.log" "$SD/slot.log.1"
-log "exec $SYS/slot"
+[ -f "$SD/omega-zero.log" ] && mv -f "$SD/omega-zero.log" "$SD/omega-zero.log.1"
+log "exec $SYS/omega-zero"
 
-exec /lib/ld-linux-aarch64.so.1 "$SYS/slot" > "$SD/slot.log" 2>&1
+exec /lib/ld-linux-aarch64.so.1 "$SYS/omega-zero" > "$SD/omega-zero.log" 2>&1

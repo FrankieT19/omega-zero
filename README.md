@@ -1,12 +1,14 @@
-# slot.
+# omega-zero
 
-A bespoke, Game Boy-centric frontend for Anbernic H700 handhelds running
+A Game Boy-centric frontend for Anbernic H700 handhelds running
 [BaseOS](https://github.com/pvaibhav/BaseOS). It plays GBA, GBC and GB games, and only those,
 on a shelf of cartridges you slide into a slot.
 
-This is a fork of [BrandonKowalski/slot](https://github.com/BrandonKowalski/slot), which was
-made for the Anbernic RG SP. The fork brings slot to the **RG35XX SP** and the rest of the
-H700 family, laid out natively for each panel instead of shrinking the RG SP's picture.
+omega-zero grew out of [slot](https://github.com/BrandonKowalski/slot) by Brandon T. Kowalski,
+made for the Anbernic RG SP and no longer developed. It started as a fork in October 2026 and
+has since been modified throughout: it runs on the **RG35XX SP** and the rest of the H700
+family, laid out natively for each panel, and adds home Wi-Fi, SSH and SFTP, real cart labels,
+a new look and more. It keeps slot's licence, the GPL-3.0.
 
 Release notes are in the [changelog](CHANGELOG.md).
 
@@ -30,13 +32,13 @@ Release notes are in the [changelog](CHANGELOG.md).
 
 ## Supported devices
 
-One build runs on all of them. slot reads the model from BaseOS at boot and picks the layout
+One build runs on all of them. omega-zero reads the model from BaseOS at boot and picks the layout
 for its panel.
 
 | Device | Panel | Status |
 |---|---|---|
 | RG35XX SP | 640x480 | Primary target of this fork. Native layout done, hardware validation in progress. |
-| RG SP | 720x480 | The device slot was first written for. Unchanged, pixel for pixel. |
+| RG SP | 720x480 | The device slot was first written for. |
 | RG34XX SP, RG34XX | 720x480 | Same layout as the RG SP. Untested. |
 | RG35XX Plus / 2024, H, Pro | 640x480 | Same layout as the RG35XX SP, without the lid. Untested. |
 | RG40XX H, RG40XX V | 640x480 | Same layout as the RG35XX SP. Untested. |
@@ -49,7 +51,10 @@ for its panel.
 ## Features
 
 - A shelf of carts drawn at their real proportions in their own plastics, with your labels on
-  them. GBA, Game Boy and Game Boy Color each get a shelf.
+  them. GBA, Game Boy and Game Boy Color each get a shelf. Carts slide into the slot below it
+  at full size.
+- A pixel font throughout, a top bar with Wi-Fi, Bluetooth, SSH, the clock and the battery,
+  and a background you choose: a drifting grid, bits or a plain colour, in eight colours.
 - Two GBA cores, mGBA and gpSP, swapped per cart by opening the cart and changing the chip.
 - The game you left in the slot resumes on the next boot. Closing the lid saves and sleeps.
 - Save states with a switcher, rewind, fast-forward with turbo speeds, turbo A and B.
@@ -68,7 +73,7 @@ for its panel.
 
 ## Installing
 
-slot runs on BaseOS, a minimal Linux for H700 handhelds. You need the BaseOS image for your
+omega-zero runs on BaseOS, a minimal Linux for H700 handhelds. You need the BaseOS image for your
 exact model.
 
 ### On one card
@@ -79,8 +84,8 @@ exact model.
    [Raspberry Pi Imager](https://www.raspberrypi.com/software/).
 2. Put the card in the slot marked **SD1** (TF1) and power on. BaseOS expands its storage, then
    says no frontend was found. Power off.
-3. Download the latest [slot release](https://github.com/oauramos/slot-rg35xxsp/releases/latest),
-   unzip it, and copy the contents of the `slot-vX.Y.Z/` folder to the root of the card.
+3. Download the latest [omega-zero release](https://github.com/oauramos/omega-zero/releases/latest),
+   unzip it, and copy the contents of the `omega-zero-vX.Y.Z/` folder to the root of the card.
 4. Put your games in `Games/GBA`, `Games/GB` and `Games/GBC`. Labels are optional; see
    [the card](#the-card).
 5. Put the card back in SD1 and boot.
@@ -89,18 +94,18 @@ exact model.
 
 1. Write BaseOS to the card in **SD1** as above.
 2. Format a second card as FAT32 or exFAT with an MBR partition table, and copy the contents of
-   the release's `slot-vX.Y.Z/` folder to it.
-3. Add your games to the second card and put it in **SD2**. BaseOS runs slot from SD2 whenever
+   the release's `omega-zero-vX.Y.Z/` folder to it.
+3. Add your games to the second card and put it in **SD2**. BaseOS runs omega-zero from SD2 whenever
    one is there.
 
 ## Updating
 
-Replace the `System/` folder on the card slot runs from with the one from the new release.
+Replace the `System/` folder on the card omega-zero runs from with the one from the new release.
 Your games, saves, save states, labels, wallpapers, overlays and settings all live outside
 `System/`.
 
 > **Updating from a version before 1.4.0?** Those kept settings in `System/`. Copy the new
-> `System/` over the old one instead of deleting it the first time, and slot moves your
+> `System/` over the old one instead of deleting it the first time, and omega-zero moves your
 > settings to `Config/`.
 
 ## Controls
@@ -125,7 +130,7 @@ Your games, saves, save states, labels, wallpapers, overlays and settings all li
 | Tap A | Insert the cart and resume its last save state |
 | Hold A | Insert the cart and start the game fresh |
 | START | Open the cart and choose its core (GBA only) |
-| MENU | Settings, including [Wi-Fi](#wi-fi-ssh-and-sftp) |
+| MENU | Settings, including Background and [Wi-Fi](#wi-fi-ssh-and-sftp) |
 
 ### In a game
 
@@ -152,11 +157,11 @@ Your games, saves, save states, labels, wallpapers, overlays and settings all li
 | B | Back to the game |
 
 Closing the lid saves a state and turns the screen off; opening it carries on. Left shut for
-three minutes, slot powers off and resumes from that state on the next boot.
+three minutes, omega-zero powers off and resumes from that state on the next boot.
 
 ## The card
 
-slot creates these folders on first boot. Nothing loose at the top of `Games/`, `Saves/`,
+omega-zero creates these folders on first boot. Nothing loose at the top of `Games/`, `Saves/`,
 `Labels/` or `States/` reaches the shelf.
 
 | Folder | Holds |
@@ -168,10 +173,10 @@ slot creates these folders on first boot. Nothing loose at the top of `Games/`, 
 | `Wallpapers` | `.png` wallpapers for the shelf |
 | `Overlays/GBA`, `Overlays/GB`, `Overlays/GBC` | Your [overlays](#overlays) |
 | `Config` | Settings, and `wifi.conf` with the Wi-Fi networks you have joined |
-| `System` | slot itself, its cores and its licences. Replaced on every update |
+| `System` | omega-zero itself, its cores and its licences. Replaced on every update |
 
-slot can fetch [labels](#cart-labels) itself over Wi-Fi. They can also be made with the
-upstream author's [slot Cart Studio](https://studio.slot-cfw.fyi). Per-cart shell colours go in
+omega-zero can fetch [labels](#cart-labels) itself over Wi-Fi. They can also be made with the
+slot's author's [Cart Studio](https://studio.slot-cfw.fyi). Per-cart shell colours go in
 `Config/cart_shell.ini`.
 
 ## Overlays
@@ -182,7 +187,7 @@ the screen size and put it in the folder for its platform:
 - `Overlays/GBA/640x480.png` on a 640x480 device such as the RG35XX SP
 - `Overlays/GB/720x480.png` on a 720x480 device such as the RG SP
 
-It must be transparent where the game's picture is. slot checks, and ignores an overlay that
+It must be transparent where the game's picture is. omega-zero checks, and ignores an overlay that
 would cover more than 1% of the game, so one made for another layout never hides it (the log
 says so). On a 640x480 panel, the game's picture is:
 
@@ -193,11 +198,11 @@ says so). On a 640x480 panel, the game's picture is:
 
 Overlays made for RetroArch on 640x480 handhelds, such as
 [Perfect Overlays](https://github.com/ourigen/perfect_overlays), use the same Game Boy picture
-and work for it. slot ships no overlays of its own.
+and work for it. omega-zero ships no overlays of its own.
 
 ## Link play
 
-Two devices running slot can link over Wi-Fi with no router: one hosts and the other joins.
+Two devices running omega-zero can link over Wi-Fi with no router: one hosts and the other joins.
 
 1. Open the cart and pick **gpSP** for Pokémon (START on the shelf).
 2. In the game, press SELECT + MENU and choose the link.
@@ -225,7 +230,7 @@ mode plays Mario Kart: Super Circuit, and Game Boy link plays Tetris.
 | START | Done |
 | MENU | Go back to the list |
 
-slot remembers each network you join and joins it again at the next boot, as long as Wi-Fi was
+omega-zero remembers each network you join and joins it again at the next boot, as long as Wi-Fi was
 left on. On the list, Y forgets a saved network.
 
 The networks are kept on the card in `Config/wifi.conf`, in
@@ -249,7 +254,7 @@ Once joined, the Wi-Fi screen shows the handheld's address and name, such as
 
 - **User:** `root`. **Password:** `root`, unless you set `ssh_password=` in `baseos.conf` at
   the root of the card in SD1 (see [BaseOS's settings](https://github.com/pvaibhav/BaseOS#settings)).
-- The card slot runs from is `/mnt/sdcard`, so games go in `/mnt/sdcard/Games/GBA` and so on.
+- The card omega-zero runs from is `/mnt/sdcard`, so games go in `/mnt/sdcard/Games/GBA` and so on.
 - Use any SFTP client, such as [Cyberduck](https://cyberduck.io),
   [FileZilla](https://filezilla-project.org) or `scp`.
 
@@ -272,7 +277,7 @@ when it ends.
 
 ## Cart labels
 
-A cart with no label of its own carries its name. slot can fetch the real thing: the scan of the
+A cart with no label of its own carries its name. omega-zero can fetch the real thing: the scan of the
 label on a real cart, from [ScreenScraper](https://www.screenscraper.fr), a free database run by
 its community. You need a ScreenScraper account (free) and Wi-Fi joined.
 
@@ -280,7 +285,7 @@ its community. You need a ScreenScraper account (free) and Wi-Fi joined.
 2. On **ScreenScraper**, press A and type your user name, then your password, on the keyboard.
 3. On **Fetch Labels**, press A.
 
-slot looks up each cart that has no label, by its ROM's checksum, so a renamed file is still
+omega-zero looks up each cart that has no label, by its ROM's checksum, so a renamed file is still
 found. It takes the label from the region the ROM is from, (USA), (Europe) or (Japan), and from
 another region when that one was never scanned. Each label goes on the shelf as it arrives, into
 `Labels/GBA`, `Labels/GB` or `Labels/GBC` under the ROM's name. A label you put there yourself is
@@ -292,12 +297,12 @@ a day, and the screen shows how many are left.
 
 ## Helping with a device
 
-slot ships a probe that writes down how your handheld is wired: its buttons, panel, battery,
+omega-zero ships a probe that writes down how your handheld is wired: its buttons, panel, battery,
 lid, LEDs, audio, Wi-Fi and Bluetooth.
 
-1. Create an empty file named `RUN_PROBE` at the root of the card slot runs from.
-2. Boot. slot writes `probe-<device>-<date>.txt` next to it and deletes `RUN_PROBE`.
-3. Open a [device report](https://github.com/oauramos/slot-rg35xxsp/issues/new?template=device-report.yml)
+1. Create an empty file named `RUN_PROBE` at the root of the card omega-zero runs from.
+2. Boot. omega-zero writes `probe-<device>-<date>.txt` next to it and deletes `RUN_PROBE`.
+3. Open a [device report](https://github.com/oauramos/omega-zero/issues/new?template=device-report.yml)
    with the file attached, and say what worked.
 
 Over SSH (BaseOS's default login is `root` / `root`), `sh /mnt/sdcard/System/probe.sh` does the
@@ -305,12 +310,12 @@ same.
 
 ## Troubleshooting
 
-- **slot.log** at the root of the card holds the last session's log, and `slot.log.1` the one
-  before. The first lines name the device, panel and canvas slot picked.
+- **omega-zero.log** at the root of the card holds the last session's log, and `omega-zero.log.1` the one
+  before. The first lines name the device, panel and canvas omega-zero picked.
 - **Crashes** leave `crash/cores.log` and a core dump on the card.
 - **The boot logo** is only ever replaced with one the size of your device's own. The original
   is kept on the boot partition as `bootlogo.baseos.bmp`.
-- **Button presses** can be traced to `input-trace.log` by running slot with
+- **Button presses** can be traced to `input-trace.log` by running omega-zero with
   `SLOT_TRACE_INPUT=1`.
 - **"The Wi-Fi radio did not start"** means BaseOS never brought up `wlan0`. Restart once;
   `baseos-boot.log` on the card says what the driver did. The RG35XX 2024 shares its BaseOS
@@ -322,7 +327,7 @@ You need Rust (the version is pinned in `rust-toolchain.toml`), [Task](https://t
 and, to build for the device on a machine that is not Linux on arm64, Docker.
 
 ```sh
-task run                      # build the cores and run slot on the desktop
+task run                      # build the cores and run omega-zero on the desktop
 SLOT_CANVAS=640x480 task run  # see what a 640x480 device draws
 task check                    # format, lint, tests on every canvas, card scripts
 task dist:device              # the aarch64 card tree, in dist-device/
@@ -336,22 +341,23 @@ the repository's secrets. A build without it says so on the Cart Labels screen.
 The device build compiles the cores in an arm64 Linux container. gpSP's compiler needs more
 memory than a 2 GB Docker VM has; with colima, `colima start --memory 4`.
 
-`task screens` draws slot's main screens headless to PNGs, and `task screens:compare` fails
+`task screens` draws omega-zero's main screens headless to PNGs, and `task screens:compare` fails
 on any pixel that differs from a baseline: the way to prove a change leaves a layout alone.
 
 ## Roadmap
 
 - Validate everything on the RG35XX SP: buttons, lid, rumble, LEDs, audio, link play, Wi-Fi.
 - Bluetooth headphones and controllers.
-- Cart labels on the device, once ScreenScraper has given slot its key.
+- Cart labels on the device, once ScreenScraper has given omega-zero its key.
 - The other H700 devices: analogue sticks, RGB LEDs, the square CubeXX layout, the RG28XX's
   turned panel.
 - Full documentation in `docs/`, published as a wiki.
 
 ## Credits and licences
 
-- slot was created by [Brandon T. Kowalski](https://github.com/BrandonKowalski). This fork
-  keeps his design and adds device support.
+- omega-zero is derived from [slot](https://github.com/BrandonKowalski/slot), created by
+  [Brandon T. Kowalski](https://github.com/BrandonKowalski): its shelf, carts, sounds and
+  much of its code are his. omega-zero's changes are listed in the [changelog](CHANGELOG.md).
 - [BaseOS](https://github.com/pvaibhav/BaseOS) by pvaibhav.
 - Emulation by [mGBA](https://mgba.io) (MPL-2.0) and [gpSP](https://github.com/libretro/gpsp)
   (GPL-2.0). Their licences, patches and gpSP's source ship in `System/licenses/`.
@@ -359,13 +365,15 @@ on any pixel that differs from a baseline: the way to prove a change leaves a la
   its licence beside it in `crates/slot-ui/assets`) and the
   [Nerd Fonts](https://www.nerdfonts.com) symbols.
 - The LCD mask is derived from GigaHerz's LCD3x.
+- Cart labels come from [ScreenScraper](https://www.screenscraper.fr), fetched with your own
+  account.
 
-slot is licensed under the GPL-3.0-or-later; see [LICENSE](LICENSE).
+omega-zero is licensed under the GPL-3.0-or-later, as slot is; see [LICENSE](LICENSE).
 
 Game Boy, Game Boy Color and Game Boy Advance are trademarks of Nintendo. Anbernic is a
 trademark of its owner. This project is not affiliated with either.
 
 ### AI disclosure
 
-The upstream Rust frontend was put together by Claude and reviewed by its author. This fork's
-device support was written with Claude, and is reviewed and tested by its maintainer.
+slot, the frontend omega-zero grew from, was put together by Claude and reviewed by its author.
+omega-zero's changes are written with Claude, and reviewed and tested by its maintainer.
