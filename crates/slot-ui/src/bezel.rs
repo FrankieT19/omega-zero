@@ -1,3 +1,6 @@
+use std::path::{Path, PathBuf};
+
+use slot_gfx::{out_h, out_w};
 use slot_store::Platform;
 
 use crate::plate::UndoFace;
@@ -91,4 +94,40 @@ fn shrink(src: &[u8], (sw, sh): (u32, u32), (w, h): (u32, u32)) -> Vec<u8> {
         }
     }
     out
+}
+
+/// The overlay for `platform` on this canvas, from `root`: Overlays/<system>/<w>x<h>.png,
+/// laid over the whole canvas, so it is only used at exactly the canvas's size.
+pub fn overlay_face(root: &Path, platform: Platform) -> Option<UndoFace> {
+    let (w, h) = (out_w(), out_h());
+    let path = overlay_path(root, platform);
+    let rgba = crate::art::exact(&path, w, h)?;
+    Some(UndoFace { rgba, w, h })
+}
+
+pub fn overlay_path(root: &Path, platform: Platform) -> PathBuf {
+    root.join("Overlays")
+        .join(platform.dir_name())
+        .join(format!("{}x{}.png", out_w(), out_h()))
+}
+
+/// The most of the game an overlay may hide: a frame drawn for another layout, or with an
+/// opaque centre, would cover the picture, so it is refused.
+const OVERLAY_COVER: f32 = 0.01;
+
+/// Whether a `w` by `h` RGBA overlay leaves `picture` clear, so the game shows through it.
+pub fn overlay_clear(rgba: &[u8], w: u32, h: u32, picture: [f32; 4]) -> bool {
+    let x0 = picture[0].max(0.0).round() as u32;
+    let y0 = picture[1].max(0.0).round() as u32;
+    let x1 = ((picture[0] + picture[2]).round().max(0.0) as u32).min(w);
+    let y1 = ((picture[1] + picture[3]).round().max(0.0) as u32).min(h);
+    if x1 <= x0 || y1 <= y0 || rgba.len() < (w * h * 4) as usize {
+        return false;
+    }
+    let total = ((x1 - x0) * (y1 - y0)) as f32;
+    let covered = (y0..y1)
+        .flat_map(|y| (x0..x1).map(move |x| (y * w + x) as usize * 4 + 3))
+        .filter(|&a| rgba[a] > 8)
+        .count() as f32;
+    covered / total <= OVERLAY_COVER
 }

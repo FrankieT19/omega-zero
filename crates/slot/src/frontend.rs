@@ -13,6 +13,7 @@ use slot_ui::{
     QuickValue, StickerFields, Toast, UndoFace, ALERT_PX, BEZEL_FILL, BOLT_PX, HUD_ICON_PX,
     HUD_INK, LEGEND,
 };
+use slot_ui::{overlay_clear, overlay_face, overlay_path};
 
 use crate::app::{App, LinkRow, Phase};
 use crate::build_info::Build;
@@ -47,6 +48,16 @@ pub struct Frontend {
     about: AboutFace,
     quick_clock: QuickClock,
     bezel_marks: Vec<BezelMark>,
+    overlays: Vec<Overlay>,
+}
+
+/// A card's own overlay for one system, read once and checked against each layout it is
+/// laid over: one that would hide the game is refused rather than drawn.
+struct Overlay {
+    platform: slot_store::Platform,
+    face: Option<UndoFace>,
+    tex: Option<TexId>,
+    checked: Vec<([i32; 4], bool)>,
 }
 
 /// A console's wordmark, uploaded once for each system and height it has been printed at.
@@ -117,6 +128,7 @@ impl Frontend {
             about: AboutFace::default(),
             quick_clock: QuickClock::default(),
             bezel_marks: Vec::new(),
+            overlays: Vec::new(),
         }
     }
 
@@ -298,7 +310,9 @@ impl Frontend {
         let platform = self.session.app().platform();
         compositor.set_game_view(screen.view);
         compositor.set_still_view(screen.still);
-        let bezel = self.bezel(platform, screen.bands, compositor);
+        let picture = crate::video_mode::picture_rect(platform, screen.view);
+        let overlay = self.overlay(platform, picture, compositor);
+        let bezel = self.bezel(platform, screen.bands, overlay, compositor);
         compositor.set_bezel(bezel);
         compositor.begin_frame();
         if let Some(frame) = self.session.frame() {
@@ -368,8 +382,17 @@ impl Frontend {
         &mut self,
         platform: slot_store::Platform,
         bands: Vec<[f32; 4]>,
+        overlay: Option<TexId>,
         compositor: &mut Compositor,
     ) -> Option<Bezel> {
+        if overlay.is_some() {
+            return Some(Bezel {
+                bands,
+                fill: BEZEL_FILL,
+                marks: Vec::new(),
+                overlay,
+            });
+        }
         if bands.is_empty() {
             return None;
         }
@@ -391,6 +414,57 @@ impl Frontend {
             marks,
             overlay: None,
         })
+    }
+
+    fn overlay(
+        &mut self,
+        platform: slot_store::Platform,
+        picture: [f32; 4],
+        compositor: &mut Compositor,
+    ) -> Option<TexId> {
+        let at = match self.overlays.iter().position(|o| o.platform == platform) {
+            Some(at) => at,
+            None => {
+                let face = self
+                    .session
+                    .app()
+                    .root()
+                    .and_then(|root| overlay_face(root, platform));
+                self.overlays.push(Overlay {
+                    platform,
+                    face,
+                    tex: None,
+                    checked: Vec::new(),
+                });
+                self.overlays.len() - 1
+            }
+        };
+        let root = self.session.app().root().map(|r| r.to_path_buf());
+        let o = &mut self.overlays[at];
+        let face = o.face.as_ref()?;
+        let key = picture.map(|v| v.round() as i32);
+        let clear = match o.checked.iter().find(|(k, _)| *k == key) {
+            Some((_, clear)) => *clear,
+            None => {
+                let clear = overlay_clear(&face.rgba, face.w, face.h, picture);
+                if !clear {
+                    let path = root.map(|r| overlay_path(&r, platform));
+                    eprintln!(
+                        "slot: overlay: {} covers the game at {picture:?}, so it is not drawn",
+                        path.map_or_else(String::new, |p| p.display().to_string())
+                    );
+                }
+                o.checked.push((key, clear));
+                clear
+            }
+        };
+        if !clear {
+            return None;
+        }
+        if o.tex.is_none() {
+            o.tex = Some(compositor.create_texture(face.w, face.h, &face.rgba));
+        }
+        o.tex
     }
 
     fn bezel_mark(

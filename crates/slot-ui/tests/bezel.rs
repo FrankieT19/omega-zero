@@ -70,3 +70,60 @@ fn the_mark_is_centred_across_its_band_and_inside_it() {
     assert_eq!(r[0], 150.0);
     assert!(r[1] > 570.0 && r[1] + r[3] < 720.0 - 32.0, "{r:?}");
 }
+
+fn frame_overlay(w: u32, h: u32, hole: [u32; 4]) -> Vec<u8> {
+    let mut rgba = vec![0u8; (w * h * 4) as usize];
+    for y in 0..h {
+        for x in 0..w {
+            let inside = (hole[0]..hole[0] + hole[2]).contains(&x)
+                && (hole[1]..hole[1] + hole[3]).contains(&y);
+            if !inside {
+                rgba[((y * w + x) * 4 + 3) as usize] = 255;
+            }
+        }
+    }
+    rgba
+}
+
+#[test]
+fn an_overlay_with_a_hole_where_the_game_shows_is_used() {
+    let rgba = frame_overlay(640, 480, [80, 24, 480, 432]);
+    assert!(slot_ui::overlay_clear(
+        &rgba,
+        640,
+        480,
+        [80.0, 24.0, 480.0, 432.0]
+    ));
+}
+
+#[test]
+fn an_overlay_that_would_hide_the_game_is_refused() {
+    let gb_hole = frame_overlay(640, 480, [80, 24, 480, 432]);
+    assert!(
+        !slot_ui::overlay_clear(&gb_hole, 640, 480, [0.0, 0.0, 640.0, 427.0]),
+        "a Game Boy frame was laid over a GBA picture"
+    );
+    let solid = vec![255u8; 640 * 480 * 4];
+    assert!(!slot_ui::overlay_clear(
+        &solid,
+        640,
+        480,
+        [80.0, 24.0, 480.0, 432.0]
+    ));
+    assert!(
+        !slot_ui::overlay_clear(&solid[..100], 640, 480, [0.0, 0.0, 10.0, 10.0]),
+        "a short buffer"
+    );
+}
+
+#[test]
+fn a_few_stray_pixels_over_the_game_are_forgiven() {
+    let mut rgba = frame_overlay(640, 480, [0, 0, 640, 427]);
+    for x in 0..640 {
+        rgba[((200 * 640 + x) * 4 + 3) as usize] = 255;
+    }
+    assert!(
+        slot_ui::overlay_clear(&rgba, 640, 480, [0.0, 0.0, 640.0, 427.0]),
+        "one line over the picture is under 1% of it"
+    );
+}

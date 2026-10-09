@@ -24,6 +24,12 @@ pub fn cover(path: &Path, w: u32, h: u32) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// The png at `path` as RGBA, only if it is exactly `w` by `h`.
+pub fn exact(path: &Path, w: u32, h: u32) -> Option<Vec<u8>> {
+    let (rgba, sw, sh) = decode(path)?;
+    ((sw, sh) == (w, h)).then_some(rgba)
+}
+
 fn box_average(src: &[u8], sw: u32, sh: u32, x0: f32, y0: f32, x1: f32, y1: f32) -> [u8; 4] {
     let xa = (x0.floor().max(0.0) as u32).min(sw - 1);
     let ya = (y0.floor().max(0.0) as u32).min(sh - 1);

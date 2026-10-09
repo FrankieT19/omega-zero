@@ -151,3 +151,16 @@ fn around(c: Canvas, r: [f32; 4]) -> Vec<[f32; 4]> {
     .filter(|b| b[2] > 0.0 && b[3] > 0.0)
     .collect()
 }
+
+/// Where the game's own picture lands on the canvas in `view`: the whole frame for a GBA
+/// game, and only its 160x144 window for a Game Boy one, whose frame is bordered.
+pub fn picture_rect(platform: Platform, view: GameView) -> [f32; 4] {
+    let window = source_rect(platform, VideoMode::Stretch);
+    let [rx, ry, rw, rh] = view.rect;
+    let [u, v, uw, vh] = view.uv;
+    let x0 = rx + (window[0] - u) / uw * rw;
+    let y0 = ry + (window[1] - v) / vh * rh;
+    let x1 = rx + (window[0] + window[2] - u) / uw * rw;
+    let y1 = ry + (window[1] + window[3] - v) / vh * rh;
+    [x0, y0, x1 - x0, y1 - y0]
+}

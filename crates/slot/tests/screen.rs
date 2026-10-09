@@ -104,3 +104,29 @@ fn the_picture_and_its_bands_cover_every_canvas_exactly_once() {
         }
     }
 }
+
+#[test]
+fn the_picture_is_the_game_s_own_window_inside_its_view() {
+    use slot::video_mode::picture_rect;
+    let at = |c, p, m| picture_rect(p, screen_on(c, p, m).view);
+    assert_eq!(
+        at(Canvas::FOUR_THREE, Platform::Gba, VideoMode::Actual),
+        [0.0, 0.0, 640.0, 427.0]
+    );
+    assert_eq!(
+        at(Canvas::FOUR_THREE, Platform::Gb, VideoMode::Actual),
+        [80.0, 24.0, 480.0, 432.0]
+    );
+    assert_eq!(
+        at(Canvas::FOUR_THREE, Platform::Gbc, VideoMode::Stretch),
+        [0.0, 0.0, 640.0, 480.0]
+    );
+    assert_eq!(
+        at(Canvas::WIDE, Platform::Gb, VideoMode::Actual),
+        [120.0, 24.0, 480.0, 432.0]
+    );
+    assert_eq!(
+        at(Canvas::WIDE, Platform::Gba, VideoMode::Actual),
+        [0.0, 0.0, 720.0, 480.0]
+    );
+}
