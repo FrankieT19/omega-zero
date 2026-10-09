@@ -236,6 +236,9 @@ task dist:device              # the aarch64 card tree, in dist-device/
 task deploy:device            # push to a device over adb and restart it
 ```
 
+The device build compiles the cores in an arm64 Linux container. gpSP's compiler needs more
+memory than a 2 GB Docker VM has; with colima, `colima start --memory 4`.
+
 `task screens` draws slot's main screens headless to PNGs, and `task screens:compare` fails
 on any pixel that differs from a baseline: the way to prove a change leaves a layout alone.
 
