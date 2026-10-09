@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.5.0 (unreleased)
+
+The first release of this fork, for the RG35XX SP and the other H700 handhelds BaseOS runs on.
+
+- slot lays itself out for the panel it finds, from the model BaseOS names: 640x480 on the
+  RG35XX SP instead of the RG SP's 720x480 picture shrunk to fit. The RG SP is unchanged.
+- On a 640x480 panel, GBA games fill the width (640x427) through a sharp scaler, with the
+  console's body below carrying GAME BOY ADVANCE. Game Boy games stay at 3x through the LCD
+  mask.
+- Your own overlays: a `.png` the size of the screen in `Overlays/GBA`, `Overlays/GB` or
+  `Overlays/GBC`, laid over the game. One that would cover the game is ignored.
+- The boot logo is only ever replaced with one the size of the device's own. Logos ship for
+  640x480, 720x480 and 720x720 panels.
+- Rumble works on devices whose motor is the PMIC's `moto` pin rather than a force feedback
+  node.
+- Hosting a link works on devices whose Wi-Fi driver gives no second interface.
+- The About label fits a 640-wide screen.
+- `System/probe.sh` writes a hardware report, also from an empty `RUN_PROBE` file at boot, for
+  device reports.
+- A panel mounted on its side is turned in software (the RG28XX).
+
 ## [1.4.0](https://github.com/BrandonKowalski/slot/releases/tag/v1.4.0)
 
 - The volume bar shows a headphones icon while they are plugged in.

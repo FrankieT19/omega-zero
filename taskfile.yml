@@ -28,6 +28,13 @@ tasks:
     cmds:
       - cargo test --workspace
 
+  test:canvases:
+    desc: >-
+      Run the whole test suite again on every canvas but the default 720x480 one. The square
+      720x720 canvas joins once the RG CubeXX layout lands
+    cmds:
+      - SLOT_CANVAS=640x480 cargo test --workspace
+
   test:one:
     desc: Run tests matching FILTER, eg task test:one FILTER=gesture
     requires:
@@ -62,6 +69,7 @@ tasks:
       - task: lint
       - task: lint:device
       - task: test
+      - task: test:canvases
       - task: test:card
 
   test:card:
