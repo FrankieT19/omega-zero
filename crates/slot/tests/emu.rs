@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use slot::audio::{AudioSink, StubSink};
@@ -9,6 +9,15 @@ use slot::persist::Snapshot;
 use slot_retro::{
     AvInfo, ButtonMask, CoreError, LinkChannel, MockCore, RetroCore, NETPACKET_RELIABLE,
 };
+
+/// What these tests measure is the worker's timing, so they take turns rather than share the
+/// machine's cores with one another's workers: on a busy runner a tick that comes late lets
+/// the worker run a frame of its own.
+static TURN: Mutex<()> = Mutex::new(());
+
+fn turn() -> MutexGuard<'static, ()> {
+    TURN.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 fn spawn() -> EmuHandle {
     spawn_with(None)
@@ -67,6 +76,7 @@ fn frame_count(emu: &EmuHandle) -> u64 {
 
 #[test]
 fn the_worker_runs_until_it_is_paused_and_resumes_where_it_stopped() {
+    let _turn = turn();
     let emu = spawn();
     let early = frame_count(&emu);
     std::thread::sleep(Duration::from_millis(200));
@@ -89,6 +99,7 @@ fn the_worker_runs_until_it_is_paused_and_resumes_where_it_stopped() {
 
 #[test]
 fn a_requested_load_rewinds_the_core() {
+    let _turn = turn();
     let emu = spawn();
     let state = emu
         .request_state()
@@ -107,6 +118,7 @@ fn a_requested_load_rewinds_the_core() {
 
 #[test]
 fn rewinding_walks_the_core_backwards_and_then_plays_on() {
+    let _turn = turn();
     let emu = spawn();
     std::thread::sleep(Duration::from_millis(300));
     let played = frame_count(&emu);
@@ -129,6 +141,7 @@ fn rewinding_walks_the_core_backwards_and_then_plays_on() {
 
 #[test]
 fn fast_forward_mutes_and_normal_speed_unmutes() {
+    let _turn = turn();
     let sink = StubSink::new();
     let emu = spawn_into(sink.clone(), None);
     emu.set_speed(Speed::Fast);
@@ -145,6 +158,7 @@ fn fast_forward_mutes_and_normal_speed_unmutes() {
 
 #[test]
 fn a_worker_that_stops_while_muted_leaves_the_sink_audible() {
+    let _turn = turn();
     let sink = StubSink::new();
     let emu = spawn_into(sink.clone(), None);
     emu.set_speed(Speed::Fast);
@@ -155,6 +169,7 @@ fn a_worker_that_stops_while_muted_leaves_the_sink_audible() {
 
 #[test]
 fn fast_forward_runs_fast_steps_core_frames_per_present() {
+    let _turn = turn();
     let emu = spawn();
     let from = frame_count(&emu);
     std::thread::sleep(Duration::from_millis(300));
@@ -183,6 +198,7 @@ fn held_counts(emu: &EmuHandle) -> (u64, u64) {
 
 #[test]
 fn fast_forward_runs_the_chosen_number_of_core_frames_per_present() {
+    let _turn = turn();
     let emu = spawn();
     std::thread::sleep(Duration::from_millis(300));
     for (asked, runs) in [
@@ -286,6 +302,7 @@ fn spawn_probe(cost: Duration) -> (EmuHandle, Arc<Mutex<Vec<bool>>>) {
 
 #[test]
 fn every_speed_publishes_the_frame_the_core_last_ran() {
+    let _turn = turn();
     let emu = spawn();
     for ceiling in [2, 3, 4, FAST_STEPS_MAX] {
         emu.set_fast_steps(ceiling);
@@ -308,6 +325,7 @@ fn every_speed_publishes_the_frame_the_core_last_ran() {
 
 #[test]
 fn a_fast_present_draws_only_its_last_frame() {
+    let _turn = turn();
     let ceiling = 3;
     let (emu, log) = spawn_probe(Duration::ZERO);
     emu.set_fast_steps(ceiling);
@@ -343,6 +361,7 @@ fn a_fast_present_draws_only_its_last_frame() {
 
 #[test]
 fn a_present_runs_what_it_can_afford_rather_than_the_whole_ceiling() {
+    let _turn = turn();
     let (emu, _log) = spawn_probe(Duration::from_millis(5));
     emu.set_fast_steps(FAST_STEPS_MAX);
     let (frames, presents) = held_counts(&emu);
@@ -412,6 +431,7 @@ fn heard_per_present(emu: &EmuHandle, sink: &StubSink, heard: &AtomicUsize) -> f
 
 #[test]
 fn fast_forward_is_silent_while_its_sound_is_off() {
+    let _turn = turn();
     let (emu, sink, heard) = spawn_heard();
     emu.set_ff_sound(false);
     emu.set_speed(Speed::Fast);
@@ -422,6 +442,7 @@ fn fast_forward_is_silent_while_its_sound_is_off() {
 
 #[test]
 fn fast_forward_sound_plays_sped_up_in_real_time() {
+    let _turn = turn();
     let (emu, sink, heard) = spawn_heard();
     emu.set_ff_sound(true);
     let real_time = 32_768.0 / 60.0;
@@ -440,6 +461,7 @@ fn fast_forward_sound_plays_sped_up_in_real_time() {
 
 #[test]
 fn battery_save_ram_reaches_the_core_and_comes_back() {
+    let _turn = turn();
     let mut sav = vec![0u8; 8 * 1024];
     sav[7] = 0xab;
     let emu = spawn_with(Some(sav.clone()));
@@ -452,6 +474,7 @@ fn battery_save_ram_reaches_the_core_and_comes_back() {
 
 #[test]
 fn a_captured_thumbnail_is_the_unfiltered_core_frame() {
+    let _turn = turn();
     let emu = spawn();
     assert!(wait_for(|| emu.has_published()), "no frame was published");
     emu.set_speed(Speed::Paused);
@@ -479,6 +502,7 @@ fn a_captured_thumbnail_is_the_unfiltered_core_frame() {
 
 #[test]
 fn the_renderer_is_handed_whole_gba_frames() {
+    let _turn = turn();
     let emu = spawn();
     let deadline = Instant::now() + Duration::from_secs(2);
     loop {
@@ -493,6 +517,7 @@ fn the_renderer_is_handed_whole_gba_frames() {
 
 #[test]
 fn fast_forward_records_no_rewind_history() {
+    let _turn = turn();
     let emu = spawn();
     std::thread::sleep(Duration::from_millis(200));
     let before_ff = frame_count(&emu);
@@ -557,6 +582,7 @@ fn wait_for_packet(mut poll: impl FnMut() -> Option<Vec<u8>>) -> Option<Vec<u8>>
 
 #[test]
 fn a_transport_packet_reaches_the_cores_inbound_queue() {
+    let _turn = turn();
     let emu = spawn();
     let (mut here, there) = paired_links();
     emu.begin_link(0, Box::new(there));
@@ -572,6 +598,7 @@ fn a_transport_packet_reaches_the_cores_inbound_queue() {
 
 #[test]
 fn the_cores_outbound_queue_reaches_the_transport() {
+    let _turn = turn();
     let emu = spawn();
     let (mut here, there) = paired_links();
     emu.begin_link(1, Box::new(there));
@@ -584,6 +611,7 @@ fn the_cores_outbound_queue_reaches_the_transport() {
 
 #[test]
 fn end_link_marks_the_session_inactive() {
+    let _turn = turn();
     let emu = spawn();
     let (_here, there) = paired_links();
     emu.begin_link(0, Box::new(there));
@@ -668,6 +696,7 @@ fn spawn_with_core(core: Box<dyn RetroCore>) -> EmuHandle {
 
 #[test]
 fn ending_a_link_tells_the_cores_own_stop_link() {
+    let _turn = turn();
     let core = SpyLinkCore::default();
     let stop_calls = core.stop_calls.clone();
     let emu = spawn_with_core(Box::new(core));
@@ -684,6 +713,7 @@ fn ending_a_link_tells_the_cores_own_stop_link() {
 
 #[test]
 fn beginning_a_link_calls_the_cores_own_start_link() {
+    let _turn = turn();
     let core = SpyLinkCore::default();
     let start_calls = core.start_calls.clone();
     let emu = spawn_with_core(Box::new(core));
@@ -699,6 +729,7 @@ fn beginning_a_link_calls_the_cores_own_start_link() {
 
 #[test]
 fn the_worker_pumps_the_core_every_present() {
+    let _turn = turn();
     let core = SpyLinkCore::default();
     let pump_calls = core.pump_calls.clone();
     let emu = spawn_with_core(Box::new(core));
@@ -712,6 +743,7 @@ fn the_worker_pumps_the_core_every_present() {
 
 #[test]
 fn end_link_drops_the_transport_not_just_marks_it_inactive() {
+    let _turn = turn();
     struct DropSignal {
         inner: PairedLink,
         dropped: Arc<AtomicBool>,
@@ -749,6 +781,7 @@ fn end_link_drops_the_transport_not_just_marks_it_inactive() {
 
 #[test]
 fn ending_a_link_clears_stale_packets_for_the_next_session() {
+    let _turn = turn();
     let emu = spawn();
     let (_here, there) = paired_links();
     emu.begin_link(0, Box::new(there));
@@ -782,6 +815,7 @@ impl LinkChannel for ClosingLink {
 
 #[test]
 fn a_transport_that_closes_is_reported_as_a_lost_link() {
+    let _turn = turn();
     let emu = spawn();
     let closed = Arc::new(AtomicBool::new(false));
     emu.begin_link(
@@ -801,6 +835,7 @@ fn a_transport_that_closes_is_reported_as_a_lost_link() {
 
 #[test]
 fn ending_or_beginning_a_link_clears_the_lost_flag() {
+    let _turn = turn();
     let emu = spawn();
     let closed = Arc::new(AtomicBool::new(true));
     emu.begin_link(0, Box::new(ClosingLink { closed }));
@@ -822,6 +857,7 @@ fn ending_or_beginning_a_link_clears_the_lost_flag() {
 
 #[test]
 fn ending_a_link_says_goodbye_before_it_drops_the_transport() {
+    let _turn = turn();
     struct Bye {
         order: Arc<Mutex<Vec<&'static str>>>,
     }
@@ -864,6 +900,7 @@ fn ending_a_link_says_goodbye_before_it_drops_the_transport() {
 
 #[test]
 fn a_transport_whose_peer_ended_is_reported_as_ended_not_merely_lost() {
+    let _turn = turn();
     struct EndedLink {
         ended: Arc<AtomicBool>,
     }
@@ -903,6 +940,7 @@ fn a_transport_whose_peer_ended_is_reported_as_ended_not_merely_lost() {
 
 #[test]
 fn beginning_a_link_clears_what_the_last_session_left_behind() {
+    let _turn = turn();
     let emu = spawn();
     let (_here, there) = paired_links();
     emu.begin_link(0, Box::new(there));
@@ -937,6 +975,7 @@ fn beginning_a_link_clears_what_the_last_session_left_behind() {
 
 #[test]
 fn an_ending_asked_for_in_the_last_present_still_reaches_the_peer() {
+    let _turn = turn();
     struct Bye {
         order: Arc<Mutex<Vec<&'static str>>>,
     }
@@ -978,6 +1017,7 @@ fn an_ending_asked_for_in_the_last_present_still_reaches_the_peer() {
 
 #[test]
 fn a_state_asked_for_in_the_last_present_is_still_answered() {
+    let _turn = turn();
     let (emu, _log) = spawn_probe(Duration::from_millis(400));
     emu.set_speed(Speed::Normal);
     std::thread::sleep(Duration::from_millis(100));
@@ -995,6 +1035,7 @@ const PANEL: Duration = Duration::from_micros(16_760);
 
 #[test]
 fn a_driven_worker_runs_one_frame_per_tick() {
+    let _turn = turn();
     let emu = spawn();
     emu.set_driven(true);
     assert!(
@@ -1017,6 +1058,7 @@ fn a_driven_worker_runs_one_frame_per_tick() {
 
 #[test]
 fn a_locked_worker_answers_a_state_request_without_waiting_for_the_tick() {
+    let _turn = turn();
     let emu = spawn();
     emu.set_driven(true);
     assert!(
@@ -1046,6 +1088,7 @@ fn a_locked_worker_answers_a_state_request_without_waiting_for_the_tick() {
 
 #[test]
 fn a_stalled_display_does_not_stall_the_worker() {
+    let _turn = turn();
     let emu = spawn();
     emu.set_driven(true);
     assert!(
@@ -1065,6 +1108,7 @@ fn a_stalled_display_does_not_stall_the_worker() {
 
 #[test]
 fn a_driven_worker_paces_itself_in_fast_forward() {
+    let _turn = turn();
     let emu = spawn();
     emu.set_driven(true);
     emu.set_speed(Speed::Fast);
@@ -1079,6 +1123,7 @@ fn a_driven_worker_paces_itself_in_fast_forward() {
 
 #[test]
 fn waiting_on_an_unlocked_worker_does_not_block() {
+    let _turn = turn();
     let emu = spawn();
     emu.set_driven(true);
     emu.set_speed(Speed::Paused);

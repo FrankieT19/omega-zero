@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   lint:
-    name: fmt and clippy
+    name: fmt and device clippy
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -33,9 +33,6 @@ jobs:
       - name: Format
         run: cargo fmt --all -- --check
 
-      - name: Clippy, host
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
       - name: Clippy, device
         run: cargo clippy -p slot --no-default-features --features device -- -D warnings
 
@@ -50,6 +47,10 @@ jobs:
         run: rustup toolchain install
 
       - uses: Swatinem/rust-cache@v2
+
+      # On macOS, where the render tests and the screens example find their headless GL.
+      - name: Clippy, host
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Test
         run: cargo test --workspace
