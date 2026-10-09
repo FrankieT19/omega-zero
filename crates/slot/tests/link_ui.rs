@@ -24,15 +24,10 @@ use tempfile::TempDir;
 
 const BAIL: Duration = Duration::from_secs(5);
 
-/// A game being played, and the link port held for the test: any A on the link screen
-/// opens a real link on it, which a test running beside this one would reach.
-struct Playing {
-    _dir: TempDir,
-    _link: common::LinkPort,
-}
-
-fn playing_on(core: Core) -> (App, Playing) {
-    let link = common::link_port_lock();
+/// A game being played. Any A on its link screen opens a real link on the link port, which
+/// a test running beside this one would reach, so the port is held for the whole test.
+fn playing_on(core: Core) -> (App, TempDir) {
+    common::hold_link_port();
     let d = common::tmp_root_with_carts(&["Emerald", "Zzz"]);
     common::write_retail_header(&d, "Emerald", "POKEMON RUBY", "AXVE");
     let mut app = common::boot(d.path());
@@ -43,13 +38,7 @@ fn playing_on(core: Core) -> (App, Playing) {
         app.update(1.0 / 60.0);
     }
     assert!(matches!(app.phase(), Phase::Playing { .. }), "never seated");
-    (
-        app,
-        Playing {
-            _dir: d,
-            _link: link,
-        },
-    )
+    (app, d)
 }
 
 fn fake_starter(
@@ -775,6 +764,7 @@ fn seated_on(d: &TempDir, core: Core) -> App {
 }
 
 fn seated_on_platform(d: &TempDir, core: Core, platform: Platform) -> App {
+    common::hold_link_port();
     let mut app = common::boot(d.path());
     app.apply(Action::Insert);
     app.set_core(core);
@@ -880,7 +870,7 @@ fn idle(app: &mut App, ms: u64) {
     }
 }
 
-fn switched_and_picked() -> (App, Playing) {
+fn switched_and_picked() -> (App, TempDir) {
     let (mut app, d) = playing_on(Core::Gpsp);
     app.apply(Action::GameMenu);
     app.apply(Action::GbaDown(Btn::Right));

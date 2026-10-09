@@ -47,6 +47,19 @@ impl Drop for LinkPort {
     }
 }
 
+thread_local! {
+    static TEST_HOLD: std::cell::RefCell<Option<LinkPort>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Holds the link port until the calling test's thread ends, for a test that sets up a game
+/// any A on the link screen could open a real link from.
+pub fn hold_link_port() {
+    let held = link_port_lock();
+    if held.0.is_some() {
+        TEST_HOLD.with(|h| *h.borrow_mut() = Some(held));
+    }
+}
+
 pub fn link_port_lock() -> LinkPort {
     if HOLDS_LINK_PORT.with(|h| h.get()) {
         return LinkPort(None);
