@@ -28,6 +28,7 @@ const SCRIPT: &str = "
 wait 120
 settle
 shot shelf-gba
+frames shelf-drift 90
 tap right
 wait 40
 shot shelf-scrolled

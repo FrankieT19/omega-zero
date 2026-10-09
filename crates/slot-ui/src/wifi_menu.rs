@@ -100,15 +100,20 @@ pub fn network_name_face(name: &str, lit: bool) -> UndoFace {
     plain_face(name, room, NAME_PX, MENU_H, lit)
 }
 
+fn status_room() -> f32 {
+    out_w() as f32 - 2.0 * QUICK_EDGE
+}
+
 /// A line under the list.
 pub fn wifi_status_face(line: &str) -> UndoFace {
-    plain_face(
-        line,
-        out_w() as f32 - 2.0 * QUICK_EDGE,
-        STATUS_PX,
-        STATUS_H,
-        false,
-    )
+    plain_face(line, status_room(), STATUS_PX, STATUS_H, false)
+}
+
+/// Whether `line` fits under the list whole, without being cut short with an ellipsis.
+pub fn status_fits(line: &str) -> bool {
+    text::label_font().is_some_and(|font| {
+        text::line_width(font, line, STATUS_PX, 0.0) <= status_room() - 2.0 * MENU_PAD as f32
+    })
 }
 
 /// Signal strength as one to four bars, with a padlock on networks that need a passphrase.

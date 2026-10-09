@@ -149,11 +149,11 @@ impl BackgroundScreen {
             },
         };
         let status = if look.style == BackdropStyle::Wallpaper {
-            "Your own picture, from Wallpapers/ on the card."
+            "Your own picture, from Wallpapers/."
         } else if wallpaper {
-            "Pick Wallpaper to show your own picture again."
+            "Pick Wallpaper to see your picture again."
         } else {
-            "Put a .png in Wallpapers/ to use a picture of your own."
+            "Or put a .png of your own in Wallpapers/."
         };
         ListView {
             rows: rows.iter().map(row).collect(),

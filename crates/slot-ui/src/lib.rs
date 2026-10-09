@@ -101,6 +101,6 @@ pub use sticker::{
 };
 pub use toast::{toast_box, toast_face, toast_rect, Toast};
 pub use wifi_menu::{
-    network_name_face, plain_face, signal_face, signal_glyph, wifi_rows_shown, wifi_status_face,
-    wifi_window, WifiMenuFaces, WifiRowFaces,
+    network_name_face, plain_face, signal_face, signal_glyph, status_fits, wifi_rows_shown,
+    wifi_status_face, wifi_window, WifiMenuFaces, WifiRowFaces,
 };
