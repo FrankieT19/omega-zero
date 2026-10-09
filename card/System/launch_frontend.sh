@@ -1,18 +1,18 @@
 #!/bin/sh
-SD="${SLOT_ROOT:-/mnt/sdcard}"
+SD="${OMEGA_ROOT:-/mnt/sdcard}"
 SYS="$SD/System"
 RUN="${AGS_RUN:-/run}"
-export SLOT_ROOT="$SD"
+export OMEGA_ROOT="$SD"
 
 log() {
 	echo "$(date '+%H:%M:%S') $*" >> "$SD/omega-zero-session.log" 2>/dev/null
 }
 
-pid="$(cat "$RUN/slot-led.pid" 2>/dev/null)"
+pid="$(cat "$RUN/omega-led.pid" 2>/dev/null)"
 if [ -z "$pid" ] || [ ! -d "/proc/$pid" ]; then
 	sh "$SYS/led.sh" once
 	sh "$SYS/led.sh" loop > /dev/null 2>&1 &
-	echo $! > "$RUN/slot-led.pid"
+	echo $! > "$RUN/omega-led.pid"
 fi
 
 echo "|/bin/sh $SYS/coresave.sh %p %s %e %t" > /proc/sys/kernel/core_pattern 2>/dev/null

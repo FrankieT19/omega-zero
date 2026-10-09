@@ -18,12 +18,12 @@ setup() {
 
 run() {
 	printf '%s' "$2" | AGS_CARD="$TMP/card" AGS_MOUNTPOINT="$TMP/mountpoint" \
-		AGS_CORE_EXE="$1" sh "$SCRIPT" "${3:-4321}" "${4:-11}" "${5:-slot-emu}" 0
+		AGS_CORE_EXE="$1" sh "$SCRIPT" "${3:-4321}" "${4:-11}" "${5:-omega-emu}" 0
 }
 
 setup
 run /usr/bin/busybox "not a frontend core"
-grep -q 'signal=11 thread=slot-emu exe=/usr/bin/busybox' "$TMP/card/crash/cores.log" \
+grep -q 'signal=11 thread=omega-emu exe=/usr/bin/busybox' "$TMP/card/crash/cores.log" \
 	|| { echo "no log line for a non-frontend crash: [$(cat "$TMP/card/crash/cores.log")]" >&2; exit 1; }
 [ ! -f "$TMP/card/crash/omega-zero.core" ] \
 	|| { echo "kept a core for a process that is not the frontend" >&2; exit 1; }

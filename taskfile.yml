@@ -21,7 +21,7 @@ tasks:
   release:
     desc: Release build of the slot binary
     cmds:
-      - cargo build --release -p slot
+      - cargo build --release -p omega-zero
 
   test:
     desc: Run the whole test suite
@@ -30,17 +30,17 @@ tasks:
 
   test:timing:
     desc: >-
-      Run the emulator's timing tests, which measure real time and so need a quiet machine:
-      a shared CI runner skips them
+      Run the emulator's worker tests, which run against real time and so need a quiet
+      machine: a shared CI runner skips them
     cmds:
-      - cargo test -p slot --test emu -- --ignored
+      - cargo test -p omega-zero --test emu -- --ignored
 
   test:canvases:
     desc: >-
       Run the whole test suite again on every canvas but the default 720x480 one. The square
       720x720 canvas joins once the RG CubeXX layout lands
     cmds:
-      - SLOT_CANVAS=640x480 cargo test --workspace
+      - OMEGA_CANVAS=640x480 cargo test --workspace
 
   test:one:
     desc: Run tests matching FILTER, eg task test:one FILTER=gesture
@@ -67,7 +67,7 @@ tasks:
   lint:device:
     desc: Clippy the device build, which the host lint never compiles
     cmds:
-      - cargo clippy -p slot --no-default-features --features device -- -D warnings
+      - cargo clippy -p omega-zero --no-default-features --features device -- -D warnings
 
   check:
     desc: Everything a CI run would do
@@ -81,9 +81,9 @@ tasks:
       - task: test:card
 
   test:card:
-    desc: Test the scripts slot ships on the card, off-device
+    desc: Test the scripts omega-zero ships on the card, off-device
     cmds:
-      - sh card/test-slotlink.sh
+      - sh card/test-link.sh
       - sh card/test-led.sh
       - sh card/test-coresave.sh
       - sh card/test-probe.sh
@@ -91,12 +91,12 @@ tasks:
 
   screens:
     desc: >-
-      Draw slot's main screens headless into OUT, defaults to target/screens. Run it with
+      Draw omega-zero's main screens headless into OUT, defaults to target/screens. Run it with
       OUT=target/screens-baseline before a change and screens:compare after it
     vars:
       OUT: '{{.OUT | default "target/screens"}}'
     cmds:
-      - cargo run -q --release --example screens -p slot -- {{.OUT}}
+      - cargo run -q --release --example screens -p omega-zero -- {{.OUT}}
 
   screens:compare:
     desc: Draw the screens again and fail on any pixel that differs from BASELINE, defaults to target/screens-baseline
@@ -104,7 +104,7 @@ tasks:
       OUT: '{{.OUT | default "target/screens"}}'
       BASELINE: '{{.BASELINE | default "target/screens-baseline"}}'
     cmds:
-      - cargo run -q --release --example screens -p slot -- {{.OUT}} {{.BASELINE}}
+      - cargo run -q --release --example screens -p omega-zero -- {{.OUT}} {{.BASELINE}}
 
   core:
     desc: >-
@@ -153,7 +153,7 @@ tasks:
   icons:
     desc: Re-fetch the nerd font symbols used by the HUD
     vars:
-      ASSETS: crates/slot-ui/assets
+      ASSETS: crates/omega-ui/assets
       TTF: SymbolsNerdFontMono-Regular.ttf
     cmds:
       - |
@@ -173,37 +173,37 @@ tasks:
     vars:
       ROOT: '{{.ROOT | default "./sdcard"}}'
     cmds:
-      - ./target/debug/slot --init-root {{.ROOT}}
+      - ./target/debug/omega-zero --init-root {{.ROOT}}
       - 'echo "content root ready at {{.ROOT}}: roms in Games/GBA, Games/GB or Games/GBC, labels in the matching Labels/GBA, Labels/GB or Labels/GBC, battery saves in the matching Saves/GBA, Saves/GB or Saves/GBC, save states under the matching States/GBA, States/GB or States/GBC, gba_bios.bin in BIOS, pngs in Wallpapers, palette in Config/theme.txt, overlays in Overlays/GBA, Overlays/GB or Overlays/GBC named for the canvas, eg 640x480.png"'
       - 'echo "nothing is moved for you: a file loose at the top of Games/, Saves/, Labels/ or States/ is left where it is and never reaches the shelf"'
 
   run:
     desc: >-
-      Run slot. against SLOT_ROOT, defaults to ./sdcard. SLOT_LINK_PORT moves the link
+      Run omega-zero against OMEGA_ROOT, defaults to ./sdcard. OMEGA_LINK_PORT moves the link
       session off 7211, which is what lets two copies on one machine link to each other -
       off-device both are on loopback, so the port is all that separates them
     deps: [core]
     env:
-      SLOT_ROOT: '{{.SLOT_ROOT | default "./sdcard"}}'
+      OMEGA_ROOT: '{{.OMEGA_ROOT | default "./sdcard"}}'
     cmds:
-      - cargo run --release -p slot
+      - cargo run --release -p omega-zero
 
   run:bare:
     desc: Run with no title bar or border, for screenshots and screen capture
     deps: [core]
     env:
-      SLOT_ROOT: '{{.SLOT_ROOT | default "./sdcard"}}'
-      SLOT_BARE: '1'
+      OMEGA_ROOT: '{{.OMEGA_ROOT | default "./sdcard"}}'
+      OMEGA_BARE: '1'
     cmds:
-      - cargo run --release -p slot
+      - cargo run --release -p omega-zero
 
   run:debug:
     desc: Run an unoptimised build, for a debugger. Will not hold 60 fps.
     deps: [core]
     env:
-      SLOT_ROOT: '{{.SLOT_ROOT | default "./sdcard"}}'
+      OMEGA_ROOT: '{{.OMEGA_ROOT | default "./sdcard"}}'
     cmds:
-      - cargo run -p slot
+      - cargo run -p omega-zero
 
   dist:
     desc: Build the copy-to-SD2 tree, OUT defaults to ./dist
@@ -283,7 +283,7 @@ tasks:
         if [ "$(uname -s)-$(uname -m)" = "Linux-aarch64" ]; then
           sh -c '{{.CMD}}'
         else
-          docker run --rm -e SLOT_SS_DEVID -e SLOT_SS_DEVPASSWORD -v "$PWD":/src -w /src rust:1-bullseye sh -c '{{.CMD}}'
+          docker run --rm -e OMEGA_SS_DEVID -e OMEGA_SS_DEVPASSWORD -v "$PWD":/src -w /src rust:1-bullseye sh -c '{{.CMD}}'
         fi
 
   build:device:
@@ -293,18 +293,18 @@ tasks:
         vars:
           CMD: >-
             cargo build --profile device --target-dir target-device
-            -p slot --no-default-features --features device
+            -p omega-zero --no-default-features --features device
       - file target-device/device/omega-zero | grep -q aarch64
       - 'echo "built target-device/device/omega-zero"'
 
   bench:device:
-    desc: Build core_bench, slot-retro's headless core benchmark, for the H700. It never ships
+    desc: Build core_bench, omega-retro's headless core benchmark, for the H700. It never ships
     cmds:
       - task: device:sh
         vars:
           CMD: >-
             cargo build --profile device --target-dir target-device
-            -p slot-retro --example core_bench
+            -p omega-retro --example core_bench
       - file target-device/device/examples/core_bench | grep -q aarch64
       - 'echo "built target-device/device/examples/core_bench, adb push it to /tmp/core_bench"'
 
@@ -377,7 +377,7 @@ tasks:
       - 'echo "deployed to {{.SD}}, device rebooting"'
 
   log:device:
-    desc: Read slot's log back off a connected device
+    desc: Read omega-zero's log back off a connected device
     vars:
       SD: '{{.SD | default "/mnt/sdcard"}}'
     cmds:

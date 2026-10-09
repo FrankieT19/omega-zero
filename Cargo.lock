@@ -1439,6 +1439,81 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-gfx"
+version = "0.1.0"
+dependencies = [
+ "gl",
+ "glutin",
+ "glutin-winit",
+ "libloading",
+ "raw-window-handle",
+ "winit",
+]
+
+[[package]]
+name = "omega-input"
+version = "0.1.0"
+
+[[package]]
+name = "omega-power"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+]
+
+[[package]]
+name = "omega-retro"
+version = "0.1.0"
+dependencies = [
+ "libloading",
+]
+
+[[package]]
+name = "omega-sfxcut"
+version = "0.1.0"
+
+[[package]]
+name = "omega-store"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "unicode-normalization",
+]
+
+[[package]]
+name = "omega-ui"
+version = "0.1.0"
+dependencies = [
+ "fontdue",
+ "omega-gfx",
+ "omega-power",
+ "omega-store",
+ "png 0.17.16",
+ "resvg",
+ "tempfile",
+ "usvg",
+]
+
+[[package]]
+name = "omega-zero"
+version = "0.1.0"
+dependencies = [
+ "cpal",
+ "gilrs",
+ "libloading",
+ "lz4_flex",
+ "omega-gfx",
+ "omega-input",
+ "omega-power",
+ "omega-retro",
+ "omega-store",
+ "omega-ui",
+ "png 0.17.16",
+ "tempfile",
+ "winit",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1860,81 +1935,6 @@ name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
-
-[[package]]
-name = "slot"
-version = "0.1.0"
-dependencies = [
- "cpal",
- "gilrs",
- "libloading",
- "lz4_flex",
- "png 0.17.16",
- "slot-gfx",
- "slot-input",
- "slot-power",
- "slot-retro",
- "slot-store",
- "slot-ui",
- "tempfile",
- "winit",
-]
-
-[[package]]
-name = "slot-gfx"
-version = "0.1.0"
-dependencies = [
- "gl",
- "glutin",
- "glutin-winit",
- "libloading",
- "raw-window-handle",
- "winit",
-]
-
-[[package]]
-name = "slot-input"
-version = "0.1.0"
-
-[[package]]
-name = "slot-power"
-version = "0.1.0"
-dependencies = [
- "tempfile",
-]
-
-[[package]]
-name = "slot-retro"
-version = "0.1.0"
-dependencies = [
- "libloading",
-]
-
-[[package]]
-name = "slot-sfxcut"
-version = "0.1.0"
-
-[[package]]
-name = "slot-store"
-version = "0.1.0"
-dependencies = [
- "tempfile",
- "unicode-normalization",
-]
-
-[[package]]
-name = "slot-ui"
-version = "0.1.0"
-dependencies = [
- "fontdue",
- "png 0.17.16",
- "resvg",
- "slot-gfx",
- "slot-power",
- "slot-store",
- "tempfile",
- "usvg",
-]
 
 [[package]]
 name = "smallvec"

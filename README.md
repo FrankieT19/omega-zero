@@ -4,11 +4,8 @@ A Game Boy-centric frontend for Anbernic H700 handhelds running
 [BaseOS](https://github.com/pvaibhav/BaseOS). It plays GBA, GBC and GB games, and only those,
 on a shelf of cartridges you slide into a slot.
 
-omega-zero grew out of [slot](https://github.com/BrandonKowalski/slot) by Brandon T. Kowalski,
-made for the Anbernic RG SP and no longer developed. It started as a fork in October 2026 and
-has since been modified throughout: it runs on the **RG35XX SP** and the rest of the H700
-family, laid out natively for each panel, and adds home Wi-Fi, SSH and SFTP, real cart labels,
-a new look and more. It keeps slot's licence, the GPL-3.0.
+It runs on the **RG35XX SP** and the rest of the H700 family, laid out natively for each
+panel, with home Wi-Fi, SSH and SFTP, real cart labels and a pixel look of its own.
 
 Release notes are in the [changelog](CHANGELOG.md).
 
@@ -38,7 +35,7 @@ for its panel.
 | Device | Panel | Status |
 |---|---|---|
 | RG35XX SP | 640x480 | Primary target of this fork. Native layout done, hardware validation in progress. |
-| RG SP | 720x480 | The device slot was first written for. |
+| RG SP | 720x480 | The wide layout the project began on. |
 | RG34XX SP, RG34XX | 720x480 | Same layout as the RG SP. Untested. |
 | RG35XX Plus / 2024, H, Pro | 640x480 | Same layout as the RG35XX SP, without the lid. Untested. |
 | RG40XX H, RG40XX V | 640x480 | Same layout as the RG35XX SP. Untested. |
@@ -175,8 +172,7 @@ omega-zero creates these folders on first boot. Nothing loose at the top of `Gam
 | `Config` | Settings, and `wifi.conf` with the Wi-Fi networks you have joined |
 | `System` | omega-zero itself, its cores and its licences. Replaced on every update |
 
-omega-zero can fetch [labels](#cart-labels) itself over Wi-Fi. They can also be made with the
-slot's author's [Cart Studio](https://studio.slot-cfw.fyi). Per-cart shell colours go in
+omega-zero can fetch [labels](#cart-labels) itself over Wi-Fi. Per-cart shell colours go in
 `Config/cart_shell.ini`.
 
 ## Overlays
@@ -316,7 +312,7 @@ same.
 - **The boot logo** is only ever replaced with one the size of your device's own. The original
   is kept on the boot partition as `bootlogo.baseos.bmp`.
 - **Button presses** can be traced to `input-trace.log` by running omega-zero with
-  `SLOT_TRACE_INPUT=1`.
+  `OMEGA_TRACE_INPUT=1`.
 - **"The Wi-Fi radio did not start"** means BaseOS never brought up `wlan0`. Restart once;
   `baseos-boot.log` on the card says what the driver did. The RG35XX 2024 shares its BaseOS
   image with the Plus but has no radio.
@@ -328,14 +324,14 @@ and, to build for the device on a machine that is not Linux on arm64, Docker.
 
 ```sh
 task run                      # build the cores and run omega-zero on the desktop
-SLOT_CANVAS=640x480 task run  # see what a 640x480 device draws
+OMEGA_CANVAS=640x480 task run  # see what a 640x480 device draws
 task check                    # format, lint, tests on every canvas, timing tests, card scripts
 task dist:device              # the aarch64 card tree, in dist-device/
 task deploy:device            # push to a device over adb and restart it
 ```
 
 Cart labels need ScreenScraper's key for the program, which is not in the source. Set
-`SLOT_SS_DEVID` and `SLOT_SS_DEVPASSWORD` when building to put it in; releases get it from
+`OMEGA_SS_DEVID` and `OMEGA_SS_DEVPASSWORD` when building to put it in; releases get it from
 the repository's secrets. A build without it says so on the Cart Labels screen.
 
 The device build compiles the cores in an arm64 Linux container. gpSP's compiler needs more
@@ -355,25 +351,25 @@ on any pixel that differs from a baseline: the way to prove a change leaves a la
 
 ## Credits and licences
 
-- omega-zero is derived from [slot](https://github.com/BrandonKowalski/slot), created by
-  [Brandon T. Kowalski](https://github.com/BrandonKowalski): its shelf, carts, sounds and
-  much of its code are his. omega-zero's changes are listed in the [changelog](CHANGELOG.md).
+- omega-zero is based on [slot](https://github.com/BrandonKowalski/slot) by
+  [Brandon T. Kowalski](https://github.com/BrandonKowalski), released under the GPL-3.0: the
+  shelf, the carts, their sounds and much of the code began there, and have been modified
+  since October 2026.
 - [BaseOS](https://github.com/pvaibhav/BaseOS) by pvaibhav.
 - Emulation by [mGBA](https://mgba.io) (MPL-2.0) and [gpSP](https://github.com/libretro/gpsp)
   (GPL-2.0). Their licences, patches and gpSP's source ship in `System/licenses/`.
 - Type is [Pixel Code](https://github.com/qwerasd205/PixelCode) by Qwerasd (SIL OFL 1.1,
-  its licence beside it in `crates/slot-ui/assets`) and the
+  its licence beside it in `crates/omega-ui/assets`) and the
   [Nerd Fonts](https://www.nerdfonts.com) symbols.
 - The LCD mask is derived from GigaHerz's LCD3x.
 - Cart labels come from [ScreenScraper](https://www.screenscraper.fr), fetched with your own
   account.
 
-omega-zero is licensed under the GPL-3.0-or-later, as slot is; see [LICENSE](LICENSE).
+omega-zero is licensed under the GPL-3.0-or-later; see [LICENSE](LICENSE).
 
 Game Boy, Game Boy Color and Game Boy Advance are trademarks of Nintendo. Anbernic is a
 trademark of its owner. This project is not affiliated with either.
 
 ### AI disclosure
 
-slot, the frontend omega-zero grew from, was put together by Claude and reviewed by its author.
-omega-zero's changes are written with Claude, and reviewed and tested by its maintainer.
+omega-zero is written with Claude, and reviewed and tested by its maintainer.

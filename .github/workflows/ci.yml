@@ -34,7 +34,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy, device
-        run: cargo clippy -p slot --no-default-features --features device -- -D warnings
+        run: cargo clippy -p omega-zero --no-default-features --features device -- -D warnings
 
   test:
     name: tests
@@ -58,7 +58,7 @@ jobs:
       - name: Test on the 640x480 canvas
         run: cargo test --workspace
         env:
-          SLOT_CANVAS: 640x480
+          OMEGA_CANVAS: 640x480
 
   card:
     name: card scripts
