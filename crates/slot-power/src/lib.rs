@@ -8,8 +8,8 @@ pub use baseos::{
     baseos_release, parse_baseos_release, read_baseos_release, BaseosRelease, BASEOS_RELEASE,
 };
 pub use device::{
-    has_bit, motor_change, record_first_frame, rumble_node, trace_first_frame, uptime_seconds,
-    DevicePlatform,
+    has_bit, motor_change, motor_pin, record_first_frame, rumble_node, trace_first_frame,
+    uptime_seconds, DevicePlatform,
 };
 pub use motor::Motor;
 pub use power::Power;

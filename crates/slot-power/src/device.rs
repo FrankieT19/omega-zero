@@ -162,7 +162,7 @@ impl DevicePlatform {
             None => "no backlight".to_string(),
         };
         let motor = match &self.motor {
-            Some(m) => format!("motor {}", m.name),
+            Some(m) => format!("motor {}", m.name()),
             None => "no motor".to_string(),
         };
         format!(
@@ -208,7 +208,79 @@ pub fn motor_change(strength: u16, running: bool) -> Option<bool> {
     }
 }
 
-struct Motor {
+/// The rumble motor: a force feedback node where the kernel offers one, or the PMIC's motor
+/// pin, which the Anbernic kernel exposes as a power supply's `moto` file instead.
+enum Motor {
+    Ff(FfMotor),
+    Pin(PinMotor),
+}
+
+impl Motor {
+    fn open(sysfs: &Path) -> Option<Motor> {
+        FfMotor::open(sysfs)
+            .map(Motor::Ff)
+            .or_else(|| PinMotor::find(sysfs).map(Motor::Pin))
+    }
+
+    fn name(&self) -> String {
+        match self {
+            Motor::Ff(m) => m.name.clone(),
+            Motor::Pin(m) => m.path.display().to_string(),
+        }
+    }
+
+    fn running(&self) -> bool {
+        match self {
+            Motor::Ff(m) => m.running,
+            Motor::Pin(m) => m.running,
+        }
+    }
+
+    fn play(&mut self, on: bool) {
+        match self {
+            Motor::Ff(m) => m.play(on),
+            Motor::Pin(m) => m.play(on),
+        }
+    }
+}
+
+pub fn motor_pin(sysfs: &Path) -> Option<PathBuf> {
+    first_dir(&sysfs.join("class/power_supply"), |d| {
+        d.join("moto").is_file()
+    })
+    .map(|d| d.join("moto"))
+}
+
+struct PinMotor {
+    path: PathBuf,
+    running: bool,
+}
+
+impl PinMotor {
+    fn find(sysfs: &Path) -> Option<PinMotor> {
+        Some(PinMotor {
+            path: motor_pin(sysfs)?,
+            running: false,
+        })
+    }
+
+    fn play(&mut self, on: bool) {
+        match fs::write(&self.path, if on { "1" } else { "0" }) {
+            Ok(()) => self.running = on,
+            Err(e) => eprintln!("slot: rumble {}: {e}", self.path.display()),
+        }
+    }
+}
+
+impl Drop for PinMotor {
+    fn drop(&mut self) {
+        if self.running {
+            self.play(false);
+        }
+    }
+}
+
+struct FfMotor {
     node: fs::File,
     name: String,
     id: i16,
@@ -261,8 +333,8 @@ extern "C" {
     fn ioctl(fd: c_int, request: c_ulong, ...) -> c_int;
 }
 
-impl Motor {
-    fn open(sysfs: &Path) -> Option<Motor> {
+impl FfMotor {
+    fn open(sysfs: &Path) -> Option<FfMotor> {
         let name = rumble_node(sysfs)?;
         let node = fs::OpenOptions::new()
             .read(true)
@@ -294,7 +366,7 @@ impl Motor {
             eprintln!("slot: rumble {name}: {}", std::io::Error::last_os_error());
             return None;
         }
-        Some(Motor {
+        Some(FfMotor {
             node,
             name,
             id: effect.id,
@@ -320,7 +392,7 @@ impl Motor {
     }
 }
 
-impl Drop for Motor {
+impl Drop for FfMotor {
     fn drop(&mut self) {
         if self.running {
             self.play(false);
@@ -497,7 +569,7 @@ impl Platform for DevicePlatform {
         let Some(motor) = &mut self.motor else {
             return;
         };
-        if let Some(on) = motor_change(strength, motor.running) {
+        if let Some(on) = motor_change(strength, motor.running()) {
             motor.play(on);
         }
     }

@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use slot_power::{motor_change, rumble_node, Battery, Charge, DevicePlatform, LedState, Platform};
+use slot_power::{
+    motor_change, motor_pin, rumble_node, Battery, Charge, DevicePlatform, LedState, Platform,
+};
 use tempfile::TempDir;
 
 fn sysfs_with(max_brightness: &str, capacity: &str, status: Option<&str>) -> TempDir {
@@ -214,6 +216,38 @@ fn a_tree_with_no_force_feedback_has_no_motor() {
     fs::create_dir_all(&caps).unwrap();
     fs::write(caps.join("ff"), "20000 0\n").unwrap();
     assert!(rumble_node(d.path()).is_none());
+}
+
+fn with_motor_pin(d: &TempDir) -> std::path::PathBuf {
+    let psy = d.path().join("class/power_supply/axp2202-battery");
+    fs::create_dir_all(&psy).unwrap();
+    fs::write(psy.join("moto"), "0\n").unwrap();
+    psy.join("moto")
+}
+
+#[test]
+fn without_force_feedback_the_pmic_motor_pin_rumbles() {
+    let d = sysfs("255", "80");
+    let pin = with_motor_pin(&d);
+    assert_eq!(motor_pin(d.path()), Some(pin.clone()));
+    let mut p = platform(&d);
+    assert!(p.report().contains("moto"), "{}", p.report());
+    p.set_rumble(u16::MAX);
+    assert_eq!(fs::read_to_string(&pin).unwrap(), "1");
+    p.set_rumble(40_000);
+    assert_eq!(fs::read_to_string(&pin).unwrap(), "1");
+    p.set_rumble(0);
+    assert_eq!(fs::read_to_string(&pin).unwrap(), "0");
+}
+
+#[test]
+fn a_motor_left_running_is_stopped_when_slot_lets_go_of_it() {
+    let d = sysfs("255", "80");
+    let pin = with_motor_pin(&d);
+    let mut p = platform(&d);
+    p.set_rumble(u16::MAX);
+    drop(p);
+    assert_eq!(fs::read_to_string(&pin).unwrap(), "0");
 }
 
 #[test]
