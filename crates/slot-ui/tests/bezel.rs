@@ -5,7 +5,7 @@ use slot_ui::{bezel_mark_face, mark_height, mark_rect, rim, BEZEL_INK, RIM_W};
 fn the_mark_is_printed_at_a_size_the_band_can_carry() {
     assert_eq!(
         mark_height(48.0),
-        26,
+        30,
         "the band a 640x480 panel leaves inside the rim"
     );
     assert_eq!(
@@ -48,7 +48,7 @@ fn every_system_has_its_mark_at_the_height_asked_for() {
 
 #[test]
 fn the_gba_mark_is_white_edged_in_black() {
-    let face = bezel_mark_face(Platform::Gba, 26).expect("no mark");
+    let face = bezel_mark_face(Platform::Gba, 30).expect("no mark");
     let solid = |p: &&[u8]| p[3] == 255;
     let white = face
         .rgba
@@ -70,6 +70,15 @@ fn the_gba_mark_is_white_edged_in_black() {
         edge[3] == 0 || edge[0] < 64,
         "the mark's left side is not edged: {edge:?}"
     );
+}
+
+#[test]
+fn the_gba_mark_reads_game_boy_advance_and_no_more() {
+    // GAME BOY ADVANCE alone is under 9 times as wide as it is tall; with the SP logo's "SP"
+    // it would be over 10.
+    let face = bezel_mark_face(Platform::Gba, 30).expect("no mark");
+    let aspect = face.w as f32 / face.h as f32;
+    assert!((8.0..9.0).contains(&aspect), "a {}x{} mark", face.w, face.h);
 }
 
 #[test]
