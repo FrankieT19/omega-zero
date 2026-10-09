@@ -26,8 +26,8 @@ const DEEP: &str = "#400040";
 const MARK_LINE_CHARS: usize = 10;
 const MARK_LINES: usize = 3;
 const MARK_PAD: u32 = 4;
-const MARK_PX: f32 = 10.0;
-const MARK_MIN_PX: f32 = 6.0;
+const MARK_PX: f32 = 9.0;
+const MARK_MIN_PX: f32 = 9.0;
 const MARK_INK: [u8; 3] = [0xbd, 0xbd, 0xbd];
 
 pub fn rom_marking(stem: &str) -> Vec<String> {
@@ -180,8 +180,8 @@ pub const CHIP_H: u32 = 41;
 pub const SHADOW_W: u32 = 66;
 pub const SHADOW_H: u32 = 12;
 
-const NAME_PX: f32 = 17.0;
-const NAME_MIN_PX: f32 = 8.0;
+const NAME_PX: f32 = 18.0;
+const NAME_MIN_PX: f32 = 9.0;
 const SOCKET_INK: [u8; 3] = [0xee, 0xf5, 0xe6];
 const CHIP_INK: [u8; 3] = [0xf2, 0xf2, 0xf2];
 

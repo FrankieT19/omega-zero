@@ -25,9 +25,9 @@ const PANEL_FH: f32 = 35.433 / 71.116;
 pub const DC: char = '\u{2393}';
 
 const MARGIN: f32 = 11.0;
-const HEAD_PX: f32 = 11.0;
-const BODY_PX: f32 = 8.5;
-const SERIAL_PX: f32 = 26.0;
+const HEAD_PX: f32 = 9.0;
+const BODY_PX: f32 = 9.0;
+const SERIAL_PX: f32 = 27.0;
 const SMALL_PX: f32 = 9.0;
 
 pub struct StickerFields<'a> {
@@ -40,11 +40,11 @@ pub const CREDITS: [&str; 10] = [
     "EMULATION POWERED BY MGBA",
     "AND GPSP. UNDERLYING OS IS",
     "BASEOS BY PVAIBHAV. TYPE IS",
-    "OPEN SANS AND NERD FONTS",
-    "SYMBOLS BY RYAN L MCINTYRE.",
-    "THE PANEL MASK IS DERIVED",
-    "FROM GIGAHERZ'S LCD3X. THE",
-    "CART SOUNDS ARE MY CHILDHOOD",
+    "PIXEL CODE BY QWERASD AND",
+    "NERD FONTS SYMBOLS BY RYAN",
+    "L MCINTYRE. PANEL MASK FROM",
+    "GIGAHERZ'S LCD3X. THE CART",
+    "SOUNDS ARE MY CHILDHOOD",
     "GAMEBOY. I WASTED WATER",
     "BUILDING THIS WITH CLAUDE.",
 ];

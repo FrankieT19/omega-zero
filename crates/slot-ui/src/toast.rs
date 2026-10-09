@@ -50,10 +50,10 @@ impl Toast {
     }
 }
 
-const TOAST_W: u32 = 240;
+const TOAST_W: u32 = 264;
 const TOAST_H: u32 = 22;
-const TOAST_PX: f32 = 16.0;
-const TOAST_MIN_PX: f32 = 12.0;
+const TOAST_PX: f32 = 18.0;
+const TOAST_MIN_PX: f32 = 9.0;
 
 pub fn toast_rect() -> (f32, f32, f32, f32) {
     let (w, h) = toast_box();

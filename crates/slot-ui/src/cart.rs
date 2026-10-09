@@ -48,7 +48,7 @@ const PAD: u32 = 10;
 const MAX_LINES: usize = 3;
 const MAX_PX: f32 = LABEL_H as f32 / (MAX_LINES as f32 * 1.36);
 const GB_MAX_PX: f32 = (GB_LABEL_H - 2 * PAD) as f32 / MAX_LINES as f32;
-const MIN_PX: f32 = 10.0;
+const MIN_PX: f32 = 9.0;
 
 const RIM: u32 = (4 * CART_W + SEATED_W / 2) / SEATED_W;
 const GB_RIM: u32 = (7 * GB_CART_W + SEATED_W / 2) / SEATED_W;

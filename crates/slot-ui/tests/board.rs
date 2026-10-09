@@ -319,22 +319,19 @@ fn the_shadow_is_darkest_in_the_middle_and_gone_at_the_corners() {
 }
 
 #[test]
-fn the_seated_chips_name_is_antialiased_against_the_body() {
+fn the_seated_chips_name_is_printed_in_whole_pixels() {
     let red = |face: &CartFace, x: u32, y: u32| face.rgba[((y * face.w + x) * 4) as usize];
     for core in [Core::Mgba, Core::Gpsp] {
         let named = chip_face(Some(core));
         let blank = chip_face(None);
-        let soft = (0..named.h)
+        let mut inks: Vec<u8> = (0..named.h)
             .flat_map(|y| (0..named.w).map(move |x| (x, y)))
-            .filter(|&(x, y)| {
-                alpha(&named, x, y) == 255
-                    && red(&named, x, y) != red(&blank, x, y)
-                    && (0x40..0xc0).contains(&red(&named, x, y))
-            })
-            .count();
-        assert!(
-            soft > 5,
-            "{core:?}'s name has only {soft} antialiased pixels"
-        );
+            .filter(|&(x, y)| alpha(&named, x, y) == 255 && red(&named, x, y) != red(&blank, x, y))
+            .map(|(x, y)| red(&named, x, y))
+            .collect();
+        assert!(inks.len() > 10, "{core:?}'s name is barely there");
+        inks.sort_unstable();
+        inks.dedup();
+        assert_eq!(inks.len(), 1, "{core:?}'s name has soft edges: {inks:?}");
     }
 }

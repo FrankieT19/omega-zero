@@ -20,8 +20,8 @@ const CELLS: [u32; 11] = [88, 22, 52, 22, 52, 36, 52, 22, 52, 36, 128];
 const FIELD_CELL: [usize; 6] = [0, 2, 4, 6, 8, 10];
 
 const PICKER_H: u32 = 44;
-const PICKER_PX: f32 = 30.0;
-const PICKER_MIN_PX: f32 = 12.0;
+const PICKER_PX: f32 = 27.0;
+const PICKER_MIN_PX: f32 = 9.0;
 const CARET_H: f32 = 4.0;
 const CARET_GAP: f32 = 6.0;
 const HINT_DROP: f32 = 48.0;

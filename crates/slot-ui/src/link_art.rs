@@ -139,7 +139,6 @@ fn mirror(face: &CartFace) -> CartFace {
 enum Align {
     Left,
     Centre,
-    Right,
 }
 
 type LabelRow = (f32, f32, &'static str, f32, [u8; 3], Align);
@@ -153,7 +152,9 @@ fn adapter_face() -> CartFace {
         )
     };
     let s = ADAPTER_SCALE;
-    let rows: [LabelRow; 6] = [
+    // The pixel face is never set smaller than nine pixels, so the fine print is the two rows
+    // of it the plate has room for, each no wider than the plate.
+    let rows: [LabelRow; 4] = [
         (0.0, -58.9, "SLOT", 5.6 * s, LOGO_INK, Align::Centre),
         (
             0.0,
@@ -165,35 +166,19 @@ fn adapter_face() -> CartFace {
         ),
         (
             -37.0,
-            -15.8,
-            "RADIO : WLAN1 5GHZ   PORT : 7211",
+            -15.0,
+            "MODEL NO. AGS-015",
             3.4 * s,
             LABEL_INK,
             Align::Left,
         ),
         (
             -37.0,
-            -11.8,
-            "MODEL NO. / MODELE NO. AGS-015",
+            -8.0,
+            "WLAN1 5GHZ PORT 7211",
             3.4 * s,
             LABEL_INK,
             Align::Left,
-        ),
-        (
-            -37.0,
-            -7.8,
-            "MADE IN ITHACA",
-            2.7 * s,
-            LABEL_INK,
-            Align::Left,
-        ),
-        (
-            37.0,
-            -7.8,
-            "S/LOT-A-WA-USA",
-            2.7 * s,
-            LABEL_INK,
-            Align::Right,
         ),
     ];
     for (x, baseline, line, px, ink, align) in rows {
@@ -226,7 +211,6 @@ fn stamp(
     let left = match align {
         Align::Left => x,
         Align::Centre => x - bw as f32 / 2.0,
-        Align::Right => x - bw as f32,
     }
     .round() as i32;
     let top = (baseline - px * 1.2).round() as i32;
