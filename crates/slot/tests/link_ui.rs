@@ -24,7 +24,15 @@ use tempfile::TempDir;
 
 const BAIL: Duration = Duration::from_secs(5);
 
-fn playing_on(core: Core) -> (App, TempDir) {
+/// A game being played, and the link port held for the test: any A on the link screen
+/// opens a real link on it, which a test running beside this one would reach.
+struct Playing {
+    _dir: TempDir,
+    _link: common::LinkPort,
+}
+
+fn playing_on(core: Core) -> (App, Playing) {
+    let link = common::link_port_lock();
     let d = common::tmp_root_with_carts(&["Emerald", "Zzz"]);
     common::write_retail_header(&d, "Emerald", "POKEMON RUBY", "AXVE");
     let mut app = common::boot(d.path());
@@ -35,7 +43,13 @@ fn playing_on(core: Core) -> (App, TempDir) {
         app.update(1.0 / 60.0);
     }
     assert!(matches!(app.phase(), Phase::Playing { .. }), "never seated");
-    (app, d)
+    (
+        app,
+        Playing {
+            _dir: d,
+            _link: link,
+        },
+    )
 }
 
 fn fake_starter(
@@ -866,7 +880,7 @@ fn idle(app: &mut App, ms: u64) {
     }
 }
 
-fn switched_and_picked() -> (App, TempDir) {
+fn switched_and_picked() -> (App, Playing) {
     let (mut app, d) = playing_on(Core::Gpsp);
     app.apply(Action::GameMenu);
     app.apply(Action::GbaDown(Btn::Right));

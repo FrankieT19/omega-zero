@@ -31,8 +31,29 @@ pub fn free_port() -> u16 {
 
 static LINK_PORT_LOCK: Mutex<()> = Mutex::new(());
 
-pub fn link_port_lock() -> MutexGuard<'static, ()> {
-    LINK_PORT_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+thread_local! {
+    static HOLDS_LINK_PORT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The link port, held for as long as a test might open a real link on it. A test that
+/// already holds it can ask again: only the first hold on a thread locks.
+pub struct LinkPort(Option<MutexGuard<'static, ()>>);
+
+impl Drop for LinkPort {
+    fn drop(&mut self) {
+        if self.0.is_some() {
+            HOLDS_LINK_PORT.with(|h| h.set(false));
+        }
+    }
+}
+
+pub fn link_port_lock() -> LinkPort {
+    if HOLDS_LINK_PORT.with(|h| h.get()) {
+        return LinkPort(None);
+    }
+    let guard = LINK_PORT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    HOLDS_LINK_PORT.with(|h| h.set(true));
+    LinkPort(Some(guard))
 }
 
 pub fn tmp_root_with_carts(stems: &[&str]) -> TempDir {
