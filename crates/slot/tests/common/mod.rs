@@ -65,8 +65,22 @@ pub fn link_port_lock() -> LinkPort {
         return LinkPort(None);
     }
     let guard = LINK_PORT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    wait_for_the_port_to_close();
     HOLDS_LINK_PORT.with(|h| h.set(true));
     LinkPort(Some(guard))
+}
+
+/// The last holder's host can outlive its test by a poll of its cancel, still listening. A
+/// join's connect completes in the listener's backlog without anyone accepting it, so a join
+/// in the next test would link to it. Wait for it to close.
+fn wait_for_the_port_to_close() {
+    let port = slot::link_start::link_port();
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while std::net::TcpListener::bind((slot::link_start::HOST_ADDR, port)).is_err()
+        && std::time::Instant::now() < deadline
+    {
+        std::thread::sleep(Duration::from_millis(5));
+    }
 }
 
 pub fn tmp_root_with_carts(stems: &[&str]) -> TempDir {

@@ -1148,13 +1148,16 @@ fn a_reloads_only_for_a_serial_the_core_was_not_loaded_with() {
     assert!(reaches_waiting(&mut app), "A started no link");
     app.apply(Action::GbaDown(Btn::B));
     settle(&mut app);
+    let after_cancel = app.game_menu();
     app.apply(Action::GameMenu);
     select(&mut app);
+    let picking = app.game_menu();
     app.apply(Action::GbaDown(Btn::A));
     assert_eq!(
         app.take_link_reload(),
         Some(("Emerald".to_string(), "auto")),
-        "the cable, picked over a core loaded on rfu, linked without a reload"
+        "the cable, picked over a core loaded on rfu, linked without a reload \
+         (after the cancel: {after_cancel:?}, picking: {picking:?})"
     );
 }
 
