@@ -51,7 +51,7 @@ pub const CREDITS: [&str; 10] = [
 
 pub const ORIGIN: [&str; 2] = ["S/OMEGA-ZERO", "MADE ON BASEOS"];
 
-pub const COPYRIGHT: &str = "\u{a9} 2026 OAURAMOS, B. KOWALSKI";
+pub const COPYRIGHT: &str = "\u{a9} 2026 OAURAMOS";
 
 pub const HOME: &str = "SEE README.";
 
