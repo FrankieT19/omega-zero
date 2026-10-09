@@ -18,6 +18,8 @@ use slot_input::Millis;
 pub const JOIN_TIMEOUT_MS: Millis = 30_000;
 /// While the Wi-Fi screen or the menu that names the network is open.
 pub const REFRESH_MS: Millis = 2_000;
+/// While only the top bar shows whether a network is joined.
+pub const GLANCE_MS: Millis = 15_000;
 pub const SCAN_MS: Millis = 12_000;
 
 /// What `wifi.sh status` says.

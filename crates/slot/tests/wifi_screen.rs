@@ -572,3 +572,25 @@ fn a_radio_that_never_appears_says_so() {
     r.tick(16);
     assert_eq!(r.status(), ["The Wi-Fi radio did not start."]);
 }
+
+#[test]
+fn the_shelf_asks_after_the_network_only_now_and_then_for_its_top_bar() {
+    let mut r = Rig::with(
+        SlotState {
+            wifi: true,
+            ..SlotState::default()
+        },
+        Radio::default(),
+    );
+    assert!(matches!(r.a.phase(), Phase::Shelf), "{:?}", r.a.phase());
+    r.radio.say(joined("Home", Some("192.168.1.20")));
+    r.tick(16);
+    r.radio.forget_asked();
+    r.tick(slot::wifi::REFRESH_MS + 500);
+    assert!(
+        r.radio.asked().is_empty(),
+        "the shelf asked as often as the menu that names the network"
+    );
+    r.tick(slot::wifi::GLANCE_MS);
+    assert_eq!(r.radio.asked(), [WifiJob::Refresh]);
+}

@@ -1415,11 +1415,12 @@ impl App {
     }
 
     /// How closely the radio is watched: the Wi-Fi screen looks for networks, the quick menu
-    /// only names the one joined.
+    /// names the one joined, and the shelf's top bar only shows whether there is one.
     fn wifi_watch(&self) -> Watch {
         match self.phase {
             Phase::Wifi(_) => Watch::Networks,
             Phase::QuickMenu { .. } => Watch::Status,
+            Phase::Shelf | Phase::Inserting { .. } | Phase::Ejecting { .. } => Watch::Glance,
             _ => Watch::Idle,
         }
     }

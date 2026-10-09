@@ -7,13 +7,15 @@ use slot_ui::{wifi_window, Keyboard};
 use crate::list_view::{LegendHint, ListView, RowLabel, RowValue, ViewRow};
 use crate::wifi::{
     bars, passphrase_ok, shown, AskFail, Saved, Seen, Status, WifiJob, WifiJobs, WifiNews,
-    JOIN_TIMEOUT_MS, REFRESH_MS, SCAN_MS,
+    GLANCE_MS, JOIN_TIMEOUT_MS, REFRESH_MS, SCAN_MS,
 };
 
 /// How closely the radio is being watched, which sets how often it is asked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Watch {
     Idle,
+    /// The top bar shows whether a network is joined: it is asked now and then.
+    Glance,
     /// Something on screen names the network: its status is kept fresh.
     Status,
     /// The Wi-Fi screen is open: the networks in reach are looked for too.
@@ -189,8 +191,15 @@ impl Wifi {
         if !self.enabled {
             return;
         }
-        let watching = watch >= Watch::Status || self.joining.is_some();
-        if watching && !self.refreshing && now >= self.refresh_at {
+        // How long after a status is due for the screen that names the network the next is
+        // asked for: none at all while nothing on screen shows the radio.
+        let later = match watch {
+            _ if self.joining.is_some() => Some(0),
+            Watch::Idle => None,
+            Watch::Glance => Some(GLANCE_MS - REFRESH_MS),
+            Watch::Status | Watch::Networks => Some(0),
+        };
+        if later.is_some_and(|later| now >= self.refresh_at + later) && !self.refreshing {
             self.refreshing = true;
             self.jobs.ask(WifiJob::Refresh);
         }
