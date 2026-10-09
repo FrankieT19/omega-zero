@@ -62,6 +62,28 @@ grep -q 'addr add 10.42.0.1/24 dev wlan1' "$TMP/ip.log" || fail "host not addres
 [ -f "$TMP/run/slotlink.session" ] || fail "host left no session mark"
 
 reset yes
+rmdir "$TMP/net/wlan1"
+run absent link host && rc=0 || rc=$?
+[ "$rc" = 0 ] || fail "host without wlan1 exited $rc"
+grep -q 'addr add 10.42.0.1/24 dev wlan0' "$TMP/ip.log" || fail "host without wlan1 did not fall back to wlan0"
+grep -q -- '-i wlan0 -c .*slotlink-ap.conf' "$TMP/sup.log" || fail "the AP did not start on wlan0"
+[ "$(cat "$TMP/run/slotlink.ap")" = wlan0 ] || fail "the AP interface was not remembered"
+run absent link down >/dev/null
+grep -q 'link set wlan0 down' "$TMP/ip.log" && fail "down took wlan0 down, which home Wi-Fi uses"
+[ -e "$TMP/run/slotlink.ap" ] && fail "down left the AP mark"
+grep -q 'addr flush dev wlan0' "$TMP/ip.log" || fail "down did not clear the AP off wlan0"
+
+reset yes
+rmdir "$TMP/net/wlan1"
+run absent link warm && rc=0 || rc=$?
+[ "$rc" = 0 ] || fail "warm without wlan1 exited $rc, though the host can use wlan0"
+
+reset yes
+rmdir "$TMP/net/wlan1" "$TMP/net/wlan0"
+run absent link host && rc=0 || rc=$?
+[ "$rc" = 1 ] || fail "host with no radio at all exited $rc, want 1"
+
+reset yes
 export FAKE_STATE=SCANNING
 run absent link host && rc=0 || rc=$?
 unset FAKE_STATE

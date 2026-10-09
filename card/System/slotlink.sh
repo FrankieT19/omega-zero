@@ -15,6 +15,7 @@ LINK_RESCAN="${AGS_LINK_RESCAN:-2}"
 LINK_AP_GLOBAL="${AGS_LINK_AP_GLOBAL:-}"
 LINK_TRACE="${AGS_LINK_TRACE:-}"
 LINK_MARK="$RUN/slotlink.session"
+AP_MARK="$RUN/slotlink.ap"
 
 WPA_SUPPLICANT="${AGS_WPA_SUPPLICANT:-wpa_supplicant}"
 WPA_CLI="${AGS_WPA_CLI:-wpa_cli}"
@@ -58,10 +59,15 @@ supplicant_stop() {
 	return 0
 }
 
+ap_if() {
+	cat "$AP_MARK" 2>/dev/null || echo wlan1
+}
+
 link_clear() {
-	supplicant_stop "$RUN/wpa_ap" wlan1
-	$IP addr flush dev wlan1 2>/dev/null || true
-	/bin/rm -f "$RUN/slotlink-ap.conf"
+	ap="$(ap_if)"
+	supplicant_stop "$RUN/wpa_ap" "$ap"
+	$IP addr flush dev "$ap" 2>/dev/null || true
+	/bin/rm -f "$RUN/slotlink-ap.conf" "$AP_MARK"
 	if [ -f "$RUN/slotlink-sta.conf" ]; then
 		supplicant_stop "$CTRL_DIR" wlan0
 		$IP addr flush dev wlan0 2>/dev/null || true
@@ -98,8 +104,18 @@ link_host() {
 	trace "host: asked"
 	link_clear
 	wifi_up
-	wait_dev wlan1 4 || return 1
+	if wait_dev wlan1 4; then
+		ap=wlan1
+	elif [ -d "$NET/wlan0" ]; then
+		ap=wlan0
+		supplicant_stop "$CTRL_DIR" wlan0
+		$IP addr flush dev wlan0 2>/dev/null || true
+	else
+		return 1
+	fi
+	trace "host: on $ap"
 	command -v "$WPA_SUPPLICANT" >/dev/null 2>&1 || return 1
+	echo "$ap" > "$AP_MARK"
 
 	/bin/mkdir -p "$RUN/wpa_ap"
 	{
@@ -120,10 +136,10 @@ link_host() {
 	} > "$RUN/slotlink-ap.conf"
 	/bin/chmod 600 "$RUN/slotlink-ap.conf"
 
-	$IP link set wlan1 up 2>/dev/null || true
-	$WPA_SUPPLICANT -B -i wlan1 -c "$RUN/slotlink-ap.conf" -Dnl80211 >/dev/null 2>&1 || return 1
-	link_wait "$RUN/wpa_ap" wlan1 "$LINK_WAIT_S" 0 "" || return 1
-	$IP addr add "$LINK_HOST_IP" dev wlan1 2>/dev/null || true
+	$IP link set "$ap" up 2>/dev/null || true
+	$WPA_SUPPLICANT -B -i "$ap" -c "$RUN/slotlink-ap.conf" -Dnl80211 >/dev/null 2>&1 || return 1
+	link_wait "$RUN/wpa_ap" "$ap" "$LINK_WAIT_S" 0 "" || return 1
+	$IP addr add "$LINK_HOST_IP" dev "$ap" 2>/dev/null || true
 	trace "host: addressed"
 }
 
@@ -180,8 +196,10 @@ link_join() {
 
 link_down() {
 	trace "down"
+	ap="$(ap_if)"
 	link_clear
-	$IP link set wlan1 down 2>/dev/null || true
+	[ "$ap" = wlan1 ] && $IP link set wlan1 down 2>/dev/null
+	true
 	rmdir "$RUN/wpa_ap" 2>/dev/null || true
 	/bin/rm -f "$LINK_MARK"
 	return 0
@@ -191,7 +209,7 @@ link_warm() {
 	trace "warm"
 	wifi_up
 	[ -d "$NET/wlan0" ] || return 1
-	wait_dev wlan1 4
+	wait_dev wlan1 4 || true
 }
 
 case "${1:-} ${2:-}" in
