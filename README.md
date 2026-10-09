@@ -21,6 +21,7 @@ Release notes are in the [changelog](CHANGELOG.md).
 - [Overlays](#overlays)
 - [Link play](#link-play)
 - [Wi-Fi, SSH and SFTP](#wi-fi-ssh-and-sftp)
+- [Cart labels](#cart-labels)
 - [Helping with a device](#helping-with-a-device)
 - [Troubleshooting](#troubleshooting)
 - [Building from source](#building-from-source)
@@ -56,6 +57,8 @@ for its panel.
   trades and Advance Wars, mGBA's link for Mario Kart, Game Boy link for Tetris.
 - Home Wi-Fi from the quick menu, with an on-screen keyboard for the passphrase. Once joined,
   copy games over SFTP and let the clock set itself from the network.
+- [Real cart labels](#cart-labels), scanned from real carts, fetched over Wi-Fi from
+  ScreenScraper with your own account.
 - Brightness, blue light, colour correction, rumble, and separate volumes for the speaker and
   headphones.
 - On a 640x480 panel, GBA games fill the width (640x427) through a sharp scaler, with the
@@ -167,8 +170,8 @@ slot creates these folders on first boot. Nothing loose at the top of `Games/`, 
 | `Config` | Settings, and `wifi.conf` with the Wi-Fi networks you have joined |
 | `System` | slot itself, its cores and its licences. Replaced on every update |
 
-Labels can be made with the upstream author's
-[slot Cart Studio](https://studio.slot-cfw.fyi). Per-cart shell colours go in
+slot can fetch [labels](#cart-labels) itself over Wi-Fi. They can also be made with the
+upstream author's [slot Cart Studio](https://studio.slot-cfw.fyi). Per-cart shell colours go in
 `Config/cart_shell.ini`.
 
 ## Overlays
@@ -214,12 +217,12 @@ mode plays Mario Kart: Super Circuit, and Game Boy link plays Tetris.
 | On the keyboard | Does |
 |---|---|
 | D-pad | Move between keys |
-| A | Type the key, or press Shift, #+=, Space, Delete or Join |
+| A | Type the key, or press Shift, #+=, Space, Delete or Done |
 | B | Delete the last character. On an empty field, go back to the list |
 | X | Shift: capitals, and back |
 | Y | Space |
 | L1 / R1 | Symbols, and back |
-| START | Join |
+| START | Done |
 | MENU | Go back to the list |
 
 slot remembers each network you join and joins it again at the next boot, as long as Wi-Fi was
@@ -267,6 +270,26 @@ zone stays the one you chose under Date & Time.
 A link uses the same radio, so it takes over from home Wi-Fi while it lasts and hands it back
 when it ends.
 
+## Cart labels
+
+A cart with no label of its own carries its name. slot can fetch the real thing: the scan of the
+label on a real cart, from [ScreenScraper](https://www.screenscraper.fr), a free database run by
+its community. You need a ScreenScraper account (free) and Wi-Fi joined.
+
+1. On the Wi-Fi screen, pick **Cart Labels**.
+2. On **ScreenScraper**, press A and type your user name, then your password, on the keyboard.
+3. On **Fetch Labels**, press A.
+
+slot looks up each cart that has no label, by its ROM's checksum, so a renamed file is still
+found. It takes the label from the region the ROM is from, (USA), (Europe) or (Japan), and from
+another region when that one was never scanned. Each label goes on the shelf as it arrives, into
+`Labels/GBA`, `Labels/GB` or `Labels/GBC` under the ROM's name. A label you put there yourself is
+never replaced, and a cart ScreenScraper has no scan for, such as a ROM hack, keeps its name.
+
+Your account is kept in `Config/screenscraper.conf`, as plain text: anyone with the card can read
+it. Y on **ScreenScraper** signs out and deletes it. A free account can look up thousands of carts
+a day, and the screen shows how many are left.
+
 ## Helping with a device
 
 slot ships a probe that writes down how your handheld is wired: its buttons, panel, battery,
@@ -306,6 +329,10 @@ task dist:device              # the aarch64 card tree, in dist-device/
 task deploy:device            # push to a device over adb and restart it
 ```
 
+Cart labels need ScreenScraper's key for the program, which is not in the source. Set
+`SLOT_SS_DEVID` and `SLOT_SS_DEVPASSWORD` when building to put it in; releases get it from
+the repository's secrets. A build without it says so on the Cart Labels screen.
+
 The device build compiles the cores in an arm64 Linux container. gpSP's compiler needs more
 memory than a 2 GB Docker VM has; with colima, `colima start --memory 4`.
 
@@ -316,6 +343,7 @@ on any pixel that differs from a baseline: the way to prove a change leaves a la
 
 - Validate everything on the RG35XX SP: buttons, lid, rumble, LEDs, audio, link play, Wi-Fi.
 - Bluetooth headphones and controllers.
+- Cart labels on the device, once ScreenScraper has given slot its key.
 - The other H700 devices: analogue sticks, RGB LEDs, the square CubeXX layout, the RG28XX's
   turned panel.
 - Full documentation in `docs/`, published as a wiki.

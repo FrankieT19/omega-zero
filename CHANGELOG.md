@@ -9,6 +9,12 @@
 - Network Time keeps the clock right through BaseOS whenever Wi-Fi is joined.
 - A link takes the radio over from home Wi-Fi and gives it back when it ends.
 - Handhelds without Wi-Fi don't show the row.
+- Cart Labels, on the Wi-Fi screen: sign in with your ScreenScraper account and fetch the
+  scanned label of every cart that has none, from the ROM's own region first. Labels go on the
+  shelf as they arrive. Yours are never replaced.
+- The on-screen keyboard's last key says Done.
+- On a 640x480 panel, the band under a GBA game looks like the console's lens: its dark grey, a
+  black rim at the screen's edge, and the GAME BOY ADVANCE logo in white edged in black.
 
 ## 1.5.0 (unreleased)
 
