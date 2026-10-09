@@ -1,8 +1,8 @@
 use slot_store::{Cart, Platform};
 use slot_ui::{
     cart_box, draw_empty_slot, edge, foot_y, housing, icon_box, opening, out_h, out_w, recess,
-    seated_box, Draw, Shelf, SlotChrome, TexId, ALERT_PX, CART_H, CART_W, GB_LABEL_H, GB_LABEL_Y,
-    LABEL_H, LABEL_Y, MOUTH_H,
+    Draw, Shelf, SlotChrome, TexId, ALERT_PX, CART_H, CART_W, GB_LABEL_H, GB_LABEL_Y, LABEL_H,
+    LABEL_Y, MOUTH_H,
 };
 
 fn centre_x() -> f32 {
@@ -42,12 +42,10 @@ fn both() -> [(&'static str, Cart); 2] {
 }
 
 fn label_band(c: &Cart) -> (f32, f32) {
-    let (y, h) = match c.platform {
+    match c.platform {
         Platform::Gba => (LABEL_Y as f32, LABEL_H as f32),
         Platform::Gb | Platform::Gbc => (GB_LABEL_Y as f32, GB_LABEL_H as f32),
-    };
-    let k = seated_box(c.platform).1 as f32 / cart_box(c.platform).1 as f32;
-    (y * k, h * k)
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -196,11 +194,11 @@ fn a_cart_the_row_had_not_finished_moving_slides_across_as_it_goes_in() {
         start.y + start.h
     );
     let seated = at(1.0);
-    let sw = seated_box(c.platform).0 as f32;
+    let sw = cart_box(c.platform).0 as f32;
     let mid = out_w() as f32 / 2.0;
     assert!(
         (seated.x + seated.w / 2.0 - mid).abs() < 0.01 && (seated.w - sw).abs() < 0.01,
-        "the cart seats at {seated:?} rather than the slot's size in the mouth"
+        "the cart seats at {seated:?} rather than at its own size in the mouth"
     );
     let off = |q: Quad| (q.x + q.w / 2.0 - mid).abs();
     let mut last = start;
@@ -214,7 +212,7 @@ fn a_cart_the_row_had_not_finished_moving_slides_across_as_it_goes_in() {
         );
         assert!(
             (q.w - sw).abs() <= (last.w - sw).abs() + 0.01,
-            "the cart moved away from the slot's size, to {} from {}",
+            "the cart moved away from its own size, to {} from {}",
             q.w,
             last.w
         );
@@ -346,34 +344,43 @@ fn an_unseated_cart_stands_where_the_shelf_left_it() {
 }
 
 #[test]
-fn a_cart_shrinks_to_the_slot_by_the_lip() {
-    let lip = out_h() as f32 - MOUTH_H;
+fn a_cart_keeps_its_size_all_the_way_into_the_slot() {
     for (name, c) in both() {
         let (w, h) = cart_box(c.platform);
-        let (sw, sh) = seated_box(c.platform);
-        let start = cart_quad(&c, 0.0);
-        assert!(
-            (start.w - w as f32).abs() < 0.01 && (start.h - h as f32).abs() < 0.01,
-            "{name} leaves the shelf at {}x{} rather than its own {w}x{h}",
-            start.w,
-            start.h
-        );
-        let mut last = start;
-        for step in 1..=400 {
+        for step in 0..=400 {
             let t = step as f32 / 400.0;
             let q = cart_quad(&c, t);
-            assert!(q.w <= last.w + 0.01, "{name} grew to {} at seat {t}", q.w);
-            if q.y + q.h >= lip {
-                assert!(
-                    (q.w - sw as f32).abs() < 0.01 && (q.h - sh as f32).abs() < 0.01,
-                    "{name} is {}x{} at the lip, not the slot's {sw}x{sh}",
-                    q.w,
-                    q.h
-                );
-            }
-            last = q;
+            assert!(
+                (q.w - w as f32).abs() < 0.01 && (q.h - h as f32).abs() < 0.01,
+                "{name} is {}x{} at seat {t} rather than its own {w}x{h}",
+                q.w,
+                q.h
+            );
         }
     }
+}
+
+#[test]
+fn the_slot_is_wide_enough_for_the_widest_cart() {
+    let mouth = draw_empty_slot_mouth();
+    for (name, c) in both() {
+        let w = cart_box(c.platform).0 as f32;
+        assert!(
+            mouth.w >= w,
+            "{name} is {w} wide and the mouth only {}: it would have to shrink to go in",
+            mouth.w
+        );
+        assert!(
+            (mouth.x + mouth.w / 2.0 - out_w() as f32 / 2.0).abs() < 0.01,
+            "the mouth is not centred"
+        );
+    }
+}
+
+fn draw_empty_slot_mouth() -> Quad {
+    let mut out = Vec::new();
+    draw_empty_slot(&mut out);
+    out.iter().find_map(as_mouth).expect("no mouth drawn")
 }
 
 #[test]
@@ -609,7 +616,7 @@ fn the_seated_cart_never_shows_through_the_fading_housing() {
 #[test]
 fn the_alert_fits_on_the_cart_face() {
     let (w, h) = icon_box(ALERT_PX);
-    let (cw, ch) = seated_box(Platform::Gba);
+    let (cw, ch) = cart_box(Platform::Gba);
     assert!(w < cw && h < ch, "a {w}x{h} alert on a {cw}x{ch} cart");
     assert!(h * 4 > ch, "a {h} px alert on a {ch} px cart is a speck");
 }

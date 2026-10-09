@@ -139,10 +139,10 @@ fn the_open_cart_starts_as_the_shelf_cart_and_lands_where_the_mockup_has_it() {
         (mock(180.0, 0.0).0, 360.0, 212.0)
     );
     if out_h() == 480 {
-        assert_eq!(shelf.y, 134.0);
+        assert_eq!(shelf.y, 112.0, "between the top bar and the slot's bar");
     }
     assert_eq!(board_at(0.0), shelf_cart());
-    let (x, y) = mock(174.0, 150.0);
+    let (x, y) = mock(174.0, 140.0);
     assert_eq!(
         board_at(1.0),
         Placed {
@@ -159,7 +159,7 @@ fn the_open_cart_starts_as_the_shelf_cart_and_lands_where_the_mockup_has_it() {
 fn the_lid_leaves_level_and_rests_turned() {
     assert_eq!(lid_at(0.0), (shelf_cart(), 0.0));
     let (rest, turn) = lid_at(1.0);
-    let (x, y) = mock(288.0, 30.0);
+    let (x, y) = mock(288.0, 44.0);
     assert_eq!(
         rest,
         Placed {
@@ -193,8 +193,12 @@ fn the_back_half_stays_on_the_shelf_while_the_front_slides() {
 }
 
 #[test]
-fn the_front_slides_up_a_third_before_it_lifts() {
-    assert_eq!(SLIDE_UP, CART_H as f32 / 3.0);
+fn the_front_slides_up_a_quarter_before_it_lifts() {
+    assert_eq!(SLIDE_UP, CART_H as f32 / 4.0);
+    assert!(
+        shelf_cart().y - SLIDE_UP > lid_at(1.0).0.y,
+        "the slide ends above where the lid rests, so the lift would carry it back down"
+    );
     let shelf = shelf_cart();
     let (slid, turn) = lid_at(SLIDE_SHARE);
     assert_eq!(
@@ -219,8 +223,8 @@ fn the_lift_starts_where_the_slide_ends() {
 #[test]
 fn board_units_land_on_the_panel_at_one_and_a_half_times() {
     let board = board_at(1.0);
-    assert_eq!(on_board(board, 0.0, 0.0), mock(174.0, 150.0));
-    assert_eq!(on_board(board, 240.0, 135.0), mock(546.0, 359.0));
+    assert_eq!(on_board(board, 0.0, 0.0), mock(174.0, 140.0));
+    assert_eq!(on_board(board, 240.0, 135.0), mock(546.0, 349.0));
 }
 
 #[test]

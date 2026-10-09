@@ -27,6 +27,17 @@ const INK: [f32; 4] = [
     1.0,
 ];
 
+/// How wide the gauge is drawn with `percent` beside it, from the room left for the bolt
+/// on its left to the end of the figure.
+pub fn gauge_width(percent: Printed) -> f32 {
+    let figure = if percent.w > 0 {
+        GAP + percent.w as f32
+    } else {
+        0.0
+    };
+    BOLT_W + BOLT_GAP + GAUGE_W + NUB_W + figure
+}
+
 pub fn draw_gauge(
     x: f32,
     y: f32,

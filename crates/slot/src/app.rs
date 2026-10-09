@@ -12,13 +12,14 @@ use slot_store::{
     VOLUME_MAX,
 };
 use slot_ui::{
-    backdrop_shift, board_from, board_x, board_zoom, draw_backdrop, draw_empty_slot, draw_footer,
-    draw_pattern, draw_slot_name, draw_solid, draw_sticker, ease, grown, lid_at, lid_from, lift_of,
-    on_board, quick_window, shelf_cart_at, ClockPicker, Draw, FfState, GbShell, Hud, HudKind, Icon,
-    KeyboardFaces, KeyboardScreen, LinkBadge, Millis, Placed, Polaroids, PowerChoice, QuickMenu,
-    QuickMenuFaces, QuickRow, QuickValue, Refusal, Shelf, SlotChrome, TexId, Toast, WifiMenuFaces,
-    BOARD_W, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H,
-    SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
+    backdrop_shift, board_from, board_x, board_zoom, draw_backdrop, draw_empty_slot, draw_pattern,
+    draw_slot_name, draw_solid, draw_sticker, ease, grown, lid_at, lid_from, lift_of, on_board,
+    quick_window, shelf_cart_at, ClockPicker, Draw, FfState, GbShell, Hud, HudKind, Icon,
+    KeyboardFaces, KeyboardScreen, LinkBadge, LinkFaces, Links, Millis, Placed, Polaroids,
+    PowerChoice, QuickMenu, QuickMenuFaces, QuickRow, QuickValue, Refusal, Shelf, SlotChrome,
+    TexId, Toast, TopBar, WifiMenuFaces, BOARD_W, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W,
+    HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W,
+    TURN_PAD,
 };
 
 use crate::audio::Sfx;
@@ -82,7 +83,7 @@ const SLOT_NAME_OUT_MS: Millis = 800;
 const SLOT_NAME_ALPHA: f32 = 0.4;
 const CORE_PICKER_DIM: f32 = 0.614;
 fn core_legend_y() -> f32 {
-    386.0 + stage_y()
+    362.0 + stage_y()
 }
 
 fn link_text_y() -> f32 {
@@ -365,6 +366,9 @@ pub struct App {
     keyboard_faces: Option<KeyboardFaces>,
     typing_faces: Option<[(TexId, u32, u32); 2]>,
     quick_wifi_faces: Option<[(TexId, u32, u32); 2]>,
+    link_faces: Option<LinkFaces>,
+    /// None on a handheld without Bluetooth; otherwise whether it is on.
+    bluetooth: Option<bool>,
     labels: Labels,
     labels_faces: Option<WifiMenuFaces>,
     /// Carts whose labels arrived and whose faces are still drawn without them.
@@ -404,6 +408,8 @@ impl App {
             keyboard_faces: None,
             typing_faces: None,
             quick_wifi_faces: None,
+            link_faces: None,
+            bluetooth: Some(false),
             labels: Labels::new(Box::new(NoKey::default()), None),
             labels_faces: None,
             stale_faces: Vec::new(),
@@ -501,6 +507,9 @@ impl App {
         app.state = read_slot_state(root);
         app.wifi.start(app.state.wifi);
         app.labels = Labels::new(label_jobs(root), Account::load(root));
+        if slot_power::baseos_release().and_then(|r| r.bluetooth) == Some(false) {
+            app.bluetooth = None;
+        }
         if app.state.clock_set {
             app.start();
         } else {
@@ -707,6 +716,41 @@ impl App {
 
     pub fn set_wallpaper(&mut self, face: TexId) {
         self.wallpaper = Some(face);
+    }
+
+    pub fn set_link_faces(&mut self, faces: LinkFaces) {
+        self.link_faces = Some(faces);
+    }
+
+    /// Says whether Bluetooth is on, for the bar across the top. A handheld without a radio
+    /// keeps showing none.
+    pub fn set_bluetooth(&mut self, on: bool) {
+        if self.bluetooth.is_some() {
+            self.bluetooth = Some(on);
+        }
+    }
+
+    /// What the bar across the top shows the handheld connected to. BaseOS runs SSH and
+    /// SFTP whenever a network is joined.
+    pub fn links(&self) -> Links {
+        let joined = self.wifi.status().joined();
+        Links {
+            wifi: joined,
+            bluetooth: self.bluetooth,
+            ssh: joined,
+        }
+    }
+
+    fn draw_top_bar(&self, out: &mut Vec<Draw>) {
+        TopBar {
+            links: self.links(),
+            faces: self.link_faces.as_ref(),
+            clock: self.shelf_clock,
+            battery: self.battery,
+            percent: self.battery_percent,
+            bolt: self.bolt,
+        }
+        .draw(out);
     }
 
     pub fn set_bolt_face(&mut self, bolt: TexId) {
@@ -2117,13 +2161,7 @@ impl App {
                         draw_slot_name(self.shelf_platform, self.slot_name_alpha(), out);
                     }
                 }
-                draw_footer(
-                    self.battery,
-                    self.battery_percent,
-                    self.bolt,
-                    self.shelf_clock,
-                    out,
-                );
+                self.draw_top_bar(out);
             }
             Phase::About => {
                 self.draw_background(out);
@@ -2135,6 +2173,7 @@ impl App {
                     self.draw_background(out);
                     self.shelf()
                         .draw_row(Some(cart), 0.0, self.seat(), 1.0, out);
+                    self.draw_top_bar(out);
                 }
                 self.chrome(cart, self.seat(), out);
             }
@@ -2142,6 +2181,7 @@ impl App {
                 self.draw_background(out);
                 self.shelf()
                     .draw_row(Some(cart), 0.0, self.seat(), 1.0, out);
+                self.draw_top_bar(out);
                 self.chrome(cart, self.seat(), out);
             }
             Phase::Playing { cart } if self.screen < 1.0 => self.chrome(cart, 0.0, out),

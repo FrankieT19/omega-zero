@@ -15,7 +15,7 @@ use slot_store::{Cart, Platform as CartPlatform};
 use slot_ui::{
     cart_box, cart_face, clean_label, edge, housing, label_colour, label_text, opening, recess,
     rest_y, stage_x, stage_y, Draw, SlotChrome, CART_W, GB_CART_H, GB_LABEL_H, GB_LABEL_Y, LABEL_H,
-    LABEL_Y, PLATE_H,
+    LABEL_Y, TOP_BAR_H,
 };
 
 struct Script(VecDeque<Vec<RawEvent>>);
@@ -57,15 +57,19 @@ fn apart(a: [u32; 3], b: [u32; 3]) -> u32 {
     (0..3).map(|k| a[k].abs_diff(b[k])).sum()
 }
 
+/// Lit pixels across the top of the shelf, between the bar and the tallest cart, where a
+/// name banner would go.
 fn banner_ink(px: &[u8]) -> usize {
-    (0..PLATE_H as usize)
+    let top = (TOP_BAR_H + stage_y()) as usize + 1;
+    (top..rest_y(GB_CART_H as f32) as usize)
         .flat_map(|y| (200..520).map(move |x| (x, y)))
         .filter(|(x, y)| at(px, *x, *y).iter().all(|c| *c > 0x80))
         .count()
 }
 
+/// Lit pixels on the bar across the top, where the battery and the clock are printed.
 fn hud_ink(px: &[u8]) -> usize {
-    ((out_h() as usize - 40)..out_h() as usize)
+    (0..TOP_BAR_H as usize)
         .flat_map(|y| (0..out_w() as usize).map(move |x| (x, y)))
         .filter(|(x, y)| at(px, *x, *y).iter().all(|c| *c > 0x80))
         .count()

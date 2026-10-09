@@ -146,8 +146,10 @@ pub fn board_x() -> f32 {
     174.0 + stage_x()
 }
 
+/// The open board stands between the lid resting above it and the legend under it, all of it
+/// between the bar across the top and the slot's bar.
 pub fn board_y() -> f32 {
-    150.0 + stage_y()
+    140.0 + stage_y()
 }
 
 pub const TURN_PAD: u32 = 2;
@@ -157,7 +159,9 @@ pub const CHIP_TIP: f32 = 4.0 * std::f32::consts::PI / 180.0;
 pub const HOP_LIFT: f32 = 10.0;
 
 pub const SLIDE_SHARE: f32 = 160.0 / 420.0;
-pub const SLIDE_UP: f32 = CART_H as f32 / 3.0;
+/// How far the cart slides up off the board before its lid lifts away: short of where the lid
+/// comes to rest, so the lift still carries it up.
+pub const SLIDE_UP: f32 = CART_H as f32 / 4.0;
 
 pub fn slide_of(progress: f32) -> f32 {
     ease((progress / SLIDE_SHARE).clamp(0.0, 1.0))
@@ -188,7 +192,7 @@ const CHIP_INK: [u8; 3] = [0xf2, 0xf2, 0xf2];
 fn lid_rest() -> Placed {
     Placed {
         x: 288.0 + stage_x(),
-        y: 30.0 + stage_y(),
+        y: 44.0 + stage_y(),
         w: 144.0,
         h: 81.0,
     }

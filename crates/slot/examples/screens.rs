@@ -206,7 +206,7 @@ shot shelf-gb
 tap l1
 wait 60
 tap a
-wait 120
+frames insert 120
 lit
 wait 240
 lit
@@ -240,7 +240,7 @@ look switcher
 tap b
 wait 90
 hold menu 80
-wait 180
+frames eject 180
 shot ejected
 tap r1
 wait 60
@@ -296,6 +296,8 @@ enum Step {
     Up(Btn),
     Shot(String),
     Look(String),
+    /// Wait `n` frames like `wait`, writing each one out as OUT/<name>-NNN.png.
+    Frames(String, u32),
 }
 
 fn btn(name: &str) -> Btn {
@@ -341,6 +343,7 @@ fn parse(script: &str) -> Vec<Step> {
             ["up", b] => steps.push(Step::Up(btn(b))),
             ["shot", name] => steps.push(Step::Shot(name.to_string())),
             ["look", name] => steps.push(Step::Look(name.to_string())),
+            ["frames", name, ..] => steps.push(Step::Frames(name.to_string(), n(2, 1))),
             _ => panic!("cannot read {line:?}"),
         }
     }
@@ -506,6 +509,13 @@ fn main() {
             Step::Wait(n) => {
                 for _ in 0..n {
                     tick(&mut frontend, &mut compositor, &mut input, &mut frame);
+                }
+            }
+            Step::Frames(name, n) => {
+                for i in 0..n {
+                    tick(&mut frontend, &mut compositor, &mut input, &mut frame);
+                    let rgba = compositor.read_frame();
+                    write_png(&out.join(format!("{name}-{i:03}.png")), &rgba);
                 }
             }
             Step::Lit => {
