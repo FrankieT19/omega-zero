@@ -58,6 +58,16 @@ pub struct Frontend {
     overlays: Vec<Overlay>,
     wifi: WifiTexes,
     labels: WifiTexes,
+    background: WifiTexes,
+    backdrop: BackdropTex,
+}
+
+/// The picture of the pattern the shelf is drawn over, made again when the style or colour
+/// changes.
+#[derive(Default)]
+struct BackdropTex {
+    tex: Option<TexId>,
+    built: Option<(slot_store::BackdropStyle, u8)>,
 }
 
 /// Textures for a list screen, Wi-Fi's or Labels', and for the quick menu's Wi-Fi row and
@@ -156,6 +166,8 @@ impl Frontend {
             overlays: Vec::new(),
             wifi: WifiTexes::default(),
             labels: WifiTexes::default(),
+            background: WifiTexes::default(),
+            backdrop: BackdropTex::default(),
         }
     }
 
@@ -351,6 +363,12 @@ impl Frontend {
         sync_quick_clock(self.session.app_mut(), compositor, &mut self.quick_clock);
         sync_wifi(self.session.app_mut(), compositor, &mut self.wifi);
         sync_labels(self.session.app_mut(), compositor, &mut self.labels);
+        sync_background(
+            self.session.app_mut(),
+            compositor,
+            &mut self.backdrop,
+            &mut self.background,
+        );
         self.relabel(compositor);
         sync_core_picker(
             self.session.app_mut(),
@@ -779,6 +797,34 @@ fn sync_wifi(app: &mut App, compositor: &mut Compositor, state: &mut WifiTexes) 
     }
 }
 
+fn sync_background(
+    app: &mut App,
+    compositor: &mut Compositor,
+    pattern: &mut BackdropTex,
+    list: &mut WifiTexes,
+) {
+    let want = app.backdrop_pattern();
+    if pattern.built != want {
+        if let Some((style, colour)) = want {
+            if let Some(face) = slot_ui::backdrop_pattern_face(style, colour) {
+                let w = face.w;
+                let tex = upload(compositor, &mut pattern.tex, face);
+                app.set_backdrop_face(tex, w, style, colour);
+            }
+        }
+        pattern.built = want;
+    }
+    let Some(view) = app.background_view() else {
+        list.view = None;
+        return;
+    };
+    if list.view.as_ref() != Some(&view) {
+        let faces = wifi_faces(&view, compositor, list);
+        app.set_background_faces(faces);
+        list.view = Some(view);
+    }
+}
+
 fn sync_labels(app: &mut App, compositor: &mut Compositor, state: &mut WifiTexes) {
     let Some(view) = app.labels_view() else {
         state.view = None;
@@ -840,7 +886,7 @@ fn wifi_faces(
                 let face = match v {
                     RowValue::Setting(true) => quick_value_face("On", lit),
                     RowValue::Setting(false) => quick_value_face("Off", lit),
-                    RowValue::Said(text) => quick_value_face(text, lit),
+                    RowValue::Said(text) | RowValue::Choice(text) => quick_value_face(text, lit),
                     RowValue::Name(name) => {
                         plain_face(name, out_w() as f32 * 0.45, 27.0, slot_ui::MENU_H, lit)
                     }
@@ -854,7 +900,7 @@ fn wifi_faces(
                 label,
                 value,
                 icon,
-                setting: matches!(row.value, Some(RowValue::Setting(_))),
+                setting: matches!(row.value, Some(RowValue::Setting(_) | RowValue::Choice(_))),
             }
         })
         .collect();

@@ -7,20 +7,22 @@ use slot_input::{Action, Btn, MUTE_CHORD_MS};
 use slot_power::{Battery, Charge, LedState, LidPolicy, Power};
 use slot_retro::LinkChannel;
 use slot_store::{
-    format_stamp, read_slot_state, scan, write_slot_state, Cart, Core, Platform, SlotState,
-    StateEntry, StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, FF_SPEEDS, RING_MAX, VOLUME_MAX,
+    format_stamp, read_slot_state, scan, write_slot_state, BackdropStyle, Cart, Core, Platform,
+    SlotState, StateEntry, StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, FF_SPEEDS, RING_MAX,
+    VOLUME_MAX,
 };
 use slot_ui::{
-    board_from, board_x, board_zoom, draw_backdrop, draw_empty_slot, draw_footer, draw_slot_name,
-    draw_sticker, ease, grown, lid_at, lid_from, lift_of, on_board, shelf_cart_at, ClockPicker,
-    Draw, FfState, GbShell, Hud, HudKind, Icon, KeyboardFaces, KeyboardScreen, LinkBadge, Millis,
-    Placed, Polaroids, PowerChoice, QuickMenu, QuickMenuFaces, QuickRow, QuickValue, Refusal,
-    Shelf, SlotChrome, TexId, Toast, WifiMenuFaces, BOARD_W, CART_W, CHIP_H, CHIP_U, CHIP_V,
-    CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V,
-    SOCKET_W, TURN_PAD,
+    backdrop_shift, board_from, board_x, board_zoom, draw_backdrop, draw_empty_slot, draw_footer,
+    draw_pattern, draw_slot_name, draw_solid, draw_sticker, ease, grown, lid_at, lid_from, lift_of,
+    on_board, quick_window, shelf_cart_at, ClockPicker, Draw, FfState, GbShell, Hud, HudKind, Icon,
+    KeyboardFaces, KeyboardScreen, LinkBadge, Millis, Placed, Polaroids, PowerChoice, QuickMenu,
+    QuickMenuFaces, QuickRow, QuickValue, Refusal, Shelf, SlotChrome, TexId, Toast, WifiMenuFaces,
+    BOARD_W, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H,
+    SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
 };
 
 use crate::audio::Sfx;
+use crate::background_screen::{Backdrop, BackgroundScreen, Outcome as BackgroundOutcome};
 use crate::core_picker::{Chip, CorePicker, Outcome, Press};
 use crate::label_screen::{Labels, LabelsScreen, Outcome as LabelsOutcome};
 use crate::label_sync::{label_jobs, Account, LabelJobs, NoKey, Want};
@@ -270,6 +272,7 @@ pub enum Phase {
     About,
     Wifi(WifiScreen),
     Labels(LabelsScreen),
+    Background(BackgroundScreen),
     Doze {
         cart: Option<String>,
     },
@@ -366,6 +369,12 @@ pub struct App {
     labels_faces: Option<WifiMenuFaces>,
     /// Carts whose labels arrived and whose faces are still drawn without them.
     stale_faces: Vec<(Platform, String)>,
+    background_faces: Option<WifiMenuFaces>,
+    /// The pattern the shelf is drawn over, the width of its picture, and what it was drawn
+    /// as, so a stale one is not shown while the new one is made.
+    backdrop_face: Option<(TexId, u32, BackdropStyle, u8)>,
+    /// The first quick menu row in view, on a canvas too short for them all.
+    quick_first: usize,
 }
 
 fn shelves_of(carts: Vec<Cart>) -> Vec<(Platform, Shelf)> {
@@ -398,6 +407,9 @@ impl App {
             labels: Labels::new(Box::new(NoKey::default()), None),
             labels_faces: None,
             stale_faces: Vec::new(),
+            background_faces: None,
+            backdrop_face: None,
+            quick_first: 0,
             phase: Phase::Shelf,
             shelves,
             shelf_at,
@@ -660,7 +672,7 @@ impl App {
             QuickRow::FastForwardSound => Some(QuickValue::flag(self.state.ff_sound)),
             QuickRow::ColourCorrection => Some(QuickValue::flag(self.state.colour_correction)),
             QuickRow::Rumble => Some(QuickValue::flag(self.state.rumble)),
-            QuickRow::Wifi | QuickRow::DateTime | QuickRow::About => None,
+            QuickRow::Background | QuickRow::Wifi | QuickRow::DateTime | QuickRow::About => None,
         }
     }
 
@@ -1210,11 +1222,13 @@ impl App {
             Phase::QuickMenu { row } => self.quick_menu_input(row, action),
             Phase::Wifi(_) => self.wifi_input(action),
             Phase::Labels(_) => self.labels_input(action),
+            Phase::Background(_) => self.background_input(action),
             _ => {}
         }
     }
 
     fn open_quick_menu(&mut self) {
+        self.quick_first = 0;
         self.phase = Phase::QuickMenu {
             row: QuickRow::ALL[0],
         };
@@ -1242,7 +1256,15 @@ impl App {
             }
             _ => return,
         };
+        self.quick_first = self.quick_first_for(row);
         self.phase = Phase::QuickMenu { row };
+    }
+
+    /// The first quick menu row to show with `row` lit, moving the list as little as it can.
+    fn quick_first_for(&self, row: QuickRow) -> usize {
+        let rows = self.quick_rows();
+        let at = rows.iter().position(|r| *r == row).unwrap_or(0);
+        quick_window(at, rows.len(), self.quick_first)
     }
 
     fn open_quick_row(&mut self, row: QuickRow) {
@@ -1252,10 +1274,79 @@ impl App {
             }
             QuickRow::About => self.phase = Phase::About,
             QuickRow::Wifi => self.phase = Phase::Wifi(WifiScreen::default()),
+            QuickRow::Background => self.phase = Phase::Background(BackgroundScreen::default()),
             QuickRow::FastForward
             | QuickRow::FastForwardSound
             | QuickRow::ColourCorrection
             | QuickRow::Rumble => {}
+        }
+    }
+
+    fn background_input(&mut self, action: Action) {
+        let (look, wallpaper) = (self.backdrop(), self.wallpaper.is_some());
+        let Phase::Background(screen) = &mut self.phase else {
+            return;
+        };
+        match screen.input(look, wallpaper, action) {
+            BackgroundOutcome::Close => {
+                self.phase = Phase::QuickMenu {
+                    row: QuickRow::Background,
+                }
+            }
+            BackgroundOutcome::Changed(b) => {
+                self.state.backdrop = Some(b.style);
+                self.state.backdrop_moving = b.moving;
+                self.state.backdrop_colour = b.colour;
+                self.persist();
+            }
+            BackgroundOutcome::Stay => {}
+        }
+    }
+
+    /// What the shelf is drawn over now.
+    pub fn backdrop(&self) -> Backdrop {
+        Backdrop::resolve(
+            self.state.backdrop,
+            self.state.backdrop_moving,
+            self.state.backdrop_colour,
+            self.wallpaper.is_some(),
+        )
+    }
+
+    /// The pattern the frontend should make a picture of, when the background is one.
+    pub fn backdrop_pattern(&self) -> Option<(BackdropStyle, u8)> {
+        let b = self.backdrop();
+        b.style.moves().then_some((b.style, b.colour))
+    }
+
+    pub fn set_backdrop_face(&mut self, tex: TexId, w: u32, style: BackdropStyle, colour: u8) {
+        self.backdrop_face = Some((tex, w, style, colour));
+    }
+
+    /// The Background screen's list, while it is open.
+    pub fn background_view(&self) -> Option<ListView> {
+        match &self.phase {
+            Phase::Background(screen) => {
+                Some(screen.view(self.backdrop(), self.wallpaper.is_some()))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn set_background_faces(&mut self, faces: WifiMenuFaces) {
+        self.background_faces = Some(faces);
+    }
+
+    fn draw_background(&self, out: &mut Vec<Draw>) {
+        let b = self.backdrop();
+        match (b.style, self.backdrop_face) {
+            (BackdropStyle::Wallpaper, _) => draw_backdrop(self.wallpaper, out),
+            (style, Some((tex, w, built, colour)))
+                if style.moves() && built == style && colour == b.colour =>
+            {
+                draw_pattern((tex, w), backdrop_shift(style, b.moving, self.now()), out);
+            }
+            _ => draw_solid(b.colour, out),
         }
     }
 
@@ -1466,7 +1557,7 @@ impl App {
                 self.colour_pending = Some(s.colour_correction);
             }
             QuickRow::Rumble => s.rumble = !s.rumble,
-            QuickRow::Wifi | QuickRow::DateTime | QuickRow::About => return,
+            QuickRow::Background | QuickRow::Wifi | QuickRow::DateTime | QuickRow::About => return,
         }
         self.persist();
     }
@@ -1983,8 +2074,15 @@ impl App {
                 clock: self.quick_clock_faces,
                 wifi: self.quick_wifi_faces,
                 faces: self.quick_menu_faces.as_ref(),
+                first: self.quick_first_for(*row),
             }
             .draw(out),
+            Phase::Background(_) => {
+                self.draw_background(out);
+                if let Some(faces) = &self.background_faces {
+                    faces.draw_over(out);
+                }
+            }
             Phase::Wifi(_) | Phase::Labels(_) => match self.typing() {
                 Some(t) => KeyboardScreen {
                     keys: t.keys,
@@ -2005,7 +2103,7 @@ impl App {
                 }
             },
             Phase::Shelf => {
-                draw_backdrop(self.wallpaper, out);
+                self.draw_background(out);
                 match (self.core_picker_shown(), self.selected_stem()) {
                     (Some(picker), Some(stem)) => {
                         let open = ease(picker.openness(self.now()));
@@ -2028,20 +2126,20 @@ impl App {
                 );
             }
             Phase::About => {
-                draw_backdrop(self.wallpaper, out);
+                self.draw_background(out);
                 draw_sticker(self.sticker_face, out);
                 return;
             }
             Phase::Inserting { cart, resumed, .. } => {
                 if !resumed {
-                    draw_backdrop(self.wallpaper, out);
+                    self.draw_background(out);
                     self.shelf()
                         .draw_row(Some(cart), 0.0, self.seat(), 1.0, out);
                 }
                 self.chrome(cart, self.seat(), out);
             }
             Phase::Ejecting { cart, .. } => {
-                draw_backdrop(self.wallpaper, out);
+                self.draw_background(out);
                 self.shelf()
                     .draw_row(Some(cart), 0.0, self.seat(), 1.0, out);
                 self.chrome(cart, self.seat(), out);

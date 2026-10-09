@@ -171,6 +171,11 @@ impl WifiMenuFaces {
             h: out_h() as f32,
             colour: opening(),
         });
+        self.draw_over(out);
+    }
+
+    /// The list over whatever is already drawn, such as the background it is choosing.
+    pub fn draw_over(&self, out: &mut Vec<Draw>) {
         if let Some(lit) = self.lit {
             out.push(Draw::Rect {
                 x: 0.0,

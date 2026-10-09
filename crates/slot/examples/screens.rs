@@ -53,6 +53,60 @@ wait 10
 tap a
 settle
 wait 30
+shot background
+tap right
+wait 10
+settle
+wait 10
+shot background-bits
+tap right
+wait 10
+tap down
+wait 10
+tap right
+wait 10
+tap right
+wait 10
+settle
+wait 10
+shot background-solid
+tap left
+wait 10
+tap left
+wait 10
+tap up
+wait 10
+tap right
+wait 10
+tap b
+wait 30
+tap up
+wait 10
+tap up
+wait 10
+tap up
+wait 10
+tap up
+wait 10
+tap up
+wait 10
+settle
+shot quick-menu-scrolled
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
+tap a
+settle
+wait 30
 shot wifi-off
 tap a
 wait 30
