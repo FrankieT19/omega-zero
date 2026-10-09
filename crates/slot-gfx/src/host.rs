@@ -1,5 +1,5 @@
 use crate::canvas::canvas;
-use crate::surface::{GfxError, Surface};
+use crate::surface::{GfxError, Rotation, Surface};
 use glutin::config::{Config, ConfigTemplateBuilder, GlConfig};
 use glutin::context::{
     ContextApi, ContextAttributesBuilder, GlProfile, NotCurrentGlContext, PossiblyCurrentContext,
@@ -19,7 +19,17 @@ use winit::window::Window;
 fn default_size() -> (u32, u32) {
     let c = canvas();
     let scale = if c.h > 480 { 1 } else { 2 };
-    (c.w * scale, c.h * scale)
+    host_rotation().upright((c.w * scale, c.h * scale))
+}
+
+/// SLOT_ROTATION turns the window's picture the way a panel mounted on its side is, to see
+/// on the desktop what such a device draws.
+pub fn host_rotation() -> Rotation {
+    std::env::var("SLOT_ROTATION")
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .map(Rotation::from_ccw_degrees)
+        .unwrap_or_default()
 }
 
 pub struct HostSurface {

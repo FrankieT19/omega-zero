@@ -103,6 +103,18 @@ void main() {
 }
 "#;
 
+/// The blit for a panel mounted on its side: `u_turn` takes each viewport point to the point
+/// of the upright picture that belongs there.
+pub const BLIT_VERT_TURNED: &str = r#"
+attribute vec2 a_pos;
+uniform mat2 u_turn;
+varying vec2 v_uv;
+void main() {
+    v_uv = u_turn * (a_pos - 0.5) + 0.5;
+    gl_Position = vec4(a_pos * 2.0 - 1.0, 0.0, 1.0);
+}
+"#;
+
 pub const BLIT_FRAG: &str = r#"
 precision mediump float;
 uniform sampler2D u_tex;

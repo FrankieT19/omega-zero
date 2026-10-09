@@ -1,8 +1,12 @@
+mod baseos;
 mod device;
 mod motor;
 mod power;
 mod sim;
 
+pub use baseos::{
+    baseos_release, parse_baseos_release, read_baseos_release, BaseosRelease, BASEOS_RELEASE,
+};
 pub use device::{
     has_bit, motor_change, record_first_frame, rumble_node, trace_first_frame, uptime_seconds,
     DevicePlatform,

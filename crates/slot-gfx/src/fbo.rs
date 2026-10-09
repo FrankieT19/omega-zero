@@ -3,8 +3,8 @@ use crate::draw::{Draw, Sprites, TexId};
 use crate::grade::blue_light_gain;
 use crate::pipeline::{GamePass, GameView};
 use crate::quad::Quad;
-use crate::shaders::{BLIT_FRAG, BLIT_VERT};
-use crate::surface::{blit_rect, GfxError, Surface};
+use crate::shaders::{BLIT_FRAG, BLIT_VERT, BLIT_VERT_TURNED};
+use crate::surface::{blit_rect, panel_rect, GfxError, Rotation, Surface};
 
 pub const BACKDROP: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 
@@ -29,6 +29,15 @@ pub struct Compositor {
     game: GamePass,
     sprites: Sprites,
     bezel: Option<Bezel>,
+    rotation: Rotation,
+    turned: Option<Turned>,
+}
+
+/// The blit for a panel on its side, built the first time one is asked for.
+struct Turned {
+    prog: gl::types::GLuint,
+    u_gain: gl::types::GLint,
+    u_turn: gl::types::GLint,
 }
 
 impl Compositor {
@@ -77,6 +86,8 @@ impl Compositor {
                 game: GamePass::new()?,
                 sprites: Sprites::new()?,
                 bezel: None,
+                rotation: Rotation::R0,
+                turned: None,
             })
         }
     }
@@ -222,7 +233,43 @@ impl Compositor {
         }
     }
 
+    /// Turns the picture for a panel mounted on its side.
+    pub fn set_rotation(&mut self, rotation: Rotation) -> Result<(), GfxError> {
+        if rotation != Rotation::R0 && self.turned.is_none() {
+            let prog = crate::shaders::program(BLIT_VERT_TURNED, BLIT_FRAG)?;
+            unsafe {
+                gl::UseProgram(prog);
+                gl::Uniform1i(crate::gl::uniform_location(prog, "u_tex"), 0);
+            }
+            self.turned = Some(Turned {
+                prog,
+                u_gain: crate::gl::uniform_location(prog, "u_gain"),
+                u_turn: crate::gl::uniform_location(prog, "u_turn"),
+            });
+        }
+        self.rotation = rotation;
+        Ok(())
+    }
+
     pub fn end_frame(&mut self, window: (u32, u32)) {
+        if let (Some(t), true) = (&self.turned, self.rotation != Rotation::R0) {
+            let (x, y, w, h) = panel_rect(window, self.rotation, self.shake);
+            let turn = self.rotation.uv_turn();
+            unsafe {
+                gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+                gl::Viewport(0, 0, window.0 as i32, window.1 as i32);
+                gl::ClearColor(0.0, 0.0, 0.0, 1.0);
+                gl::Clear(gl::COLOR_BUFFER_BIT);
+                gl::Viewport(x, y, w, h);
+                gl::UseProgram(t.prog);
+                gl::ActiveTexture(gl::TEXTURE0);
+                gl::BindTexture(gl::TEXTURE_2D, self.tex);
+                gl::Uniform3f(t.u_gain, self.gain[0], self.gain[1], self.gain[2]);
+                gl::UniformMatrix2fv(t.u_turn, 1, gl::FALSE, turn.as_ptr());
+            }
+            self.quad.draw();
+            return;
+        }
         let (x, y, w, h) = blit_rect(window, self.shake);
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
@@ -245,6 +292,9 @@ impl Drop for Compositor {
             gl::DeleteFramebuffers(1, &self.fbo);
             gl::DeleteTextures(1, &self.tex);
             gl::DeleteProgram(self.blit);
+            if let Some(t) = &self.turned {
+                gl::DeleteProgram(t.prog);
+            }
         }
     }
 }

@@ -3,8 +3,10 @@ use std::time::{Duration, Instant};
 
 use slot::frontend::Frontend;
 use slot::input::DeviceInput;
-use slot_gfx::{Compositor, FbdevSurface, Surface};
-use slot_power::{trace_first_frame, DevicePlatform};
+use slot_gfx::{
+    canvas, set_canvas, Canvas, Compositor, FbdevSurface, Rotation, Surface, CANVAS_ENV,
+};
+use slot_power::{baseos_release, trace_first_frame, DevicePlatform};
 
 const CARD: &str = "/mnt/sdcard";
 
@@ -63,6 +65,37 @@ impl Pacer {
     }
 }
 
+/// Picks the canvas for this panel, held the way BaseOS says it stands, before anything is
+/// drawn. SLOT_CANVAS and SLOT_ROTATION (degrees counter-clockwise) override what is found.
+fn choose_canvas(panel: (u32, u32)) -> Rotation {
+    let release = baseos_release();
+    let rotation = std::env::var("SLOT_ROTATION")
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .or(release.as_ref().map(|r| r.rotation_ccw))
+        .map(Rotation::from_ccw_degrees)
+        .unwrap_or_default();
+    let upright = rotation.upright(panel);
+    if std::env::var_os(CANVAS_ENV).is_none() {
+        if let Err(drawn) = set_canvas(Canvas::for_panel(upright.0, upright.1)) {
+            eprintln!("slot: the canvas was already {drawn:?} before the panel was read");
+        }
+    }
+    let c = canvas();
+    eprintln!(
+        "slot: {} panel {}x{} turned {rotation:?}, canvas {}x{}",
+        release
+            .as_ref()
+            .and_then(|r| r.model.clone().or(r.target.clone()))
+            .unwrap_or_else(|| "unknown".into()),
+        panel.0,
+        panel.1,
+        c.w,
+        c.h
+    );
+    rotation
+}
+
 pub fn run() {
     let root = std::env::var_os("SLOT_ROOT")
         .map(PathBuf::from)
@@ -74,6 +107,7 @@ pub fn run() {
             return;
         }
     };
+    let rotation = choose_canvas(surface.window_size());
     let mut compositor = match Compositor::new(&surface) {
         Ok(c) => c,
         Err(e) => {
@@ -81,6 +115,9 @@ pub fn run() {
             return;
         }
     };
+    if let Err(e) = compositor.set_rotation(rotation) {
+        eprintln!("slot: the panel cannot be turned {rotation:?}, drawing it unturned: {e}");
+    }
     let platform = DevicePlatform::new(root.clone());
     eprintln!("slot: {}", platform.report());
     platform.trace_boot();

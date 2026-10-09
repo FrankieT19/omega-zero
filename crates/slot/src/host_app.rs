@@ -41,6 +41,9 @@ impl ApplicationHandler for Slot {
                 return;
             }
         };
+        if let Err(e) = compositor.set_rotation(slot_gfx::host_rotation()) {
+            eprintln!("slot: {e}");
+        }
         self.frontend.upload_faces(&mut compositor);
         self.gfx = Some((surface, compositor));
     }
