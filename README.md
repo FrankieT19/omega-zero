@@ -20,6 +20,7 @@ Release notes are in the [changelog](CHANGELOG.md).
 - [The card](#the-card)
 - [Overlays](#overlays)
 - [Link play](#link-play)
+- [Wi-Fi, SSH and SFTP](#wi-fi-ssh-and-sftp)
 - [Helping with a device](#helping-with-a-device)
 - [Troubleshooting](#troubleshooting)
 - [Building from source](#building-from-source)
@@ -53,6 +54,8 @@ for its panel.
 - Save states with a switcher, rewind, fast-forward with turbo speeds, turbo A and B.
 - Link play between two devices over Wi-Fi: the link cable and the Wireless Adapter for Pokémon
   trades and Advance Wars, mGBA's link for Mario Kart, Game Boy link for Tetris.
+- Home Wi-Fi from the quick menu, with an on-screen keyboard for the passphrase. Once joined,
+  copy games over SFTP and let the clock set itself from the network.
 - Brightness, blue light, colour correction, rumble, and separate volumes for the speaker and
   headphones.
 - On a 640x480 panel, GBA games fill the width (640x427) through a sharp scaler, with the
@@ -119,7 +122,7 @@ Your games, saves, save states, labels, wallpapers, overlays and settings all li
 | Tap A | Insert the cart and resume its last save state |
 | Hold A | Insert the cart and start the game fresh |
 | START | Open the cart and choose its core (GBA only) |
-| MENU | Settings |
+| MENU | Settings, including [Wi-Fi](#wi-fi-ssh-and-sftp) |
 
 ### In a game
 
@@ -161,7 +164,7 @@ slot creates these folders on first boot. Nothing loose at the top of `Games/`, 
 | `BIOS` | `gba_bios.bin`, `gbc_bios.bin`, `gb_bios.bin` for the boot animations (optional) |
 | `Wallpapers` | `.png` wallpapers for the shelf |
 | `Overlays/GBA`, `Overlays/GB`, `Overlays/GBC` | Your [overlays](#overlays) |
-| `Config` | Settings |
+| `Config` | Settings, and `wifi.conf` with the Wi-Fi networks you have joined |
 | `System` | slot itself, its cores and its licences. Replaced on every update |
 
 Labels can be made with the upstream author's
@@ -200,6 +203,70 @@ Two devices running slot can link over Wi-Fi with no router: one hosts and the o
 Pokémon Emerald, FireRed and LeafGreen link, and so do both Advance Wars. mGBA's link
 mode plays Mario Kart: Super Circuit, and Game Boy link plays Tetris.
 
+## Wi-Fi, SSH and SFTP
+
+### Joining a network
+
+1. On the shelf, press MENU, go down to **Wi-Fi** and press A.
+2. Press A again to switch Wi-Fi on. The networks in reach appear under it after a few seconds.
+3. Pick yours and press A. If it needs a passphrase, type it on the keyboard and press START.
+
+| On the keyboard | Does |
+|---|---|
+| D-pad | Move between keys |
+| A | Type the key, or press Shift, #+=, Space, Delete or Join |
+| B | Delete the last character. On an empty field, go back to the list |
+| X | Shift: capitals, and back |
+| Y | Space |
+| L1 / R1 | Symbols, and back |
+| START | Join |
+| MENU | Go back to the list |
+
+slot remembers each network you join and joins it again at the next boot, as long as Wi-Fi was
+left on. On the list, Y forgets a saved network.
+
+The networks are kept on the card in `Config/wifi.conf`, in
+[wpa_supplicant](https://w1.fi/wpa_supplicant/)'s format. You can add one from a computer:
+
+```
+network={
+	ssid="My Network"
+	psk="my passphrase"
+}
+```
+
+The passphrase is stored as plain text, like BaseOS's SSH password, so keep that in mind
+before lending the card out. Networks that need a username (enterprise Wi-Fi such as eduroam)
+are not supported.
+
+### Copying games over SSH and SFTP
+
+Once joined, the Wi-Fi screen shows the handheld's address and name, such as
+`root@rg35xxsp.local`. BaseOS runs an SSH server with SFTP on every boot.
+
+- **User:** `root`. **Password:** `root`, unless you set `ssh_password=` in `baseos.conf` at
+  the root of the card in SD1 (see [BaseOS's settings](https://github.com/pvaibhav/BaseOS#settings)).
+- The card slot runs from is `/mnt/sdcard`, so games go in `/mnt/sdcard/Games/GBA` and so on.
+- Use any SFTP client, such as [Cyberduck](https://cyberduck.io),
+  [FileZilla](https://filezilla-project.org) or `scp`.
+
+```sh
+scp "Metroid Fusion.gba" root@rg35xxsp.local:/mnt/sdcard/Games/GBA/
+```
+
+The name is the model's own (`rg35xxsp`, `rgsp`, ...) unless you set `hostname=` in
+`baseos.conf`. If `.local` names don't resolve on your network, use the address shown.
+
+### Network time
+
+**Network Time**, on the Wi-Fi screen, keeps the clock right whenever Wi-Fi is joined. The time
+zone stays the one you chose under Date & Time.
+
+### Wi-Fi and link play
+
+A link uses the same radio, so it takes over from home Wi-Fi while it lasts and hands it back
+when it ends.
+
 ## Helping with a device
 
 slot ships a probe that writes down how your handheld is wired: its buttons, panel, battery,
@@ -222,6 +289,9 @@ same.
   is kept on the boot partition as `bootlogo.baseos.bmp`.
 - **Button presses** can be traced to `input-trace.log` by running slot with
   `SLOT_TRACE_INPUT=1`.
+- **"The Wi-Fi radio did not start"** means BaseOS never brought up `wlan0`. Restart once;
+  `baseos-boot.log` on the card says what the driver did. The RG35XX 2024 shares its BaseOS
+  image with the Plus but has no radio.
 
 ## Building from source
 
@@ -244,8 +314,7 @@ on any pixel that differs from a baseline: the way to prove a change leaves a la
 
 ## Roadmap
 
-- Validate everything on the RG35XX SP: buttons, lid, rumble, LEDs, audio, link play.
-- Wi-Fi on your home network, SSH/SFTP to copy games, and the clock set over the network.
+- Validate everything on the RG35XX SP: buttons, lid, rumble, LEDs, audio, link play, Wi-Fi.
 - Bluetooth headphones and controllers.
 - The other H700 devices: analogue sticks, RGB LEDs, the square CubeXX layout, the RG28XX's
   turned panel.

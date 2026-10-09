@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6.0 (unreleased)
+
+- Wi-Fi in the quick menu: switch it on, pick a network and type its passphrase on an
+  on-screen keyboard. Networks are remembered in `Config/wifi.conf` and joined again at boot.
+- Once joined, the Wi-Fi screen shows the address and name to reach the handheld over SSH and
+  SFTP.
+- Network Time keeps the clock right through BaseOS whenever Wi-Fi is joined.
+- A link takes the radio over from home Wi-Fi and gives it back when it ends.
+- Handhelds without Wi-Fi don't show the row.
+
 ## 1.5.0 (unreleased)
 
 The first release of this fork, for the RG35XX SP and the other H700 handhelds BaseOS runs on.
