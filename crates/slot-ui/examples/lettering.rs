@@ -116,7 +116,7 @@ impl Canvas {
         self.px[i] = self.px[i].max(a);
     }
 
-    fn write(&self, path: &Path) {
+    fn down(&self) -> (u32, u32, Vec<u8>) {
         let (w, h) = (self.w / OVER, self.h / OVER);
         let mut out = Vec::with_capacity((w * h) as usize);
         for y in 0..h {
@@ -130,12 +130,39 @@ impl Canvas {
                 out.push((sum / (OVER * OVER)) as u8);
             }
         }
+        (w, h, out)
+    }
+
+    fn write(&self, path: &Path) {
+        let (w, h, out) = self.down();
+        write_mask(path, w, h, &out);
+    }
+
+    /// Writes only the box the ink covers, for a mark that is placed by its own size.
+    fn write_trimmed(&self, path: &Path) {
+        let (w, h, out) = self.down();
+        let inked = |x: u32, y: u32| out[(y * w + x) as usize] > 0;
+        let xs: Vec<u32> = (0..w).filter(|&x| (0..h).any(|y| inked(x, y))).collect();
+        let ys: Vec<u32> = (0..h).filter(|&y| (0..w).any(|x| inked(x, y))).collect();
+        let (x0, x1) = (xs[0], xs[xs.len() - 1]);
+        let (y0, y1) = (ys[0], ys[ys.len() - 1]);
+        let (tw, th) = (x1 - x0 + 1, y1 - y0 + 1);
+        let trimmed: Vec<u8> = (y0..=y1)
+            .flat_map(|y| (x0..=x1).map(move |x| (x, y)))
+            .map(|(x, y)| out[(y * w + x) as usize])
+            .collect();
+        write_mask(path, tw, th, &trimmed);
+    }
+}
+
+fn write_mask(path: &Path, w: u32, h: u32, out: &[u8]) {
+    {
         let file = std::fs::File::create(path).expect("create mask");
         let mut enc = png::Encoder::new(file, w, h);
         enc.set_color(png::ColorType::Grayscale);
         enc.set_depth(png::BitDepth::Eight);
         enc.write_header()
-            .and_then(|mut wr| wr.write_image_data(&out))
+            .and_then(|mut wr| wr.write_image_data(out))
             .expect("write mask");
         println!("wrote {}", path.display());
     }
@@ -245,4 +272,85 @@ fn main() {
         130.0,
     );
     gba.write(&assets.join("lettering_gba.png"));
+
+    // The marks printed on the console's face under the screen, drawn large and trimmed to
+    // their ink, to be shrunk to whatever band the canvas leaves.
+    let mut bezel_gba = Canvas::new(1000, 120);
+    bezel_gba.line(
+        &[
+            Run {
+                font: &futura_bold,
+                text: "GAME BOY",
+                px: 66.0,
+                tracking: 0.0,
+                lean: 0.2,
+                bold: 0.0,
+            },
+            Run {
+                font: &futura,
+                text: "ADVANCE",
+                px: 51.0,
+                tracking: 9.6,
+                lean: 0.0,
+                bold: 0.0,
+            },
+        ],
+        &[24.0],
+        500.0,
+        90.0,
+        960.0,
+    );
+    bezel_gba.write_trimmed(&assets.join("bezel_gba.png"));
+
+    let mut bezel_gb = Canvas::new(1000, 160);
+    let (right, k) = bezel_gb.line(
+        &[
+            Run {
+                font: &futura_bold,
+                text: "Nintendo",
+                px: 52.0,
+                tracking: -0.8,
+                lean: 0.0,
+                bold: 0.0,
+            },
+            game_boy(96.0),
+        ],
+        &[20.0],
+        480.0,
+        120.0,
+        900.0,
+    );
+    bezel_gb.run(
+        &Run {
+            font: &futura,
+            text: "TM",
+            px: 22.0 * k,
+            tracking: 0.0,
+            lean: 0.0,
+            bold: 0.0,
+        },
+        right + 4.0,
+        120.0 - 48.0 * k,
+    );
+    bezel_gb.write_trimmed(&assets.join("bezel_gb.png"));
+
+    let mut bezel_gbc = Canvas::new(1000, 160);
+    bezel_gbc.line(
+        &[
+            game_boy(88.0),
+            Run {
+                font: &futura_bold,
+                text: "COLOR",
+                px: 80.0,
+                tracking: 1.6,
+                lean: 0.2,
+                bold: 0.0,
+            },
+        ],
+        &[24.0],
+        500.0,
+        120.0,
+        940.0,
+    );
+    bezel_gbc.write_trimmed(&assets.join("bezel_gbc.png"));
 }

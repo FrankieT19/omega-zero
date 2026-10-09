@@ -762,6 +762,11 @@ impl App {
         video_mode::screen(self.platform, self.video_mode)
     }
 
+    /// The system of the cart in the slot, or of the last one there.
+    pub fn platform(&self) -> Platform {
+        self.platform
+    }
+
     fn slot_owns_the_shoulders(&self) -> bool {
         matches!(self.phase, Phase::Playing { .. }) && self.platform != Platform::Gba
     }

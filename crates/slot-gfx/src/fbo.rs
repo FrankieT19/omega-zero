@@ -96,14 +96,14 @@ impl Compositor {
                 Draw::Game => {
                     self.sprites.draw(&items[from..i], &self.quad);
                     self.game.draw(&self.quad);
-                    self.draw_bezel();
+                    self.draw_bezel(true);
                 }
                 Draw::Shot { tex } => {
                     self.sprites.draw(&items[from..i], &self.quad);
                     if let Some(tex) = self.sprites.source(tex) {
                         self.game.draw_still(tex, &self.quad);
                     }
-                    self.draw_bezel();
+                    self.draw_bezel(false);
                 }
                 _ => continue,
             }
@@ -148,7 +148,9 @@ impl Compositor {
         self.bezel = bezel;
     }
 
-    fn draw_bezel(&self) {
+    /// The bezel over the picture just drawn. A screenshot gets the bare bands: whatever is
+    /// drawn over it, such as the switcher's legend, would sit on top of the marks.
+    fn draw_bezel(&self, marked: bool) {
         let Some(b) = &self.bezel else {
             return;
         };
@@ -163,7 +165,7 @@ impl Compositor {
                 colour: b.fill,
             })
             .collect();
-        items.extend(b.marks.iter().map(|(tex, r)| Draw::Tex {
+        items.extend(b.marks.iter().filter(|_| marked).map(|(tex, r)| Draw::Tex {
             x: r[0],
             y: r[1],
             w: r[2],

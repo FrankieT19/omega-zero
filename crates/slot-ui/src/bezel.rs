@@ -1,3 +1,7 @@
+use slot_store::Platform;
+
+use crate::plate::UndoFace;
+
 /// The console's body, where a picture that does not fill the canvas leaves it bare: the
 /// near-black of a GBA's face around its screen.
 pub const BEZEL_FILL: [f32; 4] = [
@@ -6,3 +10,85 @@ pub const BEZEL_FILL: [f32; 4] = [
     0x0f as f32 / 255.0,
     1.0,
 ];
+
+/// The grey the marks are printed in.
+pub const BEZEL_INK: [u8; 3] = [0x8a, 0x8a, 0x92];
+
+const GBA_MARK: &[u8] = include_bytes!("../assets/bezel_gba.png");
+const GB_MARK: &[u8] = include_bytes!("../assets/bezel_gb.png");
+const GBC_MARK: &[u8] = include_bytes!("../assets/bezel_gbc.png");
+
+/// How tall the mark is printed in a band `band_h` tall.
+pub fn mark_height(band_h: f32) -> u32 {
+    (band_h * 0.38).round().clamp(16.0, 32.0) as u32
+}
+
+/// The console's wordmark for `platform`, `height` pixels tall, in [`BEZEL_INK`].
+pub fn bezel_mark_face(platform: Platform, height: u32) -> Option<UndoFace> {
+    let png = match platform {
+        Platform::Gba => GBA_MARK,
+        Platform::Gb => GB_MARK,
+        Platform::Gbc => GBC_MARK,
+    };
+    let (sw, sh, mask) = decode(png)?;
+    let h = height.clamp(1, sh);
+    let w = ((sw as f32 * h as f32 / sh as f32).round() as u32).max(1);
+    let shrunk = shrink(&mask, (sw, sh), (w, h));
+    let rgba = shrunk
+        .iter()
+        .flat_map(|a| [BEZEL_INK[0], BEZEL_INK[1], BEZEL_INK[2], *a])
+        .collect();
+    Some(UndoFace { rgba, w, h })
+}
+
+/// Where a `w` by `h` mark is printed in `band`: across its middle, centred in a narrow band
+/// and a little under its top edge in a deep one, as under a console's screen.
+pub fn mark_rect(band: [f32; 4], w: u32, h: u32) -> [f32; 4] {
+    let (w, h) = (w as f32, h as f32);
+    let x = (band[0] + (band[2] - w) / 2.0).round();
+    let y = if band[3] <= 80.0 {
+        band[1] + (band[3] - h) / 2.0
+    } else {
+        band[1] + band[3] * 0.3
+    };
+    [x, y.round(), w, h]
+}
+
+fn decode(png: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
+    let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+        .read_info()
+        .ok()?;
+    let mut buf = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buf).ok()?;
+    let grey =
+        info.color_type == png::ColorType::Grayscale && info.bit_depth == png::BitDepth::Eight;
+    grey.then(|| {
+        buf.truncate((info.width * info.height) as usize);
+        (info.width, info.height, buf)
+    })
+}
+
+/// Averages every source pixel under each destination pixel, so a mark drawn large keeps its
+/// thin strokes when it is printed small.
+fn shrink(src: &[u8], (sw, sh): (u32, u32), (w, h): (u32, u32)) -> Vec<u8> {
+    let (fx, fy) = (sw as f32 / w as f32, sh as f32 / h as f32);
+    let mut out = Vec::with_capacity((w * h) as usize);
+    for y in 0..h {
+        let (y0, y1) = (y as f32 * fy, (y + 1) as f32 * fy);
+        for x in 0..w {
+            let (x0, x1) = (x as f32 * fx, (x + 1) as f32 * fx);
+            let (mut sum, mut area) = (0.0f32, 0.0f32);
+            for sy in y0.floor() as u32..(y1.ceil() as u32).min(sh) {
+                let cover_y = (y1.min(sy as f32 + 1.0) - y0.max(sy as f32)).max(0.0);
+                for sx in x0.floor() as u32..(x1.ceil() as u32).min(sw) {
+                    let cover_x = (x1.min(sx as f32 + 1.0) - x0.max(sx as f32)).max(0.0);
+                    let a = cover_x * cover_y;
+                    sum += src[(sy * sw + sx) as usize] as f32 * a;
+                    area += a;
+                }
+            }
+            out.push((sum / area.max(f32::EPSILON)).round() as u8);
+        }
+    }
+    out
+}

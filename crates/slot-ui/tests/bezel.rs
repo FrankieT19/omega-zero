@@ -1,0 +1,72 @@
+use slot_store::Platform;
+use slot_ui::{bezel_mark_face, mark_height, mark_rect, BEZEL_INK};
+
+#[test]
+fn the_mark_is_printed_at_a_size_the_band_can_carry() {
+    assert_eq!(mark_height(53.0), 20, "the band a 640x480 panel leaves");
+    assert_eq!(
+        mark_height(150.0),
+        32,
+        "a deep band prints no larger than 32"
+    );
+    assert_eq!(
+        mark_height(20.0),
+        16,
+        "a thin band prints no smaller than 16"
+    );
+}
+
+#[test]
+fn every_system_has_its_mark_at_the_height_asked_for() {
+    for platform in [Platform::Gba, Platform::Gb, Platform::Gbc] {
+        let face = bezel_mark_face(platform, 20).expect("no mark");
+        assert_eq!(face.h, 20, "{platform:?}");
+        assert!(
+            (200..400).contains(&face.w),
+            "{platform:?}: a {}x20 mark is not a wordmark's shape",
+            face.w
+        );
+        assert_eq!(face.rgba.len(), (face.w * face.h * 4) as usize);
+        let inked = face.rgba.chunks_exact(4).filter(|p| p[3] > 128).count();
+        assert!(
+            inked > (face.w * face.h) as usize / 8,
+            "{platform:?}: only {inked} pixels of ink"
+        );
+        assert!(
+            face.rgba.chunks_exact(4).all(|p| p[..3] == BEZEL_INK),
+            "{platform:?}: the mark is not printed in the bezel ink"
+        );
+    }
+}
+
+#[test]
+fn a_mark_shrunk_small_keeps_its_strokes_rather_than_dropping_them() {
+    let big = bezel_mark_face(Platform::Gba, 40).expect("no mark");
+    let small = bezel_mark_face(Platform::Gba, 16).expect("no mark");
+    let ink = |f: &slot_ui::UndoFace| {
+        f.rgba.chunks_exact(4).map(|p| p[3] as f32).sum::<f32>() / (f.w * f.h) as f32
+    };
+    assert!(
+        (ink(&big) - ink(&small)).abs() < ink(&big) * 0.15,
+        "the mark's ink went from {} to {} a pixel",
+        ink(&big),
+        ink(&small)
+    );
+}
+
+#[test]
+fn the_mark_is_centred_across_its_band_and_inside_it() {
+    let narrow = [0.0, 427.0, 640.0, 53.0];
+    let r = mark_rect(narrow, 262, 20);
+    assert_eq!(r[0], 189.0);
+    assert!(r[1] >= 427.0 && r[1] + r[3] <= 480.0, "{r:?}");
+    assert_eq!(
+        r[1], 444.0,
+        "a narrow band carries the mark across its middle"
+    );
+
+    let deep = [0.0, 570.0, 720.0, 150.0];
+    let r = mark_rect(deep, 420, 32);
+    assert_eq!(r[0], 150.0);
+    assert!(r[1] > 570.0 && r[1] + r[3] < 720.0 - 32.0, "{r:?}");
+}

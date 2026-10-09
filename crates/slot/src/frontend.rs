@@ -5,12 +5,13 @@ use slot_input::{InputSource, Millis};
 use slot_power::{Platform, Power};
 use slot_store::format_stamp;
 use slot_ui::{
-    arrows_hint_face, badge_face, cart_face, cart_shadow, chip_face, chip_shadow_face,
-    date_time_text, gb_cart_shadow, hhmm, hint_face, icon_face, menu_face, photo_face,
-    quick_caret_face, quick_label_face, quick_legend_faces, quick_value_face, set_clock_hint_face,
-    socket_face, sticker_face, title_face, toast_face, wallpaper_face, word_face, GbShell, Icon,
-    LinkBadge, PowerChoice, QuickMenuFaces, QuickRow, QuickValue, StickerFields, Toast, UndoFace,
-    ALERT_PX, BEZEL_FILL, BOLT_PX, HUD_ICON_PX, HUD_INK, LEGEND,
+    arrows_hint_face, badge_face, bezel_mark_face, cart_face, cart_shadow, chip_face,
+    chip_shadow_face, date_time_text, gb_cart_shadow, hhmm, hint_face, icon_face, mark_height,
+    mark_rect, menu_face, photo_face, quick_caret_face, quick_label_face, quick_legend_faces,
+    quick_value_face, set_clock_hint_face, socket_face, sticker_face, title_face, toast_face,
+    wallpaper_face, word_face, GbShell, Icon, LinkBadge, PowerChoice, QuickMenuFaces, QuickRow,
+    QuickValue, StickerFields, Toast, UndoFace, ALERT_PX, BEZEL_FILL, BOLT_PX, HUD_ICON_PX,
+    HUD_INK, LEGEND,
 };
 
 use crate::app::{App, LinkRow, Phase};
@@ -45,6 +46,16 @@ pub struct Frontend {
     clocks: Clocks,
     about: AboutFace,
     quick_clock: QuickClock,
+    bezel_marks: Vec<BezelMark>,
+}
+
+/// A console's wordmark, uploaded once for each system and height it has been printed at.
+struct BezelMark {
+    platform: slot_store::Platform,
+    height: u32,
+    tex: TexId,
+    w: u32,
+    h: u32,
 }
 
 #[derive(Default)]
@@ -105,6 +116,7 @@ impl Frontend {
             clocks: Clocks::default(),
             about: AboutFace::default(),
             quick_clock: QuickClock::default(),
+            bezel_marks: Vec::new(),
         }
     }
 
@@ -283,13 +295,11 @@ impl Frontend {
         compositor.set_shake(self.session.app().screen_shake());
         compositor.set_screen_power(self.session.app().screen_power());
         let screen = self.session.app().screen();
+        let platform = self.session.app().platform();
         compositor.set_game_view(screen.view);
         compositor.set_still_view(screen.still);
-        compositor.set_bezel((!screen.bands.is_empty()).then(|| Bezel {
-            bands: screen.bands,
-            fill: BEZEL_FILL,
-            ..Bezel::default()
-        }));
+        let bezel = self.bezel(platform, screen.bands, compositor);
+        compositor.set_bezel(bezel);
         compositor.begin_frame();
         if let Some(frame) = self.session.frame() {
             compositor.upload_game(&frame);
@@ -350,6 +360,64 @@ impl Frontend {
         self.draws.clear();
         self.session.app().draw(&mut self.draws);
         compositor.draw_list(&self.draws);
+    }
+
+    /// The console's body for the bands the picture leaves, with its wordmark printed on the
+    /// deepest band that runs the width of the canvas.
+    fn bezel(
+        &mut self,
+        platform: slot_store::Platform,
+        bands: Vec<[f32; 4]>,
+        compositor: &mut Compositor,
+    ) -> Option<Bezel> {
+        if bands.is_empty() {
+            return None;
+        }
+        let printed = bands
+            .iter()
+            .copied()
+            .filter(|b| b[2] >= out_w() as f32)
+            .max_by(|a, b| a[3].total_cmp(&b[3]));
+        let marks = printed
+            .and_then(|band| {
+                let m = self.bezel_mark(platform, mark_height(band[3]), compositor)?;
+                Some((m.tex, mark_rect(band, m.w, m.h)))
+            })
+            .into_iter()
+            .collect();
+        Some(Bezel {
+            bands,
+            fill: BEZEL_FILL,
+            marks,
+            overlay: None,
+        })
+    }
+
+    fn bezel_mark(
+        &mut self,
+        platform: slot_store::Platform,
+        height: u32,
+        compositor: &mut Compositor,
+    ) -> Option<&BezelMark> {
+        let known = self
+            .bezel_marks
+            .iter()
+            .position(|m| m.platform == platform && m.height == height);
+        let at = match known {
+            Some(at) => at,
+            None => {
+                let face = bezel_mark_face(platform, height)?;
+                self.bezel_marks.push(BezelMark {
+                    platform,
+                    height,
+                    tex: compositor.create_texture(face.w, face.h, &face.rgba),
+                    w: face.w,
+                    h: face.h,
+                });
+                self.bezel_marks.len() - 1
+            }
+        };
+        self.bezel_marks.get(at)
     }
 
     pub fn drive_emulator(&mut self) {
