@@ -329,7 +329,7 @@ and, to build for the device on a machine that is not Linux on arm64, Docker.
 ```sh
 task run                      # build the cores and run omega-zero on the desktop
 SLOT_CANVAS=640x480 task run  # see what a 640x480 device draws
-task check                    # format, lint, tests on every canvas, card scripts
+task check                    # format, lint, tests on every canvas, timing tests, card scripts
 task dist:device              # the aarch64 card tree, in dist-device/
 task deploy:device            # push to a device over adb and restart it
 ```

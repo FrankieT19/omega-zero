@@ -28,6 +28,13 @@ tasks:
     cmds:
       - cargo test --workspace
 
+  test:timing:
+    desc: >-
+      Run the emulator's timing tests, which measure real time and so need a quiet machine:
+      a shared CI runner skips them
+    cmds:
+      - cargo test -p slot --test emu -- --ignored
+
   test:canvases:
     desc: >-
       Run the whole test suite again on every canvas but the default 720x480 one. The square
@@ -69,6 +76,7 @@ tasks:
       - task: lint
       - task: lint:device
       - task: test
+      - task: test:timing
       - task: test:canvases
       - task: test:card
 

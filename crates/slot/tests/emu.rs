@@ -168,6 +168,7 @@ fn a_worker_that_stops_while_muted_leaves_the_sink_audible() {
 }
 
 #[test]
+#[ignore = "timing: needs a quiet machine; task test:timing runs it"]
 fn fast_forward_runs_fast_steps_core_frames_per_present() {
     let _turn = turn();
     let emu = spawn();
@@ -197,6 +198,7 @@ fn held_counts(emu: &EmuHandle) -> (u64, u64) {
 }
 
 #[test]
+#[ignore = "timing: needs a quiet machine; task test:timing runs it"]
 fn fast_forward_runs_the_chosen_number_of_core_frames_per_present() {
     let _turn = turn();
     let emu = spawn();
@@ -360,6 +362,7 @@ fn a_fast_present_draws_only_its_last_frame() {
 }
 
 #[test]
+#[ignore = "timing: needs a quiet machine; task test:timing runs it"]
 fn a_present_runs_what_it_can_afford_rather_than_the_whole_ceiling() {
     let _turn = turn();
     let (emu, _log) = spawn_probe(Duration::from_millis(5));
@@ -1034,6 +1037,7 @@ fn a_state_asked_for_in_the_last_present_is_still_answered() {
 const PANEL: Duration = Duration::from_micros(16_760);
 
 #[test]
+#[ignore = "timing: needs a quiet machine; task test:timing runs it"]
 fn a_driven_worker_runs_one_frame_per_tick() {
     let _turn = turn();
     let emu = spawn();
@@ -1087,6 +1091,7 @@ fn a_locked_worker_answers_a_state_request_without_waiting_for_the_tick() {
 }
 
 #[test]
+#[ignore = "timing: needs a quiet machine; task test:timing runs it"]
 fn a_stalled_display_does_not_stall_the_worker() {
     let _turn = turn();
     let emu = spawn();
@@ -1107,6 +1112,7 @@ fn a_stalled_display_does_not_stall_the_worker() {
 }
 
 #[test]
+#[ignore = "timing: needs a quiet machine; task test:timing runs it"]
 fn a_driven_worker_paces_itself_in_fast_forward() {
     let _turn = turn();
     let emu = spawn();
