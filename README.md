@@ -355,7 +355,8 @@ on any pixel that differs from a baseline: the way to prove a change leaves a la
 - [BaseOS](https://github.com/pvaibhav/BaseOS) by pvaibhav.
 - Emulation by [mGBA](https://mgba.io) (MPL-2.0) and [gpSP](https://github.com/libretro/gpsp)
   (GPL-2.0). Their licences, patches and gpSP's source ship in `System/licenses/`.
-- Type is [Open Sans](https://github.com/googlefonts/opensans) and the
+- Type is [Pixel Code](https://github.com/qwerasd205/PixelCode) by Qwerasd (SIL OFL 1.1,
+  its licence beside it in `crates/slot-ui/assets`) and the
   [Nerd Fonts](https://www.nerdfonts.com) symbols.
 - The LCD mask is derived from GigaHerz's LCD3x.
 

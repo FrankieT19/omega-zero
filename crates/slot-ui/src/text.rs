@@ -2,7 +2,23 @@ use std::sync::OnceLock;
 
 use fontdue::{Font, FontSettings};
 
-const LABEL_TTF: &[u8] = include_bytes!("../assets/label.ttf");
+/// Every word slot prints is set in Pixel Code, a pixel face drawn on a grid of nine to the em.
+const LABEL_TTF: &[u8] = include_bytes!("../assets/PixelCode-Regular.ttf");
+const BOLD_TTF: &[u8] = include_bytes!("../assets/PixelCode-Bold.ttf");
+
+/// The size at which one of the face's pixels is one of the screen's. Text is only ever set at
+/// a whole multiple of it, so every stroke lands on whole pixels and stays sharp.
+pub const FONT_GRID: f32 = 9.0;
+
+/// `px` moved onto the face's grid: the nearest whole multiple, and never less than one.
+pub fn on_grid(px: f32) -> f32 {
+    (px / FONT_GRID).round().max(1.0) * FONT_GRID
+}
+
+/// The largest size on the grid no larger than `px`, and never less than one step.
+fn grid_floor(px: f32) -> f32 {
+    (px / FONT_GRID).floor().max(1.0) * FONT_GRID
+}
 
 pub struct Layout {
     pub lines: Vec<String>,
@@ -13,6 +29,13 @@ pub struct Layout {
 pub fn label_font() -> Option<&'static Font> {
     static FONT: OnceLock<Option<Font>> = OnceLock::new();
     FONT.get_or_init(|| Font::from_bytes(LABEL_TTF, FontSettings::default()).ok())
+        .as_ref()
+}
+
+/// The same face's bold, for the odd word that has to stand out.
+pub fn bold_font() -> Option<&'static Font> {
+    static FONT: OnceLock<Option<Font>> = OnceLock::new();
+    FONT.get_or_init(|| Font::from_bytes(BOLD_TTF, FontSettings::default()).ok())
         .as_ref()
 }
 
@@ -38,7 +61,8 @@ pub fn fit_box(
     min_px: f32,
 ) -> Layout {
     let upper = text.to_uppercase();
-    let mut px = max_px;
+    let min_px = grid_floor(min_px);
+    let mut px = grid_floor(max_px).max(min_px);
     while px > min_px {
         let tracking = tracking_for(px);
         let lines = wrap(font, &upper, px, tracking, max_w, false);
@@ -54,7 +78,7 @@ pub fn fit_box(
                 tracking,
             };
         }
-        px -= 1.0;
+        px -= FONT_GRID;
     }
     let tracking = tracking_for(min_px);
     Layout {
@@ -76,19 +100,33 @@ pub fn draw_centred(dst: &mut [u8], dst_w: u32, dst_h: u32, layout: &Layout, col
 }
 
 pub fn coverage(dst_w: u32, dst_h: u32, layout: &Layout) -> Vec<u8> {
+    match label_font() {
+        Some(font) => coverage_in(font, dst_w, dst_h, layout),
+        None => vec![0u8; (dst_w * dst_h) as usize],
+    }
+}
+
+/// The ink of `layout` set in `font`, centred in a `dst_w` by `dst_h` box. The size is moved
+/// onto the face's grid and every line starts on a whole pixel, so each of the face's pixels
+/// is a whole number of the screen's, and is either inked or not.
+pub fn coverage_in(font: &Font, dst_w: u32, dst_h: u32, layout: &Layout) -> Vec<u8> {
     let mut out = vec![0u8; (dst_w * dst_h) as usize];
-    let Some(font) = label_font() else { return out };
-    let Some(vm) = font.horizontal_line_metrics(layout.px) else {
+    let px = on_grid(layout.px);
+    let Some(vm) = font.horizontal_line_metrics(px) else {
         return out;
     };
-    let line_h = vm.new_line_size;
+    let line_h = vm.new_line_size.round();
     let block_h = line_h * layout.lines.len() as f32;
-    let mut baseline = (dst_h as f32 - block_h) / 2.0 + vm.ascent;
+    let mut baseline = ((dst_h as f32 - block_h) / 2.0 + vm.ascent).round();
 
     for line in &layout.lines {
-        let mut pen = (dst_w as f32 - line_width(font, line, layout.px, layout.tracking)) / 2.0;
-        for ch in line.chars() {
-            let (m, cov) = font.rasterize(ch, layout.px);
+        let mut pen = ((dst_w as f32 - line_width(font, line, px, layout.tracking)) / 2.0).round();
+        for ch in printed(font, line).chars() {
+            let (m, cov) = font.rasterize(ch, px);
+            let cov: Vec<u8> = cov
+                .iter()
+                .map(|&a| if a >= 128 { 255 } else { 0 })
+                .collect();
             stamp(
                 &mut out,
                 dst_w,
@@ -107,24 +145,48 @@ pub fn coverage(dst_w: u32, dst_h: u32, layout: &Layout) -> Vec<u8> {
 }
 
 fn block_height(font: &Font, px: f32, lines: usize) -> f32 {
-    match font.horizontal_line_metrics(px) {
-        Some(vm) => vm.new_line_size * lines as f32,
+    match font.horizontal_line_metrics(on_grid(px)) {
+        Some(vm) => vm.new_line_size.round() * lines as f32,
         None => 0.0,
     }
 }
 
+/// What `line` is printed as in `font`: a character the face has no glyph for is spelled out
+/// the way a typewriter would, (C) for ©, or left out when it is only a hint, like a soft
+/// hyphen.
+pub fn printed(font: &Font, line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    for c in line.chars() {
+        if font.lookup_glyph_index(c) != 0 || c == ' ' {
+            out.push(c);
+            continue;
+        }
+        match c {
+            '\u{a9}' => out.push_str("(C)"),
+            '\u{ae}' => out.push_str("(R)"),
+            '\u{ad}' => {}
+            _ => out.push('?'),
+        }
+    }
+    out
+}
+
+/// How wide `line` is, measured at the grid size it is drawn at.
 pub fn line_width(font: &Font, line: &str, px: f32, tracking: f32) -> f32 {
+    let px = on_grid(px);
     let mut w = 0.0;
     let mut n = 0;
-    for ch in line.chars() {
+    for ch in printed(font, line).chars() {
         w += font.metrics(ch, px).advance_width;
         n += 1;
     }
     w + tracking * (n as f32 - 1.0).max(0.0)
 }
 
-fn tracking_for(px: f32) -> f32 {
-    (px * 0.10).round()
+/// The space added between capitals. The face already leaves a pixel between its letters,
+/// which is all the air capitals need at its sizes.
+fn tracking_for(_px: f32) -> f32 {
+    0.0
 }
 
 fn wrap(
