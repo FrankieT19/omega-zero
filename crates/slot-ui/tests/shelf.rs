@@ -1,8 +1,7 @@
-use slot_power::{Battery, Charge};
 use slot_store::{Cart, Platform};
 use slot_ui::{
-    draw_footer, label_colour, out_w, rest_y, Draw, GbShell, Printed, Shelf, TexId, CART_W,
-    GB_CART_H, GB_CART_W,
+    label_colour, out_h, out_w, rest_y, Draw, GbShell, Shelf, TexId, CART_W, GB_CART_H, GB_CART_W,
+    MOUTH_H,
 };
 
 fn shelf_with(n: usize) -> Shelf {
@@ -469,141 +468,6 @@ fn the_other_direction_letting_go_does_not_stop_the_repeat() {
 }
 
 #[test]
-fn the_gauge_starts_at_the_case_margin() {
-    let mut out = Vec::new();
-    draw_footer(
-        Some(Battery {
-            percent: 68,
-            charge: Charge::Charging,
-        }),
-        Printed { face: None, w: 30 },
-        Some(TexId::from_raw(1)),
-        Printed { face: None, w: 40 },
-        &mut out,
-    );
-    let leftmost = out
-        .iter()
-        .map(|d| match *d {
-            Draw::Rect { x, .. } | Draw::Tex { x, .. } => x,
-            _ => f32::MAX,
-        })
-        .fold(f32::MAX, f32::min);
-    assert_eq!(leftmost, 24.0, "the case margin is the case margin");
-}
-
-#[test]
-fn the_band_prints_the_charge_at_one_margin_and_the_clock_at_the_other() {
-    let mut out = Vec::new();
-    draw_footer(
-        Some(Battery {
-            percent: 68,
-            charge: Charge::Charging,
-        }),
-        Printed { face: None, w: 30 },
-        Some(TexId::from_raw(1)),
-        Printed { face: None, w: 40 },
-        &mut out,
-    );
-    let xs: Vec<(f32, f32)> = out
-        .iter()
-        .filter_map(|d| match *d {
-            Draw::Rect { x, w, .. } | Draw::Tex { x, w, .. } => Some((x, x + w)),
-            _ => None,
-        })
-        .collect();
-    let leftmost = xs.iter().map(|(a, _)| *a).fold(f32::MAX, f32::min);
-    let last = xs
-        .iter()
-        .cloned()
-        .fold((0.0, 0.0), |m, r| if r.1 > m.1 { r } else { m });
-    assert_eq!(
-        leftmost, 24.0,
-        "the charge does not start at the case margin"
-    );
-    assert_eq!(
-        last.1,
-        out_w() as f32 - 24.0,
-        "the clock does not end at the case margin"
-    );
-    assert_eq!(
-        last.1 - last.0,
-        40.0,
-        "the rightmost thing on the band is not the clock"
-    );
-    for (a, b) in &xs {
-        assert!(
-            *b <= 224.0 || *a >= 496.0,
-            "something is printed from {a} to {b}, across the cart bay at 224..496"
-        );
-    }
-}
-
-#[test]
-fn the_footer_does_not_move_the_gauge_when_the_charge_state_changes() {
-    let mut idle = Vec::new();
-    draw_footer(
-        Some(Battery {
-            percent: 68,
-            charge: Charge::Discharging,
-        }),
-        Printed { face: None, w: 30 },
-        None,
-        Printed { face: None, w: 40 },
-        &mut idle,
-    );
-    let mut charging = Vec::new();
-    draw_footer(
-        Some(Battery {
-            percent: 68,
-            charge: Charge::Charging,
-        }),
-        Printed { face: None, w: 30 },
-        Some(TexId::from_raw(2)),
-        Printed { face: None, w: 40 },
-        &mut charging,
-    );
-    for d in &idle {
-        assert!(
-            charging.contains(d),
-            "{d:?} moved or vanished when charging started"
-        );
-    }
-}
-
-#[test]
-fn the_clock_stays_at_the_right_margin() {
-    let mut out = Vec::new();
-    draw_footer(
-        None,
-        Printed::default(),
-        None,
-        Printed { face: None, w: 40 },
-        &mut out,
-    );
-    let rightmost = out
-        .iter()
-        .map(|d| match *d {
-            Draw::Rect { x, w, .. } | Draw::Tex { x, w, .. } => x + w,
-            _ => 0.0,
-        })
-        .fold(0.0, f32::max);
-    assert_eq!(rightmost, out_w() as f32 - 24.0);
-}
-
-#[test]
-fn a_band_with_no_gauge_still_draws_its_clock() {
-    let mut out = Vec::new();
-    draw_footer(
-        None,
-        Printed::default(),
-        None,
-        Printed { face: None, w: 40 },
-        &mut out,
-    );
-    assert_eq!(out.len(), 1);
-}
-
-#[test]
 fn a_refusal_moves_the_carts_and_leaves_the_device_where_it_is() {
     let s = shelf_with(3);
     let (mut still, mut shaken) = (Vec::new(), Vec::new());
@@ -664,11 +528,12 @@ fn the_neighbours_peek_in_from_both_edges() {
 }
 
 fn cart_spans(out: &[Draw]) -> Vec<(f32, f32)> {
+    let bar = out_h() as f32 - MOUTH_H;
     out.iter()
         .filter_map(|d| match *d {
-            Draw::Rect { x, w, h, .. }
-            | Draw::Tex { x, w, h, .. }
-            | Draw::Turned { x, w, h, .. } => (h > 60.0).then_some((x, x + w)),
+            Draw::Rect { x, y, w, h, .. }
+            | Draw::Tex { x, y, w, h, .. }
+            | Draw::Turned { x, y, w, h, .. } => (h > 60.0 && y < bar).then_some((x, x + w)),
             Draw::Game | Draw::Shot { .. } => None,
         })
         .filter(|(x0, x1)| *x1 > 0.0 && *x0 < out_w() as f32)

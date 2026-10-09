@@ -139,7 +139,7 @@ fn the_open_cart_starts_as_the_shelf_cart_and_lands_where_the_mockup_has_it() {
         (mock(180.0, 0.0).0, 360.0, 212.0)
     );
     if out_h() == 480 {
-        assert_eq!(shelf.y, 134.0);
+        assert_eq!(shelf.y, 123.0, "between the top bar and the slot's bar");
     }
     assert_eq!(board_at(0.0), shelf_cart());
     let (x, y) = mock(174.0, 150.0);

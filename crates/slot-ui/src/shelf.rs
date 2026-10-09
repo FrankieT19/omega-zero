@@ -6,14 +6,19 @@ use crate::hud::Millis;
 use crate::silhouette::GbShell;
 use crate::slot_chrome::{draw_empty_slot, MOUTH_H};
 use crate::stage::{stage_y, MOCKUP_H};
+use crate::status_bar::TOP_BAR_H;
 
 const SIDE_SCALE: f32 = 0.78;
 const SIDE_ALPHA: f32 = 0.55;
+/// Where a cart `h` tall stands on the shelf, between the bar across the top and the slot's
+/// bar across the bottom: a pak taller than a GBA cart is centred there, and anything shorter
+/// stands on the floor a GBA cart centred there would.
 pub fn rest_y(h: f32) -> f32 {
+    let (top, floor) = (TOP_BAR_H, MOCKUP_H - MOUTH_H);
     let y = if h > CART_H as f32 {
-        (MOCKUP_H - MOUTH_H - h) / 2.0
+        top + (floor - top - h) / 2.0
     } else {
-        (MOCKUP_H + CART_H as f32) / 2.0 - h
+        (top + floor + CART_H as f32) / 2.0 - h
     };
     y + stage_y()
 }

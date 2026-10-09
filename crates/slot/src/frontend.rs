@@ -18,7 +18,7 @@ use slot_ui::{
     plain_face, prompt_face, signal_face, wifi_status_face, KeyboardFaces, WifiMenuFaces,
     WifiRowFaces, BOTTOM, KEY_ROWS, SHIFT_INK,
 };
-use slot_ui::{overlay_clear, overlay_face, overlay_path};
+use slot_ui::{link_face, overlay_clear, overlay_face, overlay_path, Link, LinkFaces};
 
 use crate::app::{App, LinkRow, Phase};
 use crate::build_info::Build;
@@ -307,6 +307,18 @@ impl Frontend {
         let bolt = icon_face(Icon::Charging, BOLT_PX, HUD_INK);
         let bolt_id = compositor.create_texture(bolt.w, bolt.h, &bolt.rgba);
         self.session.app_mut().set_bolt_face(bolt_id);
+        let mut link = |l: Link| {
+            [false, true].map(|on| {
+                let f = link_face(l, on);
+                (compositor.create_texture(f.w, f.h, &f.rgba), f.w, f.h)
+            })
+        };
+        let links = LinkFaces {
+            wifi: link(Link::Wifi),
+            bluetooth: link(Link::Bluetooth),
+            ssh: link(Link::Ssh),
+        };
+        self.session.app_mut().set_link_faces(links);
         self.upload_wallpaper(compositor);
     }
 

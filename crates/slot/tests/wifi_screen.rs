@@ -488,6 +488,31 @@ fn joined_it_says_where_to_reach_it_over_ssh() {
 }
 
 #[test]
+fn the_top_bar_lights_wifi_and_ssh_once_a_network_is_joined() {
+    let mut r = Rig::new();
+    assert!(
+        !r.a.links().wifi && !r.a.links().ssh,
+        "lit before Wi-Fi is on"
+    );
+    r.on_with(&[("Home", -48, true)], &[(0, "Home")]);
+    assert!(!r.a.links().wifi, "lit with Wi-Fi on but nothing joined");
+    r.radio.say(joined("Home", Some("192.168.1.20")));
+    r.tick(16);
+    assert!(r.a.links().wifi, "Wi-Fi is not lit once joined");
+    assert!(
+        r.a.links().ssh,
+        "ssh is not lit once the handheld can be reached"
+    );
+    assert_eq!(
+        r.a.links().bluetooth,
+        Some(false),
+        "Bluetooth is not shown off"
+    );
+    r.a.set_bluetooth(true);
+    assert_eq!(r.a.links().bluetooth, Some(true));
+}
+
+#[test]
 fn the_cursor_stays_on_its_network_when_a_scan_reorders_the_list() {
     let mut r = Rig::new();
     r.on_with(&[("Near", -40, true), ("Far", -80, true)], &[]);

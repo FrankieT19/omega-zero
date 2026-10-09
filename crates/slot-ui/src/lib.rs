@@ -22,6 +22,7 @@ mod shell;
 mod silhouette;
 mod slot_chrome;
 mod stage;
+mod status_bar;
 mod sticker;
 pub mod text;
 mod toast;
@@ -29,7 +30,7 @@ mod wifi_menu;
 
 pub use backdrop::{draw_backdrop, wallpaper_face};
 pub use barcode::{code39, CODE39_NARROW, CODE39_WIDE};
-pub use battery::{draw_gauge, BOLT_PX, GAUGE_H, GAUGE_W, WALL};
+pub use battery::{draw_gauge, gauge_width, BOLT_PX, GAUGE_H, GAUGE_W, WALL};
 pub use bezel::{
     bezel_mark_face, mark_height, mark_rect, overlay_clear, overlay_face, overlay_path, rim,
     BEZEL_FILL, BEZEL_INK, RIM_W,
@@ -49,7 +50,7 @@ pub use cart::{
 };
 pub use clock::{clock_label, date_time_text, hhmm, set_clock_hint_face, ClockPicker, Field};
 pub use draw::{out_h, out_w, Draw, TexId};
-pub use footer::{draw_footer, Printed};
+pub use footer::Printed;
 pub use hud::{
     badge_at, ff_badge, FfState, Hud, HudKind, LinkBadge, Millis, HUD_ICON_PX, HUD_INK, HUD_MS,
     LINK_HOST_INK, LINK_JOIN_INK, PLATE_H,
@@ -89,6 +90,7 @@ pub use slot_chrome::{
     ALERT_PX, LIP_H, MOUTH_H, MOUTH_W,
 };
 pub use stage::{stage_x, stage_y, MOCKUP_H, MOCKUP_W};
+pub use status_bar::{link_face, Link, LinkFaces, Links, TopBar, LINK_OFF, LINK_ON, TOP_BAR_H};
 pub use sticker::{
     draw_sticker, head_rows, sticker_face, sticker_lines, sticker_rect, StickerFields, COPYRIGHT,
     CREDITS, DC, HOME, ORIGIN, STICKER_H, STICKER_W,
