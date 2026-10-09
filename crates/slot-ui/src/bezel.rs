@@ -26,7 +26,7 @@ const GBC_MARK: &[u8] = include_bytes!("../assets/bezel_gbc.png");
 
 /// How tall the mark is printed in a band `band_h` tall.
 pub fn mark_height(band_h: f32) -> u32 {
-    (band_h * 0.55).round().clamp(16.0, 36.0) as u32
+    (band_h * 0.625).round().clamp(16.0, 36.0) as u32
 }
 
 /// The console's wordmark for `platform`, `height` pixels tall: in its own white and black
