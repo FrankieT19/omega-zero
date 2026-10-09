@@ -165,6 +165,7 @@ fn a_first_boot_rumbles_and_fast_forwards_silently_at_the_default() {
     assert_eq!(s.ff_speed, FF_SPEED_DEFAULT);
     assert!(!s.ff_sound, "boots with fast forward audible");
     assert!(!s.colour_correction, "boots with the picture tinted");
+    assert!(!s.wifi, "boots with the radio on");
 }
 
 #[test]
@@ -192,6 +193,7 @@ fn a_card_from_before_the_settings_keeps_all_its_values() {
             ff_speed: FF_SPEED_DEFAULT,
             ff_sound: false,
             colour_correction: false,
+            wifi: false,
         }
     );
 }
@@ -205,6 +207,7 @@ fn the_quick_menu_settings_round_trip_as_their_own_lines() {
         ff_speed: 2,
         ff_sound: true,
         colour_correction: true,
+        wifi: true,
         ..SlotState::default()
     };
     write_slot_state(d.path(), &s).unwrap();
@@ -215,6 +218,7 @@ fn the_quick_menu_settings_round_trip_as_their_own_lines() {
         "ff_speed=2",
         "ff_sound=1",
         "colour_correction=1",
+        "wifi=1",
     ] {
         assert!(text.lines().any(|l| l == line), "no {line} in {text:?}");
     }
@@ -264,6 +268,8 @@ fn an_out_of_range_setting_falls_back_to_its_default() {
         "colour_correction=2\n",
         "colour_correction=\n",
         "colour_correction=Auto\n",
+        "wifi=2\n",
+        "wifi=on\n",
         "ff_speed=5\n",
         "ff_speed=7\n",
         "ff_speed=8\n",
@@ -272,8 +278,14 @@ fn an_out_of_range_setting_falls_back_to_its_default() {
         std::fs::write(d.path().join("Config/slot.state"), format!("{known}{bad}")).unwrap();
         let s = read_slot_state(d.path());
         assert_eq!(
-            (s.rumble, s.ff_speed, s.ff_sound, s.colour_correction),
-            (true, FF_SPEED_DEFAULT, false, false),
+            (
+                s.rumble,
+                s.ff_speed,
+                s.ff_sound,
+                s.colour_correction,
+                s.wifi
+            ),
+            (true, FF_SPEED_DEFAULT, false, false, false),
             "accepted {bad:?}"
         );
         assert_eq!(
