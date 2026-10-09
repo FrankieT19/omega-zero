@@ -2,7 +2,8 @@
 //! so a change to how slot draws can be checked pixel for pixel against the build before it.
 //!
 //! `screens OUT [BASELINE]` writes OUT/<name>.png. With BASELINE, every shot is also compared
-//! with BASELINE/<name>.png and the run fails on the first byte that differs.
+//! with BASELINE/<name>.png and the run fails on the first byte that differs. SCREENS_SCRIPT
+//! names a file to run in place of the built-in script.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -494,7 +495,11 @@ fn main() {
         .app_mut()
         .set_label_jobs(Box::new(ShownLabels::default()));
 
-    let steps = parse(SCRIPT);
+    // SCREENS_SCRIPT runs another script in place of the built-in one, for one-off previews.
+    let script = std::env::var("SCREENS_SCRIPT")
+        .map(|path| std::fs::read_to_string(path).expect("read SCREENS_SCRIPT"))
+        .unwrap_or_else(|_| SCRIPT.to_string());
+    let steps = parse(&script);
     let shots: Vec<String> = steps
         .iter()
         .filter_map(|s| match s {
