@@ -1,4 +1,5 @@
 mod atomic;
+mod backdrop;
 pub mod cart_shell;
 mod config;
 mod core;
@@ -13,6 +14,7 @@ mod stamp;
 mod theme;
 
 pub use atomic::atomic_write;
+pub use backdrop::{colour_index, BackdropStyle, BACKDROP_COLOURS};
 pub use cart_shell::{Outline, ShellChoice, ShellFinish, CART_SHELL_FILE, LABELS_SHELL_FILE};
 pub use config::{move_config, CONFIG_DIR};
 pub use core::{

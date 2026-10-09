@@ -8,8 +8,8 @@ use slot::app::{App, Phase};
 use slot_input::{Action, Btn};
 use slot_store::{read_slot_state, write_slot_state, SlotState};
 use slot_ui::{
-    edge, out_w, quick_top, Draw, Icon, QuickMenuFaces, QuickRow, QuickValue, TexId, MENU_PAD,
-    QUICK_EDGE, QUICK_PITCH,
+    edge, out_w, quick_rows_shown, quick_top, quick_window, stage_y, Draw, Icon, QuickMenuFaces,
+    QuickRow, QuickValue, TexId, MENU_PAD, QUICK_EDGE, QUICK_PITCH,
 };
 use tempfile::TempDir;
 
@@ -113,6 +113,7 @@ fn up_and_down_move_the_bar_and_wrap_at_the_ends() {
         QuickRow::FastForwardSound,
         QuickRow::ColourCorrection,
         QuickRow::Rumble,
+        QuickRow::Background,
         QuickRow::Wifi,
         QuickRow::DateTime,
         QuickRow::About,
@@ -461,6 +462,8 @@ fn the_bar_runs_edge_to_edge_behind_the_selected_row() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
     a.apply(Action::QuickMenu);
+    let n = QuickRow::ALL.len();
+    let mut first = 0;
     for row in QuickRow::ALL {
         let bars: Vec<_> = frame(&a)
             .into_iter()
@@ -469,13 +472,46 @@ fn the_bar_runs_edge_to_edge_behind_the_selected_row() {
                 _ => None,
             })
             .collect();
-        let top = quick_top() + QUICK_PITCH * row.index() as f32;
+        first = quick_window(row.index(), n, first);
+        let top = quick_top() + QUICK_PITCH * (row.index() - first) as f32;
         assert_eq!(
             bars,
             vec![[0.0, top + 4.0, out_w() as f32, QUICK_PITCH - 8.0]],
             "{row:?}"
         );
+        assert!(
+            top + QUICK_PITCH <= 427.0 + stage_y(),
+            "{row:?}'s bar runs into the legend"
+        );
         press(&mut a, Btn::Down);
+    }
+}
+
+#[test]
+fn the_rows_out_of_view_are_not_drawn_and_scroll_in_with_the_bar() {
+    let (_d, mut a, _) = on_carousel();
+    fake_faces(&mut a);
+    a.apply(Action::QuickMenu);
+    let shown = quick_rows_shown(QuickRow::ALL.len());
+    let label = |row: QuickRow| 100 + row.index();
+    let out = frame(&a);
+    for row in QuickRow::ALL {
+        assert_eq!(
+            drawn(&out, label(row)),
+            row.index() < shown,
+            "{row:?} with the bar on the first row"
+        );
+    }
+    press(&mut a, Btn::Up);
+    assert_eq!(a.quick_menu(), Some(QuickRow::About));
+    let out = frame(&a);
+    let n = QuickRow::ALL.len();
+    for row in QuickRow::ALL {
+        assert_eq!(
+            drawn(&out, label(row)),
+            row.index() >= n - shown,
+            "{row:?} with the bar on the last row"
+        );
     }
 }
 
@@ -486,7 +522,8 @@ fn labels_start_and_values_end_thirty_two_pixels_in() {
     a.apply(Action::QuickMenu);
     let out = frame(&a);
     let right = out_w() as f32 - QUICK_EDGE;
-    for row in QuickRow::ALL {
+    let shown = quick_rows_shown(QuickRow::ALL.len());
+    for row in QuickRow::ALL.into_iter().take(shown) {
         let [x, ..] = placed(&out, 100 + row.index()).expect("a label was not drawn");
         assert_eq!(x + MENU_PAD as f32, QUICK_EDGE, "{row:?}'s label");
     }

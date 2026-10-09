@@ -211,11 +211,11 @@ fn a_on_wifi_opens_its_screen_and_b_comes_back_to_the_row() {
 fn a_handheld_without_a_radio_has_no_wifi_row() {
     let mut r = Rig::with(SlotState::default(), Radio::absent());
     assert!(!r.a.quick_rows().contains(&QuickRow::Wifi));
-    r.open_menu_at(QuickRow::Rumble);
+    r.open_menu_at(QuickRow::Background);
     r.press(Btn::Down);
     assert_eq!(r.a.quick_menu(), Some(QuickRow::DateTime));
     r.press(Btn::Up);
-    assert_eq!(r.a.quick_menu(), Some(QuickRow::Rumble));
+    assert_eq!(r.a.quick_menu(), Some(QuickRow::Background));
 }
 
 #[test]

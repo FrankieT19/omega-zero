@@ -2,8 +2,8 @@ mod common;
 
 use common::tmp_root;
 use slot_store::{
-    atomic_write, read_slot_state, write_slot_state, Platform, SlotState, FF_SPEEDS,
-    FF_SPEED_DEFAULT,
+    atomic_write, read_slot_state, write_slot_state, BackdropStyle, Platform, SlotState,
+    BACKDROP_COLOURS, FF_SPEEDS, FF_SPEED_DEFAULT,
 };
 use tempfile::tempdir;
 
@@ -194,6 +194,9 @@ fn a_card_from_before_the_settings_keeps_all_its_values() {
             ff_sound: false,
             colour_correction: false,
             wifi: false,
+            backdrop: None,
+            backdrop_moving: true,
+            backdrop_colour: 0,
         }
     );
 }
@@ -368,4 +371,62 @@ fn an_offset_outside_the_range_of_real_zones_reads_as_default() {
         std::fs::write(d.path().join("Config/slot.state"), body).unwrap();
         assert_eq!(read_slot_state(d.path()), SlotState::default(), "{body}");
     }
+}
+
+#[test]
+fn the_background_round_trips_as_its_own_lines() {
+    for style in BackdropStyle::ALL {
+        for (colour, name) in BACKDROP_COLOURS.iter().enumerate() {
+            let d = tmp_root();
+            let s = SlotState {
+                clock_set: true,
+                backdrop: Some(style),
+                backdrop_moving: colour % 2 == 0,
+                backdrop_colour: colour as u8,
+                ..SlotState::default()
+            };
+            write_slot_state(d.path(), &s).unwrap();
+            assert_eq!(read_slot_state(d.path()), s);
+            let text = std::fs::read_to_string(d.path().join("Config/slot.state")).unwrap();
+            assert!(text.contains(&format!("backdrop={}\n", style.key())));
+            assert!(text.contains(&format!("backdrop_colour={name}\n")));
+        }
+    }
+}
+
+#[test]
+fn a_card_that_never_picked_a_background_reads_as_not_having_picked_one() {
+    let d = tmp_root();
+    std::fs::write(
+        d.path().join("Config/slot.state"),
+        "cart=\nbrightness=3\nblue_light=1\nvolume=40\nmuted=0\nclock_set=1\nutc_offset_min=0\n",
+    )
+    .unwrap();
+    let s = read_slot_state(d.path());
+    assert_eq!(s.backdrop, None);
+    assert!(s.backdrop_moving, "a pattern starts out drifting");
+    assert_eq!(s.backdrop_colour, 0);
+    let d = tmp_root();
+    write_slot_state(d.path(), &SlotState::default()).unwrap();
+    assert_eq!(
+        read_slot_state(d.path()).backdrop,
+        None,
+        "an empty line picked one"
+    );
+}
+
+#[test]
+fn a_background_the_reader_does_not_know_falls_back_to_the_default() {
+    let d = tmp_root();
+    std::fs::write(
+        d.path().join("Config/slot.state"),
+        "cart=\nbrightness=3\nblue_light=1\nvolume=40\nmuted=0\nclock_set=1\nutc_offset_min=0\nbackdrop=plaid\nbackdrop_moving=7\nbackdrop_colour=mauve\n",
+    )
+    .unwrap();
+    let s = read_slot_state(d.path());
+    assert_eq!(
+        (s.backdrop, s.backdrop_moving, s.backdrop_colour),
+        (None, true, 0)
+    );
+    assert_eq!(s.brightness, 3, "a bad background line sank the rest");
 }

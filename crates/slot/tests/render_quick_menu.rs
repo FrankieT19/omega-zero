@@ -9,7 +9,7 @@ use slot::frontend::Frontend;
 use slot_gfx::{out_h, out_w, Compositor, HeadlessSurface};
 use slot_input::{Btn, InputSource, Millis, RawEvent};
 use slot_power::SimPlatform;
-use slot_ui::{quick_top, stage_x, QuickRow, QUICK_PITCH};
+use slot_ui::{quick_rows_shown, quick_top, quick_window, stage_x, QuickRow, QUICK_PITCH};
 
 struct Script(VecDeque<Vec<RawEvent>>);
 
@@ -72,19 +72,23 @@ fn the_quick_menu_renders_full_screen() {
     let bar = [0x4d, 0x4d, 0x57];
     let ground = [0x05, 0x05, 0x08];
     let mut bar_on = QuickRow::ALL[0];
+    let (n, mut first) = (QuickRow::ALL.len(), 0);
+    let shown = quick_rows_shown(n);
     for (name, selected) in [
         ("fast-forward", QuickRow::FastForward),
         ("colour-correction", QuickRow::ColourCorrection),
         ("date-time", QuickRow::DateTime),
         ("about", QuickRow::About),
     ] {
-        for _ in bar_on.index()..selected.index() {
+        for i in bar_on.index()..selected.index() {
             tap(&mut f, &mut input, Btn::Down);
+            first = quick_window(i + 1, n, first);
         }
         bar_on = selected;
         let px = composed(&mut f, &mut c, name);
+        let row_top = |row: QuickRow| quick_top() + QUICK_PITCH * (row.index() - first) as f32;
 
-        let top = (quick_top() + QUICK_PITCH * selected.index() as f32) as usize;
+        let top = row_top(selected) as usize;
         for x in [1, out_w() as usize - 2] {
             assert_eq!(at(&px, x, top + 26), bar, "{name}: no bar at x {x}");
         }
@@ -103,15 +107,15 @@ fn the_quick_menu_renders_full_screen() {
             "{name}: not on the ground"
         );
 
-        for row in QuickRow::ALL {
-            let top = (quick_top() + QUICK_PITCH * row.index() as f32) as usize;
+        for row in QuickRow::ALL.into_iter().skip(first).take(shown) {
+            let top = row_top(row) as usize;
             let label = inked(&px, 0..out_w() as usize / 2, top);
             let first = *label.first().expect("a row with no label");
             assert!(
                 (32..=36).contains(&first),
                 "{name}: {row:?}'s label starts at x {first}"
             );
-            if row == QuickRow::About {
+            if matches!(row, QuickRow::About | QuickRow::Background) {
                 continue;
             }
             let value = inked(&px, out_w() as usize / 2..out_w() as usize, top);

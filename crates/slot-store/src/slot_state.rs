@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::atomic::atomic_write;
+use crate::backdrop::{colour_index, BackdropStyle, BACKDROP_COLOURS};
 use crate::platform::Platform;
 
 pub const BRIGHTNESS_MAX: u8 = 9;
@@ -32,6 +33,13 @@ pub struct SlotState {
     pub colour_correction: bool,
     /// Home Wi-Fi is switched on.
     pub wifi: bool,
+    /// The shelf's background, once one was picked. Until then a card with a wallpaper shows
+    /// it, and any other the default pattern.
+    pub backdrop: Option<BackdropStyle>,
+    /// The pattern drifts.
+    pub backdrop_moving: bool,
+    /// Which of [`BACKDROP_COLOURS`] the pattern is in.
+    pub backdrop_colour: u8,
 }
 
 impl Default for SlotState {
@@ -52,6 +60,9 @@ impl Default for SlotState {
             ff_sound: false,
             colour_correction: false,
             wifi: false,
+            backdrop: None,
+            backdrop_moving: true,
+            backdrop_colour: 0,
         }
     }
 }
@@ -70,7 +81,7 @@ pub fn read_slot_state(root: &Path) -> SlotState {
 
 pub fn write_slot_state(root: &Path, s: &SlotState) -> std::io::Result<()> {
     let text = format!(
-        "cart={}\ncart_platform={}\nbrightness={}\nblue_light={}\nvolume={}\nvolume_hp={}\nmuted={}\nmuted_hp={}\nclock_set={}\nutc_offset_min={}\nrumble={}\nff_speed={}\nff_sound={}\ncolour_correction={}\nwifi={}\n",
+        "cart={}\ncart_platform={}\nbrightness={}\nblue_light={}\nvolume={}\nvolume_hp={}\nmuted={}\nmuted_hp={}\nclock_set={}\nutc_offset_min={}\nrumble={}\nff_speed={}\nff_sound={}\ncolour_correction={}\nwifi={}\nbackdrop={}\nbackdrop_moving={}\nbackdrop_colour={}\n",
         s.cart.as_deref().unwrap_or(""),
         s.cart_platform.map_or(String::new(), platform_key),
         s.brightness,
@@ -85,7 +96,10 @@ pub fn write_slot_state(root: &Path, s: &SlotState) -> std::io::Result<()> {
         s.ff_speed,
         s.ff_sound as u8,
         s.colour_correction as u8,
-        s.wifi as u8
+        s.wifi as u8,
+        s.backdrop.map_or("", BackdropStyle::key),
+        s.backdrop_moving as u8,
+        BACKDROP_COLOURS[(s.backdrop_colour as usize).min(BACKDROP_COLOURS.len() - 1)]
     );
     atomic_write(&state_path(root), text.as_bytes())
 }
@@ -106,6 +120,9 @@ fn parse(text: &str) -> Option<SlotState> {
     let mut ff_sound = None;
     let mut colour_correction = None;
     let mut wifi = None;
+    let mut backdrop = None;
+    let mut backdrop_moving = None;
+    let mut backdrop_colour = None;
     for line in text.lines().filter(|l| !l.is_empty()) {
         let Some((key, value)) = line.split_once('=') else {
             continue;
@@ -126,6 +143,9 @@ fn parse(text: &str) -> Option<SlotState> {
             "ff_sound" => ff_sound = flag(value),
             "colour_correction" => colour_correction = flag(value),
             "wifi" => wifi = flag(value),
+            "backdrop" => backdrop = BackdropStyle::from_key(value),
+            "backdrop_moving" => backdrop_moving = flag(value),
+            "backdrop_colour" => backdrop_colour = colour_index(value),
             _ => {}
         }
     }
@@ -147,6 +167,9 @@ fn parse(text: &str) -> Option<SlotState> {
         ff_sound: ff_sound.unwrap_or(fallback.ff_sound),
         colour_correction: colour_correction.unwrap_or(fallback.colour_correction),
         wifi: wifi.unwrap_or(fallback.wifi),
+        backdrop,
+        backdrop_moving: backdrop_moving.unwrap_or(fallback.backdrop_moving),
+        backdrop_colour: backdrop_colour.unwrap_or(fallback.backdrop_colour),
     })
 }
 

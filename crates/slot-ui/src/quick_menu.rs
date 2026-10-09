@@ -11,17 +11,19 @@ pub enum QuickRow {
     FastForwardSound,
     ColourCorrection,
     Rumble,
+    Background,
     Wifi,
     DateTime,
     About,
 }
 
 impl QuickRow {
-    pub const ALL: [QuickRow; 7] = [
+    pub const ALL: [QuickRow; 8] = [
         QuickRow::FastForward,
         QuickRow::FastForwardSound,
         QuickRow::ColourCorrection,
         QuickRow::Rumble,
+        QuickRow::Background,
         QuickRow::Wifi,
         QuickRow::DateTime,
         QuickRow::About,
@@ -37,6 +39,7 @@ impl QuickRow {
             QuickRow::FastForwardSound => "Fast Forward Sound",
             QuickRow::ColourCorrection => "Colour Correction",
             QuickRow::Rumble => "Rumble",
+            QuickRow::Background => "Background",
             QuickRow::Wifi => "Wi-Fi",
             QuickRow::DateTime => "Date & Time",
             QuickRow::About => "About",
@@ -44,7 +47,10 @@ impl QuickRow {
     }
 
     pub fn opens(self) -> bool {
-        matches!(self, QuickRow::Wifi | QuickRow::DateTime | QuickRow::About)
+        matches!(
+            self,
+            QuickRow::Background | QuickRow::Wifi | QuickRow::DateTime | QuickRow::About
+        )
     }
 
     /// The row above this one among `rows`, the rows a handheld shows, wrapping at the top.
@@ -123,8 +129,34 @@ impl QuickValue {
 }
 
 pub const QUICK_PITCH: f32 = 52.0;
+/// Where the first row in view sits with every row this build has.
 pub fn quick_top() -> f32 {
-    quick_top_of(QuickRow::ALL.len())
+    quick_top_of(quick_rows_shown(QuickRow::ALL.len()))
+}
+
+/// How many of `n` rows are in view at once: all of them while they fit above the legend,
+/// centred as they always were, and as many as do on a canvas too short for them, the rest
+/// scrolled to.
+pub fn quick_rows_shown(n: usize) -> usize {
+    let fit = ((2.0 * legend_y() - out_h() as f32) / QUICK_PITCH).floor();
+    n.min(fit.max(3.0) as usize)
+}
+
+/// The first of `n` rows to show so the lit one is in view, moving the window as little as it
+/// can from where it was.
+pub fn quick_window(lit: usize, n: usize, was: usize) -> usize {
+    let shown = quick_rows_shown(n);
+    if n <= shown {
+        return 0;
+    }
+    let first = if lit < was {
+        lit
+    } else if lit >= was + shown {
+        lit + 1 - shown
+    } else {
+        was
+    };
+    first.min(n - shown)
 }
 
 /// Where the first of `n` rows sits, the rows centred on the canvas.
@@ -226,6 +258,8 @@ pub struct QuickMenu<'a> {
     pub clock: Option<[(TexId, u32, u32); 2]>,
     pub wifi: Option<[(TexId, u32, u32); 2]>,
     pub faces: Option<&'a QuickMenuFaces>,
+    /// The first row in view, from [`quick_window`].
+    pub first: usize,
 }
 
 impl QuickMenu<'_> {
@@ -248,7 +282,8 @@ impl QuickMenu<'_> {
             return;
         };
         let (right, pad) = (out_w() as f32 - QUICK_EDGE, MENU_PAD as f32);
-        for &row in self.rows {
+        let shown = quick_rows_shown(self.rows.len());
+        for &row in self.rows.iter().skip(self.first).take(shown) {
             let y = self.row_top(row) + TYPE_DROP;
             let lit = row == self.row;
             if let Some(&(tex, w, h)) = faces.labels.get(row.index()) {
@@ -286,7 +321,8 @@ impl QuickMenu<'_> {
 impl QuickMenu<'_> {
     fn row_top(&self, row: QuickRow) -> f32 {
         let at = self.rows.iter().position(|r| *r == row).unwrap_or(0);
-        quick_top_of(self.rows.len()) + QUICK_PITCH * at as f32
+        let shown = quick_rows_shown(self.rows.len());
+        quick_top_of(shown) + QUICK_PITCH * at.saturating_sub(self.first) as f32
     }
 }
 

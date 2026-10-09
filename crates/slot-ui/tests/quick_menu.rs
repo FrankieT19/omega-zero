@@ -1,7 +1,8 @@
 use slot_store::{parse_stamp, FF_SPEEDS};
 use slot_ui::{
-    date_time_text, quick_caret_face, quick_label_face, quick_value_face, ClockPicker, QuickRow,
-    QuickValue, UndoFace, MENU_PAD,
+    date_time_text, quick_caret_face, quick_label_face, quick_rows_shown, quick_top_of,
+    quick_value_face, quick_window, stage_y, ClockPicker, QuickRow, QuickValue, UndoFace, MENU_PAD,
+    QUICK_PITCH,
 };
 
 fn inked(f: &UndoFace, x: u32, y: u32) -> bool {
@@ -85,13 +86,54 @@ fn the_rows_run_in_the_order_the_user_chose() {
             "Fast Forward Sound",
             "Colour Correction",
             "Rumble",
+            "Background",
             "Wi-Fi",
             "Date & Time",
             "About"
         ]
     );
     let opens: Vec<QuickRow> = QuickRow::ALL.into_iter().filter(|r| r.opens()).collect();
-    assert_eq!(opens, [QuickRow::Wifi, QuickRow::DateTime, QuickRow::About]);
+    assert_eq!(
+        opens,
+        [
+            QuickRow::Background,
+            QuickRow::Wifi,
+            QuickRow::DateTime,
+            QuickRow::About
+        ]
+    );
+}
+
+#[test]
+fn every_row_shows_where_they_fit_and_the_rest_scroll_into_view() {
+    let all = QuickRow::ALL.len();
+    let shown = quick_rows_shown(all);
+    assert!(shown >= 7, "only {shown} rows fit");
+    assert!(
+        quick_top_of(shown) + QUICK_PITCH * shown as f32 <= 427.0 + stage_y(),
+        "the last row in view runs into the legend"
+    );
+    assert_eq!(quick_rows_shown(3), 3, "a short menu scrolled");
+    if shown < all {
+        assert_eq!(quick_window(0, all, 0), 0);
+        assert_eq!(
+            quick_window(all - 1, all, 0),
+            all - shown,
+            "the last row is out of view"
+        );
+        assert_eq!(
+            quick_window(all - 2, all, all - shown),
+            all - shown,
+            "the list moved though the lit row was in view"
+        );
+        assert_eq!(
+            quick_window(0, all, all - shown),
+            0,
+            "the first row is out of view"
+        );
+    } else {
+        assert_eq!(quick_window(all - 1, all, 0), 0);
+    }
 }
 
 #[test]
@@ -100,10 +142,10 @@ fn a_hidden_row_is_stepped_over_both_ways() {
         .into_iter()
         .filter(|r| *r != QuickRow::Wifi)
         .collect();
-    assert_eq!(QuickRow::Rumble.down_in(&rows), QuickRow::DateTime);
-    assert_eq!(QuickRow::DateTime.up_in(&rows), QuickRow::Rumble);
+    assert_eq!(QuickRow::Background.down_in(&rows), QuickRow::DateTime);
+    assert_eq!(QuickRow::DateTime.up_in(&rows), QuickRow::Background);
     assert_eq!(QuickRow::About.down_in(&rows), QuickRow::FastForward);
-    assert_eq!(QuickRow::Rumble.down(), QuickRow::Wifi);
+    assert_eq!(QuickRow::Background.down(), QuickRow::Wifi);
 }
 
 #[test]
