@@ -4,8 +4,9 @@ use std::sync::{Arc, Mutex};
 
 use common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 use slot::app::{App, Phase};
+use slot::list_view::RowLabel;
 use slot::wifi::{Saved, Seen, Status, WifiJob, WifiJobs, WifiNews, JOIN_TIMEOUT_MS};
-use slot::wifi_screen::{RowLabel, Sel, Summary};
+use slot::wifi_screen::{Sel, Summary};
 use slot_input::{Action, Btn, Millis};
 use slot_store::{read_slot_state, write_slot_state, SlotState};
 use slot_ui::QuickRow;
@@ -410,14 +411,17 @@ fn a_saved_network_out_of_reach_is_still_listed_to_be_forgotten() {
         [
             RowLabel::Setting("Wi-Fi"),
             RowLabel::Setting("Network Time"),
-            RowLabel::Network("Home".into()),
-            RowLabel::Network("Cabin".into()),
+            RowLabel::Setting("Cart Labels"),
+            RowLabel::Name("Home".into()),
+            RowLabel::Name("Cabin".into()),
         ]
     );
-    assert_eq!(
-        view.rows[3].signal, None,
-        "an absent network showed a signal"
-    );
+    let cabin = view
+        .rows
+        .iter()
+        .find(|row| row.label == RowLabel::Name("Cabin".into()))
+        .unwrap();
+    assert_eq!(cabin.signal, None, "an absent network showed a signal");
     r.go_to("Cabin");
     r.press(Btn::Y);
     assert_eq!(r.radio.asked(), [WifiJob::Forget(5)]);
@@ -448,7 +452,7 @@ fn a_passphrase_turned_away_says_so_and_is_asked_for_again() {
         Some(""),
         "a turned-away network was retried as it was"
     );
-    assert_eq!(r.a.typing().unwrap().replace, Some(0));
+    assert_eq!(r.a.wifi_typing().unwrap().replace, Some(0));
     assert_eq!(r.radio.asked(), []);
 }
 
@@ -503,10 +507,10 @@ fn the_cursor_stays_on_its_network_when_a_scan_reorders_the_list() {
     r.tick(16);
     let view = r.a.wifi_view().unwrap();
     let lit = view.lit.unwrap();
-    assert_eq!(view.rows[lit].label, RowLabel::Network("Far".into()));
+    assert_eq!(view.rows[lit].label, RowLabel::Name("Far".into()));
     r.press(Btn::A);
     assert!(
-        r.a.typing().is_some_and(|t| t.ssid == b"Far"),
+        r.a.wifi_typing().is_some_and(|t| t.ssid == b"Far"),
         "A picked another network"
     );
 }

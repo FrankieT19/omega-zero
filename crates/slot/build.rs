@@ -38,4 +38,31 @@ fn main() {
     println!("cargo:rustc-env=SLOT_GIT_HASH={hash}");
     println!("cargo:rustc-env=SLOT_GIT_DIRTY={}", u8::from(dirty));
     println!("cargo:rustc-env=SLOT_BUILD_DATE={date}");
+
+    screenscraper_key();
+}
+
+/// The same mask `label_sync::unmask` takes off.
+fn mask(text: &str) -> String {
+    text.bytes()
+        .enumerate()
+        .map(|(i, b)| {
+            format!(
+                "{:02x}",
+                b ^ (0x5a_u8.wrapping_add((i as u8).wrapping_mul(31)))
+            )
+        })
+        .collect()
+}
+
+/// ScreenScraper's key for slot, from the environment of whoever builds it, masked so it is
+/// not lying in the binary as plain text.
+fn screenscraper_key() {
+    println!("cargo:rerun-if-env-changed=SLOT_SS_DEVID");
+    println!("cargo:rerun-if-env-changed=SLOT_SS_DEVPASSWORD");
+    let id = std::env::var("SLOT_SS_DEVID").unwrap_or_default();
+    let pw = std::env::var("SLOT_SS_DEVPASSWORD").unwrap_or_default();
+    if !id.is_empty() && !pw.is_empty() {
+        println!("cargo:rustc-env=SLOT_SS_KEY={}:{}", mask(&id), mask(&pw));
+    }
 }

@@ -22,15 +22,18 @@ use slot_ui::{
 
 use crate::audio::Sfx;
 use crate::core_picker::{Chip, CorePicker, Outcome, Press};
+use crate::label_screen::{Labels, LabelsScreen, Outcome as LabelsOutcome};
+use crate::label_sync::{label_jobs, Account, LabelJobs, NoKey, Want};
 use crate::link_kind::{link_carried, link_kind, serial_option, LinkKind};
 use crate::link_radio::{radio_jobs, LinkRole, RadioJob, RadioJobs};
 use crate::link_screen::LinkSprites;
 use crate::link_start::{link_port, LinkFail, LinkProgress, LinkStarter, LinkStep};
+use crate::list_view::{ListView, TypingView};
 use crate::persist::{self, Snapshot};
 use crate::video_mode::{self, VideoMode};
-use crate::wifi::{wifi_jobs, WifiJobs};
+use crate::wifi::{shown, wifi_jobs, WifiJobs};
 use crate::wifi_screen::{
-    Outcome as WifiOutcome, Summary, Typing, Watch, Wifi, WifiScreen, WifiView,
+    Outcome as WifiOutcome, Sel as WifiSel, Summary, Typing, Watch, Wifi, WifiScreen,
 };
 
 pub const INSERT_S: f32 = 0.73;
@@ -266,6 +269,7 @@ pub enum Phase {
     },
     About,
     Wifi(WifiScreen),
+    Labels(LabelsScreen),
     Doze {
         cart: Option<String>,
     },
@@ -358,6 +362,10 @@ pub struct App {
     keyboard_faces: Option<KeyboardFaces>,
     typing_faces: Option<[(TexId, u32, u32); 2]>,
     quick_wifi_faces: Option<[(TexId, u32, u32); 2]>,
+    labels: Labels,
+    labels_faces: Option<WifiMenuFaces>,
+    /// Carts whose labels arrived and whose faces are still drawn without them.
+    stale_faces: Vec<(Platform, String)>,
 }
 
 fn shelves_of(carts: Vec<Cart>) -> Vec<(Platform, Shelf)> {
@@ -387,6 +395,9 @@ impl App {
             keyboard_faces: None,
             typing_faces: None,
             quick_wifi_faces: None,
+            labels: Labels::new(Box::new(NoKey::default()), None),
+            labels_faces: None,
+            stale_faces: Vec::new(),
             phase: Phase::Shelf,
             shelves,
             shelf_at,
@@ -477,6 +488,7 @@ impl App {
         app.root = Some(root.to_path_buf());
         app.state = read_slot_state(root);
         app.wifi.start(app.state.wifi);
+        app.labels = Labels::new(label_jobs(root), Account::load(root));
         if app.state.clock_set {
             app.start();
         } else {
@@ -1197,6 +1209,7 @@ impl App {
             }
             Phase::QuickMenu { row } => self.quick_menu_input(row, action),
             Phase::Wifi(_) => self.wifi_input(action),
+            Phase::Labels(_) => self.labels_input(action),
             _ => {}
         }
     }
@@ -1251,10 +1264,14 @@ impl App {
         let Phase::Wifi(screen) = &mut self.phase else {
             return;
         };
-        if screen.input(&mut self.wifi, action, now) == WifiOutcome::Close {
-            self.phase = Phase::QuickMenu {
-                row: QuickRow::Wifi,
-            };
+        match screen.input(&mut self.wifi, action, now) {
+            WifiOutcome::Close => {
+                self.phase = Phase::QuickMenu {
+                    row: QuickRow::Wifi,
+                }
+            }
+            WifiOutcome::Labels => self.phase = Phase::Labels(LabelsScreen::default()),
+            WifiOutcome::Stay => {}
         }
         if self.state.wifi != self.wifi.enabled() {
             self.state.wifi = self.wifi.enabled();
@@ -1272,6 +1289,97 @@ impl App {
         }
     }
 
+    fn labels_input(&mut self, action: Action) {
+        let root = self.root.clone();
+        let Phase::Labels(screen) = &mut self.phase else {
+            return;
+        };
+        match screen.input(&mut self.labels, action, root.as_deref()) {
+            LabelsOutcome::Close => {
+                self.phase = Phase::Wifi(WifiScreen {
+                    sel: WifiSel::Labels,
+                    ..WifiScreen::default()
+                })
+            }
+            LabelsOutcome::Sync if self.online() => {
+                let wants = self.label_wants();
+                self.labels.start(wants);
+            }
+            LabelsOutcome::Sync | LabelsOutcome::Stay => {}
+        }
+    }
+
+    /// Wi-Fi has a network joined.
+    fn online(&self) -> bool {
+        self.wifi.status().joined()
+    }
+
+    /// The carts with no label, for a sync to look up.
+    fn label_wants(&self) -> Vec<Want> {
+        self.carts()
+            .filter(|c| c.label.is_none())
+            .map(|c| Want {
+                platform: c.platform,
+                stem: c.stem.clone(),
+                rom: c.rom.clone(),
+                code: c.code.clone(),
+            })
+            .collect()
+    }
+
+    /// Puts each label a sync saved on its cart, for the frontend to redraw the cart with.
+    fn take_labels(&mut self) {
+        let Some(root) = self.root.clone() else {
+            return;
+        };
+        for (platform, stem) in self.labels.take_fresh() {
+            let path = crate::label_sync::label_path(&root, platform, &stem);
+            let shelf = self.shelves.iter_mut().find(|(p, _)| *p == platform);
+            let Some(cart) = shelf.and_then(|(_, s)| s.carts.iter_mut().find(|c| c.stem == stem))
+            else {
+                continue;
+            };
+            cart.label = Some(path);
+            self.stale_faces.push((platform, stem));
+        }
+    }
+
+    /// The carts whose faces must be drawn again, with the faces they are drawn on now.
+    pub fn take_stale_faces(&mut self) -> Vec<(Cart, TexId)> {
+        let stale = std::mem::take(&mut self.stale_faces);
+        stale
+            .into_iter()
+            .filter_map(|(platform, stem)| {
+                let (_, shelf) = self.shelves.iter().find(|(p, _)| *p == platform)?;
+                let (cart, face) = shelf.find(&stem)?;
+                Some((cart.clone(), face?))
+            })
+            .collect()
+    }
+
+    pub fn set_label_jobs(&mut self, jobs: Box<dyn LabelJobs>) {
+        let account = self.labels.account().cloned();
+        self.labels = Labels::new(jobs, account);
+    }
+
+    pub fn labels(&self) -> &Labels {
+        &self.labels
+    }
+
+    /// The Labels screen's list, while it is open and not taking an account.
+    pub fn labels_view(&self) -> Option<ListView> {
+        match &self.phase {
+            Phase::Labels(screen) if screen.typing.is_none() => {
+                Some(screen.view(&self.labels, self.online()))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn set_labels_faces(&mut self, faces: WifiMenuFaces) {
+        self.labels_faces = Some(faces);
+    }
+
     pub fn set_wifi_jobs(&mut self, jobs: Box<dyn WifiJobs>) {
         self.wifi = Wifi::new(jobs);
         self.wifi.start(self.state.wifi);
@@ -1286,16 +1394,38 @@ impl App {
     }
 
     /// The Wi-Fi screen's list, while it is open and not taking a passphrase.
-    pub fn wifi_view(&mut self) -> Option<WifiView> {
+    pub fn wifi_view(&mut self) -> Option<ListView> {
         match &mut self.phase {
             Phase::Wifi(screen) if screen.typing.is_none() => Some(screen.view(&self.wifi)),
             _ => None,
         }
     }
 
-    pub fn typing(&self) -> Option<&Typing> {
+    /// The Wi-Fi screen's keyboard, and the network it is for.
+    pub fn wifi_typing(&self) -> Option<&Typing> {
         match &self.phase {
             Phase::Wifi(screen) => screen.typing.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// The keyboard in use, and what it is asking for.
+    pub fn typing(&self) -> Option<TypingView<'_>> {
+        match &self.phase {
+            Phase::Wifi(screen) => screen.typing.as_ref().map(|t| TypingView {
+                prompt: if t.refused {
+                    "A passphrase has 8 to 63 characters".to_string()
+                } else {
+                    format!("Passphrase for {}", shown(&t.ssid))
+                },
+                keys: &t.keys,
+                refused: t.refused,
+            }),
+            Phase::Labels(screen) => screen.typing.as_ref().map(|t| TypingView {
+                prompt: t.prompt(),
+                keys: &t.keys,
+                refused: false,
+            }),
             _ => None,
         }
     }
@@ -1617,6 +1747,8 @@ impl App {
     fn timers(&mut self) {
         let (now, watch) = (self.now(), self.wifi_watch());
         self.wifi.tick(now, watch);
+        self.labels.tick();
+        self.take_labels();
         self.play_hold();
         let offer = self.undo_label();
         if let Some(p) = &mut self.polaroids {
@@ -1853,9 +1985,9 @@ impl App {
                 faces: self.quick_menu_faces.as_ref(),
             }
             .draw(out),
-            Phase::Wifi(screen) => match &screen.typing {
+            Phase::Wifi(_) | Phase::Labels(_) => match self.typing() {
                 Some(t) => KeyboardScreen {
-                    keys: &t.keys,
+                    keys: t.keys,
                     faces: self.keyboard_faces.as_ref(),
                     prompt: self.typing_faces.map(|f| f[0]),
                     field: self.typing_faces.map(|f| f[1]),
@@ -1863,7 +1995,11 @@ impl App {
                 }
                 .draw(out),
                 None => {
-                    if let Some(faces) = &self.wifi_faces {
+                    let faces = match self.phase {
+                        Phase::Labels(_) => &self.labels_faces,
+                        _ => &self.wifi_faces,
+                    };
+                    if let Some(faces) = faces {
                         faces.draw(out);
                     }
                 }

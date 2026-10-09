@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use slot::frontend::Frontend;
+use slot::label_sync::{LabelJob, LabelJobs, LabelNews, Quota};
 use slot::video_mode::{screen, VideoMode};
 use slot_gfx::{out_h, out_w, Bezel, Compositor, Draw, HeadlessSurface};
 use slot_input::{Btn, InputSource, Millis, RawEvent};
@@ -62,6 +63,8 @@ tap down
 wait 10
 tap down
 wait 10
+tap down
+wait 10
 tap a
 settle
 wait 30
@@ -90,6 +93,36 @@ wait 30
 settle
 wait 30
 shot wifi-joined
+tap up
+wait 10
+tap a
+settle
+wait 30
+shot labels
+tap a
+wait 6
+tap a
+wait 6
+settle
+shot labels-keyboard
+tap start
+wait 6
+tap a
+wait 6
+tap start
+wait 10
+settle
+wait 30
+shot labels-signed-in
+tap a
+wait 10
+settle
+wait 30
+shot labels-working
+tap a
+wait 10
+tap b
+wait 30
 tap b
 wait 30
 settle
@@ -172,6 +205,34 @@ hold power 80
 wait 60
 shot power-menu
 ";
+
+/// A ScreenScraper that answers a sync with one in progress, for the Labels screen's shots.
+#[derive(Default)]
+struct ShownLabels(Vec<LabelNews>);
+
+impl LabelJobs for ShownLabels {
+    fn present(&self) -> bool {
+        true
+    }
+
+    fn ask(&mut self, job: LabelJob) {
+        if let LabelJob::Sync { .. } = job {
+            self.0.push(LabelNews::Quota(Quota {
+                left: 19_953,
+                per_day: 20_000,
+            }));
+            self.0.push(LabelNews::Working {
+                done: 11,
+                total: 67,
+                title: "Metroid Fusion".into(),
+            });
+        }
+    }
+
+    fn news(&mut self) -> Vec<LabelNews> {
+        std::mem::take(&mut self.0)
+    }
+}
 
 enum Step {
     Settle,
@@ -371,6 +432,9 @@ fn main() {
     ));
     frontend.upload_faces(&mut compositor);
     frontend.drive_emulator();
+    frontend
+        .app_mut()
+        .set_label_jobs(Box::new(ShownLabels::default()));
 
     let steps = parse(SCRIPT);
     let shots: Vec<String> = steps

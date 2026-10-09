@@ -4,6 +4,7 @@
 use slot_input::{Action, Btn, Millis};
 use slot_ui::{wifi_window, Keyboard};
 
+use crate::list_view::{LegendHint, ListView, RowLabel, RowValue, ViewRow};
 use crate::wifi::{
     bars, passphrase_ok, shown, AskFail, Saved, Seen, Status, WifiJob, WifiJobs, WifiNews,
     JOIN_TIMEOUT_MS, REFRESH_MS, SCAN_MS,
@@ -369,6 +370,7 @@ impl Wifi {
 pub enum Sel {
     Wifi,
     Clock,
+    Labels,
     Network(Vec<u8>),
 }
 
@@ -406,57 +408,8 @@ impl Default for WifiScreen {
 pub enum Outcome {
     Stay,
     Close,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LegendHint {
-    Back,
-    Change,
-    Join,
-    Forget,
-}
-
-impl LegendHint {
-    pub const ALL: [LegendHint; 4] = [
-        LegendHint::Back,
-        LegendHint::Change,
-        LegendHint::Join,
-        LegendHint::Forget,
-    ];
-
-    pub fn index(self) -> usize {
-        self as usize
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum RowLabel {
-    Setting(&'static str),
-    Network(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum RowValue {
-    /// On or Off, changed with left and right.
-    Setting(bool),
-    Said(&'static str),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ViewRow {
-    pub label: RowLabel,
-    pub value: Option<RowValue>,
-    /// Bars out of four, and whether it needs a passphrase.
-    pub signal: Option<(u8, bool)>,
-}
-
-/// What the Wi-Fi screen shows, for the faces to be made from.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WifiView {
-    pub rows: Vec<ViewRow>,
-    pub lit: Option<usize>,
-    pub status: Vec<String>,
-    pub legend: Vec<LegendHint>,
+    /// Open the Labels screen, which fetches cart labels over Wi-Fi.
+    Labels,
 }
 
 impl WifiScreen {
@@ -464,6 +417,7 @@ impl WifiScreen {
         let mut rows = vec![Sel::Wifi];
         if wifi.enabled() {
             rows.push(Sel::Clock);
+            rows.push(Sel::Labels);
             rows.extend(wifi.entries().into_iter().map(|e| Sel::Network(e.ssid)));
         }
         rows
@@ -505,6 +459,7 @@ impl WifiScreen {
             Action::GbaDown(Btn::Left | Btn::Right | Btn::A) if self.sel == Sel::Clock => {
                 wifi.set_ntp(!wifi.ntp());
             }
+            Action::GbaDown(Btn::A) if self.sel == Sel::Labels => return Outcome::Labels,
             Action::GbaDown(Btn::A) => self.pick(wifi, now),
             Action::GbaDown(Btn::Y) => {
                 if let Some(id) = self.entry(wifi).and_then(|e| e.saved) {
@@ -580,7 +535,7 @@ impl WifiScreen {
         wifi.join(t.ssid, t.keys.text, t.replace, now);
     }
 
-    pub fn view(&mut self, wifi: &Wifi) -> WifiView {
+    pub fn view(&mut self, wifi: &Wifi) -> ListView {
         let rows = self.rows(wifi);
         let at = self.settle(&rows);
         let entries = wifi.entries();
@@ -600,10 +555,15 @@ impl WifiScreen {
                     value: Some(RowValue::Setting(wifi.ntp())),
                     signal: None,
                 },
+                Sel::Labels => ViewRow {
+                    label: RowLabel::Setting("Cart Labels"),
+                    value: None,
+                    signal: None,
+                },
                 Sel::Network(ssid) => {
                     let e = entries.iter().find(|e| e.ssid == *ssid);
                     ViewRow {
-                        label: RowLabel::Network(shown(ssid)),
+                        label: RowLabel::Name(shown(ssid)),
                         value: e.and_then(|e| match e.state {
                             EntryState::Joined => Some(RowValue::Said("Connected")),
                             EntryState::Joining => Some(RowValue::Said("Joining")),
@@ -618,6 +578,7 @@ impl WifiScreen {
         let mut legend = vec![LegendHint::Back];
         match &self.sel {
             Sel::Wifi | Sel::Clock => legend.push(LegendHint::Change),
+            Sel::Labels => legend.push(LegendHint::Open),
             Sel::Network(_) => {
                 let e = self.entry(wifi);
                 if e.as_ref().is_some_and(|e| e.saved.is_some()) {
@@ -628,7 +589,7 @@ impl WifiScreen {
                 }
             }
         }
-        WifiView {
+        ListView {
             rows: view_rows,
             lit: Some(at - self.first),
             status: wifi.status_lines(),

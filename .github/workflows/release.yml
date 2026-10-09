@@ -27,6 +27,11 @@ jobs:
           curl -fsSL https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin
 
       - name: Build the tree
+        env:
+          # ScreenScraper's key for slot, for the Cart Labels screen. Without it the
+          # screen says the build cannot reach ScreenScraper.
+          SLOT_SS_DEVID: ${{ secrets.SLOT_SS_DEVID }}
+          SLOT_SS_DEVPASSWORD: ${{ secrets.SLOT_SS_DEVPASSWORD }}
         run: task dist:device OUT="slot-${GITHUB_REF_NAME}"
 
       - name: Check what is about to ship

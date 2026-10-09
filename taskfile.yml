@@ -275,7 +275,7 @@ tasks:
         if [ "$(uname -s)-$(uname -m)" = "Linux-aarch64" ]; then
           sh -c '{{.CMD}}'
         else
-          docker run --rm -v "$PWD":/src -w /src rust:1-bullseye sh -c '{{.CMD}}'
+          docker run --rm -e SLOT_SS_DEVID -e SLOT_SS_DEVPASSWORD -v "$PWD":/src -w /src rust:1-bullseye sh -c '{{.CMD}}'
         fi
 
   build:device:

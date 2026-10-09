@@ -26,10 +26,10 @@ use crate::face_builder::FaceBuilder;
 use crate::link_art_builder::LinkArtBuilder;
 use crate::link_screen::{LinkSprites, Sprite};
 use crate::link_start::{LinkFail, LinkStep};
+use crate::list_view::{LegendHint, ListView, RowLabel, RowValue};
 use crate::session::Session;
 use crate::wallpaper;
-use crate::wifi::shown;
-use crate::wifi_screen::{LegendHint, RowLabel, RowValue, Summary, WifiView};
+use crate::wifi_screen::Summary;
 
 const DOZE_TIMEOUT: Duration = Duration::from_secs(180);
 
@@ -57,20 +57,21 @@ pub struct Frontend {
     bezel_marks: Vec<BezelMark>,
     overlays: Vec<Overlay>,
     wifi: WifiTexes,
+    labels: WifiTexes,
 }
 
-/// Textures for the Wi-Fi screen and the quick menu's Wi-Fi row, each reused as what it
-/// shows changes.
+/// Textures for a list screen, Wi-Fi's or Labels', and for the quick menu's Wi-Fi row and
+/// the keyboard, each reused as what it shows changes.
 #[derive(Default)]
 struct WifiTexes {
     summary: Option<Summary>,
     summary_tex: [Option<TexId>; 2],
-    view: Option<WifiView>,
+    view: Option<ListView>,
     rows: Vec<[Option<TexId>; 3]>,
     status: Vec<Option<TexId>>,
     legend: Vec<(TexId, u32)>,
     carets: Option<[(TexId, u32, u32); 2]>,
-    typed: Option<(Vec<u8>, String, bool)>,
+    typed: Option<(String, String, bool)>,
     prompt: Option<TexId>,
     field: Option<TexId>,
 }
@@ -154,6 +155,7 @@ impl Frontend {
             bezel_marks: Vec::new(),
             overlays: Vec::new(),
             wifi: WifiTexes::default(),
+            labels: WifiTexes::default(),
         }
     }
 
@@ -348,6 +350,8 @@ impl Frontend {
         sync_about(self.session.app_mut(), compositor, &mut self.about);
         sync_quick_clock(self.session.app_mut(), compositor, &mut self.quick_clock);
         sync_wifi(self.session.app_mut(), compositor, &mut self.wifi);
+        sync_labels(self.session.app_mut(), compositor, &mut self.labels);
+        self.relabel(compositor);
         sync_core_picker(
             self.session.app_mut(),
             compositor,
@@ -400,6 +404,22 @@ impl Frontend {
         self.draws.clear();
         self.session.app().draw(&mut self.draws);
         compositor.draw_list(&self.draws);
+    }
+
+    /// Draws again each cart a label arrived for, on the face it already has, and drops the
+    /// core picker's lid when it was made for one of them.
+    fn relabel(&mut self, compositor: &mut Compositor) {
+        for (cart, tex) in self.session.app_mut().take_stale_faces() {
+            let face = cart_face(&cart);
+            compositor.update_texture(tex, face.w, face.h, &face.rgba);
+            if [&self.core_asked, &self.core_built]
+                .iter()
+                .any(|s| s.as_deref() == Some(cart.stem.as_str()))
+            {
+                self.core_asked = None;
+                self.core_built = None;
+            }
+        }
     }
 
     /// The console's body for the bands the picture leaves, rimmed in black where they meet
@@ -544,6 +564,10 @@ impl Frontend {
 
     pub fn app(&self) -> &crate::app::App {
         self.session.app()
+    }
+
+    pub fn app_mut(&mut self) -> &mut crate::app::App {
+        self.session.app_mut()
     }
 
     pub fn core_settling(&self) -> bool {
@@ -739,21 +763,13 @@ fn sync_wifi(app: &mut App, compositor: &mut Compositor, state: &mut WifiTexes) 
         state.typed = None;
         return;
     };
-    let typed = (
-        typing.ssid.clone(),
-        typing.keys.text.clone(),
-        typing.refused,
-    );
+    let typed = (typing.prompt, typing.keys.text.clone(), typing.refused);
     if !app.keyboard_faces_ready() {
         let faces = keyboard_faces(compositor);
         app.set_keyboard_faces(faces);
     }
     if state.typed.as_ref() != Some(&typed) {
-        let prompt = prompt_face(&if typed.2 {
-            "A passphrase has 8 to 63 characters".to_string()
-        } else {
-            format!("Passphrase for {}", shown(&typed.0))
-        });
+        let prompt = prompt_face(&typed.0);
         let field = field_face(&typed.1);
         let (p, f) = ((prompt.w, prompt.h), (field.w, field.h));
         let prompt = upload(compositor, &mut state.prompt, prompt);
@@ -763,8 +779,20 @@ fn sync_wifi(app: &mut App, compositor: &mut Compositor, state: &mut WifiTexes) 
     }
 }
 
+fn sync_labels(app: &mut App, compositor: &mut Compositor, state: &mut WifiTexes) {
+    let Some(view) = app.labels_view() else {
+        state.view = None;
+        return;
+    };
+    if state.view.as_ref() != Some(&view) {
+        let faces = wifi_faces(&view, compositor, state);
+        app.set_labels_faces(faces);
+        state.view = Some(view);
+    }
+}
+
 fn wifi_faces(
-    view: &WifiView,
+    view: &ListView,
     compositor: &mut Compositor,
     state: &mut WifiTexes,
 ) -> WifiMenuFaces {
@@ -777,6 +805,11 @@ fn wifi_faces(
                     LegendHint::Change => arrows_hint_face("Change"),
                     LegendHint::Join => hint_face("A", "Join"),
                     LegendHint::Forget => hint_face("Y", "Forget"),
+                    LegendHint::SignIn => hint_face("A", "Sign in"),
+                    LegendHint::SignOut => hint_face("Y", "Sign out"),
+                    LegendHint::Start => hint_face("A", "Start"),
+                    LegendHint::Stop => hint_face("A", "Stop"),
+                    LegendHint::Open => hint_face("A", "Open"),
                 };
                 (compositor.create_texture(f.w, f.h, &f.rgba), f.w)
             })
@@ -800,16 +833,19 @@ fn wifi_faces(
             let slots = &mut state.rows[i];
             let label = match &row.label {
                 RowLabel::Setting(name) => quick_value_face(name, true),
-                RowLabel::Network(name) => network_name_face(name, true),
+                RowLabel::Name(name) => network_name_face(name, true),
             };
             let label = sized(compositor, &mut slots[0], label);
             let value = row.value.as_ref().map(|v| {
-                let text = match v {
-                    RowValue::Setting(true) => "On",
-                    RowValue::Setting(false) => "Off",
-                    RowValue::Said(text) => text,
+                let face = match v {
+                    RowValue::Setting(true) => quick_value_face("On", lit),
+                    RowValue::Setting(false) => quick_value_face("Off", lit),
+                    RowValue::Said(text) => quick_value_face(text, lit),
+                    RowValue::Name(name) => {
+                        plain_face(name, out_w() as f32 * 0.45, 27.0, slot_ui::MENU_H, lit)
+                    }
                 };
-                sized(compositor, &mut slots[1], quick_value_face(text, lit))
+                sized(compositor, &mut slots[1], face)
             });
             let icon = row.signal.map(|(bars, locked)| {
                 sized(compositor, &mut slots[2], signal_face(bars, locked, lit))
@@ -863,7 +899,7 @@ fn keyboard_faces(compositor: &mut Compositor) -> KeyboardFaces {
         hint_face("B", "Delete"),
         hint_face("X", "Shift"),
         hint_face("Y", "Space"),
-        hint_face("START", "Join"),
+        hint_face("START", "Done"),
     ]
     .into_iter()
     .map(|f| (compositor.create_texture(f.w, f.h, &f.rgba), f.w))

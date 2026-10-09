@@ -214,7 +214,7 @@ pub fn bottom_label(key: Key, layer: Layer) -> &'static str {
         Key::Symbols => "#+=",
         Key::Space => "Space",
         Key::Delete => "Delete",
-        Key::Done => "Join",
+        Key::Done => "Done",
         Key::Char(_) => "",
     }
 }
@@ -328,7 +328,7 @@ pub type Face = (TexId, u32, u32);
 pub struct KeyboardFaces {
     /// Printable ASCII from the space up, indexed by `c - ' '`.
     pub glyphs: Vec<Face>,
-    /// Shift (and lit while shifted), #+=, abc, Space, Delete, Join.
+    /// Shift (and lit while shifted), #+=, abc, Space, Delete, Done.
     pub bottom: Vec<(&'static str, Face)>,
     pub shift_on: Face,
     pub legend: Vec<(TexId, u32)>,
