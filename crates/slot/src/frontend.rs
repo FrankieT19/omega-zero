@@ -13,6 +13,11 @@ use slot_ui::{
     QuickValue, StickerFields, Toast, UndoFace, ALERT_PX, BEZEL_FILL, BOLT_PX, HUD_ICON_PX,
     HUD_INK, LEGEND,
 };
+use slot_ui::{
+    bottom_key_face, bottom_label, field_face, key_glyph_face, key_rect, network_name_face,
+    plain_face, prompt_face, signal_face, wifi_status_face, KeyboardFaces, WifiMenuFaces,
+    WifiRowFaces, BOTTOM, KEY_ROWS, SHIFT_INK,
+};
 use slot_ui::{overlay_clear, overlay_face, overlay_path};
 
 use crate::app::{App, LinkRow, Phase};
@@ -23,6 +28,8 @@ use crate::link_screen::{LinkSprites, Sprite};
 use crate::link_start::{LinkFail, LinkStep};
 use crate::session::Session;
 use crate::wallpaper;
+use crate::wifi::shown;
+use crate::wifi_screen::{LegendHint, RowLabel, RowValue, Summary, WifiView};
 
 const DOZE_TIMEOUT: Duration = Duration::from_secs(180);
 
@@ -49,6 +56,23 @@ pub struct Frontend {
     quick_clock: QuickClock,
     bezel_marks: Vec<BezelMark>,
     overlays: Vec<Overlay>,
+    wifi: WifiTexes,
+}
+
+/// Textures for the Wi-Fi screen and the quick menu's Wi-Fi row, each reused as what it
+/// shows changes.
+#[derive(Default)]
+struct WifiTexes {
+    summary: Option<Summary>,
+    summary_tex: [Option<TexId>; 2],
+    view: Option<WifiView>,
+    rows: Vec<[Option<TexId>; 3]>,
+    status: Vec<Option<TexId>>,
+    legend: Vec<(TexId, u32)>,
+    carets: Option<[(TexId, u32, u32); 2]>,
+    typed: Option<(Vec<u8>, String, bool)>,
+    prompt: Option<TexId>,
+    field: Option<TexId>,
 }
 
 /// A card's own overlay for one system, read once and checked against each layout it is
@@ -129,6 +153,7 @@ impl Frontend {
             quick_clock: QuickClock::default(),
             bezel_marks: Vec::new(),
             overlays: Vec::new(),
+            wifi: WifiTexes::default(),
         }
     }
 
@@ -322,6 +347,7 @@ impl Frontend {
         sync_clock(self.session.app_mut(), compositor, &mut self.clocks);
         sync_about(self.session.app_mut(), compositor, &mut self.about);
         sync_quick_clock(self.session.app_mut(), compositor, &mut self.quick_clock);
+        sync_wifi(self.session.app_mut(), compositor, &mut self.wifi);
         sync_core_picker(
             self.session.app_mut(),
             compositor,
@@ -674,6 +700,184 @@ fn sync_quick_clock(app: &mut App, compositor: &mut Compositor, state: &mut Quic
     let lit = upload(compositor, &mut state.lit, lit);
     app.set_quick_clock_faces((dim, dim_size.0, dim_size.1), (lit, lit_size.0, lit_size.1));
     state.shown = text;
+}
+
+fn sync_wifi(app: &mut App, compositor: &mut Compositor, state: &mut WifiTexes) {
+    if app.quick_menu().is_some() {
+        let summary = app.wifi_summary();
+        if state.summary.as_ref() != Some(&summary) {
+            let face = |lit: bool| match &summary {
+                Summary::Off => quick_value_face("Off", lit),
+                Summary::On => quick_value_face("On", lit),
+                Summary::Joined(name) => {
+                    plain_face(name, out_w() as f32 * 0.45, 27.0, slot_ui::MENU_H, lit)
+                }
+            };
+            let [dim, lit] = [false, true].map(face);
+            let (dim_size, lit_size) = ((dim.w, dim.h), (lit.w, lit.h));
+            let dim = upload(compositor, &mut state.summary_tex[0], dim);
+            let lit = upload(compositor, &mut state.summary_tex[1], lit);
+            app.set_quick_wifi_faces((dim, dim_size.0, dim_size.1), (lit, lit_size.0, lit_size.1));
+            state.summary = Some(summary);
+        }
+    }
+    if let Some(view) = app.wifi_view() {
+        if state.view.as_ref() != Some(&view) {
+            let faces = wifi_faces(&view, compositor, state);
+            app.set_wifi_faces(faces);
+            state.view = Some(view);
+        }
+    } else {
+        state.view = None;
+    }
+    let Some(typing) = app.typing() else {
+        state.typed = None;
+        return;
+    };
+    let typed = (
+        typing.ssid.clone(),
+        typing.keys.text.clone(),
+        typing.refused,
+    );
+    if !app.keyboard_faces_ready() {
+        let faces = keyboard_faces(compositor);
+        app.set_keyboard_faces(faces);
+    }
+    if state.typed.as_ref() != Some(&typed) {
+        let prompt = prompt_face(&if typed.2 {
+            "A passphrase has 8 to 63 characters".to_string()
+        } else {
+            format!("Passphrase for {}", shown(&typed.0))
+        });
+        let field = field_face(&typed.1);
+        let (p, f) = ((prompt.w, prompt.h), (field.w, field.h));
+        let prompt = upload(compositor, &mut state.prompt, prompt);
+        let field = upload(compositor, &mut state.field, field);
+        app.set_typing_faces((prompt, p.0, p.1), (field, f.0, f.1));
+        state.typed = Some(typed);
+    }
+}
+
+fn wifi_faces(
+    view: &WifiView,
+    compositor: &mut Compositor,
+    state: &mut WifiTexes,
+) -> WifiMenuFaces {
+    if state.legend.is_empty() {
+        state.legend = LegendHint::ALL
+            .iter()
+            .map(|h| {
+                let f = match h {
+                    LegendHint::Back => hint_face("B", "Back"),
+                    LegendHint::Change => arrows_hint_face("Change"),
+                    LegendHint::Join => hint_face("A", "Join"),
+                    LegendHint::Forget => hint_face("Y", "Forget"),
+                };
+                (compositor.create_texture(f.w, f.h, &f.rgba), f.w)
+            })
+            .collect();
+    }
+    let carets = *state.carets.get_or_insert_with(|| {
+        [false, true].map(|right| {
+            let f = quick_caret_face(right);
+            (compositor.create_texture(f.w, f.h, &f.rgba), f.w, f.h)
+        })
+    });
+    if state.rows.len() < view.rows.len() {
+        state.rows.resize(view.rows.len(), [None; 3]);
+    }
+    let rows = view
+        .rows
+        .iter()
+        .enumerate()
+        .map(|(i, row)| {
+            let lit = view.lit == Some(i);
+            let slots = &mut state.rows[i];
+            let label = match &row.label {
+                RowLabel::Setting(name) => quick_value_face(name, true),
+                RowLabel::Network(name) => network_name_face(name, true),
+            };
+            let label = sized(compositor, &mut slots[0], label);
+            let value = row.value.as_ref().map(|v| {
+                let text = match v {
+                    RowValue::Setting(true) => "On",
+                    RowValue::Setting(false) => "Off",
+                    RowValue::Said(text) => text,
+                };
+                sized(compositor, &mut slots[1], quick_value_face(text, lit))
+            });
+            let icon = row.signal.map(|(bars, locked)| {
+                sized(compositor, &mut slots[2], signal_face(bars, locked, lit))
+            });
+            WifiRowFaces {
+                label,
+                value,
+                icon,
+                setting: matches!(row.value, Some(RowValue::Setting(_))),
+            }
+        })
+        .collect();
+    if state.status.len() < view.status.len() {
+        state.status.resize(view.status.len(), None);
+    }
+    let status = view
+        .status
+        .iter()
+        .enumerate()
+        .map(|(i, line)| sized(compositor, &mut state.status[i], wifi_status_face(line)))
+        .collect();
+    WifiMenuFaces {
+        rows,
+        lit: view.lit,
+        status,
+        legend: view
+            .legend
+            .iter()
+            .map(|h| state.legend[h.index()])
+            .collect(),
+        carets,
+    }
+}
+
+fn keyboard_faces(compositor: &mut Compositor) -> KeyboardFaces {
+    let mut up = |f: UndoFace| (compositor.create_texture(f.w, f.h, &f.rgba), f.w, f.h);
+    let glyphs = (' '..='~').map(|c| up(key_glyph_face(c))).collect();
+    let mut bottom = Vec::new();
+    for (col, key) in BOTTOM.iter().enumerate() {
+        let w = key_rect(KEY_ROWS - 1, col)[2] as u32;
+        for layer in [slot_ui::Layer::Lower, slot_ui::Layer::Symbols] {
+            let label = bottom_label(*key, layer);
+            if !bottom.iter().any(|(l, _)| *l == label) {
+                bottom.push((label, up(bottom_key_face(label, w, slot_ui::MENU_INK))));
+            }
+        }
+    }
+    let shift_w = key_rect(KEY_ROWS - 1, 0)[2] as u32;
+    let shift_on = up(bottom_key_face("Shift", shift_w, SHIFT_INK));
+    let legend = [
+        hint_face("B", "Delete"),
+        hint_face("X", "Shift"),
+        hint_face("Y", "Space"),
+        hint_face("START", "Join"),
+    ]
+    .into_iter()
+    .map(|f| (compositor.create_texture(f.w, f.h, &f.rgba), f.w))
+    .collect();
+    KeyboardFaces {
+        glyphs,
+        bottom,
+        shift_on,
+        legend,
+    }
+}
+
+fn sized(
+    compositor: &mut Compositor,
+    slot: &mut Option<TexId>,
+    face: UndoFace,
+) -> (TexId, u32, u32) {
+    let (w, h) = (face.w, face.h);
+    (upload(compositor, slot, face), w, h)
 }
 
 fn sync_about(app: &mut App, compositor: &mut Compositor, state: &mut AboutFace) {

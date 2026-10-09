@@ -10,6 +10,7 @@ mod draw;
 mod footer;
 mod hud;
 mod icon;
+mod keyboard;
 mod link_art;
 mod plate;
 mod polaroids;
@@ -24,6 +25,7 @@ mod stage;
 mod sticker;
 pub mod text;
 mod toast;
+mod wifi_menu;
 
 pub use backdrop::{draw_backdrop, wallpaper_face};
 pub use barcode::{code39, CODE39_NARROW, CODE39_WIDE};
@@ -53,6 +55,11 @@ pub use hud::{
     LINK_HOST_INK, LINK_JOIN_INK, PLATE_H,
 };
 pub use icon::{badge_face, icon_box, icon_face, Badge, Icon};
+pub use keyboard::{
+    bottom_key_face, bottom_label, field_face, key_glyph_face, key_on, key_rect, prompt_face,
+    row_len, Key, Keyboard, KeyboardFaces, KeyboardScreen, Layer, BOTTOM, KEY_COLS, KEY_H,
+    KEY_ROWS, KEY_W, MAX_TEXT, SHIFT_INK,
+};
 pub use link_art::{
     arcs, arrow_left_x, arrow_right_x, arrow_y, clicks_x, clicks_y, link_art, port_y, LinkArt,
     ADAPTER_BASE_X, ADAPTER_BASE_Y, ADAPTER_H, ADAPTER_W, ARROW_H, ARROW_W, CLICKS_H, CLICKS_W,
@@ -64,10 +71,10 @@ pub use plate::{
     HINT_EDGE, HINT_GAP, HINT_H, LEGEND_GAP, TITLE_H, TITLE_W,
 };
 pub use polaroids::{photo_face, PhotoFace, Polaroids, DOT, LEGEND, PHOTO_H, PHOTO_W};
-pub use power_menu::{menu_face, PowerChoice, MENU_PAD};
+pub use power_menu::{menu_face, PowerChoice, MENU_H, MENU_INK, MENU_PAD};
 pub use quick_menu::{
-    quick_caret_face, quick_label_face, quick_legend_faces, quick_top, quick_value_face, QuickMenu,
-    QuickMenuFaces, QuickRow, QuickValue, QUICK_EDGE, QUICK_PITCH,
+    quick_caret_face, quick_label_face, quick_legend_faces, quick_top, quick_top_of,
+    quick_value_face, QuickMenu, QuickMenuFaces, QuickRow, QuickValue, QUICK_EDGE, QUICK_PITCH,
 };
 pub use refusal::Refusal;
 pub use shelf::{foot_y, rest_y, Shelf};
@@ -87,3 +94,7 @@ pub use sticker::{
     CREDITS, DC, HOME, ORIGIN, STICKER_H, STICKER_W,
 };
 pub use toast::{toast_box, toast_face, toast_rect, Toast};
+pub use wifi_menu::{
+    network_name_face, plain_face, signal_face, signal_glyph, wifi_rows_shown, wifi_status_face,
+    wifi_window, WifiMenuFaces, WifiRowFaces,
+};

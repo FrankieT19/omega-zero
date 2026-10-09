@@ -24,9 +24,9 @@ impl PowerChoice {
 
 pub(crate) const MENU_PX: f32 = 30.0;
 const MENU_MIN_PX: f32 = 18.0;
-pub(crate) const MENU_H: u32 = 40;
+pub const MENU_H: u32 = 40;
 pub const MENU_PAD: u32 = 18;
-pub(crate) const MENU_INK: [u8; 3] = [0xf6, 0xf4, 0xef];
+pub const MENU_INK: [u8; 3] = [0xf6, 0xf4, 0xef];
 
 pub fn menu_face(label: &str) -> UndoFace {
     let Some(font) = text::label_font() else {

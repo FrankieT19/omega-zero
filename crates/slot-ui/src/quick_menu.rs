@@ -11,16 +11,18 @@ pub enum QuickRow {
     FastForwardSound,
     ColourCorrection,
     Rumble,
+    Wifi,
     DateTime,
     About,
 }
 
 impl QuickRow {
-    pub const ALL: [QuickRow; 6] = [
+    pub const ALL: [QuickRow; 7] = [
         QuickRow::FastForward,
         QuickRow::FastForwardSound,
         QuickRow::ColourCorrection,
         QuickRow::Rumble,
+        QuickRow::Wifi,
         QuickRow::DateTime,
         QuickRow::About,
     ];
@@ -35,22 +37,34 @@ impl QuickRow {
             QuickRow::FastForwardSound => "Fast Forward Sound",
             QuickRow::ColourCorrection => "Colour Correction",
             QuickRow::Rumble => "Rumble",
+            QuickRow::Wifi => "Wi-Fi",
             QuickRow::DateTime => "Date & Time",
             QuickRow::About => "About",
         }
     }
 
     pub fn opens(self) -> bool {
-        matches!(self, QuickRow::DateTime | QuickRow::About)
+        matches!(self, QuickRow::Wifi | QuickRow::DateTime | QuickRow::About)
+    }
+
+    /// The row above this one among `rows`, the rows a handheld shows, wrapping at the top.
+    pub fn up_in(self, rows: &[QuickRow]) -> QuickRow {
+        let n = rows.len();
+        let at = rows.iter().position(|r| *r == self).unwrap_or(0);
+        rows[(at + n - 1) % n]
+    }
+
+    pub fn down_in(self, rows: &[QuickRow]) -> QuickRow {
+        let at = rows.iter().position(|r| *r == self).unwrap_or(0);
+        rows[(at + 1) % rows.len()]
     }
 
     pub fn up(self) -> QuickRow {
-        let n = QuickRow::ALL.len();
-        QuickRow::ALL[(self.index() + n - 1) % n]
+        self.up_in(&QuickRow::ALL)
     }
 
     pub fn down(self) -> QuickRow {
-        QuickRow::ALL[(self.index() + 1) % QuickRow::ALL.len()]
+        self.down_in(&QuickRow::ALL)
     }
 }
 
@@ -110,7 +124,12 @@ impl QuickValue {
 
 pub const QUICK_PITCH: f32 = 52.0;
 pub fn quick_top() -> f32 {
-    (out_h() as f32 - QUICK_PITCH * QuickRow::ALL.len() as f32) / 2.0
+    quick_top_of(QuickRow::ALL.len())
+}
+
+/// Where the first of `n` rows sits, the rows centred on the canvas.
+pub fn quick_top_of(n: usize) -> f32 {
+    (out_h() as f32 - QUICK_PITCH * n as f32) / 2.0
 }
 pub const QUICK_EDGE: f32 = 32.0;
 const BAR_INSET: f32 = 4.0;
@@ -201,8 +220,11 @@ pub struct QuickMenuFaces {
 
 pub struct QuickMenu<'a> {
     pub row: QuickRow,
+    /// The rows this handheld shows: all of them, but for Wi-Fi on one without a radio.
+    pub rows: &'a [QuickRow],
     pub values: [Option<QuickValue>; QuickRow::ALL.len()],
     pub clock: Option<[(TexId, u32, u32); 2]>,
+    pub wifi: Option<[(TexId, u32, u32); 2]>,
     pub faces: Option<&'a QuickMenuFaces>,
 }
 
@@ -217,7 +239,7 @@ impl QuickMenu<'_> {
         });
         out.push(Draw::Rect {
             x: 0.0,
-            y: row_top(self.row) + BAR_INSET,
+            y: self.row_top(self.row) + BAR_INSET,
             w: out_w() as f32,
             h: QUICK_PITCH - 2.0 * BAR_INSET,
             colour: edge(),
@@ -226,14 +248,15 @@ impl QuickMenu<'_> {
             return;
         };
         let (right, pad) = (out_w() as f32 - QUICK_EDGE, MENU_PAD as f32);
-        for row in QuickRow::ALL {
-            let y = row_top(row) + TYPE_DROP;
+        for &row in self.rows {
+            let y = self.row_top(row) + TYPE_DROP;
             let lit = row == self.row;
             if let Some(&(tex, w, h)) = faces.labels.get(row.index()) {
                 push(out, tex, QUICK_EDGE - pad, y, w, h);
             }
             let value = match row {
                 QuickRow::DateTime => self.clock.map(|c| c[lit as usize]),
+                QuickRow::Wifi => self.wifi.map(|c| c[lit as usize]),
                 _ => self.values[row.index()]
                     .and_then(|v| faces.values.get(v.index()))
                     .map(|v| v[lit as usize]),
@@ -260,8 +283,11 @@ impl QuickMenu<'_> {
     }
 }
 
-fn row_top(row: QuickRow) -> f32 {
-    quick_top() + QUICK_PITCH * row.index() as f32
+impl QuickMenu<'_> {
+    fn row_top(&self, row: QuickRow) -> f32 {
+        let at = self.rows.iter().position(|r| *r == row).unwrap_or(0);
+        quick_top_of(self.rows.len()) + QUICK_PITCH * at as f32
+    }
 }
 
 fn push(out: &mut Vec<Draw>, tex: TexId, x: f32, y: f32, w: u32, h: u32) {

@@ -85,12 +85,25 @@ fn the_rows_run_in_the_order_the_user_chose() {
             "Fast Forward Sound",
             "Colour Correction",
             "Rumble",
+            "Wi-Fi",
             "Date & Time",
             "About"
         ]
     );
     let opens: Vec<QuickRow> = QuickRow::ALL.into_iter().filter(|r| r.opens()).collect();
-    assert_eq!(opens, [QuickRow::DateTime, QuickRow::About]);
+    assert_eq!(opens, [QuickRow::Wifi, QuickRow::DateTime, QuickRow::About]);
+}
+
+#[test]
+fn a_hidden_row_is_stepped_over_both_ways() {
+    let rows: Vec<QuickRow> = QuickRow::ALL
+        .into_iter()
+        .filter(|r| *r != QuickRow::Wifi)
+        .collect();
+    assert_eq!(QuickRow::Rumble.down_in(&rows), QuickRow::DateTime);
+    assert_eq!(QuickRow::DateTime.up_in(&rows), QuickRow::Rumble);
+    assert_eq!(QuickRow::About.down_in(&rows), QuickRow::FastForward);
+    assert_eq!(QuickRow::Rumble.down(), QuickRow::Wifi);
 }
 
 #[test]

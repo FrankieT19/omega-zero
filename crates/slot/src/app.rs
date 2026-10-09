@@ -13,10 +13,11 @@ use slot_store::{
 use slot_ui::{
     board_from, board_x, board_zoom, draw_backdrop, draw_empty_slot, draw_footer, draw_slot_name,
     draw_sticker, ease, grown, lid_at, lid_from, lift_of, on_board, shelf_cart_at, ClockPicker,
-    Draw, FfState, GbShell, Hud, HudKind, Icon, LinkBadge, Millis, Placed, Polaroids, PowerChoice,
-    QuickMenu, QuickMenuFaces, QuickRow, QuickValue, Refusal, Shelf, SlotChrome, TexId, Toast,
-    BOARD_W, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H,
-    SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
+    Draw, FfState, GbShell, Hud, HudKind, Icon, KeyboardFaces, KeyboardScreen, LinkBadge, Millis,
+    Placed, Polaroids, PowerChoice, QuickMenu, QuickMenuFaces, QuickRow, QuickValue, Refusal,
+    Shelf, SlotChrome, TexId, Toast, WifiMenuFaces, BOARD_W, CART_W, CHIP_H, CHIP_U, CHIP_V,
+    CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V,
+    SOCKET_W, TURN_PAD,
 };
 
 use crate::audio::Sfx;
@@ -27,6 +28,10 @@ use crate::link_screen::LinkSprites;
 use crate::link_start::{link_port, LinkFail, LinkProgress, LinkStarter, LinkStep};
 use crate::persist::{self, Snapshot};
 use crate::video_mode::{self, VideoMode};
+use crate::wifi::{wifi_jobs, WifiJobs};
+use crate::wifi_screen::{
+    Outcome as WifiOutcome, Summary, Typing, Watch, Wifi, WifiScreen, WifiView,
+};
 
 pub const INSERT_S: f32 = 0.73;
 const INSERT_HOLD_S: f32 = 0.28;
@@ -260,6 +265,7 @@ pub enum Phase {
         cart: String,
     },
     About,
+    Wifi(WifiScreen),
     Doze {
         cart: Option<String>,
     },
@@ -347,6 +353,11 @@ pub struct App {
     last_led: Option<LedState>,
     powering_off: bool,
     radio: Box<dyn RadioJobs>,
+    wifi: Wifi,
+    wifi_faces: Option<WifiMenuFaces>,
+    keyboard_faces: Option<KeyboardFaces>,
+    typing_faces: Option<[(TexId, u32, u32); 2]>,
+    quick_wifi_faces: Option<[(TexId, u32, u32); 2]>,
 }
 
 fn shelves_of(carts: Vec<Cart>) -> Vec<(Platform, Shelf)> {
@@ -371,6 +382,11 @@ impl App {
             .unwrap_or(0);
         App {
             radio: radio_jobs(),
+            wifi: Wifi::new(wifi_jobs()),
+            wifi_faces: None,
+            keyboard_faces: None,
+            typing_faces: None,
+            quick_wifi_faces: None,
             phase: Phase::Shelf,
             shelves,
             shelf_at,
@@ -460,6 +476,7 @@ impl App {
         let mut app = App::new(scan(root).unwrap_or_default());
         app.root = Some(root.to_path_buf());
         app.state = read_slot_state(root);
+        app.wifi.start(app.state.wifi);
         if app.state.clock_set {
             app.start();
         } else {
@@ -631,7 +648,7 @@ impl App {
             QuickRow::FastForwardSound => Some(QuickValue::flag(self.state.ff_sound)),
             QuickRow::ColourCorrection => Some(QuickValue::flag(self.state.colour_correction)),
             QuickRow::Rumble => Some(QuickValue::flag(self.state.rumble)),
-            QuickRow::DateTime | QuickRow::About => None,
+            QuickRow::Wifi | QuickRow::DateTime | QuickRow::About => None,
         }
     }
 
@@ -1179,6 +1196,7 @@ impl App {
                 }
             }
             Phase::QuickMenu { row } => self.quick_menu_input(row, action),
+            Phase::Wifi(_) => self.wifi_input(action),
             _ => {}
         }
     }
@@ -1189,10 +1207,19 @@ impl App {
         };
     }
 
+    /// The quick menu's rows on this handheld: Wi-Fi only where there is a radio.
+    pub fn quick_rows(&self) -> Vec<QuickRow> {
+        QuickRow::ALL
+            .into_iter()
+            .filter(|r| *r != QuickRow::Wifi || self.wifi.present())
+            .collect()
+    }
+
     fn quick_menu_input(&mut self, row: QuickRow, action: Action) {
+        let rows = self.quick_rows();
         let row = match action {
-            Action::GbaDown(Btn::Up) => row.up(),
-            Action::GbaDown(Btn::Down) => row.down(),
+            Action::GbaDown(Btn::Up) => row.up_in(&rows),
+            Action::GbaDown(Btn::Down) => row.down_in(&rows),
             Action::GbaDown(Btn::Left) => return self.change_setting(row, false),
             Action::GbaDown(Btn::Right) => return self.change_setting(row, true),
             Action::GbaDown(Btn::A) => return self.open_quick_row(row),
@@ -1211,11 +1238,86 @@ impl App {
                 self.phase = clock_screen(self.utc_secs(), self.state.utc_offset_min, true);
             }
             QuickRow::About => self.phase = Phase::About,
+            QuickRow::Wifi => self.phase = Phase::Wifi(WifiScreen::default()),
             QuickRow::FastForward
             | QuickRow::FastForwardSound
             | QuickRow::ColourCorrection
             | QuickRow::Rumble => {}
         }
+    }
+
+    fn wifi_input(&mut self, action: Action) {
+        let now = self.now();
+        let Phase::Wifi(screen) = &mut self.phase else {
+            return;
+        };
+        if screen.input(&mut self.wifi, action, now) == WifiOutcome::Close {
+            self.phase = Phase::QuickMenu {
+                row: QuickRow::Wifi,
+            };
+        }
+        if self.state.wifi != self.wifi.enabled() {
+            self.state.wifi = self.wifi.enabled();
+            self.persist();
+        }
+    }
+
+    /// How closely the radio is watched: the Wi-Fi screen looks for networks, the quick menu
+    /// only names the one joined.
+    fn wifi_watch(&self) -> Watch {
+        match self.phase {
+            Phase::Wifi(_) => Watch::Networks,
+            Phase::QuickMenu { .. } => Watch::Status,
+            _ => Watch::Idle,
+        }
+    }
+
+    pub fn set_wifi_jobs(&mut self, jobs: Box<dyn WifiJobs>) {
+        self.wifi = Wifi::new(jobs);
+        self.wifi.start(self.state.wifi);
+    }
+
+    pub fn wifi(&self) -> &Wifi {
+        &self.wifi
+    }
+
+    pub fn wifi_summary(&self) -> Summary {
+        self.wifi.summary()
+    }
+
+    /// The Wi-Fi screen's list, while it is open and not taking a passphrase.
+    pub fn wifi_view(&mut self) -> Option<WifiView> {
+        match &mut self.phase {
+            Phase::Wifi(screen) if screen.typing.is_none() => Some(screen.view(&self.wifi)),
+            _ => None,
+        }
+    }
+
+    pub fn typing(&self) -> Option<&Typing> {
+        match &self.phase {
+            Phase::Wifi(screen) => screen.typing.as_ref(),
+            _ => None,
+        }
+    }
+
+    pub fn set_wifi_faces(&mut self, faces: WifiMenuFaces) {
+        self.wifi_faces = Some(faces);
+    }
+
+    pub fn set_keyboard_faces(&mut self, faces: KeyboardFaces) {
+        self.keyboard_faces = Some(faces);
+    }
+
+    pub fn keyboard_faces_ready(&self) -> bool {
+        self.keyboard_faces.is_some()
+    }
+
+    pub fn set_typing_faces(&mut self, prompt: (TexId, u32, u32), field: (TexId, u32, u32)) {
+        self.typing_faces = Some([prompt, field]);
+    }
+
+    pub fn set_quick_wifi_faces(&mut self, dim: (TexId, u32, u32), lit: (TexId, u32, u32)) {
+        self.quick_wifi_faces = Some([dim, lit]);
     }
 
     fn change_setting(&mut self, row: QuickRow, right: bool) {
@@ -1234,7 +1336,7 @@ impl App {
                 self.colour_pending = Some(s.colour_correction);
             }
             QuickRow::Rumble => s.rumble = !s.rumble,
-            QuickRow::DateTime | QuickRow::About => return,
+            QuickRow::Wifi | QuickRow::DateTime | QuickRow::About => return,
         }
         self.persist();
     }
@@ -1513,6 +1615,8 @@ impl App {
     }
 
     fn timers(&mut self) {
+        let (now, watch) = (self.now(), self.wifi_watch());
+        self.wifi.tick(now, watch);
         self.play_hold();
         let offer = self.undo_label();
         if let Some(p) = &mut self.polaroids {
@@ -1742,11 +1846,28 @@ impl App {
             }
             Phase::QuickMenu { row } => QuickMenu {
                 row: *row,
+                rows: &self.quick_rows(),
                 values: QuickRow::ALL.map(|r| self.quick_value(r)),
                 clock: self.quick_clock_faces,
+                wifi: self.quick_wifi_faces,
                 faces: self.quick_menu_faces.as_ref(),
             }
             .draw(out),
+            Phase::Wifi(screen) => match &screen.typing {
+                Some(t) => KeyboardScreen {
+                    keys: &t.keys,
+                    faces: self.keyboard_faces.as_ref(),
+                    prompt: self.typing_faces.map(|f| f[0]),
+                    field: self.typing_faces.map(|f| f[1]),
+                    refused: t.refused,
+                }
+                .draw(out),
+                None => {
+                    if let Some(faces) = &self.wifi_faces {
+                        faces.draw(out);
+                    }
+                }
+            },
             Phase::Shelf => {
                 draw_backdrop(self.wallpaper, out);
                 match (self.core_picker_shown(), self.selected_stem()) {

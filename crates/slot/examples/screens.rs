@@ -51,6 +51,54 @@ tap down
 wait 10
 tap a
 settle
+wait 30
+shot wifi-off
+tap a
+wait 30
+settle
+wait 30
+shot wifi-list
+tap down
+wait 10
+tap down
+wait 10
+tap a
+settle
+wait 30
+shot keyboard
+tap a
+wait 6
+tap x
+wait 6
+tap right
+wait 6
+tap a
+wait 10
+settle
+shot keyboard-typed
+tap start
+wait 10
+shot keyboard-refused
+tap y
+tap y
+tap y
+tap y
+tap y
+tap y
+tap start
+wait 30
+settle
+wait 30
+shot wifi-joined
+tap b
+wait 30
+settle
+wait 10
+shot quick-menu-wifi
+tap down
+wait 10
+tap a
+settle
 wait 60
 shot clock
 tap b

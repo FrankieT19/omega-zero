@@ -113,6 +113,7 @@ fn up_and_down_move_the_bar_and_wrap_at_the_ends() {
         QuickRow::FastForwardSound,
         QuickRow::ColourCorrection,
         QuickRow::Rumble,
+        QuickRow::Wifi,
         QuickRow::DateTime,
         QuickRow::About,
         QuickRow::FastForward,
