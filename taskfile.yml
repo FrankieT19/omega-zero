@@ -88,6 +88,7 @@ tasks:
       - sh card/test-coresave.sh
       - sh card/test-probe.sh
       - sh card/test-wifi.sh
+      - sh card/test-bluetooth.sh
 
   screens:
     desc: >-
