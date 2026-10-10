@@ -320,6 +320,7 @@
           <table>
             <tr><th>API</th><th>What it does</th></tr>
             <tr><td>label</td><td>The big word: a sprite, bold, its capitals 10 pixels tall, with a shadow.</td></tr>
+            <tr><td>font</td><td><code>bold</code> (or none) or <code>thin</code>: the label drawn again a pixel to the right, or in Pixel Code's own strokes. See The bar's font.</td></tr>
             <tr><td>hint</td><td>The smaller word in the pill.</td></tr>
             <tr><td>room</td><td>How wide the label's box and the hint's box are at least, in art pixels: <code>54 30</code>. Each word stays in the middle of its box, rounded down to a whole pixel. <code>&lt;omega-bar&gt;</code> sets it on both its actions.</td></tr>
             <tr><td>::part</td><td><code>action</code>, <code>icon</code>, <code>label</code>, <code>word</code>, <code>button</code>, <code>hint</code></td></tr>
@@ -343,6 +344,7 @@
           <table>
             <tr><th>API</th><th>What it does</th></tr>
             <tr><td>label</td><td>The big word: a sprite, bold, its capitals 10 pixels tall, with a shadow.</td></tr>
+            <tr><td>font</td><td><code>bold</code> (or none) or <code>thin</code>, as <code>&lt;action-left&gt;</code>'s.</td></tr>
             <tr><td>hint</td><td>The smaller word in the pill.</td></tr>
             <tr><td>room</td><td>How wide the label's box and the hint's box are at least, as <code>&lt;action-left&gt;</code>'s.</td></tr>
             <tr><td>::part</td><td><code>action</code>, <code>button</code>, <code>hint</code>, <code>label</code>, <code>word</code>, <code>icon</code></td></tr>
@@ -513,6 +515,7 @@
             <tr><th>API</th><th>What it does</th></tr>
             <tr><td>hint</td><td>A key and what it does, the first word the key: <code>Y FORGET</code>, <code>START FETCH</code>. Two with a <code>|</code> between: <code>Y FORGET | X EDIT</code>.</td></tr>
             <tr><td>floating</td><td>Only the two actions, at the bottom corners: no plate, so no hints.</td></tr>
+            <tr><td>font</td><td><code>bold</code> (or none) or <code>thin</code>, given to both actions: see The bar's font.</td></tr>
             <tr><td>slot</td><td><code>left</code> for the <code>&lt;action-left&gt;</code>, <code>right</code> for the <code>&lt;action-right&gt;</code>.</td></tr>
             <tr><td>::part</td><td><code>bar</code>, <code>plate</code>, <code>hints</code>, <code>hint</code>, <code>key</code>, <code>word</code></td></tr>
           </table>
@@ -523,6 +526,40 @@
 &lt;/omega-bar&gt;
 
 &lt;omega-bar floating&gt;…&lt;/omega-bar&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>The bar's font</h3><code>omega-bar font="thin"</code></header>
+        <p class="dim">Settings › Theme › Font picks how the actions' labels are drawn. Bold, the
+          default, draws each letter again a pixel to its right; thin draws Pixel Code's own
+          one-pixel strokes, a pixel a letter narrower, over the same shadow and with the same 10
+          rows of capitals. <code>font</code> on the bar gives it to both actions, which still come
+          out one width: the shelf's two 107 art pixels wide in thin and 115 in bold, a menu's 90
+          and 97.</p>
+        <div class="preview actions omega-backdrop">
+          <span class="tag">bold</span>
+          <omega-bar class="bar-box">
+            <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
+            <action-right slot="right" label="SETTINGS" hint="START"></action-right>
+          </omega-bar>
+          <omega-bar class="bar-box">
+            <action-left slot="left" label="RETURN" hint="B"></action-left>
+            <action-right slot="right" label="CONFIRM" hint="A"></action-right>
+          </omega-bar>
+          <span class="tag">thin</span>
+          <omega-bar class="bar-box" font="thin">
+            <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
+            <action-right slot="right" label="SETTINGS" hint="START"></action-right>
+          </omega-bar>
+          <omega-bar class="bar-box" font="thin">
+            <action-left slot="left" label="RETURN" hint="B"></action-left>
+            <action-right slot="right" label="CONFIRM" hint="A"></action-right>
+          </omega-bar>
+        </div>
+<pre><code>&lt;omega-bar font="thin"&gt;
+  &lt;action-left slot="left" label="RETURN" hint="B"&gt;&lt;/action-left&gt;
+  &lt;action-right slot="right" label="CONFIRM" hint="A"&gt;&lt;/action-right&gt;
+&lt;/omega-bar&gt;</code></pre>
       </article>
 
     </div>

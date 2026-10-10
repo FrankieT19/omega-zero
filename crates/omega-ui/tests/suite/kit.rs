@@ -15,7 +15,7 @@
 //! flow/art.js's sprites, copied from the full face and the same pixels as fontdue's.
 
 use omega_ui::kit::action::{
-    action_face, action_pair, action_width, ActionFace, Side, BAR, RISE, TALL,
+    action_face, action_pair, action_width, ActionFace, Font, Side, BAR, RISE, TALL,
 };
 use omega_ui::kit::bar::{
     action_swap, bar_layout, cap_width, hint_width, hints_width, plate_face, BarLayout, Hint, Swap,
@@ -223,16 +223,21 @@ fn actions_are_chromes() {
         (Side::Right, "", "", "action-right-empty"),
     ];
     for (side, word, pill, name) in cases {
-        let action = action_face(side, word, pill, &RAMP);
+        let action = action_face(side, word, pill, Font::Bold, &RAMP);
         assert_eq!(action.rise, RISE);
         matches(&action.face, name);
     }
 }
 
-/// A bar's two actions made together, as omega-bar gives them their room: `left` and `right`
-/// as (word, pill).
+/// A bar's two actions made together in bold, as omega-bar gives them their room: `left` and
+/// `right` as (word, pill).
 fn pair(left: (&str, &str), right: (&str, &str)) -> [ActionFace; 2] {
-    action_pair(left, right, &RAMP)
+    action_pair(left, right, Font::Bold, &RAMP)
+}
+
+/// The same in the thin font.
+fn thin_pair(left: (&str, &str), right: (&str, &str)) -> [ActionFace; 2] {
+    action_pair(left, right, Font::Thin, &RAMP)
 }
 
 /// An action given the room of the one beside it is as wide as that one, its word and its hint
@@ -247,14 +252,29 @@ fn paired_actions_are_chromes() {
     matches(&confirm.face, "action-right-confirm");
 }
 
+/// In the thin font each pair is one width too, its words in Pixel Code's own strokes.
+#[test]
+fn thin_actions_are_chromes() {
+    let [controls, settings] = thin_pair(("CONTROLS", "SELECT"), ("SETTINGS", "START"));
+    matches(&controls.face, "action-left-controls-thin");
+    matches(&settings.face, "action-right-settings-thin");
+    let [back, confirm] = thin_pair(("RETURN", "B"), ("CONFIRM", "A"));
+    matches(&back.face, "action-left-return-thin");
+    matches(&confirm.face, "action-right-confirm-thin");
+}
+
 #[test]
 fn actions_are_as_wide_as_their_text() {
-    assert_eq!(action_width("SETTINGS", "START"), 109);
-    assert_eq!(action_width("CONTROLS", "SELECT"), 115);
-    assert_eq!(action_width("RETURN", "B"), 90);
-    assert_eq!(action_width("CONFIRM", "A"), 97);
-    assert_eq!(action_width("", ""), 75, "room is kept for text to come");
-    let face = action_face(Side::Left, "SETTINGS", "START", &RAMP).face;
+    let width = |word, pill| action_width(word, pill, Font::Bold);
+    assert_eq!(width("SETTINGS", "START"), 109);
+    assert_eq!(width("CONTROLS", "SELECT"), 115);
+    assert_eq!(width("RETURN", "B"), 90);
+    assert_eq!(width("CONFIRM", "A"), 97);
+    assert_eq!(width("", ""), 75, "room is kept for text to come");
+    // thin, a pixel a letter narrower
+    assert_eq!(action_width("SETTINGS", "START", Font::Thin), 101);
+    assert_eq!(action_width("", "", Font::Thin), 75);
+    let face = action_face(Side::Left, "SETTINGS", "START", Font::Bold, &RAMP).face;
     assert_eq!((face.w, face.h), (109, TALL));
     assert_eq!(TALL, BAR + RISE);
     assert_eq!(TALL, 19);
@@ -273,11 +293,18 @@ fn a_bars_two_actions_are_one_width() {
     assert_eq!(widths(pair(("RETURN", "B"), ("CONFIRM", "A"))), [97, 97]);
     assert_eq!(widths(pair(("", ""), ("CONFIRM", "A"))), [97, 97]);
     assert_eq!(widths(pair(("", ""), ("", ""))), [75, 75]);
+    let shelf = thin_pair(("CONTROLS", "SELECT"), ("SETTINGS", "START"));
+    assert_eq!(widths(shelf), [107, 107]);
+    assert_eq!(
+        widths(thin_pair(("RETURN", "B"), ("CONFIRM", "A"))),
+        [90, 90]
+    );
+    assert_eq!(widths(thin_pair(("", ""), ("CONFIRM", "A"))), [90, 90]);
 }
 
 #[test]
 fn a_big_word_is_the_capitals_with_their_bars_doubled_and_a_shadow() {
-    let word = big_word("SETTINGS");
+    let word = big_word("SETTINGS", Font::Bold);
     let ink = letters("SETTINGS", ADVANCE + 1);
     assert_eq!(word.len(), CAP + BAR_ROWS.len() + 1);
     assert_eq!(word.len(), 11);
@@ -305,6 +332,21 @@ fn a_big_word_is_the_capitals_with_their_bars_doubled_and_a_shadow() {
             .collect();
         assert_eq!(word[y].replace('w', "."), bold, "row {y}");
     }
+}
+
+#[test]
+fn a_thin_big_word_is_the_capitals_as_they_are() {
+    let word = big_word("SETTINGS", Font::Thin);
+    let ink = letters("SETTINGS", ADVANCE);
+    assert_eq!(word.len(), 11);
+    assert!(word.iter().all(|row| row.len() == 8 * 6));
+    let capital = [0, 0, 1, 2, 3, 3, 4, 5, 6, 6];
+    for (y, &cap) in capital.iter().enumerate() {
+        let row = ink[ACCENT + cap].replace('#', "L");
+        assert_eq!(word[y].replace('w', "."), row, "row {y}");
+    }
+    // the same shadow, a pixel down and right of the ink
+    assert!(word[10].contains('w') && !word[10].contains('L'));
 }
 
 #[test]
@@ -486,7 +528,12 @@ fn a_signal_past_three_is_three() {
 /// The bar `w` art pixels wide as omega-bar draws it with these actions, one width, and hints:
 /// the plate, then the actions over it, on a face `TALL` high whose row `RISE` is the bar's top.
 fn bar(w: u32, left: (&str, &str), right: (&str, &str), hints: &[Hint]) -> UndoFace {
-    let [left, right] = pair(left, right);
+    bar_in(Font::Bold, w, left, right, hints)
+}
+
+/// The same bar, its actions' words in `font`.
+fn bar_in(font: Font, w: u32, left: (&str, &str), right: (&str, &str), hints: &[Hint]) -> UndoFace {
+    let [left, right] = action_pair(left, right, font, &RAMP);
     let layout = bar_layout(w, &left, &right);
     let mut face = omega_ui::kit::pixel::blank(w, TALL);
     let [x, y, pw, _] = layout.plate;
@@ -530,6 +577,19 @@ fn the_bar_is_chromes_at_640_and_720() {
     matches(&bar(320, menu.0, menu.1, &fetch), "bar-fetch-320");
     // the first-boot clock's: its empty action as wide as CONFIRM
     matches(&bar(320, ("", ""), menu.1, &[]), "bar-confirm-320");
+}
+
+#[test]
+fn the_thin_bar_is_chromes() {
+    let thin = |left, right, hints| bar_in(Font::Thin, 320, left, right, hints);
+    let shelf = (("CONTROLS", "SELECT"), ("SETTINGS", "START"));
+    matches(&thin(shelf.0, shelf.1, &[]), "bar-shelf-thin-320");
+    let forget = [Hint {
+        key: "Y",
+        word: "FORGET",
+    }];
+    let menu = (("RETURN", "B"), ("CONFIRM", "A"));
+    matches(&thin(menu.0, menu.1, &forget), "bar-menu-thin-320");
 }
 
 #[test]

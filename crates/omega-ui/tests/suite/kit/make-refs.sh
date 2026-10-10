@@ -39,6 +39,11 @@ shoot action-right-empty 75 19 'c=action-right'
 # box as wide as CONFIRM's
 shoot action-right-settings-paired 115 19 'c=action-right&label=SETTINGS&hint=START&room=61%2041'
 shoot action-left-return-paired 97 19 'c=action-left&label=RETURN&hint=B&room=54%2030'
+# in the thin font, paired: the shelf's two 107 wide, a menu's 90
+shoot action-left-controls-thin 107 19 'c=action-left&label=CONTROLS&hint=SELECT&font=thin&room=53%2041'
+shoot action-right-settings-thin 107 19 'c=action-right&label=SETTINGS&hint=START&font=thin&room=53%2041'
+shoot action-left-return-thin 90 19 'c=action-left&label=RETURN&hint=B&font=thin&room=47%2030'
+shoot action-right-confirm-thin 90 19 'c=action-right&label=CONFIRM&hint=A&font=thin&room=47%2030'
 
 # rows: every colour state, carets kept unlit, the opens chevron, a label cut where it runs out
 shoot row-plain 150 13 'c=row&w=150&label=FAST%20FORWARD&value=6X&carets'
@@ -80,6 +85,9 @@ done
 shoot bar-fetch-320 320 19 'c=bar&w=320&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=START%20FETCH'
 # the first-boot clock's: CONFIRM, and the empty action as wide beside it
 shoot bar-confirm-320 320 19 'c=bar&w=320&right=CONFIRM&right-hint=A'
+# in the thin font, which the bar gives its actions
+shoot bar-shelf-thin-320 320 19 'c=bar&w=320&font=thin&left=CONTROLS&left-hint=SELECT&right=SETTINGS&right-hint=START'
+shoot bar-menu-thin-320 320 19 'c=bar&w=320&font=thin&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET'
 
 # lines of text as flow.html sets them, the Controls panel's arrows as flow/art.js draws them
 shoot text-sftp 144 11 'c=text&tone=dim&text=SFTP%20uses%20the%20same%20login'

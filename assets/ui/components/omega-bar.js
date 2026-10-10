@@ -15,11 +15,13 @@
             hints together are centred on the plate, 8 pixels apart.
   floating  only the two actions, at the bottom corners, with no plate between them (and so no
             hints), for a screen that wants what is behind the bar to show between them.
+  font      the actions' labels, "bold" (or none) or "thin", as Settings > Theme > Font picks:
+            the bar gives it to both its actions.
 
   Slots: left and right, for the two actions. The bar makes them one width: it gives both the
   room (see action-left.js) of the wider label and the wider hint of the two, again whenever
-  either's text changes, so each label and each hint is centred in a box as wide as the other's.
-  An empty action takes the room of the one beside it.
+  either's text or the font changes, so each label and each hint is centred in a box as wide as
+  the other's. An empty action takes the room of the one beside it.
 
   It fills its parent's width and is 15 art pixels tall, the actions' height; their notches rise 4
   above it, over whatever is there. The hints' capitals are on rows 5 to 11, the same rows as the
@@ -127,7 +129,7 @@
   }
 
   customElements.define('omega-bar', class extends OmegaPixel.Element {
-    static observedAttributes = ['hint'];
+    static observedAttributes = ['hint', 'font'];
 
     constructor() {
       super();
@@ -141,12 +143,16 @@
       this.shadowRoot.querySelector('.bar').style.setProperty('--cap', OmegaPixel.sprite(KEY, this));
     }
 
-    // The two actions one width, as action.rs's action_pair: each given the room of the wider
-    // label's box and the wider hint's box of the two.
+    // The two actions in the bar's font and one width, as action.rs's action_pair: each given
+    // the room of the wider label's box and the wider hint's box of the two.
     pair() {
       const actions = [...this.shadowRoot.querySelectorAll('slot')]
         .map(slot => slot.assignedElements()[0])
         .filter(action => action?.boxes);
+      const font = this.getAttribute('font') === 'thin' ? 'thin' : 'bold';
+      for (const action of actions) {
+        if (action.getAttribute('font') !== font) action.setAttribute('font', font);
+      }
       const boxes = actions.map(action => action.boxes());
       const room = [0, 1].map(i => Math.max(...boxes.map(box => box[i]))).join(' ');
       for (const action of actions) {
@@ -182,6 +188,7 @@
 
     attributeChangedCallback(name, _old, value) {
       if (name === 'hint') this.paintHints(value);
+      else this.pair();
     }
   });
 })();

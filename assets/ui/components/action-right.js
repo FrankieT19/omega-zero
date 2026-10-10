@@ -9,6 +9,8 @@
   label  the big word beside the arrow, drawn as a sprite: the capitals of Pixel Code made bold
          the pixel-art way (drawn again a pixel to the right), the rows of their bars doubled so
          they stand 10 pixels tall, with a shadow down and to the right.
+  font   how the label is drawn, as Settings > Theme > Font picks: "bold" (or none), as above,
+         or "thin", in Pixel Code's own one-pixel strokes, its letters a pixel closer.
   hint   the smaller word in the button pill, in Pixel Code.
   room   how wide the label's box and the hint's box are at least, in art pixels: "54 30". Each
          word stays in the middle of its box. <omega-bar> gives both its actions the room of the
@@ -77,8 +79,9 @@
   const HINT_PAD = [3, 2];
   const HINT_REACH = 3;
   const HINT_TOP = 3;
-  // Pixel Code's letters are 6 pixels apart, the last of the 6 blank; the label's 7, for its bold.
+  // Pixel Code's letters are 6 pixels apart, the last of the 6 blank; a bold label's 7.
   const ADVANCE = 6;
+  const advance = font => (font === 'thin' ? ADVANCE : ADVANCE + 1);
   // The rows of the capitals word() doubles: where Pixel Code's letters have their bars, the top,
   // the middle and the bottom.
   const BAR_ROWS = [0, 3, 6];
@@ -114,17 +117,18 @@
     return OmegaPixel.flip(grid.map(row => row.join('')));
   }
 
-  // The label as sprite rows. The capitals of Pixel Code drawn one face pixel to a pixel; each
-  // letter drawn again a pixel to its right for bold (Pixel Code's own bold is fattened by part of
-  // a pixel, off the grid), so 6 wide and a pixel clear of the next; the rows of the letters' bars
-  // doubled (BAR_ROWS), so the capitals stand 10 tall with their bars two thick like their stems;
-  // and a shadow one pixel down and right of all of it, in the well's colour. 11 rows: the
+  // The label as sprite rows. The capitals of Pixel Code drawn one face pixel to a pixel; in bold
+  // each letter drawn again a pixel to its right (Pixel Code's own bold is fattened by part of a
+  // pixel, off the grid), so 6 wide and a pixel clear of the next, and thin as they are, 5 wide
+  // and a pixel clear; the rows of the letters' bars doubled (BAR_ROWS), so the capitals stand 10
+  // tall; and a shadow one pixel down and right of all of it, in the well's colour. 11 rows: the
   // capitals and the shadow's row under them.
-  function word(value) {
+  function word(value, font) {
     const { ACCENT, CAP } = OmegaPixel;
-    const ink = OmegaPixel.letters(value, ADVANCE + 1);
+    const ink = OmegaPixel.letters(value, advance(font));
     const rows = Array.from({ length: CAP }, (_, i) => Array(BAR_ROWS.includes(i) ? 2 : 1).fill(ACCENT + i)).flat();
-    const at = (x, y) => ink[rows[y]]?.[x] === '#' || ink[rows[y]]?.[x - 1] === '#';
+    const inked = (x, y) => ink[rows[y]]?.[x] === '#';
+    const at = (x, y) => inked(x, y) || (font !== 'thin' && inked(x - 1, y));
     return Array.from({ length: rows.length + 1 }, (_, y) =>
       Array.from({ length: ink[0].length }, (_, x) => (at(x, y) ? 'L' : at(x - 1, y - 1) ? 'w' : '.')).join(''));
   }
@@ -202,7 +206,7 @@
     </div>`;
 
   customElements.define('action-right', class extends OmegaPixel.Element {
-    static observedAttributes = ['label', 'hint', 'room'];
+    static observedAttributes = ['label', 'font', 'hint', 'room'];
 
     constructor() {
       super();
@@ -224,7 +228,7 @@
       const length = name => [...(this.getAttribute(name) ?? '')].length;
       const label = length('label');
       return [
-        label ? WORD_PAD[0] + label * (ADVANCE + 1) + WORD_PAD[1] : WORD_MIN,
+        label ? WORD_PAD[0] + label * advance(this.getAttribute('font')) + WORD_PAD[1] : WORD_MIN,
         Math.max(HINT_MIN, HINT_PAD[0] + length('hint') * ADVANCE + HINT_PAD[1]),
       ];
     }
@@ -255,14 +259,14 @@
         art.style.width = art.style.height = art.style.backgroundImage = '';
         return;
       }
-      const rows = word(value);
+      const rows = word(value, this.getAttribute('font'));
       art.style.width = `calc(${rows[0].length} * var(--u))`;
       art.style.height = `calc(${rows.length} * var(--u))`;
       art.style.backgroundImage = OmegaPixel.sprite(rows, this);
     }
 
     attributeChangedCallback(name, _old, value) {
-      if (name === 'label') this.paintLabel();
+      if (name === 'label' || name === 'font') this.paintLabel();
       if (name === 'hint') this.shadowRoot.querySelector('.hint').textContent = value ?? '';
       this.layout();
     }
