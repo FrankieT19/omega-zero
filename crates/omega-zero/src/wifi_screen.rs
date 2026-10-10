@@ -14,7 +14,8 @@ use crate::wifi::{
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Watch {
     Idle,
-    /// The top bar shows whether a network is joined: it is asked now and then.
+    /// The top bar shows whether a network is joined: the link is glanced at every second, and
+    /// the status is asked again only when a glance finds the link otherwise than it says.
     Glance,
     /// Something on screen names the network: its status is kept fresh.
     Status,
@@ -68,8 +69,12 @@ pub struct Wifi {
     note: Option<Note>,
     refreshing: bool,
     scanning: bool,
+    glancing: bool,
+    /// Whether the last glance found a network joined, until a status newer than it comes.
+    glanced: Option<bool>,
     refresh_at: Millis,
     scan_at: Millis,
+    glance_at: Millis,
 }
 
 impl Wifi {
@@ -85,8 +90,11 @@ impl Wifi {
             note: None,
             refreshing: false,
             scanning: false,
+            glancing: false,
+            glanced: None,
             refresh_at: 0,
             scan_at: 0,
+            glance_at: 0,
         }
     }
 
@@ -191,17 +199,25 @@ impl Wifi {
         if !self.enabled {
             return;
         }
+        let stale = self.glanced.is_some_and(|up| up != self.status.joined());
         // How long after a status is due for the screen that names the network the next is
-        // asked for: none at all while nothing on screen shows the radio.
+        // asked for: none at all while nothing on screen shows the radio, and for the top bar
+        // only once a glance has found the link otherwise than the last status said.
         let later = match watch {
             _ if self.joining.is_some() => Some(0),
             Watch::Idle => None,
-            Watch::Glance => Some(GLANCE_MS - REFRESH_MS),
+            Watch::Glance => stale.then_some(0),
             Watch::Status | Watch::Networks => Some(0),
         };
         if later.is_some_and(|later| now >= self.refresh_at + later) && !self.refreshing {
             self.refreshing = true;
             self.jobs.ask(WifiJob::Refresh);
+        }
+        // The top bar needs only whether a network is joined, which a glance tells for the
+        // price of one file read, so it can be asked every second.
+        if watch == Watch::Glance && !self.glancing && !self.refreshing && now >= self.glance_at {
+            self.glancing = true;
+            self.jobs.ask(WifiJob::Glance);
         }
         if watch == Watch::Networks && !self.scanning && now >= self.scan_at {
             self.scanning = true;
@@ -222,11 +238,20 @@ impl Wifi {
                 }
             }
             WifiNews::Status(status) => {
+                // A status is as new as any glance taken before it.
+                self.glanced = None;
                 if self.enabled {
                     self.status = status;
                 } else {
                     self.status.hostname = status.hostname;
                     self.status.ntp = status.ntp;
+                }
+            }
+            WifiNews::Glanced(up) => {
+                self.glancing = false;
+                self.glance_at = now + GLANCE_MS;
+                if self.enabled {
+                    self.glanced = Some(up);
                 }
             }
             WifiNews::Saved(saved) => {

@@ -18,8 +18,9 @@ use omega_input::Millis;
 pub const JOIN_TIMEOUT_MS: Millis = 30_000;
 /// While the Wi-Fi screen or the menu that names the network is open.
 pub const REFRESH_MS: Millis = 2_000;
-/// While only the top bar shows whether a network is joined.
-pub const GLANCE_MS: Millis = 15_000;
+/// While only the top bar shows whether a network is joined, how often the link is glanced at.
+/// A glance reads one file, so the bar follows a network joined or lost within a second.
+pub const GLANCE_MS: Millis = 1_000;
 pub const SCAN_MS: Millis = 12_000;
 
 /// What `wifi.sh status` says.
@@ -68,6 +69,9 @@ pub enum WifiJob {
     Up,
     Down,
     Refresh,
+    /// Whether a network is joined, as the kernel says of the link: a read of one file, where
+    /// `Refresh` runs the script twice.
+    Glance,
     Scan,
     Join {
         ssid: Vec<u8>,
@@ -84,6 +88,8 @@ pub enum WifiNews {
     /// `Up` finished: false when the radio never appeared.
     Started(bool),
     Status(Status),
+    /// What a `Glance` saw: whether a network is joined.
+    Glanced(bool),
     Saved(Vec<Saved>),
     Seen(Vec<Seen>),
     /// A join or select was taken up, or turned down before reaching the air.
@@ -193,6 +199,12 @@ pub fn parse_status(text: &str) -> Status {
     s
 }
 
+/// Whether the kernel's operstate for the radio says a network is joined. wpa_supplicant holds
+/// the link dormant until it has joined one and agreed its keys, then marks it up.
+pub fn link_up(operstate: &str) -> bool {
+    operstate.trim() == "up"
+}
+
 /// `wpa_cli scan_results`: one network per name, at its strongest, without the hidden ones
 /// and the enterprise ones that need more than a passphrase.
 pub fn parse_scan(text: &str) -> Vec<Seen> {
@@ -260,6 +272,10 @@ pub fn wifi_jobs() -> Box<dyn WifiJobs> {
         Box::new(SimWifi::default())
     }
 }
+
+/// The radio's link as the kernel keeps it, for a glance.
+#[cfg(feature = "device")]
+const OPERSTATE: &str = "/sys/class/net/wlan0/operstate";
 
 #[cfg(feature = "device")]
 fn card_root() -> PathBuf {
@@ -388,6 +404,10 @@ fn work(root: &Path, job: WifiJob) -> Vec<WifiNews> {
             Vec::new()
         }
         WifiJob::Refresh => Vec::new(),
+        WifiJob::Glance => {
+            let up = std::fs::read_to_string(OPERSTATE).is_ok_and(|s| link_up(&s));
+            return vec![WifiNews::Glanced(up)];
+        }
         WifiJob::Scan => {
             let seen = output(root, &["scan"]).map(|t| parse_scan(&t));
             return vec![WifiNews::Seen(seen.unwrap_or_default())];
@@ -498,6 +518,10 @@ impl WifiJobs for SimWifi {
                 self.current = None;
             }
             WifiJob::Refresh => {}
+            WifiJob::Glance => {
+                self.news.push(WifiNews::Glanced(self.status().joined()));
+                return;
+            }
             WifiJob::Scan => {
                 let seen = SimWifi::NEARBY
                     .iter()

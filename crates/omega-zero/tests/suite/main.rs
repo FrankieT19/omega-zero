@@ -80,6 +80,7 @@ mod ssh;
 mod swap;
 mod thumb;
 mod toast;
+mod top_bar;
 mod undo;
 mod volume;
 mod wallpaper;
