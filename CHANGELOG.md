@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- A bar along the bottom of the shelf: SELECT QUICKMENU on the left, START SETTINGS on the
+- A bar along the bottom of the shelf: SELECT CONTROLS on the left, START SETTINGS on the
   right. The slot sits a bar higher to make room for it.
 - Game Boy carts stand at 80% of their size on the shelf and grow to full size as they go into
   the slot.
@@ -11,7 +11,7 @@
   Correction, Rumble and Labels; GENERAL holds Date & Time, Network, Background and About.
 - A row that Left and Right change shows ◀ ▶ while it is lit. A row that opens a screen ends
   in ›.
-- A tap of SELECT on the shelf opens QUICKMENU: what every button does, on the shelf and in a
+- A tap of SELECT on the shelf opens CONTROLS: what every button does, on the shelf and in a
   game, on one panel. SELECT held with another button works as before.
 - The Wi-Fi screen is now Network, under Settings. Its NETWORK panel switches Wi-Fi and Network
   Time and opens SSH. AVAILABLE NETWORKS shows each network's signal, a padlock on those with a
