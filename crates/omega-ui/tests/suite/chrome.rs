@@ -1,8 +1,8 @@
 use omega_store::{Cart, Platform};
 use omega_ui::{
     cart_box, draw_empty_slot, edge, foot_y, housing, icon_box, opening, out_h, out_w, recess,
-    Draw, Pose, Shelf, SlotChrome, TexId, ALERT_PX, CART_H, CART_W, GB_LABEL_H, GB_LABEL_Y,
-    LABEL_H, LABEL_Y, MOUTH_H,
+    shelf_box, slot_top, stage_y, Draw, Pose, Shelf, SlotChrome, TexId, ALERT_PX, CART_H, CART_W,
+    GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, SLOT_RAISE, TOP_BAR_H,
 };
 
 fn centre_x() -> f32 {
@@ -137,12 +137,18 @@ fn cart_visible_height(out: &[Draw]) -> f32 {
     (cart.y + cart.h).min(lid).max(cart.y) - cart.y
 }
 
+/// Where a shelf holding `c` alone stands it, and how big, as the app hands them to the slot.
+fn on_shelf(c: &Cart) -> (f32, f32) {
+    Shelf::new(vec![c.clone()]).selected_at()
+}
+
 fn chrome_into(c: &Cart, seat: f32, out: &mut Vec<Draw>) {
+    let (rest, scale) = on_shelf(c);
     SlotChrome {
         cart: c,
         face: None,
-        rest: centred(c),
-        scale: 1.0,
+        rest,
+        scale,
         pose: Pose::REST,
         seat,
         alert: None,
@@ -278,13 +284,15 @@ fn visible_cart_height(c: &Cart, t: f32) -> f32 {
 }
 
 #[test]
-fn the_slot_is_at_the_bottom_of_the_screen() {
+fn the_slot_sits_on_the_bar_at_the_bottom_of_the_screen() {
     let mut out = Vec::new();
     draw_inserting(&cart(), 0.5, &mut out);
     let mouth = out.iter().find_map(as_mouth).expect("no mouth drawn");
     assert!(
-        mouth.y >= out_h() as f32 - MOUTH_H - 1.0,
-        "the mouth is not on the bottom edge"
+        mouth.y >= slot_top() - 1.0 && mouth.y + mouth.h <= out_h() as f32 - SLOT_RAISE,
+        "the mouth at {}..{} is not in the slot's bar on the bar at the bottom",
+        mouth.y,
+        mouth.y + mouth.h
     );
 }
 
@@ -349,18 +357,81 @@ fn an_unseated_cart_stands_where_the_shelf_left_it() {
 
 #[test]
 fn a_cart_keeps_its_size_all_the_way_into_the_slot() {
-    for (name, c) in both() {
-        let (w, h) = cart_box(c.platform);
-        for step in 0..=400 {
-            let t = step as f32 / 400.0;
-            let q = cart_quad(&c, t);
-            assert!(
-                (q.w - w as f32).abs() < 0.01 && (q.h - h as f32).abs() < 0.01,
-                "{name} is {}x{} at seat {t} rather than its own {w}x{h}",
-                q.w,
-                q.h
-            );
-        }
+    let c = cart();
+    let (w, h) = cart_box(c.platform);
+    assert_eq!(
+        shelf_box(c.platform),
+        (w as f32, h as f32),
+        "the shelf holds the GBA cart at another size"
+    );
+    for step in 0..=400 {
+        let t = step as f32 / 400.0;
+        let q = cart_quad(&c, t);
+        assert!(
+            (q.w - w as f32).abs() < 0.01 && (q.h - h as f32).abs() < 0.01,
+            "the GBA cart is {}x{} at seat {t} rather than its own {w}x{h}",
+            q.w,
+            q.h
+        );
+    }
+}
+
+#[test]
+fn a_pak_grows_from_its_shelf_size_to_its_own_on_the_way_in_without_a_pop() {
+    let c = pak();
+    let (w, h) = cart_box(c.platform);
+    let (w, h) = (w as f32, h as f32);
+    let (sw, sh) = shelf_box(c.platform);
+    let mut last = Quad {
+        x: 0.0,
+        y: 0.0,
+        w: sw,
+        h: sh,
+    };
+    for step in 0..=400 {
+        let t = step as f32 / 400.0;
+        let q = cart_quad(&c, t);
+        assert!(
+            q.w >= last.w - 0.01 && q.h >= last.h - 0.01 && q.w <= w + 0.01 && q.h <= h + 0.01,
+            "the pak is {}x{} at seat {t}, after {}x{}: it shrank, or outgrew its own {w}x{h}",
+            q.w,
+            q.h,
+            last.w,
+            last.h
+        );
+        assert!(
+            q.h - last.h < 1.0,
+            "the pak grows {} px in one step at seat {t}: that is a pop",
+            q.h - last.h
+        );
+        last = q;
+    }
+    assert!(
+        (last.w - w).abs() < 0.01 && (last.h - h).abs() < 0.01,
+        "the pak seats at {}x{} rather than its own {w}x{h}",
+        last.w,
+        last.h
+    );
+}
+
+#[test]
+fn a_growing_pak_never_rises_into_the_bar_at_the_top() {
+    let c = pak();
+    let ceiling = stage_y() + TOP_BAR_H;
+    let mut last = cart_quad(&c, 0.0).y;
+    for step in 0..=400 {
+        let q = cart_quad(&c, step as f32 / 400.0);
+        assert!(
+            q.y >= ceiling,
+            "the pak's top is at {} under the bar at {ceiling}",
+            q.y
+        );
+        assert!(
+            q.y >= last - 0.01,
+            "the pak's top edge rose to {} from {last} as it grew",
+            q.y
+        );
+        last = q.y;
     }
 }
 
@@ -410,7 +481,7 @@ fn every_cartridge_seats_to_the_same_depth() {
 
 #[test]
 fn every_cartridge_lands_its_foot_on_the_lip_at_the_same_moment() {
-    let lip = out_h() as f32 - MOUTH_H;
+    let lip = slot_top();
     let landings: Vec<(&str, f32, f32)> = both()
         .iter()
         .map(|(name, c)| {
@@ -469,7 +540,7 @@ fn a_seated_cart_stops_in_the_opening_and_covers_its_base() {
             "{name} does not reach the bottom of the recess"
         );
         assert!(
-            cart.y >= out_h() as f32 - MOUTH_H,
+            cart.y >= slot_top(),
             "{name} is left standing above the case"
         );
     }
@@ -843,7 +914,7 @@ fn the_slot_sits_in_a_recessed_bay() {
 
 #[test]
 fn the_cart_catches_on_the_top_edge_of_the_slot() {
-    let lip = out_h() as f32 - MOUTH_H;
+    let lip = slot_top();
     for (name, c) in both() {
         let bottom_at = |t: f32| {
             let out = chrome(&c, t);

@@ -12,8 +12,8 @@ use omega_power::SimPlatform;
 use omega_store::{Cart, Platform as CartPlatform};
 use omega_ui::{
     cart_box, cart_face, clean_label, edge, housing, label_colour, label_text, opening, recess,
-    rest_y, stage_x, stage_y, sway_reach, Draw, Pose, SlotChrome, CART_W, GB_CART_H, GB_CART_W,
-    GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, TOP_BAR_H,
+    rest_y, shelf_box, shelf_scale, slot_top, stage_x, stage_y, sway_reach, Draw, Pose, Shelf,
+    SlotChrome, CART_W, GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, MOUTH_H, TOP_BAR_H,
 };
 use omega_zero::app::{App, SEATED_AT};
 use omega_zero::frontend::Frontend;
@@ -63,8 +63,9 @@ fn apart(a: [u32; 3], b: [u32; 3]) -> u32 {
 /// highest the pak reaches as it sways.
 fn banner_ink(px: &[u8]) -> usize {
     let top = (TOP_BAR_H + stage_y()) as usize + 1;
-    let reach = sway_reach(GB_CART_W as f32, GB_CART_H as f32).ceil();
-    (top..(rest_y(GB_CART_H as f32) - reach) as usize)
+    let (w, h) = shelf_box(CartPlatform::Gb);
+    let reach = sway_reach(w, h).ceil();
+    (top..(rest_y(h) - reach) as usize)
         .flat_map(|y| (200..520).map(move |x| (x, y)))
         .filter(|(x, y)| at(px, *x, *y).iter().all(|c| *c > 0x80))
         .count()
@@ -78,8 +79,14 @@ fn hud_ink(px: &[u8]) -> usize {
         .count()
 }
 
+/// Where the shelf's name is printed in the slot, 49 px up from the bottom of its bar.
 fn name_window() -> (usize, usize, usize, usize) {
-    (out_w() as usize / 2 - 70, out_h() as usize - 49, 140, 27)
+    (
+        out_w() as usize / 2 - 70,
+        (slot_top() + MOUTH_H) as usize - 49,
+        140,
+        27,
+    )
 }
 
 fn name_pixels(px: &[u8]) -> Vec<[u8; 3]> {
@@ -142,10 +149,13 @@ fn gb_rom(cgb: u8) -> Vec<u8> {
     rom
 }
 
+/// A point `down` face pixels from the top of the pak standing alone on its shelf, at the
+/// size the shelf holds it.
 fn on_the_lone_pak(down: u32) -> (usize, usize) {
+    let scale = shelf_scale(CartPlatform::Gb);
     (
         (out_w() / 2) as usize,
-        (rest_y(GB_CART_H as f32) + down as f32) as usize,
+        (rest_y(shelf_box(CartPlatform::Gb).1) + down as f32 * scale) as usize,
     )
 }
 
@@ -725,7 +735,9 @@ fn both_cartridges_go_into_the_slot_at_their_own_size() {
         );
         let tex = c.create_texture(face.w, face.h, &face.rgba);
         let ink = label_colour(&clean_label(&cart.stem));
-        let rest = (out_w() - w) as f32 / 2.0;
+        let (rest, scale) = Shelf::new(vec![cart.clone()]).selected_at();
+        let h = shelf_box(cart.platform).1;
+        let shelf = shelf_scale(cart.platform);
 
         for (beat, seat) in beats {
             let mut out = Vec::new();
@@ -733,7 +745,7 @@ fn both_cartridges_go_into_the_slot_at_their_own_size() {
                 cart: &cart,
                 face: Some(tex),
                 rest,
-                scale: 1.0,
+                scale,
                 pose: Pose::REST,
                 seat,
                 alert: None,
@@ -749,34 +761,36 @@ fn both_cartridges_go_into_the_slot_at_their_own_size() {
             };
             if seat == 0.0 {
                 assert!(
-                    (top as f32 - rest_y(h as f32)).abs() < 1.5,
+                    (top as f32 - rest_y(h)).abs() < 1.5,
                     "{name} stands with its top edge at {top}, not at {} where the carousel \
                      centres a {h} px cartridge",
-                    rest_y(h as f32)
+                    rest_y(h)
                 );
                 let middle = (top + bottom) as f32 / 2.0;
-                let want = rest_y(h as f32) + h as f32 / 2.0;
+                let want = rest_y(h) + h / 2.0;
                 assert!(
                     (middle - want).abs() < 1.5,
                     "{name} stands {top}..{bottom}, centred on {middle} rather than on {want}"
                 );
                 let (paper_top, paper_bottom) =
                     paper_rows(&px, ink).expect("a standing cartridge shows its label");
-                let inset = paper_top - top;
+                let inset = (paper_top - top) as f32;
+                let want = label_top(cart.platform) as f32 * shelf;
                 assert!(
-                    inset.abs_diff(label_top(cart.platform)) <= 2,
-                    "{name}'s paper starts {inset} px down its face, not the {} its platform \
-                     puts it at",
-                    label_top(cart.platform)
+                    (inset - want).abs() <= 2.0,
+                    "{name}'s paper starts {inset} px down its face, not the {want} its \
+                     platform puts it at on the shelf"
                 );
-                let paper = paper_bottom - paper_top + 1;
+                let paper = (paper_bottom - paper_top + 1) as f32;
                 let want = match cart.platform {
-                    CartPlatform::Gba => LABEL_H as usize,
-                    _ => GB_LABEL_H as usize,
-                };
+                    CartPlatform::Gba => LABEL_H,
+                    _ => GB_LABEL_H,
+                } as f32
+                    * shelf;
                 assert!(
-                    paper.abs_diff(want) <= 2,
-                    "{name}'s {want} px label came out {paper} px tall: it is being scaled"
+                    (paper - want).abs() <= 2.0,
+                    "{name}'s label came out {paper} px tall, not the {want} the shelf holds \
+                     it at: it is being scaled"
                 );
             }
             if seat == 1.0 {
@@ -808,7 +822,8 @@ fn both_cartridges_go_into_the_slot_at_their_own_size() {
 #[test]
 fn no_frame_of_the_travel_jumps_further_than_the_cartridge_is_tall() {
     for (name, cart) in cartridges() {
-        let (w, h) = cart_box(cart.platform);
+        let h = cart_box(cart.platform).1;
+        let (rest, scale) = Shelf::new(vec![cart.clone()]).selected_at();
         let ink = label_colour(&label_text(&cart));
         let ink = ink.map(|v| v as f32 / 255.0);
         let ys: Vec<f32> = (0..=27)
@@ -817,8 +832,8 @@ fn no_frame_of_the_travel_jumps_further_than_the_cartridge_is_tall() {
                 SlotChrome {
                     cart: &cart,
                     face: None,
-                    rest: (out_w() - w) as f32 / 2.0,
-                    scale: 1.0,
+                    rest,
+                    scale,
                     pose: Pose::REST,
                     seat: (f as f32 / 27.0).min(1.0),
                     alert: None,

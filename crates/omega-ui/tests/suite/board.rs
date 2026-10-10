@@ -5,7 +5,7 @@ use omega_ui::{
     BOARD_H, BOARD_W, CART_H, CHIP_H, CHIP_W, DEFAULT_SHELL, LID_TURN, ROM_H, ROM_W, SHADOW_H,
     SHADOW_W, SLIDE_SHARE, SLIDE_UP, SOCKET_H, SOCKET_W, TURN_PAD,
 };
-use omega_ui::{out_h, stage_x, stage_y};
+use omega_ui::{slot_top, stage_x, stage_y, TOP_BAR_H};
 
 fn cart(stem: &str, code: &str) -> Cart {
     Cart {
@@ -138,9 +138,11 @@ fn the_open_cart_starts_as_the_shelf_cart_and_lands_where_the_mockup_has_it() {
         (shelf.x, shelf.w, shelf.h),
         (mock(180.0, 0.0).0, 360.0, 212.0)
     );
-    if out_h() == 480 {
-        assert_eq!(shelf.y, 112.0, "between the top bar and the slot's bar");
-    }
+    assert_eq!(
+        shelf.y + shelf.h / 2.0,
+        (stage_y() + TOP_BAR_H + slot_top()) / 2.0,
+        "not centred between the top bar and the slot on the bottom bar"
+    );
     assert_eq!(board_at(0.0), shelf_cart());
     let (x, y) = mock(174.0, 140.0);
     assert_eq!(
@@ -193,8 +195,8 @@ fn the_back_half_stays_on_the_shelf_while_the_front_slides() {
 }
 
 #[test]
-fn the_front_slides_up_a_quarter_before_it_lifts() {
-    assert_eq!(SLIDE_UP, CART_H as f32 / 4.0);
+fn the_front_slides_up_a_fifth_before_it_lifts() {
+    assert_eq!(SLIDE_UP, CART_H as f32 / 5.0);
     assert!(
         shelf_cart().y - SLIDE_UP > lid_at(1.0).0.y,
         "the slide ends above where the lid rests, so the lift would carry it back down"

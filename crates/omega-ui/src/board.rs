@@ -160,8 +160,9 @@ pub const HOP_LIFT: f32 = 10.0;
 
 pub const SLIDE_SHARE: f32 = 160.0 / 420.0;
 /// How far the cart slides up off the board before its lid lifts away: short of where the lid
-/// comes to rest, so the lift still carries it up.
-pub const SLIDE_UP: f32 = CART_H as f32 / 4.0;
+/// comes to rest, so the lift still carries it up. The slot on the bottom bar stands the cart
+/// higher than the mockup did, and a quarter would now take it past the lid's rest.
+pub const SLIDE_UP: f32 = CART_H as f32 / 5.0;
 
 pub fn slide_of(progress: f32) -> f32 {
     ease((progress / SLIDE_SHARE).clamp(0.0, 1.0))
