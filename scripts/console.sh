@@ -5,8 +5,11 @@
 #                                        System/, then reboot into it and wait for it to start
 #   console.sh log                       print omega-zero's log
 #
-# CONSOLE (default rg35xxsp.local, HOST:PORT for another port), SD (default /mnt/sdcard) and
-# CONSOLE_PASSWORD (default root, BaseOS's own unless baseos.conf sets ssh_password) say where.
+# CONSOLE (default rg35xxsp.local, HOST:PORT for another port) and SD (default /mnt/sdcard) say
+# where. CONSOLE_PASSWORD is root's password; when it is not set, it is read from
+# .console-password at the root of the repo, which git ignores, and failing that it is root,
+# BaseOS's own. omega-zero gives root six random digits the first time it runs on a card whose
+# baseos.conf sets no ssh_password; the console shows them under Settings > Network > SSH > INFO.
 set -eu
 
 console="${CONSOLE:-rg35xxsp.local}"
@@ -19,7 +22,15 @@ case "$console" in
 esac
 host="root@$console"
 sd="${SD:-/mnt/sdcard}"
-password="${CONSOLE_PASSWORD:-root}"
+password_file="$(cd "$(dirname "$0")/.." && pwd)/.console-password"
+if [ -n "${CONSOLE_PASSWORD:-}" ]; then
+	password="$CONSOLE_PASSWORD"
+elif [ -f "$password_file" ]; then
+	# its first line, without the spaces or line ending an editor leaves round it
+	password="$(sed -n '1{s/^[[:space:]]*//;s/[[:space:]]*$//;p;}' "$password_file")"
+else
+	password=root
+fi
 
 command -v sshpass > /dev/null || {
 	echo "console.sh: needs sshpass (brew install sshpass)" >&2
@@ -51,7 +62,13 @@ on() {
 		esac
 		tries=$((tries + 1))
 		if [ "$tries" -ge 3 ]; then
-			echo "console.sh: could not reach $host" >&2
+			# sshpass says 5 when the password is turned away
+			if [ "$status" -eq 5 ]; then
+				echo "console.sh: $host turned the password away" >&2
+				echo "console.sh: the password is on the console under Settings > Network > SSH > INFO; put it in .console-password" >&2
+			else
+				echo "console.sh: could not reach $host" >&2
+			fi
 			return "$status"
 		fi
 		sleep 1
