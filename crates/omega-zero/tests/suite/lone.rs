@@ -408,7 +408,8 @@ fn a_new_colour_re_tints_the_background_panel() {
 }
 
 /// Each lone panel stands straight on the backdrop, nothing laid between them as a veil, and
-/// slides in with its screen while the backdrop stays where it is.
+/// slides in with its screen while the backdrop stays where it is: CONTROLS from the right,
+/// beside the shelf, and the panels under Settings from the left.
 #[test]
 fn the_lone_panels_stand_on_the_backdrop_and_slide_with_their_screens() {
     let pattern = TexId::from_raw(700);
@@ -452,7 +453,12 @@ fn the_lone_panels_stand_on_the_backdrop_and_slide_with_their_screens() {
         let started = a.slide().expect("no slide").started;
         a.tick_ms(started + SLIDE_MS / 2);
         let p = progress(started, a.now());
-        let dx = offsets(Dir::Deeper, End::Arriving, p, out_w() as f32).dx;
+        let dir = if row.is_none() {
+            Dir::Aside
+        } else {
+            Dir::Deeper
+        };
+        let dx = offsets(dir, End::Arriving, p, out_w() as f32).dx;
         let (_, x) = drawn_at(&frame(&a), TexId::from_raw(n)).expect("the panel is not drawn");
         assert_eq!(
             x,

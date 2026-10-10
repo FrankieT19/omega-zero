@@ -1184,7 +1184,7 @@ impl App {
                 _ if self.core_picker.is_some() => self.core_picker_input(action),
                 // START is the settings button on the shelf; MENU opens nothing here
                 Action::GbaDown(Btn::Start) => self.open_settings(),
-                Action::SelectTap => self.go(Phase::Controls, Dir::Deeper),
+                Action::SelectTap => self.go(Phase::Controls, Dir::Aside),
                 Action::GbaDown(Btn::Up) => self.jump_letter(-1),
                 Action::GbaDown(Btn::Down) => self.jump_letter(1),
                 Action::ShelfLeft | Action::GbaDown(Btn::Left) => self.shelf_mut().hold_left(now),
