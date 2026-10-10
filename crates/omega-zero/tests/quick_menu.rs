@@ -42,7 +42,7 @@ fn press(a: &mut App, btn: Btn) {
 }
 
 fn open_at(a: &mut App, row: QuickRow) {
-    a.apply(Action::QuickMenu);
+    press(a, Btn::Start);
     for _ in 0..row.index() {
         press(a, Btn::Down);
     }
@@ -50,13 +50,13 @@ fn open_at(a: &mut App, row: QuickRow) {
 }
 
 #[test]
-fn menu_opens_the_quick_menu_with_its_top_row_selected_every_time() {
+fn start_opens_the_quick_menu_with_its_top_row_selected_every_time() {
     let (_d, mut a, _) = on_carousel();
-    a.apply(Action::QuickMenu);
+    press(&mut a, Btn::Start);
     assert_eq!(a.quick_menu(), Some(QuickRow::FastForward));
     press(&mut a, Btn::Down);
-    a.apply(Action::QuickMenu);
-    a.apply(Action::QuickMenu);
+    press(&mut a, Btn::Start);
+    press(&mut a, Btn::Start);
     assert_eq!(
         a.quick_menu(),
         Some(QuickRow::FastForward),
@@ -65,8 +65,24 @@ fn menu_opens_the_quick_menu_with_its_top_row_selected_every_time() {
 }
 
 #[test]
-fn menu_or_b_closes_it_back_onto_the_carousel_where_you_were() {
-    for close in [Action::QuickMenu, Action::GbaDown(Btn::B)] {
+fn menu_opens_nothing_on_the_carousel() {
+    let (_d, mut a, _) = on_carousel();
+    a.apply(Action::QuickMenu);
+    assert!(
+        matches!(a.phase(), Phase::Shelf),
+        "MENU still opened {:?}",
+        a.phase()
+    );
+    assert_eq!(a.quick_menu(), None);
+}
+
+#[test]
+fn start_b_or_menu_closes_it_back_onto_the_carousel_where_you_were() {
+    for close in [
+        Action::GbaDown(Btn::Start),
+        Action::GbaDown(Btn::B),
+        Action::QuickMenu,
+    ] {
         let (_d, mut a, _) = on_carousel();
         press(&mut a, Btn::Right);
         assert_eq!(
@@ -74,7 +90,7 @@ fn menu_or_b_closes_it_back_onto_the_carousel_where_you_were() {
             Some("Fusion"),
             "the carousel never moved"
         );
-        a.apply(Action::QuickMenu);
+        press(&mut a, Btn::Start);
         a.apply(close);
         assert!(
             matches!(a.phase(), Phase::Shelf),
@@ -89,19 +105,21 @@ fn menu_or_b_closes_it_back_onto_the_carousel_where_you_were() {
 fn the_quick_menu_is_only_on_the_carousel() {
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     let mut a = app_playing_in(d.path(), "Emerald");
-    a.apply(Action::QuickMenu);
-    assert!(
-        matches!(a.phase(), Phase::Playing { .. }),
-        "MENU raised the quick menu over a game: {:?}",
-        a.phase()
-    );
+    for button in [Action::GbaDown(Btn::Start), Action::QuickMenu] {
+        a.apply(button);
+        assert!(
+            matches!(a.phase(), Phase::Playing { .. }),
+            "{button:?} raised the quick menu over a game: {:?}",
+            a.phase()
+        );
+    }
     assert_eq!(a.quick_menu(), None);
 }
 
 #[test]
 fn up_and_down_move_the_bar_and_wrap_at_the_ends() {
     let (_d, mut a, _) = on_carousel();
-    a.apply(Action::QuickMenu);
+    press(&mut a, Btn::Start);
     press(&mut a, Btn::Up);
     assert_eq!(
         a.quick_menu(),
@@ -326,6 +344,7 @@ fn the_first_boot_clock_still_has_no_way_back() {
     let (mut a, _) = app_booting_with_clock(d.path());
     press(&mut a, Btn::B);
     a.apply(Action::QuickMenu);
+    press(&mut a, Btn::Start);
     assert!(
         matches!(a.phase(), Phase::SetClock { .. }),
         "left the first boot clock: {:?}",
@@ -408,7 +427,7 @@ fn drawn(out: &[Draw], id: usize) -> bool {
 fn the_legend_says_change_on_a_value_row_and_open_on_a_row_that_opens() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
-    a.apply(Action::QuickMenu);
+    press(&mut a, Btn::Start);
     for row in QuickRow::ALL {
         assert_eq!(a.quick_menu(), Some(row));
         let out = frame(&a);
@@ -423,7 +442,7 @@ fn the_legend_says_change_on_a_value_row_and_open_on_a_row_that_opens() {
 fn the_arrows_stand_only_around_the_selected_rows_value() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
-    a.apply(Action::QuickMenu);
+    press(&mut a, Btn::Start);
     let out = frame(&a);
     assert!(
         drawn(&out, 300) && drawn(&out, 301),
@@ -462,7 +481,7 @@ fn the_arrows_stand_only_around_the_selected_rows_value() {
 fn the_bar_runs_edge_to_edge_behind_the_selected_row() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
-    a.apply(Action::QuickMenu);
+    press(&mut a, Btn::Start);
     let n = QuickRow::ALL.len();
     let mut first = 0;
     for row in QuickRow::ALL {
@@ -492,7 +511,7 @@ fn the_bar_runs_edge_to_edge_behind_the_selected_row() {
 fn the_rows_out_of_view_are_not_drawn_and_scroll_in_with_the_bar() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
-    a.apply(Action::QuickMenu);
+    press(&mut a, Btn::Start);
     let shown = quick_rows_shown(QuickRow::ALL.len());
     let label = |row: QuickRow| 100 + row.index();
     let out = frame(&a);
@@ -520,7 +539,7 @@ fn the_rows_out_of_view_are_not_drawn_and_scroll_in_with_the_bar() {
 fn labels_start_and_values_end_thirty_two_pixels_in() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
-    a.apply(Action::QuickMenu);
+    press(&mut a, Btn::Start);
     let out = frame(&a);
     let right = out_w() as f32 - QUICK_EDGE;
     let shown = quick_rows_shown(QuickRow::ALL.len());

@@ -1210,17 +1210,16 @@ impl App {
         let now = self.now();
         match self.phase {
             Phase::Shelf => match action {
-                Action::GbaDown(Btn::Start) if self.core_picker.is_none() => {
-                    self.open_core_picker()
-                }
+                Action::GbaDown(Btn::X) if self.core_picker.is_none() => self.open_core_picker(),
                 _ if self.core_picker.is_some() => self.core_picker_input(action),
+                // START is the settings button on the shelf; MENU opens nothing here
+                Action::GbaDown(Btn::Start) => self.open_quick_menu(),
                 Action::GbaDown(Btn::Up) => self.jump_letter(-1),
                 Action::GbaDown(Btn::Down) => self.jump_letter(1),
                 Action::ShelfLeft | Action::GbaDown(Btn::Left) => self.shelf_mut().hold_left(now),
                 Action::ShelfRight | Action::GbaDown(Btn::Right) => {
                     self.shelf_mut().hold_right(now)
                 }
-                Action::QuickMenu => self.open_quick_menu(),
                 Action::GbaDown(Btn::A) => self.play_held = Some(now),
                 Action::GbaUp(Btn::A) => {
                     if self.play_held.take().is_some() {
@@ -1294,7 +1293,7 @@ impl App {
             Action::GbaDown(Btn::Left) => return self.change_setting(row, false),
             Action::GbaDown(Btn::Right) => return self.change_setting(row, true),
             Action::GbaDown(Btn::A) => return self.open_quick_row(row),
-            Action::GbaDown(Btn::B) | Action::QuickMenu => {
+            Action::GbaDown(Btn::B | Btn::Start) | Action::QuickMenu => {
                 self.phase = Phase::Shelf;
                 return;
             }

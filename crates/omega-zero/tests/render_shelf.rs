@@ -131,7 +131,7 @@ fn let_it_hop(app: &mut App) {
 }
 
 #[test]
-fn start_draws_the_plain_shelf_on_a_game_boy_cart() {
+fn x_draws_the_plain_shelf_on_a_game_boy_cart() {
     let Some((_g, _s, mut c)) = compositor() else {
         eprintln!("no GL on this host, skipping");
         return;
@@ -141,11 +141,11 @@ fn start_draws_the_plain_shelf_on_a_game_boy_cart() {
     let twin = common::tmp_root_with_gb_carts(&["Tetris", "Zzz"]);
     let mut pressed = shelf(&d, &mut c);
     let mut untouched = shelf(&twin, &mut c);
-    pressed.apply(Action::GbaDown(Btn::Start));
+    pressed.apply(Action::GbaDown(Btn::X));
     let_it_hop(&mut pressed);
     let_it_hop(&mut untouched);
     let plain = shot(&untouched, &mut c, "gb-plain");
-    let after = shot(&pressed, &mut c, "gb-after-start");
+    let after = shot(&pressed, &mut c, "gb-after-x");
     assert_eq!(
         pressed.core_picker(),
         None,
@@ -153,22 +153,22 @@ fn start_draws_the_plain_shelf_on_a_game_boy_cart() {
     );
     assert!(
         after == plain,
-        "START put something on screen over a Game Boy cart"
+        "X put something on screen over a Game Boy cart"
     );
 
     let d = common::tmp_root_with_carts(&["Emerald", "Zzz"]);
     let twin = common::tmp_root_with_carts(&["Emerald", "Zzz"]);
     let mut pressed = shelf(&d, &mut c);
     let mut untouched = shelf(&twin, &mut c);
-    pressed.apply(Action::GbaDown(Btn::Start));
+    pressed.apply(Action::GbaDown(Btn::X));
     let_it_hop(&mut pressed);
     let_it_hop(&mut untouched);
     let plain = shot(&untouched, &mut c, "gba-plain");
-    let after = shot(&pressed, &mut c, "gba-after-start");
+    let after = shot(&pressed, &mut c, "gba-after-x");
     assert_eq!(
         pressed.core_picker(),
         Some(Core::Mgba),
-        "START stopped opening the picker"
+        "X stopped opening the picker"
     );
     assert!(
         after != plain,

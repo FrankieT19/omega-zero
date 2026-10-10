@@ -246,7 +246,7 @@ fn clock_screen(way: Way) -> (TempDir, App, Clock) {
     }
     let (mut a, clock) = app_booting_at(d.path(), AT);
     if let Way::QuickMenu = way {
-        a.apply(Action::QuickMenu);
+        a.apply(Action::GbaDown(Btn::Start));
         for _ in 0..QuickRow::DateTime.index() {
             a.apply(Action::GbaDown(Btn::Down));
         }

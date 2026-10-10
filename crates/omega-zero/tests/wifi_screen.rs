@@ -100,8 +100,8 @@ impl Rig {
     }
 
     fn open_menu_at(&mut self, row: QuickRow) {
-        self.a.apply(Action::QuickMenu);
-        assert!(self.a.quick_menu().is_some(), "MENU opened no quick menu");
+        self.press(Btn::Start);
+        assert!(self.a.quick_menu().is_some(), "START opened no quick menu");
         while self.a.quick_menu() != Some(row) {
             self.press(Btn::Down);
             assert_ne!(

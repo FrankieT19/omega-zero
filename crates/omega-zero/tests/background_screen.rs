@@ -49,7 +49,8 @@ impl Rig {
     }
 
     fn open(&mut self) {
-        self.a.apply(Action::QuickMenu);
+        self.press(Btn::Start);
+        assert!(self.a.quick_menu().is_some(), "START opened no quick menu");
         while self.a.quick_menu() != Some(QuickRow::Background) {
             self.press(Btn::Down);
         }
