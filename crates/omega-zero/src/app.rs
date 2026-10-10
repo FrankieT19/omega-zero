@@ -14,7 +14,7 @@ use omega_ui::{
     backdrop_shift, board_from, board_x, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease,
     grown, lid_at, lid_from, lift_of, on_board, posed_face, push_cart_side, shelf_cart_at,
     ClockPicker, Draw, FfState, GbShell, Hud, HudKind, Icon, KeyboardFaces, LinkBadge, LinkFaces,
-    Links, Millis, Placed, Polaroids, PowerChoice, QuickMenuFaces, QuickRow, Refusal, Shelf,
+    Links, Millis, Placed, Polaroids, PowerChoice, QuickMenuFaces, Refusal, SettingsRow, Shelf,
     SlotChrome, TexId, Toast, WifiMenuFaces, BOARD_W, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W,
     HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W,
     TURN_PAD,
@@ -31,6 +31,8 @@ use crate::link_screen::LinkSprites;
 use crate::link_start::{link_port, LinkFail, LinkProgress, LinkStarter, LinkStep};
 use crate::persist::{self, Snapshot};
 use crate::screens::clock::clock_screen;
+use crate::screens::controls::ControlsFaces;
+use crate::screens::ssh::SshScreen;
 use crate::video_mode::{self, VideoMode};
 use crate::wifi::{wifi_jobs, WifiJobs};
 use crate::wifi_screen::{Summary, Watch, Wifi, WifiScreen};
@@ -255,7 +257,7 @@ pub const LINKED_HOLD_MS: Millis = 1000;
 
 pub const UNPLUG_HOLD_MS: Millis = 420;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Phase {
     SetClock {
         picker: ClockPicker,
@@ -263,9 +265,12 @@ pub enum Phase {
         from_menu: bool,
     },
     Shelf,
-    QuickMenu {
-        row: QuickRow,
+    /// The settings START opens on the shelf, with `row` lit.
+    Settings {
+        row: SettingsRow,
     },
+    /// What the buttons do, on the shelf and in a game, opened with a SELECT tap on the shelf.
+    Controls,
     Inserting {
         cart: String,
         t: f32,
@@ -284,7 +289,9 @@ pub enum Phase {
         cart: String,
     },
     About,
-    Wifi(WifiScreen),
+    Network(WifiScreen),
+    /// How to reach the handheld over SSH, opened from Network.
+    Ssh(SshScreen),
     Labels(LabelsScreen),
     Background(BackgroundScreen),
     Doze {
@@ -346,8 +353,8 @@ pub struct App {
     pub(crate) legend_faces: Vec<TexId>,
     pub(crate) undo_face: Option<TexId>,
     pub(crate) clock_faces: Option<(TexId, TexId)>,
-    pub(crate) quick_menu_faces: Option<QuickMenuFaces>,
-    pub(crate) quick_clock_faces: Option<[(TexId, u32, u32); 2]>,
+    pub(crate) settings_faces: Option<QuickMenuFaces>,
+    pub(crate) settings_clock_faces: Option<[(TexId, u32, u32); 2]>,
     pub(crate) sticker_face: Option<TexId>,
     pub(crate) wallpaper: Option<TexId>,
     pub(crate) battery_percent: omega_ui::Printed,
@@ -375,10 +382,12 @@ pub struct App {
     pub(crate) powering_off: bool,
     pub(crate) radio: Box<dyn RadioJobs>,
     pub(crate) wifi: Wifi,
-    pub(crate) wifi_faces: Option<WifiMenuFaces>,
+    pub(crate) network_faces: Option<WifiMenuFaces>,
+    pub(crate) ssh_faces: Option<WifiMenuFaces>,
+    pub(crate) controls_faces: Option<ControlsFaces>,
     pub(crate) keyboard_faces: Option<KeyboardFaces>,
     pub(crate) typing_faces: Option<[(TexId, u32, u32); 2]>,
-    pub(crate) quick_wifi_faces: Option<[(TexId, u32, u32); 2]>,
+    pub(crate) settings_network_faces: Option<[(TexId, u32, u32); 2]>,
     pub(crate) link_faces: Option<LinkFaces>,
     /// None on a handheld without Bluetooth; otherwise whether it is on.
     pub(crate) bluetooth: Option<bool>,
@@ -390,8 +399,8 @@ pub struct App {
     /// The pattern the shelf is drawn over, the width of its picture, and what it was drawn
     /// as, so a stale one is not shown while the new one is made.
     pub(crate) backdrop_face: Option<(TexId, u32, BackdropStyle, u8)>,
-    /// The first quick menu row in view, on a canvas too short for them all.
-    pub(crate) quick_first: usize,
+    /// The first Settings row in view, on a canvas too short for them all.
+    pub(crate) settings_first: usize,
 }
 
 fn shelves_of(carts: Vec<Cart>) -> Vec<(Platform, Shelf)> {
@@ -417,10 +426,12 @@ impl App {
         App {
             radio: radio_jobs(),
             wifi: Wifi::new(wifi_jobs()),
-            wifi_faces: None,
+            network_faces: None,
+            ssh_faces: None,
+            controls_faces: None,
             keyboard_faces: None,
             typing_faces: None,
-            quick_wifi_faces: None,
+            settings_network_faces: None,
             link_faces: None,
             bluetooth: Some(false),
             labels: Labels::new(Box::new(NoKey::default()), None),
@@ -428,7 +439,7 @@ impl App {
             stale_faces: Vec::new(),
             background_faces: None,
             backdrop_face: None,
-            quick_first: 0,
+            settings_first: 0,
             phase: Phase::Shelf,
             shelves,
             shelf_at,
@@ -482,8 +493,8 @@ impl App {
             legend_faces: Vec::new(),
             undo_face: None,
             clock_faces: None,
-            quick_menu_faces: None,
-            quick_clock_faces: None,
+            settings_faces: None,
+            settings_clock_faces: None,
             sticker_face: None,
             wallpaper: None,
             battery_percent: omega_ui::Printed::default(),
@@ -1132,7 +1143,8 @@ impl App {
                 Action::GbaDown(Btn::X) if self.core_picker.is_none() => self.open_core_picker(),
                 _ if self.core_picker.is_some() => self.core_picker_input(action),
                 // START is the settings button on the shelf; MENU opens nothing here
-                Action::GbaDown(Btn::Start) => self.open_quick_menu(),
+                Action::GbaDown(Btn::Start) => self.open_settings(),
+                Action::SelectTap => self.phase = Phase::Controls,
                 Action::GbaDown(Btn::Up) => self.jump_letter(-1),
                 Action::GbaDown(Btn::Down) => self.jump_letter(1),
                 Action::ShelfLeft | Action::GbaDown(Btn::Left) => self.shelf_mut().hold_left(now),
@@ -1177,8 +1189,10 @@ impl App {
                 _ => {}
             },
             Phase::About => self.about_input(action),
-            Phase::QuickMenu { row } => self.quick_menu_input(row, action),
-            Phase::Wifi(_) => self.wifi_input(action),
+            Phase::Settings { row } => self.settings_input(row, action),
+            Phase::Controls => self.controls_input(action),
+            Phase::Network(_) => self.network_input(action),
+            Phase::Ssh(_) => self.ssh_input(action),
             Phase::Labels(_) => self.labels_input(action),
             Phase::Background(_) => self.background_input(action),
             _ => {}
@@ -1218,13 +1232,16 @@ impl App {
         }
     }
 
-    /// How closely the radio is watched: the Wi-Fi screen looks for networks, the quick menu
-    /// names the one joined, and the shelf's top bar only shows whether there is one.
-    fn wifi_watch(&self) -> Watch {
+    /// How closely the radio is watched: the Network screen looks for networks, Settings and
+    /// SSH name the one joined, and the shelf's top bar and Labels only need to know whether
+    /// there is one.
+    pub fn wifi_watch(&self) -> Watch {
         match self.phase {
-            Phase::Wifi(_) => Watch::Networks,
-            Phase::QuickMenu { .. } => Watch::Status,
-            Phase::Shelf | Phase::Inserting { .. } | Phase::Ejecting { .. } => Watch::Glance,
+            Phase::Network(_) => Watch::Networks,
+            Phase::Settings { .. } | Phase::Ssh(_) => Watch::Status,
+            Phase::Shelf | Phase::Inserting { .. } | Phase::Ejecting { .. } | Phase::Labels(_) => {
+                Watch::Glance
+            }
             _ => Watch::Idle,
         }
     }
@@ -1310,7 +1327,7 @@ impl App {
             return true;
         }
         if action == Action::ColourCorrectionToggle {
-            self.change_setting(QuickRow::ColourCorrection, true);
+            self.change_setting(SettingsRow::ColourCorrection, true);
             let said = match self.state.colour_correction {
                 true => Toast::ColourOn,
                 false => Toast::ColourOff,
@@ -1797,15 +1814,20 @@ impl App {
                 self.draw_clock(picker, *from_menu, out);
                 return;
             }
-            Phase::QuickMenu { row } => self.draw_quick_menu(*row, out),
+            Phase::Settings { row } => self.draw_settings(*row, out),
+            Phase::Controls => {
+                self.draw_background(out);
+                self.draw_controls(out);
+            }
             Phase::Background(_) => self.draw_background_screen(out),
-            Phase::Wifi(_) | Phase::Labels(_) => match self.typing() {
+            Phase::Network(_) | Phase::Labels(_) => match self.typing() {
                 Some(t) => self.draw_keyboard(&t, out),
                 None => match self.phase {
                     Phase::Labels(_) => self.draw_labels(out),
-                    _ => self.draw_wifi(out),
+                    _ => self.draw_network(out),
                 },
             },
+            Phase::Ssh(_) => self.draw_ssh(out),
             Phase::Shelf => self.draw_shelf(out),
             Phase::About => {
                 self.draw_about(out);

@@ -1,5 +1,5 @@
-//! The Wi-Fi screen, opened from the quick menu: switching Wi-Fi and network time, the
-//! networks in reach, and typing a passphrase for a new one.
+//! The Network screen, opened from Settings: switching Wi-Fi and network time, the way to
+//! SSH, the networks in reach, and typing a passphrase for a new one.
 
 use omega_input::{Action, Btn, Millis};
 use omega_ui::{wifi_window, Keyboard};
@@ -18,7 +18,7 @@ pub enum Watch {
     Glance,
     /// Something on screen names the network: its status is kept fresh.
     Status,
-    /// The Wi-Fi screen is open: the networks in reach are looked for too.
+    /// The Network screen is open: the networks in reach are looked for too.
     Networks,
 }
 
@@ -48,7 +48,7 @@ pub struct Entry {
     pub state: EntryState,
 }
 
-/// What the quick menu says beside Wi-Fi.
+/// What Settings says beside Network.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Summary {
     Off,
@@ -379,13 +379,14 @@ impl Wifi {
     }
 }
 
-/// A row of the Wi-Fi screen, held by what it is rather than where it is, so a scan that
+/// A row of the Network screen, held by what it is rather than where it is, so a scan that
 /// reorders the list leaves the cursor on the same network.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Sel {
     Wifi,
     Clock,
-    Labels,
+    /// How to reach the handheld over SSH, on a screen of its own.
+    Ssh,
     Network(Vec<u8>),
 }
 
@@ -423,8 +424,8 @@ impl Default for WifiScreen {
 pub enum Outcome {
     Stay,
     Close,
-    /// Open the Labels screen, which fetches cart labels over Wi-Fi.
-    Labels,
+    /// Open the SSH screen, which says how to reach the handheld.
+    Ssh,
 }
 
 impl WifiScreen {
@@ -432,7 +433,7 @@ impl WifiScreen {
         let mut rows = vec![Sel::Wifi];
         if wifi.enabled() {
             rows.push(Sel::Clock);
-            rows.push(Sel::Labels);
+            rows.push(Sel::Ssh);
             rows.extend(wifi.entries().into_iter().map(|e| Sel::Network(e.ssid)));
         }
         rows
@@ -474,7 +475,7 @@ impl WifiScreen {
             Action::GbaDown(Btn::Left | Btn::Right | Btn::A) if self.sel == Sel::Clock => {
                 wifi.set_ntp(!wifi.ntp());
             }
-            Action::GbaDown(Btn::A) if self.sel == Sel::Labels => return Outcome::Labels,
+            Action::GbaDown(Btn::A) if self.sel == Sel::Ssh => return Outcome::Ssh,
             Action::GbaDown(Btn::A) => self.pick(wifi, now),
             Action::GbaDown(Btn::Y) => {
                 if let Some(id) = self.entry(wifi).and_then(|e| e.saved) {
@@ -570,8 +571,8 @@ impl WifiScreen {
                     value: Some(RowValue::Setting(wifi.ntp())),
                     signal: None,
                 },
-                Sel::Labels => ViewRow {
-                    label: RowLabel::Setting("Cart Labels"),
+                Sel::Ssh => ViewRow {
+                    label: RowLabel::Setting("SSH"),
                     value: None,
                     signal: None,
                 },
@@ -593,7 +594,7 @@ impl WifiScreen {
         let mut legend = vec![LegendHint::Back];
         match &self.sel {
             Sel::Wifi | Sel::Clock => legend.push(LegendHint::Change),
-            Sel::Labels => legend.push(LegendHint::Open),
+            Sel::Ssh => legend.push(LegendHint::Open),
             Sel::Network(_) => {
                 let e = self.entry(wifi);
                 if e.as_ref().is_some_and(|e| e.saved.is_some()) {

@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 use omega_input::{Action, Btn, Millis};
 use omega_store::{write_app_state, AppState, Platform};
-use omega_ui::{QuickRow, TexId};
+use omega_ui::{SettingsRow, TexId};
 use omega_zero::app::{App, Phase};
 use omega_zero::label_screen::{Sel, SyncState};
 use omega_zero::label_sync::{
@@ -13,7 +13,6 @@ use omega_zero::label_sync::{
 };
 use omega_zero::list_view::{LegendHint, RowValue};
 use omega_zero::wifi::{Status, WifiJob, WifiJobs, WifiNews};
-use omega_zero::wifi_screen::Sel as WifiSel;
 use tempfile::TempDir;
 
 #[derive(Default)]
@@ -150,28 +149,21 @@ impl Rig {
         assert!(self.a.wifi().status().joined(), "Wi-Fi did not join");
     }
 
-    fn open_wifi(&mut self) {
-        self.press(Btn::Start);
-        assert!(self.a.quick_menu().is_some(), "START opened no quick menu");
-        while self.a.quick_menu() != Some(QuickRow::Wifi) {
-            self.press(Btn::Down);
-        }
-        self.press(Btn::A);
-        assert!(matches!(self.a.phase(), Phase::Wifi(_)), "no Wi-Fi screen");
-    }
-
     fn open_labels(&mut self) {
-        self.open_wifi();
-        for _ in 0..4 {
-            if matches!(self.a.phase(), Phase::Wifi(s) if s.sel == WifiSel::Labels) {
-                break;
-            }
+        self.press(Btn::Start);
+        assert!(self.a.settings_row().is_some(), "START opened no Settings");
+        while self.a.settings_row() != Some(SettingsRow::Labels) {
             self.press(Btn::Down);
+            assert_ne!(
+                self.a.settings_row(),
+                Some(SettingsRow::FastForward),
+                "the bar went round without reaching Labels"
+            );
         }
         self.press(Btn::A);
         assert!(
             matches!(self.a.phase(), Phase::Labels(_)),
-            "A on Cart Labels did not open it"
+            "A on Labels did not open it"
         );
     }
 
@@ -212,14 +204,15 @@ fn account() -> Account {
 }
 
 #[test]
-fn cart_labels_opens_from_the_wifi_screen_and_b_comes_back_to_its_row() {
+fn labels_opens_from_settings_and_b_comes_back_to_its_row() {
     let mut r = Rig::signed_in();
     r.open_labels();
     assert_eq!(r.sel(), Sel::Account);
     r.press(Btn::B);
-    assert!(
-        matches!(r.a.phase(), Phase::Wifi(s) if s.sel == WifiSel::Labels),
-        "B did not go back to the Cart Labels row: {:?}",
+    assert_eq!(
+        r.a.settings_row(),
+        Some(SettingsRow::Labels),
+        "B did not go back to the Labels row: {:?}",
         r.a.phase()
     );
 }

@@ -1,5 +1,5 @@
-//! The Background screen, opened from the quick menu: what the shelf is drawn over, shown
-//! behind the list as it is changed.
+//! The Background screen, opened from Settings: what the shelf is drawn over, shown behind
+//! the list as it is changed.
 
 use omega_input::{Action, Btn};
 use omega_store::{BackdropStyle, BACKDROP_COLOURS};

@@ -1,7 +1,7 @@
-//! The clock: asked for at first boot, and opened from the quick menu's Date & Time.
+//! The clock: asked for at first boot, and opened from Settings' Date & Time.
 
 use omega_input::{Action, Btn};
-use omega_ui::{ClockPicker, Draw, QuickRow, TexId};
+use omega_ui::{ClockPicker, Draw, SettingsRow, TexId};
 
 use crate::app::{App, Phase};
 
@@ -20,8 +20,8 @@ impl App {
             Action::GbaDown(Btn::Down) => picker.down(),
             Action::GbaDown(Btn::A) | Action::Insert => self.confirm_clock(),
             Action::GbaDown(Btn::B) if *from_menu => {
-                self.phase = Phase::QuickMenu {
-                    row: QuickRow::DateTime,
+                self.phase = Phase::Settings {
+                    row: SettingsRow::DateTime,
                 }
             }
             _ => {}
@@ -46,8 +46,8 @@ impl App {
         self.state.clock_set = true;
         self.persist();
         if from_menu {
-            self.phase = Phase::QuickMenu {
-                row: QuickRow::DateTime,
+            self.phase = Phase::Settings {
+                row: SettingsRow::DateTime,
             };
         } else {
             self.start();
@@ -71,7 +71,7 @@ impl App {
             None => (None, None),
         };
         let back = self
-            .quick_menu_faces
+            .settings_faces
             .as_ref()
             .filter(|_| from_menu)
             .map(|f| f.legend[0]);

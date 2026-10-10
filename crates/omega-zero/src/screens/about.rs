@@ -1,15 +1,15 @@
-//! About, opened from the quick menu: the handheld's label, with the build's serial on it.
+//! About, opened from Settings: the handheld's label, with the build's serial on it.
 
 use omega_input::{Action, Btn};
-use omega_ui::{draw_sticker, Draw, QuickRow, TexId};
+use omega_ui::{draw_sticker, Draw, SettingsRow, TexId};
 
 use crate::app::{App, Phase};
 
 impl App {
     pub(crate) fn about_input(&mut self, action: Action) {
         if action == Action::GbaDown(Btn::B) || action == Action::QuickMenu {
-            self.phase = Phase::QuickMenu {
-                row: QuickRow::About,
+            self.phase = Phase::Settings {
+                row: SettingsRow::About,
             }
         }
     }

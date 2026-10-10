@@ -1,5 +1,5 @@
-//! The Labels screen, opened from the quick menu: the player's ScreenScraper account, and a
-//! sync that fetches the real labels of the carts that have none.
+//! The Labels screen, opened from Settings: the player's ScreenScraper account, and a sync
+//! that fetches the real labels of the carts that have none.
 
 use std::path::Path;
 

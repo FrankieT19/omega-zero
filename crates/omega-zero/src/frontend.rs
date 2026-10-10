@@ -8,7 +8,7 @@ use omega_ui::{
     chip_shadow_face, gb_cart_shadow, hint_face, icon_face, mark_height, mark_rect, menu_face,
     quick_caret_face, quick_label_face, quick_legend_faces, quick_value_face, rim,
     set_clock_hint_face, socket_face, toast_face, wallpaper_face, GbShell, Icon, LinkBadge,
-    PowerChoice, QuickMenuFaces, QuickRow, QuickValue, Toast, UndoFace, ALERT_PX, BEZEL_FILL,
+    PowerChoice, QuickMenuFaces, QuickValue, SettingsRow, Toast, UndoFace, ALERT_PX, BEZEL_FILL,
     HUD_ICON_PX, HUD_INK, LEGEND,
 };
 use omega_ui::{link_face, overlay_clear, overlay_face, overlay_path, Link, LinkFaces};
@@ -25,22 +25,26 @@ mod faces;
 mod sync_about;
 mod sync_background;
 mod sync_clock;
+mod sync_controls;
 mod sync_core_picker;
 mod sync_keyboard;
 mod sync_labels;
 mod sync_network;
 mod sync_settings;
+mod sync_ssh;
 mod sync_switcher;
 
 use faces::WifiTexes;
 use sync_about::{sync_about, AboutFace};
 use sync_background::{sync_background, BackdropTex};
 use sync_clock::{sync_clock, Clocks};
+use sync_controls::sync_controls;
 use sync_core_picker::sync_core_picker;
 use sync_keyboard::sync_keyboard;
 use sync_labels::sync_labels;
-use sync_network::sync_wifi;
-use sync_settings::{sync_quick_clock, sync_quick_wifi, QuickClock};
+use sync_network::sync_network;
+use sync_settings::{sync_settings_clock, sync_settings_network, SettingsClock};
+use sync_ssh::sync_ssh;
 use sync_switcher::{sync_switcher, Faces, Switcher};
 
 const DOZE_TIMEOUT: Duration = Duration::from_secs(180);
@@ -65,10 +69,12 @@ pub struct Frontend {
     switcher: Switcher,
     clocks: Clocks,
     about: AboutFace,
-    quick_clock: QuickClock,
+    settings_clock: SettingsClock,
     bezel_marks: Vec<BezelMark>,
     overlays: Vec<Overlay>,
-    wifi: WifiTexes,
+    /// The Network screen's list, Settings' Network value and the keyboard.
+    network: WifiTexes,
+    ssh: WifiTexes,
     labels: WifiTexes,
     background: WifiTexes,
     backdrop: BackdropTex,
@@ -117,10 +123,11 @@ impl Frontend {
             switcher: Switcher::default(),
             clocks: Clocks::default(),
             about: AboutFace::default(),
-            quick_clock: QuickClock::default(),
+            settings_clock: SettingsClock::default(),
             bezel_marks: Vec::new(),
             overlays: Vec::new(),
-            wifi: WifiTexes::default(),
+            network: WifiTexes::default(),
+            ssh: WifiTexes::default(),
             labels: WifiTexes::default(),
             background: WifiTexes::default(),
             backdrop: BackdropTex::default(),
@@ -181,7 +188,7 @@ impl Frontend {
             .collect();
         self.session.app_mut().set_power_menu_faces(menu);
         let mut up = |f: UndoFace| (compositor.create_texture(f.w, f.h, &f.rgba), f.w, f.h);
-        let labels = QuickRow::ALL
+        let labels = SettingsRow::ALL
             .iter()
             .map(|r| up(quick_label_face(*r)))
             .collect();
@@ -194,7 +201,7 @@ impl Frontend {
             let (tex, w, _) = up(f);
             (tex, w)
         });
-        self.session.app_mut().set_quick_menu_faces(QuickMenuFaces {
+        self.session.app_mut().set_settings_faces(QuickMenuFaces {
             labels,
             values,
             carets,
@@ -328,10 +335,12 @@ impl Frontend {
         }
         sync_clock(self.session.app_mut(), compositor, &mut self.clocks);
         sync_about(self.session.app_mut(), compositor, &mut self.about);
-        sync_quick_clock(self.session.app_mut(), compositor, &mut self.quick_clock);
-        sync_quick_wifi(self.session.app_mut(), compositor, &mut self.wifi);
-        sync_wifi(self.session.app_mut(), compositor, &mut self.wifi);
-        sync_keyboard(self.session.app_mut(), compositor, &mut self.wifi);
+        sync_settings_clock(self.session.app_mut(), compositor, &mut self.settings_clock);
+        sync_settings_network(self.session.app_mut(), compositor, &mut self.network);
+        sync_network(self.session.app_mut(), compositor, &mut self.network);
+        sync_keyboard(self.session.app_mut(), compositor, &mut self.network);
+        sync_ssh(self.session.app_mut(), compositor, &mut self.ssh);
+        sync_controls(self.session.app_mut(), compositor);
         sync_labels(self.session.app_mut(), compositor, &mut self.labels);
         sync_background(
             self.session.app_mut(),

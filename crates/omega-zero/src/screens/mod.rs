@@ -5,8 +5,10 @@
 pub mod about;
 pub mod background;
 pub mod clock;
+pub mod controls;
 pub mod keyboard;
 pub mod labels;
 pub mod network;
 pub mod settings;
 pub mod shelf;
+pub mod ssh;

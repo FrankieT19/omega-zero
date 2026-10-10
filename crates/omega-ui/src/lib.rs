@@ -80,8 +80,8 @@ pub use polaroids::{photo_face, PhotoFace, Polaroids, DOT, LEGEND, PHOTO_H, PHOT
 pub use power_menu::{menu_face, PowerChoice, MENU_H, MENU_INK, MENU_PAD};
 pub use quick_menu::{
     quick_caret_face, quick_label_face, quick_legend_faces, quick_rows_shown, quick_top,
-    quick_top_of, quick_value_face, quick_window, QuickMenu, QuickMenuFaces, QuickRow, QuickValue,
-    QUICK_EDGE, QUICK_PITCH,
+    quick_top_of, quick_value_face, quick_window, QuickMenu, QuickMenuFaces, QuickValue,
+    SettingsGroup, SettingsRow, QUICK_EDGE, QUICK_PITCH,
 };
 pub use refusal::Refusal;
 pub use shelf::{foot_y, rest_y, sway_reach, Shelf};

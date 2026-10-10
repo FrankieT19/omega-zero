@@ -1,8 +1,8 @@
-//! The Background screen, opened from the quick menu: its list, drawn over the background it
-//! is choosing.
+//! The Background screen, opened from Settings: its list, drawn over the background it is
+//! choosing.
 
 use omega_input::Action;
-use omega_ui::{Draw, QuickRow, WifiMenuFaces};
+use omega_ui::{Draw, SettingsRow, WifiMenuFaces};
 
 use crate::app::{App, Phase};
 use crate::background_screen::Outcome as BackgroundOutcome;
@@ -16,8 +16,8 @@ impl App {
         };
         match screen.input(look, wallpaper, action) {
             BackgroundOutcome::Close => {
-                self.phase = Phase::QuickMenu {
-                    row: QuickRow::Background,
+                self.phase = Phase::Settings {
+                    row: SettingsRow::Background,
                 }
             }
             BackgroundOutcome::Changed(b) => {

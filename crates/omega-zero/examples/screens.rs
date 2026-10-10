@@ -44,7 +44,13 @@ tap b
 wait 60
 tap start
 wait 60
-shot quick-menu
+shot settings
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
 tap down
 wait 10
 tap down
@@ -83,39 +89,23 @@ tap right
 wait 10
 tap b
 wait 30
-tap up
-wait 10
-tap up
-wait 10
-tap up
-wait 10
-tap up
-wait 10
-tap up
+tap down
 wait 10
 settle
-shot quick-menu-scrolled
-tap down
+shot settings-scrolled
+tap up
 wait 10
-tap down
-wait 10
-tap down
-wait 10
-tap down
-wait 10
-tap down
-wait 10
-tap down
+tap up
 wait 10
 tap a
 settle
 wait 30
-shot wifi-off
+shot network-off
 tap a
 wait 30
 settle
 wait 30
-shot wifi-list
+shot network-list
 tap down
 wait 10
 tap down
@@ -149,7 +139,28 @@ tap start
 wait 30
 settle
 wait 30
-shot wifi-joined
+shot network-joined
+tap up
+wait 10
+tap a
+settle
+wait 30
+shot ssh
+tap b
+wait 30
+tap b
+wait 30
+settle
+wait 10
+shot settings-network
+tap up
+wait 10
+tap a
+settle
+wait 60
+shot clock
+tap b
+wait 60
 tap up
 wait 10
 tap a
@@ -180,19 +191,12 @@ tap a
 wait 10
 tap b
 wait 30
-tap b
-wait 30
-settle
-wait 10
-shot quick-menu-wifi
 tap down
 wait 10
-tap a
-settle
-wait 60
-shot clock
-tap b
-wait 60
+tap down
+wait 10
+tap down
+wait 10
 tap down
 wait 10
 tap a
@@ -201,6 +205,12 @@ wait 90
 look about
 tap b
 wait 60
+tap b
+wait 60
+tap select
+wait 60
+settle
+shot controls
 tap b
 wait 60
 tap r1

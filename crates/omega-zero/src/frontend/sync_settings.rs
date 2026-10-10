@@ -1,5 +1,5 @@
-//! The quick menu's faces that change while it is open: the date and time, and what it says
-//! beside Wi-Fi.
+//! Settings' faces that change while it is open: the date and time, and what it says beside
+//! Network.
 
 use omega_gfx::{out_w, Compositor, TexId};
 use omega_ui::{date_time_text, plain_face, quick_value_face};
@@ -9,14 +9,18 @@ use crate::frontend::faces::{upload, WifiTexes};
 use crate::wifi_screen::Summary;
 
 #[derive(Default)]
-pub(crate) struct QuickClock {
+pub(crate) struct SettingsClock {
     dim: Option<TexId>,
     lit: Option<TexId>,
     shown: String,
 }
 
-pub(crate) fn sync_quick_clock(app: &mut App, compositor: &mut Compositor, state: &mut QuickClock) {
-    if app.quick_menu().is_none() {
+pub(crate) fn sync_settings_clock(
+    app: &mut App,
+    compositor: &mut Compositor,
+    state: &mut SettingsClock,
+) {
+    if app.settings_row().is_none() {
         return;
     }
     let text = date_time_text(app.wall_secs());
@@ -30,12 +34,16 @@ pub(crate) fn sync_quick_clock(app: &mut App, compositor: &mut Compositor, state
     let (dim_size, lit_size) = ((dim.w, dim.h), (lit.w, lit.h));
     let dim = upload(compositor, &mut state.dim, dim);
     let lit = upload(compositor, &mut state.lit, lit);
-    app.set_quick_clock_faces((dim, dim_size.0, dim_size.1), (lit, lit_size.0, lit_size.1));
+    app.set_settings_clock_faces((dim, dim_size.0, dim_size.1), (lit, lit_size.0, lit_size.1));
     state.shown = text;
 }
 
-pub(crate) fn sync_quick_wifi(app: &mut App, compositor: &mut Compositor, state: &mut WifiTexes) {
-    if app.quick_menu().is_some() {
+pub(crate) fn sync_settings_network(
+    app: &mut App,
+    compositor: &mut Compositor,
+    state: &mut WifiTexes,
+) {
+    if app.settings_row().is_some() {
         let summary = app.wifi_summary();
         if state.summary.as_ref() != Some(&summary) {
             let face = |lit: bool| match &summary {
@@ -49,7 +57,10 @@ pub(crate) fn sync_quick_wifi(app: &mut App, compositor: &mut Compositor, state:
             let (dim_size, lit_size) = ((dim.w, dim.h), (lit.w, lit.h));
             let dim = upload(compositor, &mut state.summary_tex[0], dim);
             let lit = upload(compositor, &mut state.summary_tex[1], lit);
-            app.set_quick_wifi_faces((dim, dim_size.0, dim_size.1), (lit, lit_size.0, lit_size.1));
+            app.set_settings_network_faces(
+                (dim, dim_size.0, dim_size.1),
+                (lit, lit_size.0, lit_size.1),
+            );
             state.summary = Some(summary);
         }
     }

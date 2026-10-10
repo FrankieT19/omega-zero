@@ -1,8 +1,8 @@
 use omega_store::{parse_stamp, FF_SPEEDS};
 use omega_ui::{
     date_time_text, quick_caret_face, quick_label_face, quick_rows_shown, quick_top_of,
-    quick_value_face, quick_window, stage_y, ClockPicker, QuickRow, QuickValue, UndoFace, MENU_PAD,
-    QUICK_PITCH,
+    quick_value_face, quick_window, stage_y, ClockPicker, QuickValue, SettingsGroup, SettingsRow,
+    UndoFace, MENU_PAD, QUICK_PITCH,
 };
 
 fn inked(f: &UndoFace, x: u32, y: u32) -> bool {
@@ -22,8 +22,8 @@ fn ink_columns(f: &UndoFace) -> (u32, u32) {
 #[test]
 fn the_type_sits_exactly_menu_pad_in_from_both_sides_of_its_face() {
     for f in [
-        quick_label_face(QuickRow::FastForwardSound),
-        quick_label_face(QuickRow::Rumble),
+        quick_label_face(SettingsRow::FastForwardSound),
+        quick_label_face(SettingsRow::Rumble),
         quick_value_face("Off", false),
         quick_value_face(QuickValue::Speed6.text(), true),
         quick_value_face("SEP 15 16:35", true),
@@ -50,8 +50,8 @@ fn a_long_label_is_set_as_large_as_a_short_one() {
             .filter(|&y| (0..f.w).any(|x| inked(f, x, y)))
             .count()
     };
-    let long = tall(&quick_label_face(QuickRow::FastForwardSound));
-    let short = tall(&quick_label_face(QuickRow::Rumble));
+    let long = tall(&quick_label_face(SettingsRow::FastForwardSound));
+    let short = tall(&quick_label_face(SettingsRow::Rumble));
     assert!(long + 1 >= short, "{long} rows of ink against {short}");
 }
 
@@ -78,7 +78,7 @@ fn the_fast_forward_row_offers_the_four_ceilings_the_card_can_hold() {
 
 #[test]
 fn the_rows_run_in_the_order_the_user_chose() {
-    let labels = QuickRow::ALL.map(QuickRow::label);
+    let labels = SettingsRow::ALL.map(SettingsRow::label);
     assert_eq!(
         labels,
         [
@@ -86,27 +86,50 @@ fn the_rows_run_in_the_order_the_user_chose() {
             "Fast Forward Sound",
             "Colour Correction",
             "Rumble",
-            "Background",
-            "Wi-Fi",
+            "Labels",
             "Date & Time",
+            "Network",
+            "Background",
             "About"
         ]
     );
-    let opens: Vec<QuickRow> = QuickRow::ALL.into_iter().filter(|r| r.opens()).collect();
+    let opens: Vec<SettingsRow> = SettingsRow::ALL.into_iter().filter(|r| r.opens()).collect();
     assert_eq!(
         opens,
         [
-            QuickRow::Background,
-            QuickRow::Wifi,
-            QuickRow::DateTime,
-            QuickRow::About
+            SettingsRow::Labels,
+            SettingsRow::DateTime,
+            SettingsRow::Network,
+            SettingsRow::Background,
+            SettingsRow::About
         ]
     );
 }
 
 #[test]
+fn the_configs_come_first_and_the_handheld_itself_after() {
+    let groups = SettingsRow::ALL.map(SettingsRow::group);
+    let configs = groups
+        .iter()
+        .take_while(|g| **g == SettingsGroup::Configs)
+        .count();
+    assert_eq!(configs, 5, "{groups:?}");
+    assert!(
+        groups[configs..]
+            .iter()
+            .all(|g| *g == SettingsGroup::General),
+        "{groups:?}"
+    );
+    assert_eq!(SettingsRow::Labels.group(), SettingsGroup::Configs);
+    assert_eq!(
+        [SettingsGroup::Configs, SettingsGroup::General].map(SettingsGroup::label),
+        ["Configs", "General"]
+    );
+}
+
+#[test]
 fn every_row_shows_where_they_fit_and_the_rest_scroll_into_view() {
-    let all = QuickRow::ALL.len();
+    let all = SettingsRow::ALL.len();
     let shown = quick_rows_shown(all);
     assert!(shown >= 7, "only {shown} rows fit");
     assert!(
@@ -138,14 +161,17 @@ fn every_row_shows_where_they_fit_and_the_rest_scroll_into_view() {
 
 #[test]
 fn a_hidden_row_is_stepped_over_both_ways() {
-    let rows: Vec<QuickRow> = QuickRow::ALL
+    let rows: Vec<SettingsRow> = SettingsRow::ALL
         .into_iter()
-        .filter(|r| *r != QuickRow::Wifi)
+        .filter(|r| *r != SettingsRow::Network)
         .collect();
-    assert_eq!(QuickRow::Background.down_in(&rows), QuickRow::DateTime);
-    assert_eq!(QuickRow::DateTime.up_in(&rows), QuickRow::Background);
-    assert_eq!(QuickRow::About.down_in(&rows), QuickRow::FastForward);
-    assert_eq!(QuickRow::Background.down(), QuickRow::Wifi);
+    assert_eq!(
+        SettingsRow::DateTime.down_in(&rows),
+        SettingsRow::Background
+    );
+    assert_eq!(SettingsRow::Background.up_in(&rows), SettingsRow::DateTime);
+    assert_eq!(SettingsRow::About.down_in(&rows), SettingsRow::FastForward);
+    assert_eq!(SettingsRow::DateTime.down(), SettingsRow::Network);
 }
 
 #[test]

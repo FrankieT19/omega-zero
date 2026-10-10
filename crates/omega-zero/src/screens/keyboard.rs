@@ -1,5 +1,5 @@
-//! The on-screen keyboard, which the Wi-Fi screen raises for a passphrase and the Labels screen
-//! for an account.
+//! The on-screen keyboard, which the Network screen raises for a passphrase and the Labels
+//! screen for an account.
 
 use omega_ui::{Draw, KeyboardFaces, KeyboardScreen, TexId};
 
@@ -11,7 +11,7 @@ impl App {
     /// The keyboard in use, and what it is asking for.
     pub fn typing(&self) -> Option<TypingView<'_>> {
         match &self.phase {
-            Phase::Wifi(screen) => screen.typing.as_ref().map(|t| TypingView {
+            Phase::Network(screen) => screen.typing.as_ref().map(|t| TypingView {
                 prompt: if t.refused {
                     "A passphrase has 8 to 63 characters".to_string()
                 } else {

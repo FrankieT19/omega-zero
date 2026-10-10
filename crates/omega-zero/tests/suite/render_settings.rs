@@ -8,7 +8,7 @@ use common::{clocked, tmp_root_with_carts};
 use omega_gfx::{out_h, out_w, Compositor, HeadlessSurface};
 use omega_input::{Btn, InputSource, Millis, RawEvent};
 use omega_power::SimPlatform;
-use omega_ui::{quick_rows_shown, quick_top, quick_window, stage_x, QuickRow, QUICK_PITCH};
+use omega_ui::{quick_rows_shown, quick_top, quick_window, stage_x, SettingsRow, QUICK_PITCH};
 use omega_zero::frontend::Frontend;
 
 struct Script(VecDeque<Vec<RawEvent>>);
@@ -40,7 +40,7 @@ fn composed(f: &mut Frontend, c: &mut Compositor, name: &str) -> Vec<u8> {
     f.compose(c);
     let px = c.read_frame();
     if let Ok(dir) = std::env::var("SCRATCH_PNG_DIR") {
-        let path = format!("{dir}/quick-menu-{name}.png");
+        let path = format!("{dir}/settings-{name}.png");
         let file = std::fs::File::create(&path).expect("create png");
         let mut e = png::Encoder::new(std::io::BufWriter::new(file), out_w(), out_h());
         e.set_color(png::ColorType::Rgba);
@@ -55,7 +55,7 @@ fn composed(f: &mut Frontend, c: &mut Compositor, name: &str) -> Vec<u8> {
 }
 
 #[test]
-fn the_quick_menu_renders_full_screen() {
+fn settings_renders_full_screen() {
     let Ok(surface) = HeadlessSurface::new() else {
         return;
     };
@@ -71,14 +71,14 @@ fn the_quick_menu_renders_full_screen() {
 
     let bar = [0x4d, 0x4d, 0x57];
     let ground = [0x05, 0x05, 0x08];
-    let mut bar_on = QuickRow::ALL[0];
-    let (n, mut first) = (QuickRow::ALL.len(), 0);
+    let mut bar_on = SettingsRow::ALL[0];
+    let (n, mut first) = (SettingsRow::ALL.len(), 0);
     let shown = quick_rows_shown(n);
     for (name, selected) in [
-        ("fast-forward", QuickRow::FastForward),
-        ("colour-correction", QuickRow::ColourCorrection),
-        ("date-time", QuickRow::DateTime),
-        ("about", QuickRow::About),
+        ("fast-forward", SettingsRow::FastForward),
+        ("colour-correction", SettingsRow::ColourCorrection),
+        ("date-time", SettingsRow::DateTime),
+        ("about", SettingsRow::About),
     ] {
         for i in bar_on.index()..selected.index() {
             tap(&mut f, &mut input, Btn::Down);
@@ -86,7 +86,7 @@ fn the_quick_menu_renders_full_screen() {
         }
         bar_on = selected;
         let px = composed(&mut f, &mut c, name);
-        let row_top = |row: QuickRow| quick_top() + QUICK_PITCH * (row.index() - first) as f32;
+        let row_top = |row: SettingsRow| quick_top() + QUICK_PITCH * (row.index() - first) as f32;
 
         let top = row_top(selected) as usize;
         for x in [1, out_w() as usize - 2] {
@@ -107,7 +107,7 @@ fn the_quick_menu_renders_full_screen() {
             "{name}: not on the ground"
         );
 
-        for row in QuickRow::ALL.into_iter().skip(first).take(shown) {
+        for row in SettingsRow::ALL.into_iter().skip(first).take(shown) {
             let top = row_top(row) as usize;
             let label = inked(&px, 0..out_w() as usize / 2, top);
             let first = *label.first().expect("a row with no label");
@@ -115,7 +115,10 @@ fn the_quick_menu_renders_full_screen() {
                 (32..=36).contains(&first),
                 "{name}: {row:?}'s label starts at x {first}"
             );
-            if matches!(row, QuickRow::About | QuickRow::Background) {
+            if matches!(
+                row,
+                SettingsRow::Labels | SettingsRow::About | SettingsRow::Background
+            ) {
                 continue;
             }
             let value = inked(&px, out_w() as usize / 2..out_w() as usize, top);
@@ -127,7 +130,9 @@ fn the_quick_menu_renders_full_screen() {
         }
     }
 
-    tap(&mut f, &mut input, Btn::Up);
+    while f.app().settings_row() != Some(SettingsRow::DateTime) {
+        tap(&mut f, &mut input, Btn::Up);
+    }
     tap(&mut f, &mut input, Btn::A);
     let px = composed(&mut f, &mut c, "clock");
     assert!(

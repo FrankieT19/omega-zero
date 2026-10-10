@@ -3,7 +3,7 @@ use crate::common;
 use common::{app_booting_at, app_booting_with_clock, tmp_root_with_carts, Clock};
 use omega_input::{Action, Btn};
 use omega_store::{read_app_state, write_app_state, AppState};
-use omega_ui::{ClockPicker, Field, QuickRow};
+use omega_ui::{ClockPicker, Field, SettingsRow};
 use omega_zero::app::{App, Phase};
 use tempfile::TempDir;
 
@@ -247,7 +247,7 @@ fn clock_screen(way: Way) -> (TempDir, App, Clock) {
     let (mut a, clock) = app_booting_at(d.path(), AT);
     if let Way::QuickMenu = way {
         a.apply(Action::GbaDown(Btn::Start));
-        for _ in 0..QuickRow::DateTime.index() {
+        for _ in 0..SettingsRow::DateTime.index() {
             a.apply(Action::GbaDown(Btn::Down));
         }
         a.apply(Action::GbaDown(Btn::A));
