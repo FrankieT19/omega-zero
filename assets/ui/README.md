@@ -27,7 +27,7 @@ assets/ui/
     ├── omega-panel.js     <omega-panel>     a titled section for inside it
     ├── omega-row.js       <omega-row>       one setting in a panel, lit under the cursor
     ├── omega-list-row.js  <omega-list-row>  a Wi-Fi network in a list, built on omega-row
-    ├── omega-bar.js       <omega-bar>       the bottom bar: two actions, the plate, key hints
+    ├── omega-bar.js       <omega-bar>       the bottom bar: two actions, key hints between them
     ├── action-left.js     <action-left>     the bottom bar's left action
     └── action-right.js    <action-right>    the same, mirrored
 ```
@@ -99,7 +99,6 @@ headless Chrome screenshot lands on the same frame:
 | `colour` | `night` (default), `slate`, `navy`, `teal`, `green`, `plum`, `crimson`, `amber` |
 | `style`, `moving` | the backdrop, as Settings > Theme sets it: `style=plates`, `moving=0` |
 | `font` | `thin`: the bottom bar's labels in the thin font, as Settings > Theme > Font sets it |
-| `bar` | `floating` instead of the plate |
 | `wifi` | `off`: SSH shows what it says offline, and the networks dim |
 | `row` | the cursor's row on `screen`, from 0 |
 | `slow` | `1`: slides at a fifth of their speed |

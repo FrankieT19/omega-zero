@@ -248,7 +248,6 @@
     if (model.style !== 'grid') q.set('style', model.style);
     if (!model.moving) q.set('moving', '0');
     if (model.font !== 'bold') q.set('font', model.font);
-    if (bar.hasAttribute('floating')) q.set('bar', 'floating');
     if (!model.wifi) q.set('wifi', 'off');
     if (state.slow) q.set('slow', '1');
     if (document.body.classList.contains('shot')) q.set('shot', '1');
@@ -282,7 +281,6 @@
     FlowScreens.set('moving', q.get('moving') !== '0');
     FlowScreens.set('font', pick('font', FONTS, 'bold'));
     FlowScreens.set('wifi', q.get('wifi') !== 'off');
-    bar.toggleAttribute('floating', q.get('bar') === 'floating');
     state.slow = q.get('slow') === '1';
     syncControls();
 
@@ -350,12 +348,6 @@
   for (const input of radios('zoom')) {
     input.addEventListener('change', () => { screen.style.zoom = input.value; });
   }
-  for (const input of radios('bar')) {
-    input.addEventListener('change', () => {
-      bar.toggleAttribute('floating', input.value === 'floating');
-      writeHash();
-    });
-  }
   document.getElementById('slow').addEventListener('change', e => {
     state.slow = e.target.checked;
     // keep a running slide where it is, at its new speed
@@ -383,7 +375,6 @@
     for (const input of radios('colour')) input.checked = input.value === model.colour;
     for (const input of radios('font')) input.checked = input.value === model.font;
     for (const input of radios('size')) input.checked = input.value === screen.dataset.size;
-    for (const input of radios('bar')) input.checked = (input.value === 'floating') === bar.hasAttribute('floating');
     document.getElementById('moving').checked = model.moving;
     document.getElementById('wifi').checked = model.wifi;
     document.getElementById('slow').checked = state.slow;
