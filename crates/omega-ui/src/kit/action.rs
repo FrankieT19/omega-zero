@@ -187,9 +187,9 @@ pub fn action_face(side: Side, word: &str, pill: &str, font: Font, pal: &Palette
     )
 }
 
-/// A bar's two actions, `left` and `right` as (word, pill), their words in `font`, the same size: each word's box as
-/// wide as the wider of the two, and each pill as wide as the wider, the words and the hints
-/// centred in them.
+/// A bar's two actions, `left` and `right` as (word, pill), their words in `font`, the same
+/// size: each word's box as wide as the wider of the two, and each pill as wide as the wider,
+/// the words and the hints centred in them.
 pub fn action_pair(
     left: (&str, &str),
     right: (&str, &str),
@@ -257,8 +257,8 @@ fn face_in(
         Side::Left => button_x + 1,
         Side::Right => button_x + PILL_END as i32 - HINT_REACH as i32,
     };
-    // centred as text-align does it; what is left over is always even, since the box's room
-    // (36) and every word (6 a letter) are, so the hint never lands on half a pixel
+    // centred, what is left over split with the odd pixel on the right, so the hint never lands
+    // on half a pixel (action-left.js places it the same way from its `room`)
     let room = hint_w - HINT_PAD[0] - HINT_PAD[1];
     let centred = (room.saturating_sub(text_width(pill)) / 2) as i32;
     let text_x = hint_x + HINT_PAD[0] as i32 + centred;
