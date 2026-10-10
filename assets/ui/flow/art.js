@@ -1,10 +1,10 @@
 /*
   The art flow.html draws itself: placeholders for what Rust draws on the device (the shelf's carts,
   the top bar's icons, the About sticker), the keyboard's keys, and the arrows the Controls panel
-  needs, which fonts.css's Pixel Code, cut to Latin-1, has no letter for (◀ ▶ ▲ ▼). Like the kit's
-  components, every
-  shape is a sprite written as rows of colour keys (see foundation/pixel.js), shown at one art pixel
-  to --u, in the --oz-* colours palette.js sets.
+  needs and the … a note may end with, which fonts.css's Pixel Code, cut to Latin-1, has no letter
+  for (◀ ▶ ▲ ▼ …). Like the kit's components, every shape is a sprite written as rows of colour
+  keys (see foundation/pixel.js), shown at one art pixel to --u, in the --oz-* colours palette.js
+  sets.
 
   FlowArt.paint(root) puts every sprite on `root` as a CSS custom property, --flow-<name>, which
   flow.css hangs where it is drawn; call it again whenever palette.js changes the colours.
@@ -22,6 +22,11 @@ window.FlowArt = (() => {
     right: cell(['#', '###', '#####', '###', '#']),
     up: cell(['..#', '..#', '.###', '.###', '#####']),
     down: cell(['#####', '.###', '.###', '..#', '..#']),
+  };
+  // The … that ends a note while something is under way (Looking for devices…), its three dots
+  // on the baseline row, drawn in the notes' dim colour.
+  const NOTE_GLYPHS = {
+    ellipsis: cell(['', '', '', '', '#.#.#']),
   };
 
   // The shelf's top bar, after status_bar.rs: Wi-Fi on the left, the battery on the right, each one
@@ -97,6 +102,7 @@ window.FlowArt = (() => {
     const { sprite, mirror } = OmegaPixel;
     const set = (name, rows) => root.style.setProperty(`--flow-${name}`, sprite(rows, root));
     for (const [name, rows] of Object.entries(GLYPHS)) set(`glyph-${name}`, ink(rows, 'H'));
+    for (const [name, rows] of Object.entries(NOTE_GLYPHS)) set(`glyph-${name}`, ink(rows, 'd'));
     set('wifi', ink(WIFI, 'c'));
     set('battery', ink(BATTERY, 'c'));
     set('key', mirror(KEY));

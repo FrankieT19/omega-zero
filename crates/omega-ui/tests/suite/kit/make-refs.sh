@@ -105,6 +105,8 @@ shoot bar-menu-thin-320 320 19 'c=bar&w=320&font=thin&left=RETURN&left-hint=B&ri
 # lines of text as flow.html sets them, the Controls panel's arrows as flow/art.js draws them
 shoot text-sftp 144 11 'c=text&tone=dim&text=SFTP%20uses%20the%20same%20login'
 shoot text-offline 162 11 'c=text&tone=dim&text=Join%20a%20Wi-Fi%20network%20first.'
+shoot text-bluetooth-off 102 11 'c=text&tone=dim&text=Bluetooth%20is%20off.'
+shoot text-looking 120 11 'c=text&tone=dim&text=Looking%20for%20devices%E2%80%A6'
 shoot text-labels 264 21 'c=text&tone=dim&text=Sign%20in%20with%20your%20free%20ScreenScraper%20account%0Ato%20fetch%20the%20real%20labels%20of%20your%20carts.'
 shoot text-heading 42 11 'c=text&tone=dim&text=IN%20GAME'
 shoot text-select-up-down 54 11 'c=text&tone=frame-hi&text=SELECT%2B%E2%96%B2%E2%96%BC'

@@ -836,6 +836,7 @@ fn lines_of_text_are_chromes() {
     let cases = [
         ("text-sftp", "SFTP uses the same login", RAMP.dim),
         ("text-offline", "Join a Wi-Fi network first.", RAMP.dim),
+        ("text-bluetooth-off", "Bluetooth is off.", RAMP.dim),
         (
             "text-labels",
             "Sign in with your free ScreenScraper account\nto fetch the real labels of your carts.",
@@ -860,6 +861,13 @@ fn the_controls_panels_arrows_are_pixel_codes_own_as_flow_copies_them() {
         "text-select-up-down",
     );
     matches(&text_face("◀▶", RAMP.frame_hi), "text-left-right");
+}
+
+/// The … a note ends with while something is under way is a sprite in flow.html too, copied from
+/// the full face, three dots on the baseline row.
+#[test]
+fn a_notes_ellipsis_is_pixel_codes_own_as_flow_copies_it() {
+    matches(&text_face("Looking for devices…", RAMP.dim), "text-looking");
 }
 
 /// What a well holds, laid over `panel`: rows from its top, then whatever is drawn after them.

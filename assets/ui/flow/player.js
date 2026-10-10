@@ -51,7 +51,8 @@
 
   const NAMES = {
     shelf: 'Shelf', settings: 'Settings', network: 'Network', ssh: 'SSH', keyboard: 'Keyboard',
-    labels: 'Labels', datetime: 'Date & Time', background: 'Theme', about: 'About', controls: 'Controls',
+    bluetooth: 'Bluetooth', labels: 'Labels', datetime: 'Date & Time', background: 'Theme', about: 'About',
+    controls: 'Controls',
   };
   // What the bottom bar shows: the shelf's actions, every menu's, and the key hints some menus add.
   const SHELF_BAR = { left: ['CONTROLS', 'SELECT'], right: ['SETTINGS', 'START'] };
@@ -104,8 +105,9 @@
   function sinkActions(dy) {
     for (const action of actions) action.style.top = `${dy}px`;
   }
+  // The screen's hint for where its cursor is, if it has one (screens.js), else the screen's own.
   function setHint(name) {
-    const hint = HINTS[name];
+    const hint = screens[name].hint?.() ?? HINTS[name];
     if (!hint) bar.removeAttribute('hint');
     else if (bar.getAttribute('hint') !== hint) bar.setAttribute('hint', hint);
   }
@@ -191,7 +193,10 @@
     const answer = screens[state.current].press(key);
     if (answer?.go) go(answer.go, 'in');
     else if (answer?.back && PARENT[state.current]) go(PARENT[state.current], 'out');
-    else writeHash();
+    else {
+      setHint(state.current);
+      writeHash();
+    }
   }
 
   // ---- whole pixels for what is centred ----
@@ -262,6 +267,7 @@
     if (!model.moving) q.set('moving', '0');
     if (model.font !== 'bold') q.set('font', model.font);
     if (!model.wifi) q.set('wifi', 'off');
+    if (FlowScreens.bluetoothState() !== 'on') q.set('bt', FlowScreens.bluetoothState());
     if (state.slow) q.set('slow', '1');
     if (document.body.classList.contains('shot')) q.set('shot', '1');
     history.replaceState(null, '', `#${q}`.replaceAll('%2C', ','));
@@ -294,6 +300,7 @@
     FlowScreens.set('moving', q.get('moving') !== '0');
     FlowScreens.set('font', pick('font', FONTS, 'bold'));
     FlowScreens.set('wifi', q.get('wifi') !== 'off');
+    FlowScreens.bluetoothAs(pick('bt', FlowScreens.BT, 'on'));
     state.slow = q.get('slow') === '1';
     syncControls();
 
@@ -350,6 +357,7 @@
     input.addEventListener('change', () => FlowScreens.set('font', input.value));
   }
   document.getElementById('wifi').addEventListener('change', e => FlowScreens.set('wifi', e.target.checked));
+  document.getElementById('bluetooth').addEventListener('change', e => FlowScreens.set('bluetooth', e.target.checked));
   for (const input of radios('size')) {
     input.addEventListener('change', () => {
       screen.dataset.size = input.value;
@@ -390,6 +398,7 @@
     for (const input of radios('size')) input.checked = input.value === screen.dataset.size;
     document.getElementById('moving').checked = model.moving;
     document.getElementById('wifi').checked = model.wifi;
+    document.getElementById('bluetooth').checked = model.bluetooth;
     document.getElementById('slow').checked = state.slow;
   }
 
@@ -399,6 +408,8 @@
     if (key === 'moving' && backdrop.hasAttribute('data-moving') !== model.moving) backdrop.toggleAttribute('data-moving', model.moving);
     if (key === 'colour' && document.documentElement.dataset.colour !== model.colour) OmegaPalette.apply(model.colour);
     if (key === 'font') bar.setAttribute('font', model.font);
+    // a device paired or forgotten under the cursor changes the hint
+    if (!state.slide) setHint(state.current);
     syncControls();
     writeHash();
   });
@@ -411,7 +422,7 @@
 
   const KEYS = {
     ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
-    x: 'a', a: 'a', z: 'b', b: 'b', Escape: 'b', Enter: 'start', ' ': 'select',
+    x: 'a', a: 'a', z: 'b', b: 'b', Escape: 'b', y: 'y', Enter: 'start', ' ': 'select',
   };
   document.addEventListener('keydown', e => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;

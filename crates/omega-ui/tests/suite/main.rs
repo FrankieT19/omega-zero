@@ -7,6 +7,7 @@ mod barcode;
 mod barcode_scan;
 mod battery;
 mod bezel;
+mod bluetooth;
 mod board;
 mod cart;
 mod chrome;
