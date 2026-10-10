@@ -36,6 +36,22 @@ wait 40
 shot shelf-scrolled
 tap left
 wait 40
+down start
+wait 8
+shot slide-to-settings
+up start
+wait 60
+down b
+wait 8
+shot slide-to-shelf
+up b
+wait 60
+tap select
+wait 8
+shot slide-to-quickmenu
+wait 60
+tap b
+wait 60
 tap x
 settle
 wait 90
@@ -97,7 +113,10 @@ tap up
 wait 10
 tap up
 wait 10
-tap a
+down a
+wait 8
+shot slide-to-network
+up a
 settle
 wait 30
 shot network-off
