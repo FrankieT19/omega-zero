@@ -146,7 +146,7 @@
       .caret-left { margin-right: calc(3 * var(--u)); }
       .caret-right, .opens { margin-left: calc(3 * var(--u)); }
       :host([carets]) .caret { display: block; visibility: hidden; }
-      :host([carets][lit]:not([dim])) .caret { visibility: visible; }
+      :host([carets][lit]:not([dim])) .caret { visibility: inherit; }
       :host([opens]) .opens { display: block; }
     </style>
     <div class="row" part="row">
