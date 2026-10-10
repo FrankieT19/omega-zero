@@ -26,7 +26,7 @@ tasks:
   test:
     desc: Run the whole test suite
     cmds:
-      - cargo test --workspace
+      - cargo test --workspace --no-fail-fast
 
   test:timing:
     desc: >-
@@ -40,14 +40,14 @@ tasks:
       Run the whole test suite again on every canvas but the default 720x480 one. The square
       720x720 canvas joins once the RG CubeXX layout lands
     cmds:
-      - OMEGA_CANVAS=640x480 cargo test --workspace
+      - OMEGA_CANVAS=640x480 cargo test --workspace --no-fail-fast
 
   test:one:
     desc: Run tests matching FILTER, eg task test:one FILTER=gesture
     requires:
       vars: [FILTER]
     cmds:
-      - cargo test --workspace {{.FILTER}}
+      - cargo test --workspace --no-fail-fast {{.FILTER}}
 
   fmt:
     desc: Format the workspace
