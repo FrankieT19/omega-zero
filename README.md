@@ -38,8 +38,8 @@ is the most useful thing you can send.
 - Link play between two handhelds over Wi-Fi, for Pokémon trades, Advance Wars, Mario Kart and Tetris.
 - Settings on START, in windows in the style of Mega Man Zero's menus that slide from screen to
   screen. A tap of SELECT lists what every button does.
-- Home Wi-Fi with SSH and SFTP (the login is shown on screen), network time, and cart labels
-  fetched from ScreenScraper.
+- Home Wi-Fi with SSH and SFTP (switched on and off in Network, the login and root's own random
+  password shown on screen), network time, and cart labels fetched from ScreenScraper.
 - A pixel font, a top bar with the radios, clock and battery, a bottom bar with the buttons, and
   a background you choose, whose colour the menus take.
 
