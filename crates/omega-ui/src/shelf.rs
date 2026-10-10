@@ -14,7 +14,7 @@ const SIDE_ALPHA: f32 = 0.55;
 /// How big a Game Boy pak stands on the shelf, as a share of its own size: at its own size it
 /// is taller than the room between the bar across the top and the slot. It comes up to its own
 /// size on the way in.
-pub const GB_SHELF_SCALE: f32 = 0.9;
+pub const GB_SHELF_SCALE: f32 = 0.8;
 
 /// How big a cart for `platform` stands on the shelf, as a share of its own size.
 pub fn shelf_scale(platform: Platform) -> f32 {
@@ -36,13 +36,7 @@ pub fn shelf_box(platform: Platform) -> (f32, f32) {
 /// shorter stands on the floor a GBA cart centred there would. A pak shrunk on the shelf is
 /// still taller than a GBA cart, so it is centred where it would stand at its own size.
 pub fn rest_y(h: f32) -> f32 {
-    rest_y_under(h, SLOT_RAISE)
-}
-
-/// Where a cart `h` tall would stand with the slot `raise` above the bottom, as `rest_y` puts
-/// it under the slot where it is.
-pub fn rest_y_under(h: f32, raise: f32) -> f32 {
-    let (top, floor) = (TOP_BAR_H, MOCKUP_H - raise - MOUTH_H);
+    let (top, floor) = (TOP_BAR_H, MOCKUP_H - SLOT_RAISE - MOUTH_H);
     let y = if h > CART_H as f32 {
         top + (floor - top - h) / 2.0
     } else {
