@@ -13,6 +13,7 @@ mod icon;
 mod keyboard;
 pub mod kit;
 mod link_art;
+pub mod network;
 mod plate;
 mod polaroids;
 mod power_menu;
