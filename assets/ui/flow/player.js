@@ -6,10 +6,13 @@
     SLIDE_MS 280, p = ease(t), ease(u) = u³(u(6u − 15) + 10), smootherstep.
     Going deeper, the screen on show leaves to the right, dx = +even(p·W), and the next comes in
       from the left, dx = −even((1 − p)·W); going back is the mirror. even() rounds to a whole
-      art pixel, 2px.
-    Leaving the shelf, its top bar goes up (dy = −p·36), its carts right (dx = +p·(W + the widest
-      cart)) and its slot down behind the bottom bar (dy = +p·110), while the menu comes in from
-      the left. Coming back, the same with q = 1 − p.
+      art pixel, 2px. Controls stands beside the shelf rather than under it, and slides the
+      mirror way: SELECT sends the shelf out to the left and brings the panel in from the right,
+      and back sends the panel out to the right and brings the shelf in from the left.
+    Leaving the shelf, its top bar goes up (dy = −p·36), its carts across the way the slide goes
+      (dx = ±p·(W + the widest cart): right for Settings, left for Controls) and its slot down
+      behind the bottom bar (dy = +p·110), while the menu comes in from the other side. Coming
+      back, the same with q = 1 − p.
     The bottom bar never leaves. When its actions change (shelf and menus), the old ones sink out
       of the screen over p 0 to 0.5 and the new ones rise into place over p 0.5 to 1; between two
       menus they stay put. Its hint changes with the screen, and its font the moment Theme's FONT
@@ -55,6 +58,12 @@
   const MENU_BAR = { left: ['RETURN', 'B'], right: ['CONFIRM', 'A'] };
   const barOf = name => (name === 'shelf' ? SHELF_BAR : MENU_BAR);
   const HINTS = { network: 'Y FORGET', labels: 'START FETCH' };
+  // The screens beside the shelf rather than under it: a slide to or from one goes the mirror way.
+  const ASIDE = ['controls'];
+  const aside = ({ from, to }) => ASIDE.includes(from) || ASIDE.includes(to);
+  // Which way the screen a slide leaves goes, 1 right or −1 left: right going deeper, left going
+  // back, and the mirror of each to and from a screen beside the shelf.
+  const leavesTo = slide => (slide.dir === 'in' ? 1 : -1) * (aside(slide) ? -1 : 1);
 
   const state = { current: 'shelf', slide: null, slow: false, armed: false };
   const duration = () => SLIDE_MS * (state.slow ? 5 : 1);
@@ -62,17 +71,18 @@
 
   // ---- placing ----
 
-  // The shelf `k` of the way out: 0 at rest, 1 gone.
-  function placeShelf(k) {
+  // The shelf `k` of the way out, its carts off to the right (side 1) or the left (side −1): 0
+  // at rest, 1 gone.
+  function placeShelf(k, side) {
     const [W, H] = size();
     shelf.top.style.top = `${-even(k * TOP_H)}px`;
-    shelf.carts.style.left = `${even(k * (W + WIDEST))}px`;
+    shelf.carts.style.left = `${side * even(k * (W + WIDEST)) + 0}px`;
     shelf.slot.style.top = `${H - SLOT_RISE + even(k * SLOT_RISE)}px`;
   }
 
-  // A screen `dx` pixels across; the shelf instead `k` of the way out.
-  function place(name, dx, k) {
-    if (name === 'shelf') placeShelf(k);
+  // A screen `dx` pixels across; the shelf instead `k` of the way out, its carts to `side`.
+  function place(name, dx, k, side) {
+    if (name === 'shelf') placeShelf(k, side);
     else page(name).style.left = `${dx}px`;
   }
 
@@ -103,7 +113,7 @@
   // A screen at rest, alone.
   function rest(name) {
     showOnly(name);
-    place(name, 0, 0);
+    place(name, 0, 0, 1);
     setActions(barOf(name));
     sinkActions(0);
     setHint(name);
@@ -111,15 +121,14 @@
 
   // One frame of a slide, at its time t.
   function render(slide) {
-    const { from, to, dir, t } = slide;
+    const { from, to, t } = slide;
     const p = ease(t);
     const [W] = size();
-    // which way the leaving screen goes: right going deeper, left going back
-    const sign = dir === 'in' ? 1 : -1;
+    const sign = leavesTo(slide);
     const leaving = sign * even(p * W);
     const arriving = -sign * even((1 - p) * W);
-    place(from, leaving, p);
-    place(to, arriving, 1 - p);
+    place(from, leaving, p, sign);
+    place(to, arriving, 1 - p, -sign);
     const [before, after] = [barOf(from), barOf(to)];
     let sunk = 0;
     if (before === after) setActions(after);
@@ -216,16 +225,20 @@
       return;
     }
     const frames = Math.round(duration() / FRAME_MS);
-    const way = slide.dir === 'in' ? 'deeper' : 'back';
+    const way = `${slide.dir === 'in' ? 'deeper' : 'back'}${aside(slide) ? ', mirrored' : ''}`;
     const shelfK = slide.from === 'shelf' ? p : slide.to === 'shelf' ? 1 - p : null;
+    // the side the shelf's carts are off to, and how far across the menu is
+    const [side, menuDx] = slide.from === 'shelf'
+      ? [leavesTo(slide), arriving]
+      : [-leavesTo(slide), leaving];
+    const carts = side * even(shelfK * (size()[0] + WIDEST)) + 0;
     box.textContent = [
       `${NAMES[slide.from]} → ${NAMES[slide.to]}, ${way}${slide.hold ? ', held' : ''}`,
       `t ${slide.t.toFixed(3)}  p ${p.toFixed(3)}  frame ${Math.round(slide.t * frames)}/${frames}`,
       shelfK === null
         ? `leaving dx ${leaving}px  arriving dx ${arriving}px  actions ${sunk}px down`
-        : `shelf: top ${-even(shelfK * TOP_H)}px  carts ${even(shelfK * (size()[0] + WIDEST))}px  ` +
-          `slot ${even(shelfK * SLOT_RISE)}px  menu dx ${slide.from === 'shelf' ? arriving : leaving}px  ` +
-          `actions ${sunk}px down`,
+        : `shelf: top ${-even(shelfK * TOP_H)}px  carts ${carts}px  slot ${even(shelfK * SLOT_RISE)}px  ` +
+          `menu dx ${menuDx}px  actions ${sunk}px down`,
     ].join('\n');
   }
 
