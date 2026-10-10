@@ -22,6 +22,8 @@ use omega_ui::{
 
 use crate::audio::Sfx;
 use crate::background_screen::{Backdrop, BackgroundScreen};
+use crate::bluetooth::bluetooth_jobs;
+use crate::bluetooth_screen::{Bluetooth, BluetoothScreen};
 use crate::boot_fade::BootFade;
 use crate::core_picker::{Chip, CorePicker, Outcome, Press};
 use crate::label_screen::{Labels, LabelsScreen};
@@ -291,6 +293,8 @@ pub enum Phase {
     },
     About,
     Network(WifiScreen),
+    /// Bluetooth and its devices, opened from Settings.
+    Bluetooth(BluetoothScreen),
     /// How to reach the handheld over SSH, opened from Network.
     Ssh(SshScreen),
     Labels(LabelsScreen),
@@ -398,8 +402,9 @@ pub struct App {
     pub(crate) controls_panel: Option<Lone>,
     pub(crate) keyboard_faces: Option<KeyboardFaces>,
     pub(crate) link_faces: Option<LinkFaces>,
-    /// None on a handheld without Bluetooth; otherwise whether it is on.
-    pub(crate) bluetooth: Option<bool>,
+    pub(crate) bluetooth: Bluetooth,
+    /// The Bluetooth modal's faces, laid out as Network's.
+    pub(crate) bluetooth_faces: Option<omega_ui::network::NetworkFaces>,
     pub(crate) labels: Labels,
     pub(crate) labels_panel: Option<Lone>,
     /// Carts whose labels arrived and whose faces are still drawn without them.
@@ -447,7 +452,8 @@ impl App {
             controls_panel: None,
             keyboard_faces: None,
             link_faces: None,
-            bluetooth: Some(false),
+            bluetooth: Bluetooth::new(bluetooth_jobs()),
+            bluetooth_faces: None,
             labels: Labels::new(Box::new(NoKey::default()), None),
             labels_panel: None,
             stale_faces: Vec::new(),
@@ -546,10 +552,8 @@ impl App {
         app.state = read_app_state(root);
         app.wifi.start(app.state.wifi);
         app.ssh.start(app.state.ssh, Some(root));
+        app.bluetooth.start(app.state.bluetooth);
         app.labels = Labels::new(label_jobs(root), Account::load(root));
-        if omega_power::baseos_release().and_then(|r| r.bluetooth) == Some(false) {
-            app.bluetooth = None;
-        }
         if app.state.clock_set {
             app.start();
         } else {
@@ -696,21 +700,14 @@ impl App {
         self.link_faces = Some(faces);
     }
 
-    /// Says whether Bluetooth is on, for the bar across the top. A handheld without a radio
-    /// keeps showing none.
-    pub fn set_bluetooth(&mut self, on: bool) {
-        if self.bluetooth.is_some() {
-            self.bluetooth = Some(on);
-        }
-    }
-
-    /// What the bar across the top shows the handheld connected to: SSH, with SFTP, while it
-    /// is switched on and a network is joined.
+    /// What the bar across the top shows the handheld connected to: Bluetooth while it is on
+    /// (none on a handheld without it), and SSH, with SFTP, while it is switched on and a
+    /// network is joined.
     pub fn links(&self) -> Links {
         let joined = self.wifi.status().joined();
         Links {
             wifi: joined,
-            bluetooth: self.bluetooth,
+            bluetooth: self.bluetooth.present().then(|| self.bluetooth.enabled()),
             ssh: joined && self.state.ssh && self.ssh.present(),
         }
     }
@@ -1241,6 +1238,7 @@ impl App {
             Phase::Settings { row } => self.settings_input(row, action),
             Phase::Controls => self.controls_input(action),
             Phase::Network(_) => self.network_input(action),
+            Phase::Bluetooth(_) => self.bluetooth_input(action),
             Phase::Ssh(_) => self.ssh_input(action),
             Phase::Labels(_) => self.labels_input(action),
             Phase::Background(_) => self.background_input(action),
@@ -1680,6 +1678,7 @@ impl App {
     fn timers(&mut self) {
         let (now, watch) = (self.now(), self.wifi_watch());
         self.wifi.tick(now, watch);
+        self.bluetooth.tick(now, self.bluetooth_watch());
         self.ssh.tick(now, self.state.ssh);
         self.labels.tick();
         self.take_labels();
@@ -1944,6 +1943,7 @@ impl App {
                     self.draw_keyboard(&t, out);
                 }
             }
+            Phase::Bluetooth(_) => self.draw_bluetooth(out),
             Phase::Ssh(_) => self.draw_ssh(out),
             Phase::About => self.draw_about(out),
             Phase::Inserting { cart, resumed, .. } => {

@@ -23,7 +23,8 @@ use crate::plate::UndoFace;
 pub enum SettingsGroup {
     /// How the games play: the settings left and right change in place, and the cart labels.
     Configs,
-    /// The handheld itself: its clock, its network, its background and what it is.
+    /// The handheld itself: its clock, its network, its Bluetooth, its background and what it
+    /// is.
     General,
 }
 
@@ -60,6 +61,7 @@ pub enum SettingsRow {
     Labels,
     DateTime,
     Network,
+    Bluetooth,
     /// THEME on the screen: the background, its motion and the colour everything takes, and the
     /// bar's font.
     Background,
@@ -67,7 +69,7 @@ pub enum SettingsRow {
 }
 
 impl SettingsRow {
-    pub const ALL: [SettingsRow; 9] = [
+    pub const ALL: [SettingsRow; 10] = [
         SettingsRow::FastForward,
         SettingsRow::FastForwardSound,
         SettingsRow::ColourCorrection,
@@ -75,6 +77,7 @@ impl SettingsRow {
         SettingsRow::Labels,
         SettingsRow::DateTime,
         SettingsRow::Network,
+        SettingsRow::Bluetooth,
         SettingsRow::Background,
         SettingsRow::About,
     ];
@@ -92,6 +95,7 @@ impl SettingsRow {
             SettingsRow::Labels => "Labels",
             SettingsRow::DateTime => "Date & Time",
             SettingsRow::Network => "Network",
+            SettingsRow::Bluetooth => "Bluetooth",
             SettingsRow::Background => "Theme",
             SettingsRow::About => "About",
         }
@@ -106,6 +110,7 @@ impl SettingsRow {
             | SettingsRow::Labels => SettingsGroup::Configs,
             SettingsRow::DateTime
             | SettingsRow::Network
+            | SettingsRow::Bluetooth
             | SettingsRow::Background
             | SettingsRow::About => SettingsGroup::General,
         }
@@ -119,6 +124,7 @@ impl SettingsRow {
             SettingsRow::Labels
                 | SettingsRow::DateTime
                 | SettingsRow::Network
+                | SettingsRow::Bluetooth
                 | SettingsRow::Background
                 | SettingsRow::About
         )
@@ -384,7 +390,8 @@ impl SettingsFaces {
 /// Settings over whatever is under it (the backdrop), with `row` lit.
 pub struct SettingsMenu<'a> {
     pub row: SettingsRow,
-    /// The rows this handheld shows: all of them, but for Network on one without a radio.
+    /// The rows this handheld shows: all of them, but for Network on one without a Wi-Fi radio
+    /// and Bluetooth on one without Bluetooth.
     pub rows: &'a [SettingsRow],
     pub faces: Option<&'a SettingsFaces>,
 }

@@ -44,6 +44,13 @@
   picks the font of the bottom bar's big words, Bold or Thin.
 - The top bar lights Wi-Fi and ssh within a second of a network being joined, and puts them out
   as quickly when it is lost. After boot they stayed dark until a menu was opened.
+- Bluetooth, under Network in Settings, on handhelds that have it. Its screen switches it on and
+  off and, while it is on, lists the devices paired, then those it finds while the screen is
+  open. A pairs with a new device and connects it, connects a paired one, or disconnects one
+  connected; Y forgets a paired one. Settings names the device connected. The card remembers
+  whether Bluetooth is on, bringing it up at boot, and the top bar lights its icon while it is.
+  Pairing asks nothing on screen, which most gamepads and headphones take. Game sound over
+  Bluetooth headphones and Bluetooth gamepads as controllers are still to come.
 
 ### For developers
 
@@ -57,6 +64,9 @@
   HTML kit pixel for pixel; `make-refs.sh` takes them again.
 - Each menu screen's input and drawing is a file of its own in `crates/omega-zero/src/screens/`,
   its faces are made in `frontend/sync_*.rs`, and `nav.rs` slides between them.
+- `card/System/bluetooth.sh` drives the radio for omega-zero (up, down, status, scan on or off,
+  pair, connect, disconnect, forget) and prints each device as a tab-separated line;
+  `card/test-bluetooth.sh` tests it against fakes of BlueZ's tools.
 - Now that root's password is random, `task deploy:wifi` and `task log:wifi` log in with
   `CONSOLE_PASSWORD` or, without it, the first line of a git-ignored `.console-password` at the
   top of the repo.
