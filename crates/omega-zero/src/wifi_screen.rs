@@ -2,9 +2,9 @@
 //! SSH, the networks in reach, and typing a passphrase for a new one.
 
 use omega_input::{Action, Btn, Millis};
-use omega_ui::{wifi_window, Keyboard};
+use omega_ui::network::{network_window, networks_shown};
+use omega_ui::Keyboard;
 
-use crate::list_view::{LegendHint, ListView, RowLabel, RowValue, ViewRow};
 use crate::wifi::{
     bars, passphrase_ok, shown, AskFail, Saved, Seen, Status, WifiJob, WifiJobs, WifiNews,
     GLANCE_MS, JOIN_TIMEOUT_MS, REFRESH_MS, SCAN_MS,
@@ -337,8 +337,10 @@ impl Wifi {
         }
     }
 
-    /// The lines under the list, each short enough for a 640-wide screen.
-    pub fn status_lines(&self) -> Vec<String> {
+    /// The notes under the networks, a line each, short enough for the list's panel at 640x480:
+    /// why a join went wrong, what is under way, or what to do next. Joined and addressed there
+    /// is nothing to say: the network's row says CONNECTED, and SSH has the address.
+    pub fn notes(&self) -> Vec<String> {
         if !self.present() {
             return vec!["This handheld has no Wi-Fi.".into()];
         }
@@ -349,34 +351,42 @@ impl Wifi {
             Some(Note::NoRadio) => return vec!["The Wi-Fi radio did not start.".into()],
             Some(Note::WrongPassphrase(s)) => {
                 return vec![
-                    format!("Could not join {}.", shown(s)),
+                    format!("Could not join {}.", noted(s)),
                     "Wrong passphrase?".into(),
                 ]
             }
-            Some(Note::NoJoin(s)) => return vec![format!("Could not join {}.", shown(s))],
+            Some(Note::NoJoin(s)) => return vec![format!("Could not join {}.", noted(s))],
             None => {}
         }
         if let Some(ssid) = self.joining_ssid() {
-            return vec![format!("Joining {}…", shown(ssid))];
+            return vec![format!("Joining {}…", noted(ssid))];
         }
-        let Some(ssid) = self.joined_ssid() else {
-            return vec!["Not connected. Pick a network to join.".into()];
-        };
-        let Some(ip) = &self.status.ip else {
-            return vec![
-                format!("Joined {}.", shown(ssid)),
-                "Waiting for an address…".into(),
-            ];
-        };
-        let mut lines = vec![format!("Connected to {} as {ip}", shown(ssid))];
-        let host = &self.status.hostname;
-        lines.push(if host.is_empty() {
-            format!("SSH and SFTP: root@{ip}")
-        } else {
-            format!("SSH and SFTP: root@{host}.local")
-        });
-        lines
+        if self.joined_ssid().is_none() {
+            return vec![if self.entries().is_empty() {
+                "Looking for networks…".into()
+            } else {
+                "Not connected. Pick a network to join.".into()
+            }];
+        }
+        match self.status.ip {
+            None => vec!["Waiting for an address…".into()],
+            Some(_) => Vec::new(),
+        }
     }
+}
+
+/// The most of a network's name a note says: with the words around it, a note then fits the
+/// list's panel at 640x480 (43 letters).
+const NOTED: usize = 24;
+
+/// A network's name as a note says it, cut short with an ellipsis when it is long.
+fn noted(ssid: &[u8]) -> String {
+    let name = shown(ssid);
+    if name.chars().count() <= NOTED {
+        return name;
+    }
+    let cut: String = name.chars().take(NOTED - 1).collect();
+    format!("{}…", cut.trim_end())
 }
 
 /// A row of the Network screen, held by what it is rather than where it is, so a scan that
@@ -404,7 +414,7 @@ pub struct WifiScreen {
     pub sel: Sel,
     /// Where the cursor was, for when its network drops out of the list.
     pub at: usize,
-    /// The first row in view.
+    /// The first network in view, in a list longer than its panel.
     pub first: usize,
     pub typing: Option<Typing>,
 }
@@ -428,6 +438,50 @@ pub enum Outcome {
     Ssh,
 }
 
+/// A row of the NETWORK panel, as a kit row shows it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SettingLine {
+    pub label: &'static str,
+    pub value: Option<&'static str>,
+    /// Left and Right change its value: carets either side of it while it is lit.
+    pub carets: bool,
+    /// It opens a screen of its own.
+    pub opens: bool,
+}
+
+/// A network in the AVAILABLE NETWORKS list, as a kit list row shows it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NetworkLine {
+    /// Its name, in its own case.
+    pub name: String,
+    /// What it is to the handheld: CONNECTED, JOINING or SAVED.
+    pub value: Option<&'static str>,
+    /// The bars lit, 0 to 3, while it is in reach.
+    pub signal: Option<u8>,
+    /// It needs a passphrase.
+    pub lock: bool,
+}
+
+/// The row under the cursor: one of NETWORK's, or one of the networks in view.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lit {
+    Setting(usize),
+    Network(usize),
+}
+
+/// What the Network modal shows, for its faces to be made from.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NetworkView {
+    /// NETWORK's rows: Wi-Fi, then while it is on Network Time and SSH.
+    pub settings: Vec<SettingLine>,
+    /// The networks in view, top first: as many as AVAILABLE NETWORKS holds, from the first
+    /// in view on.
+    pub networks: Vec<NetworkLine>,
+    pub lit: Lit,
+    /// The notes under the networks, a line each.
+    pub notes: Vec<String>,
+}
+
 impl WifiScreen {
     fn rows(&self, wifi: &Wifi) -> Vec<Sel> {
         let mut rows = vec![Sel::Wifi];
@@ -439,15 +493,21 @@ impl WifiScreen {
         rows
     }
 
-    /// The cursor's row now, settling it on a neighbour if its network has gone.
-    fn settle(&mut self, rows: &[Sel]) -> usize {
+    /// The cursor's row now, settling it on a neighbour if its network has gone, and the list
+    /// scrolled, a whole row at a time, so that a network under the cursor is in view.
+    fn settle(&mut self, rows: &[Sel], wifi: &Wifi) -> usize {
         let at = rows
             .iter()
             .position(|r| *r == self.sel)
             .unwrap_or(self.at.min(rows.len() - 1));
         self.sel = rows[at].clone();
         self.at = at;
-        self.first = wifi_window(at, rows.len(), self.first);
+        let settings = settings_of(rows);
+        let networks = rows.len() - settings;
+        let in_view = networks_shown(settings, wifi.notes().len());
+        // the cursor up in NETWORK leaves the list where it was
+        let lit = at.checked_sub(settings).unwrap_or(self.first);
+        self.first = network_window(lit, networks, self.first, in_view);
         at
     }
 
@@ -464,7 +524,7 @@ impl WifiScreen {
             return Outcome::Stay;
         }
         let rows = self.rows(wifi);
-        let at = self.settle(&rows);
+        let at = self.settle(&rows, wifi);
         match action {
             Action::GbaDown(Btn::B) | Action::QuickMenu => return Outcome::Close,
             Action::GbaDown(Btn::Up) => self.sel = rows[(at + rows.len() - 1) % rows.len()].clone(),
@@ -485,7 +545,7 @@ impl WifiScreen {
             _ => {}
         }
         let rows = self.rows(wifi);
-        self.settle(&rows);
+        self.settle(&rows, wifi);
         Outcome::Stay
     }
 
@@ -551,65 +611,80 @@ impl WifiScreen {
         wifi.join(t.ssid, t.keys.text, t.replace, now);
     }
 
-    pub fn view(&mut self, wifi: &Wifi) -> ListView {
+    /// Whether Y forgets the network under the cursor: it is one the handheld has saved.
+    pub fn forgets(&self, wifi: &Wifi) -> bool {
+        self.entry(wifi).is_some_and(|e| e.saved.is_some())
+    }
+
+    pub fn view(&mut self, wifi: &Wifi) -> NetworkView {
         let rows = self.rows(wifi);
-        let at = self.settle(&rows);
-        let entries = wifi.entries();
-        let shown_rows = omega_ui::wifi_rows_shown();
-        let view_rows = rows
+        let at = self.settle(&rows, wifi);
+        let settings = settings_of(&rows);
+        let notes = wifi.notes();
+        let in_view = networks_shown(settings, notes.len());
+        let on_off = |on: bool| Some(if on { "ON" } else { "OFF" });
+        let setting_lines = rows[..settings]
             .iter()
-            .skip(self.first)
-            .take(shown_rows)
             .map(|r| match r {
-                Sel::Wifi => ViewRow {
-                    label: RowLabel::Setting("Wi-Fi"),
-                    value: wifi.present().then_some(RowValue::Setting(wifi.enabled())),
-                    signal: None,
+                Sel::Clock => SettingLine {
+                    label: "NETWORK TIME",
+                    value: on_off(wifi.ntp()),
+                    carets: true,
+                    opens: false,
                 },
-                Sel::Clock => ViewRow {
-                    label: RowLabel::Setting("Network Time"),
-                    value: Some(RowValue::Setting(wifi.ntp())),
-                    signal: None,
-                },
-                Sel::Ssh => ViewRow {
-                    label: RowLabel::Setting("SSH"),
+                Sel::Ssh => SettingLine {
+                    label: "SSH",
                     value: None,
-                    signal: None,
+                    carets: false,
+                    opens: true,
                 },
-                Sel::Network(ssid) => {
-                    let e = entries.iter().find(|e| e.ssid == *ssid);
-                    ViewRow {
-                        label: RowLabel::Name(shown(ssid)),
-                        value: e.and_then(|e| match e.state {
-                            EntryState::Joined => Some(RowValue::Said("Connected")),
-                            EntryState::Joining => Some(RowValue::Said("Joining")),
-                            EntryState::Saved => Some(RowValue::Said("Saved")),
-                            EntryState::New => None,
-                        }),
-                        signal: e.and_then(|e| e.rssi.map(|r| (bars(r), e.secured))),
-                    }
-                }
+                _ => SettingLine {
+                    label: "WI-FI",
+                    value: if wifi.present() {
+                        on_off(wifi.enabled())
+                    } else {
+                        None
+                    },
+                    carets: wifi.present(),
+                    opens: false,
+                },
             })
             .collect();
-        let mut legend = vec![LegendHint::Back];
-        match &self.sel {
-            Sel::Wifi | Sel::Clock => legend.push(LegendHint::Change),
-            Sel::Ssh => legend.push(LegendHint::Open),
-            Sel::Network(_) => {
-                let e = self.entry(wifi);
-                if e.as_ref().is_some_and(|e| e.saved.is_some()) {
-                    legend.push(LegendHint::Forget);
-                }
-                if e.is_some_and(|e| !matches!(e.state, EntryState::Joined | EntryState::Joining)) {
-                    legend.push(LegendHint::Join);
-                }
-            }
-        }
-        ListView {
-            rows: view_rows,
-            lit: Some(at - self.first),
-            status: wifi.status_lines(),
-            legend,
+        let networks = wifi
+            .entries()
+            .iter()
+            .skip(self.first)
+            .take(in_view)
+            .map(|e| NetworkLine {
+                name: shown(&e.ssid),
+                value: match e.state {
+                    EntryState::Joined => Some("CONNECTED"),
+                    EntryState::Joining => Some("JOINING"),
+                    EntryState::Saved => Some("SAVED"),
+                    EntryState::New => None,
+                },
+                // four steps of strength on the kit's dot and two arcs: the weakest lights the
+                // dot, the two strongest everything, so a network in reach never looks dead
+                signal: e.rssi.map(|r| bars(r).min(3)),
+                lock: e.rssi.is_some() && e.secured,
+            })
+            .collect();
+        let lit = match at.checked_sub(settings) {
+            None => Lit::Setting(at),
+            Some(i) => Lit::Network(i - self.first),
+        };
+        NetworkView {
+            settings: setting_lines,
+            networks,
+            lit,
+            notes,
         }
     }
+}
+
+/// How many of `rows` are NETWORK's: the ones before the networks.
+fn settings_of(rows: &[Sel]) -> usize {
+    rows.iter()
+        .position(|r| matches!(r, Sel::Network(_)))
+        .unwrap_or(rows.len())
 }

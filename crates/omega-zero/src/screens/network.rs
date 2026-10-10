@@ -2,12 +2,12 @@
 //! screen, and the networks in reach.
 
 use omega_input::Action;
-use omega_ui::{Draw, SettingsRow, WifiMenuFaces};
+use omega_ui::network::NetworkFaces;
+use omega_ui::{Draw, SettingsRow};
 
 use crate::app::{App, Phase};
-use crate::list_view::ListView;
 use crate::nav::Dir;
-use crate::wifi_screen::{Outcome as WifiOutcome, Typing};
+use crate::wifi_screen::{NetworkView, Outcome as WifiOutcome, Typing};
 
 impl App {
     pub(crate) fn network_input(&mut self, action: Action) {
@@ -39,8 +39,8 @@ impl App {
         }
     }
 
-    /// The Network screen's list, while it is open and not taking a passphrase.
-    pub fn network_view(&mut self) -> Option<ListView> {
+    /// What the Network modal shows, while it is open and not taking a passphrase.
+    pub fn network_view(&mut self) -> Option<NetworkView> {
         match &mut self.phase {
             Phase::Network(screen) if screen.typing.is_none() => Some(screen.view(&self.wifi)),
             _ => None,
@@ -55,13 +55,22 @@ impl App {
         }
     }
 
-    pub fn set_network_faces(&mut self, faces: WifiMenuFaces) {
+    /// Whether Y forgets the network under the cursor, for the bar to offer Y FORGET: the
+    /// Network modal is open on a network the handheld has saved.
+    pub fn network_forgets(&self) -> bool {
+        match &self.phase {
+            Phase::Network(screen) if screen.typing.is_none() => screen.forgets(&self.wifi),
+            _ => false,
+        }
+    }
+
+    pub fn set_network_faces(&mut self, faces: NetworkFaces) {
         self.network_faces = Some(faces);
     }
 
     pub(crate) fn draw_network(&self, out: &mut Vec<Draw>) {
         if let Some(faces) = &self.network_faces {
-            faces.draw_over(out);
+            faces.draw(out);
         }
     }
 }

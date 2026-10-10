@@ -1,67 +1,61 @@
-//! Settings' faces that change while it is open: the date and time, and what it says beside
-//! Network.
+//! Settings' faces, baked as little and as seldom as they can be: the modal with its panels and
+//! the two lit titles once per canvas and palette, and a row only when what it says, whether it
+//! is lit or the palette changes. Moving the cursor bakes the two rows it leaves and lands on;
+//! the clock's minute bakes the Date & Time row alone.
 
-use omega_gfx::{out_w, Compositor, TexId};
-use omega_ui::{date_time_text, plain_face, quick_value_face};
+use omega_gfx::{Compositor, TexId};
+use omega_ui::{
+    configs_in, settings_frame, settings_row_face, settings_row_width, settings_title_face,
+    SettingsBaked, SettingsFaces, SettingsGroup, SettingsRow,
+};
 
 use crate::app::App;
-use crate::frontend::faces::{upload, WifiTexes};
-use crate::wifi_screen::Summary;
+use crate::frontend::faces::upload_nearest;
 
+/// The textures Settings is drawn with, each filled again in place, and what they were baked
+/// from.
 #[derive(Default)]
-pub(crate) struct SettingsClock {
-    dim: Option<TexId>,
-    lit: Option<TexId>,
-    shown: String,
+pub(crate) struct SettingsTexes {
+    baked: SettingsBaked,
+    frame: Option<TexId>,
+    titles: [Option<TexId>; 2],
+    rows: [Option<TexId>; SettingsRow::ALL.len()],
+    faces: Option<SettingsFaces>,
 }
 
-pub(crate) fn sync_settings_clock(
-    app: &mut App,
-    compositor: &mut Compositor,
-    state: &mut SettingsClock,
-) {
+pub(crate) fn sync_settings(app: &mut App, compositor: &mut Compositor, state: &mut SettingsTexes) {
     if app.settings_row().is_none() {
         return;
     }
-    let text = date_time_text(app.wall_secs());
-    if text == state.shown {
+    let shown = app.settings_shown();
+    let plan = state.baked.rebake(app.palette_colour(), &shown);
+    if !plan.frame && plan.rows.is_empty() && plan.gone.is_empty() {
         return;
     }
-    let (dim, lit) = (
-        quick_value_face(&text, false),
-        quick_value_face(&text, true),
-    );
-    let (dim_size, lit_size) = ((dim.w, dim.h), (lit.w, lit.h));
-    let dim = upload(compositor, &mut state.dim, dim);
-    let lit = upload(compositor, &mut state.lit, lit);
-    app.set_settings_clock_faces((dim, dim_size.0, dim_size.1), (lit, lit_size.0, lit_size.1));
-    state.shown = text;
-}
-
-pub(crate) fn sync_settings_network(
-    app: &mut App,
-    compositor: &mut Compositor,
-    state: &mut WifiTexes,
-) {
-    if app.settings_row().is_some() {
-        let summary = app.wifi_summary();
-        if state.summary.as_ref() != Some(&summary) {
-            let face = |lit: bool| match &summary {
-                Summary::Off => quick_value_face("Off", lit),
-                Summary::On => quick_value_face("On", lit),
-                Summary::Joined(name) => {
-                    plain_face(name, out_w() as f32 * 0.45, 27.0, omega_ui::MENU_H, lit)
-                }
-            };
-            let [dim, lit] = [false, true].map(face);
-            let (dim_size, lit_size) = ((dim.w, dim.h), (lit.w, lit.h));
-            let dim = upload(compositor, &mut state.summary_tex[0], dim);
-            let lit = upload(compositor, &mut state.summary_tex[1], lit);
-            app.set_settings_network_faces(
-                (dim, dim_size.0, dim_size.1),
-                (lit, lit_size.0, lit_size.1),
-            );
-            state.summary = Some(summary);
-        }
+    let pal = app.palette();
+    if plan.frame || state.faces.is_none() {
+        let rows: Vec<SettingsRow> = shown.iter().map(|s| s.row).collect();
+        let frame = settings_frame(configs_in(&rows), pal);
+        let frame_tex = upload_nearest(compositor, &mut state.frame, &frame.face);
+        let titles = SettingsGroup::ALL.map(|g| {
+            let face = settings_title_face(g, pal);
+            let tex = upload_nearest(compositor, &mut state.titles[g.index()], &face);
+            (tex, [face.w, face.h])
+        });
+        state.faces = Some(SettingsFaces::new(&frame, frame_tex, titles));
     }
+    let Some(faces) = state.faces.as_mut() else {
+        return;
+    };
+    for row in plan.gone {
+        faces.rows[row.index()] = None;
+    }
+    for shown in plan.rows {
+        let w = settings_row_width(faces.wells[shown.row.group().index()][2]);
+        let face = settings_row_face(w, &shown, pal);
+        let i = shown.row.index();
+        let tex = upload_nearest(compositor, &mut state.rows[i], &face);
+        faces.rows[i] = Some((tex, [face.w, face.h]));
+    }
+    app.set_settings_faces(faces.clone());
 }

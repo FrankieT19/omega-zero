@@ -5,10 +5,9 @@ use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_ui::{
     arrows_hint_face, badge_face, bezel_mark_face, bolt_face, cart_face, cart_shadow, chip_face,
-    chip_shadow_face, gb_cart_shadow, hint_face, icon_face, mark_height, mark_rect, menu_face,
-    quick_caret_face, quick_label_face, quick_legend_faces, quick_value_face, rim, socket_face,
-    toast_face, wallpaper_face, GbShell, Icon, LinkBadge, PowerChoice, QuickMenuFaces, QuickValue,
-    SettingsRow, Toast, UndoFace, ALERT_PX, BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
+    chip_shadow_face, gb_cart_shadow, hint_face, icon_face, mark_height, mark_rect, menu_face, rim,
+    socket_face, toast_face, wallpaper_face, GbShell, Icon, LinkBadge, PowerChoice, Toast,
+    UndoFace, ALERT_PX, BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
 };
 use omega_ui::{link_face, overlay_clear, overlay_face, overlay_path, Link, LinkFaces};
 
@@ -35,18 +34,17 @@ mod sync_settings;
 mod sync_ssh;
 mod sync_switcher;
 
-use faces::WifiTexes;
 use lone::Baked;
 use sync_about::{sync_about, AboutFace};
 use sync_background::{sync_background, BackdropTex};
 use sync_clock::{sync_clock, Clocks};
 use sync_controls::sync_controls;
 use sync_core_picker::sync_core_picker;
-use sync_keyboard::sync_keyboard;
+use sync_keyboard::{sync_keyboard, KeyboardTexes};
 use sync_labels::sync_labels;
-use sync_network::sync_network;
-use sync_settings::{sync_settings_clock, sync_settings_network, SettingsClock};
-use sync_ssh::sync_ssh;
+use sync_network::{sync_network, NetworkTexes};
+use sync_settings::{sync_settings, SettingsTexes};
+use sync_ssh::{sync_ssh, SshTexes};
 use sync_switcher::{sync_switcher, Faces, Switcher};
 
 const DOZE_TIMEOUT: Duration = Duration::from_secs(180);
@@ -71,12 +69,14 @@ pub struct Frontend {
     switcher: Switcher,
     clocks: Clocks,
     about: AboutFace,
-    settings_clock: SettingsClock,
+    settings: SettingsTexes,
     bezel_marks: Vec<BezelMark>,
     overlays: Vec<Overlay>,
-    /// The Network screen's list, Settings' Network value and the keyboard.
-    network: WifiTexes,
-    ssh: WifiTexes,
+    /// The Network modal's own faces.
+    network_modal: NetworkTexes,
+    /// The keyboard's window, field, keys and lit key.
+    keyboard: KeyboardTexes,
+    ssh: SshTexes,
     labels: Baked<(ListView, u8)>,
     controls: Baked<u8>,
     background: Baked<(ListView, u8)>,
@@ -126,11 +126,12 @@ impl Frontend {
             switcher: Switcher::default(),
             clocks: Clocks::default(),
             about: AboutFace::default(),
-            settings_clock: SettingsClock::default(),
+            settings: SettingsTexes::default(),
             bezel_marks: Vec::new(),
             overlays: Vec::new(),
-            network: WifiTexes::default(),
-            ssh: WifiTexes::default(),
+            network_modal: NetworkTexes::default(),
+            keyboard: KeyboardTexes::default(),
+            ssh: SshTexes::default(),
             labels: Baked::default(),
             controls: Baked::default(),
             background: Baked::default(),
@@ -191,26 +192,6 @@ impl Frontend {
             })
             .collect();
         self.session.app_mut().set_power_menu_faces(menu);
-        let mut up = |f: UndoFace| (compositor.create_texture(f.w, f.h, &f.rgba), f.w, f.h);
-        let labels = SettingsRow::ALL
-            .iter()
-            .map(|r| up(quick_label_face(*r)))
-            .collect();
-        let values = QuickValue::ALL
-            .iter()
-            .map(|v| [false, true].map(|lit| up(quick_value_face(v.text(), lit))))
-            .collect();
-        let carets = [false, true].map(|right| up(quick_caret_face(right)));
-        let legend = quick_legend_faces().map(|f| {
-            let (tex, w, _) = up(f);
-            (tex, w)
-        });
-        self.session.app_mut().set_settings_faces(QuickMenuFaces {
-            labels,
-            values,
-            carets,
-            legend,
-        });
         let sockets = omega_store::Core::ALL
             .iter()
             .map(|c| {
@@ -337,10 +318,9 @@ impl Frontend {
         }
         sync_clock(self.session.app_mut(), compositor, &mut self.clocks);
         sync_about(self.session.app_mut(), compositor, &mut self.about);
-        sync_settings_clock(self.session.app_mut(), compositor, &mut self.settings_clock);
-        sync_settings_network(self.session.app_mut(), compositor, &mut self.network);
-        sync_network(self.session.app_mut(), compositor, &mut self.network);
-        sync_keyboard(self.session.app_mut(), compositor, &mut self.network);
+        sync_settings(self.session.app_mut(), compositor, &mut self.settings);
+        sync_network(self.session.app_mut(), compositor, &mut self.network_modal);
+        sync_keyboard(self.session.app_mut(), compositor, &mut self.keyboard);
         sync_ssh(self.session.app_mut(), compositor, &mut self.ssh);
         sync_controls(self.session.app_mut(), compositor, &mut self.controls);
         sync_labels(self.session.app_mut(), compositor, &mut self.labels);
