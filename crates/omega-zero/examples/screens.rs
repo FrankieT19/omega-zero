@@ -35,13 +35,13 @@ wait 40
 shot shelf-scrolled
 tap left
 wait 40
-tap start
+tap x
 settle
 wait 90
 shot core-picker
 tap b
 wait 60
-tap menu
+tap start
 wait 60
 shot quick-menu
 tap down

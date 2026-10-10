@@ -67,7 +67,7 @@ fn the_quick_menu_renders_full_screen() {
     let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
     f.upload_faces(&mut c);
     let mut input = Script(VecDeque::new());
-    tap(&mut f, &mut input, Btn::Menu);
+    tap(&mut f, &mut input, Btn::Start);
 
     let bar = [0x4d, 0x4d, 0x57];
     let ground = [0x05, 0x05, 0x08];
@@ -153,7 +153,7 @@ fn every_fast_forward_speed_sits_on_the_rows_right_edge_and_clears_the_label() {
     let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
     f.upload_faces(&mut c);
     let mut input = Script(VecDeque::new());
-    tap(&mut f, &mut input, Btn::Menu);
+    tap(&mut f, &mut input, Btn::Start);
     tap(&mut f, &mut input, Btn::Left);
     tap(&mut f, &mut input, Btn::Left);
 
