@@ -4,6 +4,7 @@ mod backdrop;
 pub mod cart_shell;
 mod config;
 mod core;
+mod font;
 pub mod gb;
 mod gba;
 pub mod ini;
@@ -24,6 +25,7 @@ pub use config::{move_config, CONFIG_DIR};
 pub use core::{
     core_for, core_for_platform, read_selected_cores, write_selected_core, Core, SELECTED_CORE_FILE,
 };
+pub use font::Font;
 pub use gba::{header_clean, header_code, header_title};
 pub use platform::Platform;
 pub use ring::{StateEntry, StateRing, RING_MAX};

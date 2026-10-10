@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::atomic::atomic_write;
 use crate::backdrop::{colour_index, BackdropStyle, BACKDROP_COLOURS};
+use crate::font::Font;
 use crate::platform::Platform;
 
 pub const BRIGHTNESS_MAX: u8 = 9;
@@ -40,6 +41,8 @@ pub struct AppState {
     pub backdrop_moving: bool,
     /// Which of [`BACKDROP_COLOURS`] the pattern is in.
     pub backdrop_colour: u8,
+    /// The font the bar's actions write their big words in.
+    pub font: Font,
 }
 
 impl Default for AppState {
@@ -63,6 +66,7 @@ impl Default for AppState {
             backdrop: None,
             backdrop_moving: true,
             backdrop_colour: 0,
+            font: Font::Bold,
         }
     }
 }
@@ -81,7 +85,7 @@ pub fn read_app_state(root: &Path) -> AppState {
 
 pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
     let text = format!(
-        "cart={}\ncart_platform={}\nbrightness={}\nblue_light={}\nvolume={}\nvolume_hp={}\nmuted={}\nmuted_hp={}\nclock_set={}\nutc_offset_min={}\nrumble={}\nff_speed={}\nff_sound={}\ncolour_correction={}\nwifi={}\nbackdrop={}\nbackdrop_moving={}\nbackdrop_colour={}\n",
+        "cart={}\ncart_platform={}\nbrightness={}\nblue_light={}\nvolume={}\nvolume_hp={}\nmuted={}\nmuted_hp={}\nclock_set={}\nutc_offset_min={}\nrumble={}\nff_speed={}\nff_sound={}\ncolour_correction={}\nwifi={}\nbackdrop={}\nbackdrop_moving={}\nbackdrop_colour={}\nfont={}\n",
         s.cart.as_deref().unwrap_or(""),
         s.cart_platform.map_or(String::new(), platform_key),
         s.brightness,
@@ -99,7 +103,8 @@ pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
         s.wifi as u8,
         s.backdrop.map_or("", BackdropStyle::key),
         s.backdrop_moving as u8,
-        BACKDROP_COLOURS[(s.backdrop_colour as usize).min(BACKDROP_COLOURS.len() - 1)]
+        BACKDROP_COLOURS[(s.backdrop_colour as usize).min(BACKDROP_COLOURS.len() - 1)],
+        s.font.key()
     );
     atomic_write(&state_path(root), text.as_bytes())
 }
@@ -123,6 +128,7 @@ fn parse(text: &str) -> Option<AppState> {
     let mut backdrop = None;
     let mut backdrop_moving = None;
     let mut backdrop_colour = None;
+    let mut font = None;
     for line in text.lines().filter(|l| !l.is_empty()) {
         let Some((key, value)) = line.split_once('=') else {
             continue;
@@ -146,6 +152,7 @@ fn parse(text: &str) -> Option<AppState> {
             "backdrop" => backdrop = BackdropStyle::from_key(value),
             "backdrop_moving" => backdrop_moving = flag(value),
             "backdrop_colour" => backdrop_colour = colour_index(value),
+            "font" => font = Font::from_key(value),
             _ => {}
         }
     }
@@ -170,6 +177,7 @@ fn parse(text: &str) -> Option<AppState> {
         backdrop,
         backdrop_moving: backdrop_moving.unwrap_or(fallback.backdrop_moving),
         backdrop_colour: backdrop_colour.unwrap_or(fallback.backdrop_colour),
+        font: font.unwrap_or(fallback.font),
     })
 }
 
