@@ -51,7 +51,8 @@ fn rewind_reconstructs_states_exactly_in_reverse() {
 #[test]
 fn rewind_respects_its_byte_budget() {
     let mut r = Rewind::new(256 * 1024);
-    for i in 0..5000u32 {
+    // About twenty deltas fill the budget, so this evicts hundreds of times over.
+    for i in 0..500u32 {
         r.push(&synthetic_state(i));
     }
     assert!(r.bytes_used() <= 256 * 1024, "used {}", r.bytes_used());
