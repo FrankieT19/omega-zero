@@ -1,4 +1,4 @@
-//! Network, opened from Settings: switching Wi-Fi and network time, the way into the SSH
+//! Network, opened from Settings: switching Wi-Fi, network time and SSH, the way into the SSH
 //! screen, and the networks in reach.
 
 use omega_input::Action;
@@ -16,7 +16,7 @@ impl App {
             return;
         };
         let before = screen.clone();
-        let outcome = screen.input(&mut self.wifi, action, now);
+        let outcome = screen.input(&mut self.wifi, self.state.ssh, action, now);
         // the passphrase's keyboard slides in over the list and away again
         match (before.typing.is_some(), screen.typing.is_some()) {
             (false, true) => self.slide_from(Phase::Network(before), Dir::Deeper),
@@ -31,6 +31,7 @@ impl App {
                 Dir::Back,
             ),
             WifiOutcome::Ssh => self.open_ssh(),
+            WifiOutcome::SwitchSsh(on) => self.set_ssh(on),
             WifiOutcome::Stay => {}
         }
         if self.state.wifi != self.wifi.enabled() {
@@ -42,7 +43,9 @@ impl App {
     /// What the Network modal shows, while it is open and not taking a passphrase.
     pub fn network_view(&mut self) -> Option<NetworkView> {
         match &mut self.phase {
-            Phase::Network(screen) if screen.typing.is_none() => Some(screen.view(&self.wifi)),
+            Phase::Network(screen) if screen.typing.is_none() => {
+                Some(screen.view(&self.wifi, self.state.ssh))
+            }
             _ => None,
         }
     }

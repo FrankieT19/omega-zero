@@ -102,5 +102,6 @@ shoot text-does 90 11 'c=text&tone=cream&text=LOAD%2FSAVE%20STATE'
 # flow.html's lone panels, rows and lines placed in their wells as it places them
 shoot flow-ssh 200 104 'c=flow&screen=ssh'
 shoot flow-ssh-offline 200 42 'c=flow&screen=ssh-offline'
+shoot flow-ssh-switched-off 200 42 'c=flow&screen=ssh-switched-off'
 shoot flow-labels 280 75 'c=flow&screen=labels'
 shoot flow-controls 304 157 'c=flow&screen=controls'

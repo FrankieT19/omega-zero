@@ -772,7 +772,7 @@ fn ssh_is_flows() {
         ("IP", "192.168.1.20"),
         ("HOST", "rg35xxsp.local"),
         ("USER", "root"),
-        ("PASSWORD", "root"),
+        ("PASSWORD", "482913"),
         ("PORT", "22"),
     ];
     let rows: Vec<Row> = login
@@ -787,10 +787,15 @@ fn ssh_is_flows() {
     note(&mut panel, "SFTP uses the same login", 5 * ROW_H + 4);
     matches(&panel.face, "flow-ssh");
 
-    // offline, the note alone: 4 above its line and 5 under it
-    let mut panel = panel_face(200, panel_height(4 + 10 + 5), "SSH", true, &RAMP);
-    note(&mut panel, "Join a Wi-Fi network first.", 4);
-    matches(&panel.face, "flow-ssh-offline");
+    // offline, or with SSH switched off, the note alone: 4 above its line and 5 under it
+    for (text, name) in [
+        ("Join a Wi-Fi network first.", "flow-ssh-offline"),
+        ("Turn SSH on first.", "flow-ssh-switched-off"),
+    ] {
+        let mut panel = panel_face(200, panel_height(4 + 10 + 5), "SSH", true, &RAMP);
+        note(&mut panel, text, 4);
+        matches(&panel.face, name);
+    }
 }
 
 #[test]

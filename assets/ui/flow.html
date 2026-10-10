@@ -123,7 +123,7 @@
                 <omega-panel label="NETWORK" class="hug">
                   <omega-row label="WI-FI" value="ON" carets data-values="ON|OFF" data-set="wifi"></omega-row>
                   <omega-row label="NETWORK TIME" value="ON" carets data-values="ON|OFF"></omega-row>
-                  <omega-row label="SSH" opens data-opens="ssh"></omega-row>
+                  <omega-row label="SSH" value="ON" carets data-values="ON|OFF|INFO" data-set="ssh" data-opens="ssh" data-opens-on="INFO"></omega-row>
                 </omega-panel>
                 <omega-panel label="AVAILABLE NETWORKS">
                   <div class="list">
@@ -136,14 +136,15 @@
             </div>
           </section>
 
-          <!-- Settings > Network > SSH: the login, or, without Wi-Fi, what to do first -->
+          <!-- Settings > Network > SSH on INFO: the login, or, with SSH off or no Wi-Fi, what to do
+               first. The password is the six digits omega-zero makes up on a card that sets none. -->
           <section class="part page away" data-screen="ssh">
             <omega-panel label="SSH" active class="lone small ssh">
               <div class="when-online">
                 <omega-row label="IP" value="192.168.1.20"></omega-row>
                 <omega-row label="HOST" value="rg35xxsp.local"></omega-row>
                 <omega-row label="USER" value="root"></omega-row>
-                <omega-row label="PASSWORD" value="root"></omega-row>
+                <omega-row label="PASSWORD" value="482913"></omega-row>
                 <omega-row label="PORT" value="22"></omega-row>
                 <p class="note">SFTP uses the same login</p>
               </div>

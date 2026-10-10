@@ -37,6 +37,7 @@ use crate::screens::clock::clock_screen;
 use crate::screens::keyboard::typing_of;
 use crate::screens::lone::Lone;
 use crate::screens::ssh::SshScreen;
+use crate::ssh::{ssh_server, Ssh};
 use crate::video_mode::{self, VideoMode};
 use crate::wifi::{wifi_jobs, WifiJobs};
 use crate::wifi_screen::{Summary, Watch, Wifi, WifiScreen};
@@ -391,6 +392,7 @@ pub struct App {
     pub(crate) powering_off: bool,
     pub(crate) radio: Box<dyn RadioJobs>,
     pub(crate) wifi: Wifi,
+    pub(crate) ssh: Ssh,
     pub(crate) network_faces: Option<omega_ui::network::NetworkFaces>,
     pub(crate) ssh_faces: Option<omega_ui::network::SshFaces>,
     pub(crate) controls_panel: Option<Lone>,
@@ -439,6 +441,7 @@ impl App {
         App {
             radio: radio_jobs(),
             wifi: Wifi::new(wifi_jobs()),
+            ssh: Ssh::new(ssh_server()),
             network_faces: None,
             ssh_faces: None,
             controls_panel: None,
@@ -542,6 +545,7 @@ impl App {
         app.theme = Theme::read_override(root);
         app.state = read_app_state(root);
         app.wifi.start(app.state.wifi);
+        app.ssh.start(app.state.ssh, Some(root));
         app.labels = Labels::new(label_jobs(root), Account::load(root));
         if omega_power::baseos_release().and_then(|r| r.bluetooth) == Some(false) {
             app.bluetooth = None;
@@ -700,14 +704,14 @@ impl App {
         }
     }
 
-    /// What the bar across the top shows the handheld connected to. BaseOS runs SSH and
-    /// SFTP whenever a network is joined.
+    /// What the bar across the top shows the handheld connected to: SSH, with SFTP, while it
+    /// is switched on and a network is joined.
     pub fn links(&self) -> Links {
         let joined = self.wifi.status().joined();
         Links {
             wifi: joined,
             bluetooth: self.bluetooth,
-            ssh: joined,
+            ssh: joined && self.state.ssh && self.ssh.present(),
         }
     }
 
@@ -1676,6 +1680,7 @@ impl App {
     fn timers(&mut self) {
         let (now, watch) = (self.now(), self.wifi_watch());
         self.wifi.tick(now, watch);
+        self.ssh.tick(now, self.state.ssh);
         self.labels.tick();
         self.take_labels();
         self.play_hold();

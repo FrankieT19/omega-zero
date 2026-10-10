@@ -34,6 +34,9 @@ pub struct AppState {
     pub colour_correction: bool,
     /// Home Wi-Fi is switched on.
     pub wifi: bool,
+    /// SSH is switched on: BaseOS's dev images start its server at boot, and it is left
+    /// running unless this is off.
+    pub ssh: bool,
     /// The shelf's background, once one was picked. Until then a card with a wallpaper shows
     /// it, and any other the default pattern.
     pub backdrop: Option<BackdropStyle>,
@@ -63,6 +66,7 @@ impl Default for AppState {
             ff_sound: false,
             colour_correction: false,
             wifi: false,
+            ssh: true,
             backdrop: None,
             backdrop_moving: true,
             backdrop_colour: 0,
@@ -85,7 +89,7 @@ pub fn read_app_state(root: &Path) -> AppState {
 
 pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
     let text = format!(
-        "cart={}\ncart_platform={}\nbrightness={}\nblue_light={}\nvolume={}\nvolume_hp={}\nmuted={}\nmuted_hp={}\nclock_set={}\nutc_offset_min={}\nrumble={}\nff_speed={}\nff_sound={}\ncolour_correction={}\nwifi={}\nbackdrop={}\nbackdrop_moving={}\nbackdrop_colour={}\nfont={}\n",
+        "cart={}\ncart_platform={}\nbrightness={}\nblue_light={}\nvolume={}\nvolume_hp={}\nmuted={}\nmuted_hp={}\nclock_set={}\nutc_offset_min={}\nrumble={}\nff_speed={}\nff_sound={}\ncolour_correction={}\nwifi={}\nssh={}\nbackdrop={}\nbackdrop_moving={}\nbackdrop_colour={}\nfont={}\n",
         s.cart.as_deref().unwrap_or(""),
         s.cart_platform.map_or(String::new(), platform_key),
         s.brightness,
@@ -101,6 +105,7 @@ pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
         s.ff_sound as u8,
         s.colour_correction as u8,
         s.wifi as u8,
+        if s.ssh { "on" } else { "off" },
         s.backdrop.map_or("", BackdropStyle::key),
         s.backdrop_moving as u8,
         BACKDROP_COLOURS[(s.backdrop_colour as usize).min(BACKDROP_COLOURS.len() - 1)],
@@ -125,6 +130,7 @@ fn parse(text: &str) -> Option<AppState> {
     let mut ff_sound = None;
     let mut colour_correction = None;
     let mut wifi = None;
+    let mut ssh = None;
     let mut backdrop = None;
     let mut backdrop_moving = None;
     let mut backdrop_colour = None;
@@ -149,6 +155,7 @@ fn parse(text: &str) -> Option<AppState> {
             "ff_sound" => ff_sound = flag(value),
             "colour_correction" => colour_correction = flag(value),
             "wifi" => wifi = flag(value),
+            "ssh" => ssh = on_off(value),
             "backdrop" => backdrop = BackdropStyle::from_key(value),
             "backdrop_moving" => backdrop_moving = flag(value),
             "backdrop_colour" => backdrop_colour = colour_index(value),
@@ -174,6 +181,7 @@ fn parse(text: &str) -> Option<AppState> {
         ff_sound: ff_sound.unwrap_or(fallback.ff_sound),
         colour_correction: colour_correction.unwrap_or(fallback.colour_correction),
         wifi: wifi.unwrap_or(fallback.wifi),
+        ssh: ssh.unwrap_or(fallback.ssh),
         backdrop,
         backdrop_moving: backdrop_moving.unwrap_or(fallback.backdrop_moving),
         backdrop_colour: backdrop_colour.unwrap_or(fallback.backdrop_colour),
@@ -208,4 +216,13 @@ fn level(value: &str, max: u8) -> Option<u8> {
 
 fn flag(value: &str) -> Option<bool> {
     level(value, 1).map(|n| n == 1)
+}
+
+/// A setting written as a word, `on` or `off`.
+fn on_off(value: &str) -> Option<bool> {
+    match value {
+        "on" => Some(true),
+        "off" => Some(false),
+        _ => None,
+    }
 }

@@ -16,12 +16,16 @@
   in ›.
 - A tap of SELECT on the shelf opens CONTROLS: what every button does, on the shelf and in a
   game, on one panel. SELECT held with another button works as before.
-- The Wi-Fi screen is now Network, under Settings. Its NETWORK panel switches Wi-Fi and Network
-  Time and opens SSH. AVAILABLE NETWORKS shows each network's signal, a padlock on those with a
+- The Wi-Fi screen is now Network, under Settings. Its NETWORK panel switches Wi-Fi, Network
+  Time and SSH. AVAILABLE NETWORKS shows each network's signal, a padlock on those with a
   passphrase, and CONNECTED, JOINING or SAVED. Y forgets a saved network.
-- SSH shows how to log in from a computer: the address, `<name>.local`, user `root`, the
-  password and port 22. SFTP uses the same login. The password is BaseOS's: `root`, or what
-  `ssh_password=` says in `baseos.conf` on the card.
+- SSH steps through ON, OFF and INFO. ON starts the SSH server and OFF stops it, leaving a
+  login already made to carry on; the card remembers which. A on INFO shows how to log in from a
+  computer: the address, `<name>.local`, user `root`, the password and port 22. SFTP uses the
+  same login.
+- The first time omega-zero runs on a card whose `baseos.conf` sets no `ssh_password`, it gives
+  root a password of six random digits, at once and in `baseos.conf`, so BaseOS keeps it. A
+  password you set there yourself is kept.
 - Cart Labels is no longer on the Wi-Fi screen: it is Labels, in Settings.
 - Theme, Date & Time and Labels are panels over the background, and the passphrase
   keyboard is a window. About is the same sticker as before.
