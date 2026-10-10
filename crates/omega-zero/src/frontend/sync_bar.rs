@@ -3,7 +3,7 @@
 //! so a slide that swaps the actions uploads nothing once both plates are made.
 
 use omega_gfx::{out_w, Compositor, TexId};
-use omega_ui::kit::action::{action_pair, Side};
+use omega_ui::kit::action::{action_pair, Font, Side};
 use omega_ui::kit::bar::{bar_layout, plate_face, Hint};
 use omega_ui::SPRITE_PX;
 
@@ -29,8 +29,12 @@ pub(crate) fn sync_bar(app: &mut App, compositor: &mut Compositor, texes: &mut B
     if texes.actions_built != Some(colour) {
         let width = out_w() / SPRITE_PX;
         let sets = Actions::ALL.map(|actions| {
-            let [left, right] =
-                action_pair(actions.action(Side::Left), actions.action(Side::Right), pal);
+            let [left, right] = action_pair(
+                actions.action(Side::Left),
+                actions.action(Side::Right),
+                Font::Bold,
+                pal,
+            );
             let held = &mut texes.actions[actions.index()];
             let mut up = |i: usize, face: &omega_ui::UndoFace| {
                 let tex = upload_nearest(compositor, &mut held[i], face);

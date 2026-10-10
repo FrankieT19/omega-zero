@@ -15,6 +15,8 @@ use super::pixel::{
 };
 use crate::plate::UndoFace;
 
+pub use super::pixel::Font;
+
 /// The bar's height in art pixels.
 pub const BAR: u32 = 15;
 /// How far the notch rises above the bar.
@@ -149,10 +151,10 @@ fn notch() -> Vec<String> {
 }
 
 /// How wide the word's box is with `word` in it: the word and its room, or `WORD_MIN`.
-fn word_box(word: &str) -> u32 {
+fn word_box(word: &str, font: Font) -> u32 {
     match word {
         "" => WORD_MIN,
-        _ => WORD_PAD[0] + big_word(word)[0].len() as u32 + WORD_PAD[1],
+        _ => WORD_PAD[0] + big_word(word, font)[0].len() as u32 + WORD_PAD[1],
     }
 }
 
@@ -161,9 +163,9 @@ fn hint_box(pill: &str) -> u32 {
     HINT_MIN.max(HINT_PAD[0] + text_width(pill) + HINT_PAD[1])
 }
 
-/// How wide an action is in art pixels with `word` and `pill`, at either side.
-pub fn action_width(word: &str, pill: &str) -> u32 {
-    NOTCH + word_box(word) + button_width(hint_box(pill))
+/// How wide an action is in art pixels with `word` in `font` and `pill`, at either side.
+pub fn action_width(word: &str, pill: &str, font: Font) -> u32 {
+    NOTCH + word_box(word, font) + button_width(hint_box(pill))
 }
 
 /// The pill's width around a hint's box `hint_w` wide: its edge, the box less what reaches into
@@ -172,23 +174,35 @@ fn button_width(hint_w: u32) -> u32 {
     1 + hint_w - HINT_REACH + PILL_END
 }
 
-/// The action at `side` of the bar: `word` big beside the arrow, `pill` small in the button.
-/// Either may be empty, which keeps their room.
-pub fn action_face(side: Side, word: &str, pill: &str, pal: &Palette) -> ActionFace {
-    face_in(side, word, pill, [word_box(word), hint_box(pill)], pal)
+/// The action at `side` of the bar: `word` big in `font` beside the arrow, `pill` small in the
+/// button. Either may be empty, which keeps their room.
+pub fn action_face(side: Side, word: &str, pill: &str, font: Font, pal: &Palette) -> ActionFace {
+    face_in(
+        side,
+        word,
+        pill,
+        font,
+        [word_box(word, font), hint_box(pill)],
+        pal,
+    )
 }
 
-/// A bar's two actions, `left` and `right` as (word, pill), the same size: each word's box as
+/// A bar's two actions, `left` and `right` as (word, pill), their words in `font`, the same size: each word's box as
 /// wide as the wider of the two, and each pill as wide as the wider, the words and the hints
 /// centred in them.
-pub fn action_pair(left: (&str, &str), right: (&str, &str), pal: &Palette) -> [ActionFace; 2] {
+pub fn action_pair(
+    left: (&str, &str),
+    right: (&str, &str),
+    font: Font,
+    pal: &Palette,
+) -> [ActionFace; 2] {
     let room = [
-        word_box(left.0).max(word_box(right.0)),
+        word_box(left.0, font).max(word_box(right.0, font)),
         hint_box(left.1).max(hint_box(right.1)),
     ];
     [
-        face_in(Side::Left, left.0, left.1, room, pal),
-        face_in(Side::Right, right.0, right.1, room, pal),
+        face_in(Side::Left, left.0, left.1, font, room, pal),
+        face_in(Side::Right, right.0, right.1, font, room, pal),
     ]
 }
 
@@ -197,6 +211,7 @@ fn face_in(
     side: Side,
     word: &str,
     pill: &str,
+    font: Font,
     [word_w, hint_w]: [u32; 2],
     pal: &Palette,
 ) -> ActionFace {
@@ -224,8 +239,8 @@ fn face_in(
     if !word.is_empty() {
         paint(
             &mut face,
-            &big_word(word),
-            word_x + WORD_PAD[0] as i32 + (word_w - word_box(word) as i32) / 2,
+            &big_word(word, font),
+            word_x + WORD_PAD[0] as i32 + (word_w - word_box(word, font) as i32) / 2,
             rise + 3,
             pal,
         );

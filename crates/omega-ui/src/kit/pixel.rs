@@ -118,15 +118,25 @@ fn raised_colon(chars: &[char], i: usize) -> bool {
         && side(chars.get(i + 1), chars.get(i + 2))
 }
 
+/// How an action's big word is drawn, as Settings > Theme > Font picks: bold, each letter drawn
+/// again a pixel to its right, or thin, in Pixel Code's own one-pixel strokes.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Font {
+    #[default]
+    Bold,
+    Thin,
+}
+
 /// An action's big word as sprite rows, as action-left.js's word(): the capitals of Pixel Code
-/// drawn one face pixel to a pixel, each letter drawn again a pixel to its right for bold (Pixel
-/// Code's own bold is fattened by part of a pixel, off the grid), so 6 wide and a pixel clear of
-/// the next; the rows of the letters' bars, the top, the middle and the bottom (`BAR_ROWS`),
-/// doubled, so the capitals stand 10 tall with their bars two thick like their stems; and a
-/// shadow one pixel down and right of all of it. The ink is key 'L', the shadow 'w'. 11 rows
-/// tall: the capitals and the shadow's row under them.
-pub fn big_word(text: &str) -> Vec<String> {
-    let ink = letters(text, ADVANCE + 1);
+/// drawn one face pixel to a pixel; in `Font::Bold` each letter drawn again a pixel to its right
+/// (Pixel Code's own bold is fattened by part of a pixel, off the grid), so 6 wide and a pixel
+/// clear of the next, and in `Font::Thin` as they are, 5 wide and a pixel clear; the rows of the
+/// letters' bars, the top, the middle and the bottom (`BAR_ROWS`), doubled, so the capitals stand
+/// 10 tall; and a shadow one pixel down and right of all of it. The ink is key 'L', the shadow
+/// 'w'. 11 rows tall: the capitals and the shadow's row under them.
+pub fn big_word(text: &str, font: Font) -> Vec<String> {
+    let bold = font == Font::Bold;
+    let ink = letters(text, if bold { ADVANCE + 1 } else { ADVANCE });
     let rows: Vec<usize> = (0..CAP)
         .flat_map(|i| std::iter::repeat_n(ACCENT + i, if BAR_ROWS.contains(&i) { 2 } else { 1 }))
         .collect();
@@ -137,7 +147,7 @@ pub fn big_word(text: &str) -> Vec<String> {
                 .get(y as usize)
                 .is_some_and(|&r| ink[r].as_bytes().get(x as usize) == Some(&b'#'))
     };
-    let at = |x: i32, y: i32| inked(x, y) || inked(x - 1, y);
+    let at = |x: i32, y: i32| inked(x, y) || (bold && inked(x - 1, y));
     let w = ink[0].len() as i32;
     (0..rows.len() as i32 + 1)
         .map(|y| {
