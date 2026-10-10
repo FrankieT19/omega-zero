@@ -151,3 +151,25 @@ pub(crate) fn upload_rgba(
         }
     }
 }
+
+/// A kit face (one texel to an art pixel, drawn at 2x by `omega_ui::kit::pixel::quad`) into the
+/// texture `held`, made on first use with NEAREST filtering so it stays sharp at 2x, and filled
+/// in place after that (an updated texture keeps its filter).
+#[allow(dead_code)] // until the kit screens upload through it
+pub(crate) fn upload_nearest(
+    compositor: &mut Compositor,
+    held: &mut Option<TexId>,
+    face: &omega_ui::UndoFace,
+) -> TexId {
+    match *held {
+        Some(id) => {
+            compositor.update_texture(id, face.w, face.h, &face.rgba);
+            id
+        }
+        None => {
+            let id = compositor.create_texture_nearest(face.w, face.h, &face.rgba);
+            *held = Some(id);
+            id
+        }
+    }
+}

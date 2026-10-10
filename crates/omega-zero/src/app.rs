@@ -1249,6 +1249,17 @@ impl App {
         )
     }
 
+    /// The backdrop colour the kit's faces are drawn in, as an index in BACKDROP_COLOURS: a sync
+    /// keys its faces on it, so a new colour in Settings > Background re-tints every screen.
+    pub fn palette_colour(&self) -> u8 {
+        self.state.backdrop_colour
+    }
+
+    /// The kit's colours for the backdrop colour the player picked, wallpaper or not.
+    pub fn palette(&self) -> &'static omega_ui::kit::palette::Palette {
+        omega_ui::kit::palette::palette(self.palette_colour())
+    }
+
     /// The pattern the frontend should make a picture of, when the background is one.
     pub fn backdrop_pattern(&self) -> Option<(BackdropStyle, u8)> {
         let b = self.backdrop();
