@@ -9,8 +9,7 @@ use omega_ui::{
 
 use crate::list_view::{LegendHint, ListView, RowLabel, RowValue};
 
-/// Textures for a list screen, Wi-Fi's or Labels', and for the keyboard, each reused as what it
-/// shows changes.
+/// Textures for a list screen, Labels' or Background's, each reused as what it shows changes.
 #[derive(Default)]
 pub(crate) struct WifiTexes {
     pub(crate) view: Option<ListView>,
@@ -18,9 +17,6 @@ pub(crate) struct WifiTexes {
     pub(crate) status: Vec<Option<TexId>>,
     pub(crate) legend: Vec<(TexId, u32)>,
     pub(crate) carets: Option<[(TexId, u32, u32); 2]>,
-    pub(crate) typed: Option<(String, String, bool)>,
-    pub(crate) prompt: Option<TexId>,
-    pub(crate) field: Option<TexId>,
 }
 
 pub(crate) fn wifi_faces(

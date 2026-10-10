@@ -1,64 +1,66 @@
-//! The on-screen keyboard's faces: its keys, made once, and what it asks for and what has been
-//! typed, made again as they change.
+//! The on-screen keyboard's faces, in the kit palette: its window, its field, every layer's
+//! keys and the lit key, each baked again only when what it shows changes.
 
-use omega_gfx::Compositor;
+use omega_gfx::{Compositor, TexId};
 use omega_ui::{
-    bottom_key_face, bottom_label, field_face, hint_face, key_glyph_face, key_rect, prompt_face,
-    KeyboardFaces, UndoFace, BOTTOM, KEY_ROWS, SHIFT_INK,
+    field_face, keys_face, lit_key_face, window_face, KeyboardFaces, KeyboardLook, Layer, UndoFace,
 };
 
 use crate::app::App;
-use crate::frontend::faces::{upload, WifiTexes};
+use crate::frontend::faces::upload_nearest;
 
-pub(crate) fn sync_keyboard(app: &mut App, compositor: &mut Compositor, state: &mut WifiTexes) {
-    let Some(typing) = app.typing() else {
-        state.typed = None;
-        return;
-    };
-    let typed = (typing.prompt, typing.keys.text.clone(), typing.refused);
-    if !app.keyboard_faces_ready() {
-        let faces = keyboard_faces(compositor);
-        app.set_keyboard_faces(faces);
-    }
-    if state.typed.as_ref() != Some(&typed) {
-        let prompt = prompt_face(&typed.0);
-        let field = field_face(&typed.1);
-        let (p, f) = ((prompt.w, prompt.h), (field.w, field.h));
-        let prompt = upload(compositor, &mut state.prompt, prompt);
-        let field = upload(compositor, &mut state.field, field);
-        app.set_typing_faces((prompt, p.0, p.1), (field, f.0, f.1));
-        state.typed = Some(typed);
-    }
+/// The keyboard's textures, each filled again in place, and what they were last baked from.
+#[derive(Default)]
+pub(crate) struct KeyboardTexes {
+    window: Option<TexId>,
+    field: Option<TexId>,
+    keys: [Option<TexId>; 3],
+    lit: Option<TexId>,
+    baked: Option<(KeyboardLook, KeyboardFaces)>,
 }
 
-fn keyboard_faces(compositor: &mut Compositor) -> KeyboardFaces {
-    let mut up = |f: UndoFace| (compositor.create_texture(f.w, f.h, &f.rgba), f.w, f.h);
-    let glyphs = (' '..='~').map(|c| up(key_glyph_face(c))).collect();
-    let mut bottom = Vec::new();
-    for (col, key) in BOTTOM.iter().enumerate() {
-        let w = key_rect(KEY_ROWS - 1, col)[2] as u32;
-        for layer in [omega_ui::Layer::Lower, omega_ui::Layer::Symbols] {
-            let label = bottom_label(*key, layer);
-            if !bottom.iter().any(|(l, _)| *l == label) {
-                bottom.push((label, up(bottom_key_face(label, w, omega_ui::MENU_INK))));
-            }
-        }
+pub(crate) fn sync_keyboard(app: &mut App, compositor: &mut Compositor, held: &mut KeyboardTexes) {
+    let Some(typing) = app.typing() else {
+        return;
+    };
+    let look = KeyboardLook::new(
+        &typing.prompt,
+        typing.keys,
+        typing.refused,
+        app.palette_colour(),
+    );
+    let stale = look.stale(held.baked.as_ref().map(|(look, _)| look));
+    if !stale.any() {
+        return;
     }
-    let shift_w = key_rect(KEY_ROWS - 1, 0)[2] as u32;
-    let shift_on = up(bottom_key_face("Shift", shift_w, SHIFT_INK));
-    let legend = [
-        hint_face("B", "Delete"),
-        hint_face("X", "Shift"),
-        hint_face("Y", "Space"),
-        hint_face("START", "Done"),
-    ]
-    .into_iter()
-    .map(|f| (compositor.create_texture(f.w, f.h, &f.rgba), f.w))
-    .collect();
-    KeyboardFaces {
-        glyphs,
-        bottom,
-        shift_on,
-        legend,
-    }
+    let pal = app.palette();
+    let mut up = |tex: &mut Option<TexId>, face: UndoFace| {
+        (upload_nearest(compositor, tex, &face), face.w, face.h)
+    };
+    // what was baked before and still shows the same
+    let kept = held.baked.as_ref().map(|(_, faces)| *faces);
+    let keep = |still: bool| kept.filter(|_| still);
+    let faces = KeyboardFaces {
+        keys: match keep(!stale.keys) {
+            Some(f) => f.keys,
+            None => Layer::ALL.map(|l| up(&mut held.keys[l.index()], keys_face(l, pal))),
+        },
+        window: match keep(!stale.window) {
+            Some(f) => f.window,
+            None => up(&mut held.window, window_face(&look.prompt, pal)),
+        },
+        field: match keep(!stale.field) {
+            Some(f) => f.field,
+            None => up(&mut held.field, field_face(&look.text, look.refused, pal)),
+        },
+        lit: match keep(!stale.lit) {
+            Some(f) => f.lit,
+            None => up(
+                &mut held.lit,
+                lit_key_face(look.layer, look.row, look.col, pal),
+            ),
+        },
+    };
+    held.baked = Some((look, faces));
+    app.set_keyboard_faces(faces);
 }

@@ -388,7 +388,6 @@ pub struct App {
     pub(crate) ssh_faces: Option<omega_ui::network::SshFaces>,
     pub(crate) controls_faces: Option<ControlsFaces>,
     pub(crate) keyboard_faces: Option<KeyboardFaces>,
-    pub(crate) typing_faces: Option<[(TexId, u32, u32); 2]>,
     pub(crate) link_faces: Option<LinkFaces>,
     /// None on a handheld without Bluetooth; otherwise whether it is on.
     pub(crate) bluetooth: Option<bool>,
@@ -431,7 +430,6 @@ impl App {
             ssh_faces: None,
             controls_faces: None,
             keyboard_faces: None,
-            typing_faces: None,
             link_faces: None,
             bluetooth: Some(false),
             labels: Labels::new(Box::new(NoKey::default()), None),
@@ -1904,8 +1902,12 @@ impl App {
             // the modal and its panels stand over the backdrop, with nothing between
             Phase::Network(screen) if screen.typing.is_none() => self.draw_network(out),
             Phase::Network(_) | Phase::Labels(_) => {
-                draw_plate(out);
-                match typing_of(phase) {
+                let typing = typing_of(phase);
+                // the keyboard's modal stands on the backdrop itself
+                if typing.is_none() {
+                    draw_plate(out);
+                }
+                match typing {
                     Some(t) => self.draw_keyboard(&t, out),
                     None if matches!(phase, Phase::Labels(_)) => self.draw_labels(out),
                     None => self.draw_network(out),

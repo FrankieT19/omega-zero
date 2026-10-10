@@ -38,7 +38,7 @@ use sync_background::{sync_background, BackdropTex};
 use sync_clock::{sync_clock, Clocks};
 use sync_controls::sync_controls;
 use sync_core_picker::sync_core_picker;
-use sync_keyboard::sync_keyboard;
+use sync_keyboard::{sync_keyboard, KeyboardTexes};
 use sync_labels::sync_labels;
 use sync_network::{sync_network, NetworkTexes};
 use sync_settings::{sync_settings, SettingsTexes};
@@ -70,10 +70,10 @@ pub struct Frontend {
     settings: SettingsTexes,
     bezel_marks: Vec<BezelMark>,
     overlays: Vec<Overlay>,
-    /// The Network screen's list and the keyboard.
-    network: WifiTexes,
     /// The Network modal's own faces.
     network_modal: NetworkTexes,
+    /// The keyboard's window, field, keys and lit key.
+    keyboard: KeyboardTexes,
     ssh: SshTexes,
     labels: WifiTexes,
     background: WifiTexes,
@@ -126,8 +126,8 @@ impl Frontend {
             settings: SettingsTexes::default(),
             bezel_marks: Vec::new(),
             overlays: Vec::new(),
-            network: WifiTexes::default(),
             network_modal: NetworkTexes::default(),
+            keyboard: KeyboardTexes::default(),
             ssh: SshTexes::default(),
             labels: WifiTexes::default(),
             background: WifiTexes::default(),
@@ -318,7 +318,7 @@ impl Frontend {
         sync_about(self.session.app_mut(), compositor, &mut self.about);
         sync_settings(self.session.app_mut(), compositor, &mut self.settings);
         sync_network(self.session.app_mut(), compositor, &mut self.network_modal);
-        sync_keyboard(self.session.app_mut(), compositor, &mut self.network);
+        sync_keyboard(self.session.app_mut(), compositor, &mut self.keyboard);
         sync_ssh(self.session.app_mut(), compositor, &mut self.ssh);
         sync_controls(self.session.app_mut(), compositor);
         sync_labels(self.session.app_mut(), compositor, &mut self.labels);
