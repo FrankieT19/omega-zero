@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 use omega_input::{Action, Btn, Millis};
 use omega_store::{write_app_state, AppState, Theme};
-use omega_ui::kit::action::{action_pair, Side, RISE};
+use omega_ui::kit::action::{action_pair, Font, Side, RISE};
 use omega_ui::kit::bar::{bar_layout, BarLayout, Hint, PLATE_TOP, SINK};
 use omega_ui::kit::palette::palette;
 use omega_ui::{out_h, out_w, ChromeColours, Draw, SettingsRow, TexId, SPRITE_PX, TOP_BAR_H};
@@ -100,7 +100,12 @@ fn fake_bar(a: &mut App) {
     let width = out_w() / SPRITE_PX;
     let pal = a.palette();
     let sets = Actions::ALL.map(|actions| {
-        let [l, r] = action_pair(actions.action(Side::Left), actions.action(Side::Right), pal);
+        let [l, r] = action_pair(
+            actions.action(Side::Left),
+            actions.action(Side::Right),
+            Font::Bold,
+            pal,
+        );
         let base = SHELF_LEFT + 10 * actions.index();
         BarSet {
             layout: bar_layout(width, &l, &r),
