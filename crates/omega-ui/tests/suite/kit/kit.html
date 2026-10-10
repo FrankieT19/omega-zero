@@ -12,6 +12,7 @@
     kit.html?c=action-left&label=RETURN&hint=B&font=thin      in the thin font
     kit.html?c=row&w=150&label=FAST%20FORWARD&value=6X&lit&carets
     kit.html?c=list-row&w=150&label=Home&value=CONNECTED&signal=3&lock&lit
+    kit.html?c=list-row&w=150&label=Keychron%20K3&device=keyboard
     kit.html?c=bar&w=320&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET
     kit.html?c=text&tone=dim&text=SFTP%20uses%20the%20same%20login
     kit.html?c=flow&screen=ssh                           a panel as flow.html builds it
@@ -20,7 +21,7 @@
   omega-list-row's attributes, bar omega-bar's hint and font and its two actions' words and hints
   (a side left out is the empty action). text is a line of Pixel Code as flow.html sets a panel's
   notes and the Controls panel's columns, in the --oz-<tone> colour, a newline in it a <br>, and
-  ◀ ▶ ▲ ▼ drawn as flow/art.js's glyphs, as flow.html draws them (the web font has none). flow is
+  ◀ ▶ ▲ ▼ … drawn as flow/art.js's glyphs, as flow.html draws them (the web font has none). flow is
   one of flow.html's lone panels, its markup copied here (ssh, labels, controls) and drawn
   with flow/flow.css.
 
@@ -158,7 +159,7 @@
     document.head.insertBefore(link, document.querySelector('style'));
     FlowArt.paint(kit);
   };
-  const GLYPHS = { '◀': 'left', '▶': 'right', '▲': 'up', '▼': 'down' };
+  const GLYPHS = { '◀': 'left', '▶': 'right', '▲': 'up', '▼': 'down', '…': 'ellipsis' };
 
   if (c === 'modal') {
     const modal = document.createElement('omega-modal');
@@ -181,7 +182,7 @@
   } else if (c === 'row' || c === 'list-row') {
     const row = document.createElement(`omega-${c}`);
     row.style.width = `calc(${q.get('w')} * var(--u))`;
-    attrs(row, ['label', 'value', 'signal'], ['lit', 'carets', 'opens', 'dim', 'lock']);
+    attrs(row, ['label', 'value', 'signal', 'device'], ['lit', 'carets', 'opens', 'dim', 'lock']);
     kit.append(row);
   } else if (c === 'bar') {
     kit.className = 'action';

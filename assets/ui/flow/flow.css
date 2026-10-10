@@ -82,6 +82,10 @@ td:first-child { white-space: nowrap; font-family: var(--mono); font-size: 0.8re
 .meta { display: grid; gap: 6px; }
 .face { display: grid; grid-template-columns: repeat(2, 44px); gap: 6px; }
 .face button { height: 40px; border-radius: 20px; }
+/* Y over B, as on the handheld, with A beside B */
+.face [data-key="y"] { grid-area: 1 / 1; }
+.face [data-key="b"] { grid-area: 2 / 1; }
+.face [data-key="a"] { grid-area: 2 / 2; }
 
 /* ---- the screen: a device panel's pixels ---- */
 .screen { position: relative; flex: none; overflow: hidden; width: 640px; height: 480px; outline: 6px solid #000; margin: 6px; }
@@ -181,6 +185,11 @@ omega-panel.hug { flex: none; }
 /* Network: the networks scroll inside their panel, a whole row at a time */
 .list { position: relative; height: 100%; overflow: hidden; }
 
+/* Bluetooth: the devices straight in their panel, so they reach a pixel into its well's sides as
+   every row does, and under them, while there are none to show, a note 4 below the well's top
+   as a note under rows is 4 below them */
+.devices .note { margin-top: calc(4 * var(--u)); }
+
 /* SSH: the login, or what to do first when there is no Wi-Fi */
 .ssh .note { margin-top: calc(4 * var(--u)); padding-bottom: calc(2 * var(--u)); }
 .ssh.offline .note { padding-bottom: calc(5 * var(--u)); }
@@ -207,6 +216,7 @@ omega-panel.hug { flex: none; }
 .g.right { background-image: var(--flow-glyph-right); }
 .g.up { background-image: var(--flow-glyph-up); }
 .g.down { background-image: var(--flow-glyph-down); }
+.g.ellipsis { background-image: var(--flow-glyph-ellipsis); }
 
 /* Date & Time: one line of fields, the one under the cursor underlined a pixel bar, two rows
    below its capitals (row 11 of the line, under its own 10); as much room above the capitals as

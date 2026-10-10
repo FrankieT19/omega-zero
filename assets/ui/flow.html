@@ -77,6 +77,7 @@
                 <omega-panel label="GENERAL">
                   <omega-row label="DATE &amp; TIME" value="OCT 10 16:00" opens data-opens="datetime" data-show="date"></omega-row>
                   <omega-row label="NETWORK" value="HOME" opens data-opens="network" data-show="network"></omega-row>
+                  <omega-row label="BLUETOOTH" value="8BITDO SN30 PRO" opens data-opens="bluetooth" data-show="bluetooth"></omega-row>
                   <omega-row label="THEME" opens data-opens="background"></omega-row>
                   <omega-row label="ABOUT" opens data-opens="about"></omega-row>
                 </omega-panel>
@@ -168,6 +169,22 @@
             </div>
           </section>
 
+          <!-- Settings > Bluetooth: the radio, and while it is on every device it knows or finds,
+               each with its kind's icon; the devices and the note under them are drawn by
+               screens.js from what it holds -->
+          <section class="part page away" data-screen="bluetooth">
+            <div class="modal-area">
+              <omega-modal>
+                <omega-panel label="BLUETOOTH" class="hug">
+                  <omega-row label="BLUETOOTH" value="ON" carets data-values="ON|OFF" data-set="bluetooth"></omega-row>
+                </omega-panel>
+                <omega-panel label="DEVICES" class="devices">
+                  <p class="note" hidden></p>
+                </omega-panel>
+              </omega-modal>
+            </div>
+          </section>
+
           <!-- Settings > Labels -->
           <section class="part page away" data-screen="labels">
             <omega-panel label="LABELS" active class="lone labels-panel">
@@ -222,6 +239,7 @@
           <button data-key="start">START</button>
         </div>
         <div class="face">
+          <button data-key="y">Y</button>
           <button data-key="b">B</button>
           <button data-key="a">A</button>
         </div>
@@ -267,6 +285,7 @@
             </div>
           </fieldset>
           <label class="check"><input type="checkbox" id="wifi" checked> Wi-Fi on</label>
+          <label class="check"><input type="checkbox" id="bluetooth" checked> Bluetooth on</label>
         </div>
       </div>
 
@@ -285,8 +304,9 @@
         <table>
           <tr><th>Button</th><th>Keys</th><th>Does</th></tr>
           <tr><td>↑ ↓ ← →</td><td><kbd>arrows</kbd></td><td>Move the cursor; ← → change a value</td></tr>
-          <tr><td>A</td><td><kbd>X</kbd> <kbd>A</kbd></td><td>Confirm: open a row's screen, press a key</td></tr>
+          <tr><td>A</td><td><kbd>X</kbd> <kbd>A</kbd></td><td>Confirm: open a row's screen, press a key; on Bluetooth, pair and connect a device, or disconnect it</td></tr>
           <tr><td>B</td><td><kbd>Z</kbd> <kbd>B</kbd> <kbd>Esc</kbd></td><td>Back one screen; on the keyboard, delete (back once the field is empty)</td></tr>
+          <tr><td>Y</td><td><kbd>Y</kbd></td><td>Bluetooth: forget a paired device</td></tr>
           <tr><td>START</td><td><kbd>Enter</kbd></td><td>Shelf → Settings; Settings → shelf; keyboard: done</td></tr>
           <tr><td>SELECT</td><td><kbd>Space</kbd> <kbd>right Shift</kbd></td><td>Shelf → Controls</td></tr>
         </table>
@@ -298,7 +318,7 @@
           slide, can be taken with headless Chrome. The page keeps it up to date as you walk.</p>
         <table>
           <tr><th>Key</th><th>What it does</th></tr>
-          <tr><td>screen</td><td><code>shelf</code>, <code>settings</code>, <code>controls</code>, <code>network</code>, <code>ssh</code>, <code>keyboard</code>, <code>labels</code>, <code>datetime</code>, <code>background</code> (Theme), <code>about</code></td></tr>
+          <tr><td>screen</td><td><code>shelf</code>, <code>settings</code>, <code>controls</code>, <code>network</code>, <code>ssh</code>, <code>keyboard</code>, <code>bluetooth</code>, <code>labels</code>, <code>datetime</code>, <code>background</code> (Theme), <code>about</code></td></tr>
           <tr><td>from</td><td>Slide into <code>screen</code> from this one, deeper or back as the tree has it (<code>dir=in</code> or <code>out</code> to force it).</td></tr>
           <tr><td>t</td><td>With <code>from</code>: hold the slide at this time, 0 to 1 (eased into p).</td></tr>
           <tr><td>size</td><td><code>640x480</code> (default), <code>720x480</code>, <code>720x720</code></td></tr>
@@ -307,6 +327,7 @@
           <tr><td>moving</td><td><code>1</code> (default) or <code>0</code></td></tr>
           <tr><td>font</td><td><code>bold</code> (default) or <code>thin</code>: the bottom bar's labels, as Theme › Font draws them</td></tr>
           <tr><td>wifi</td><td><code>on</code> (default) or <code>off</code>: SSH shows its offline variant, the networks dim</td></tr>
+          <tr><td>bt</td><td>Bluetooth: <code>on</code> (default) with four devices, <code>off</code>, <code>pairing</code> (the keyboard pairing, the cursor on it) or <code>empty</code> (none found yet)</td></tr>
           <tr><td>row</td><td>The cursor's row on <code>screen</code>, from 0 (the key, for the keyboard; the field, for Date &amp; Time)</td></tr>
           <tr><td>slow</td><td><code>1</code>: slides at a fifth of their speed</td></tr>
           <tr><td>shot</td><td><code>1</code>: the screen alone at the window's top left, for screenshots</td></tr>
