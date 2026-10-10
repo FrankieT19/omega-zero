@@ -144,6 +144,22 @@ pub fn coverage_in(font: &Font, dst_w: u32, dst_h: u32, layout: &Layout) -> Vec<
     out
 }
 
+/// How far below the top of a `dst_h` box `coverage_in` sets the top of a one-line word's
+/// capitals and figures at `px`: where to hang the box to line them up with something else.
+pub fn cap_top(font: &Font, dst_h: u32, px: f32) -> f32 {
+    let px = on_grid(px);
+    let Some(vm) = font.horizontal_line_metrics(px) else {
+        return 0.0;
+    };
+    let baseline = ((dst_h as f32 - vm.new_line_size.round()) / 2.0 + vm.ascent).round();
+    let (m, cov) = font.rasterize('0', px);
+    // the glyph's box can carry a row its ink never reaches, which `coverage_in` leaves clear
+    let air = (0..m.height)
+        .take_while(|&r| cov[r * m.width..(r + 1) * m.width].iter().all(|&a| a < 128))
+        .count();
+    baseline - (m.height as f32 + m.ymin as f32) + air as f32
+}
+
 fn block_height(font: &Font, px: f32, lines: usize) -> f32 {
     match font.horizontal_line_metrics(on_grid(px)) {
         Some(vm) => vm.new_line_size.round() * lines as f32,

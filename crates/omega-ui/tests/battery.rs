@@ -1,5 +1,5 @@
 use omega_power::{Battery, Charge};
-use omega_ui::{draw_gauge, Draw, Printed, TexId, GAUGE_W, WALL};
+use omega_ui::{draw_gauge, Draw, Printed, TexId, GAUGE_W, SPRITE_PX, WALL};
 
 fn percent_face() -> Printed {
     Printed { face: None, w: 30 }
@@ -100,9 +100,9 @@ fn the_bolt_is_only_drawn_while_charging() {
 }
 
 #[test]
-fn the_fill_tracks_the_percent_and_never_leaves_the_capsule() {
+fn the_fill_tracks_the_percent_in_whole_pixels_and_never_leaves_the_capsule() {
     let mut widths = Vec::new();
-    for percent in [0u8, 1, 50, 99, 100] {
+    for percent in [0u8, 1, 13, 50, 88, 99, 100] {
         let mut out = Vec::new();
         draw_gauge(
             24.0,
@@ -129,14 +129,44 @@ fn the_fill_tracks_the_percent_and_never_leaves_the_capsule() {
                 capsule_left + 2.0 * WALL + w <= inner_right + 0.01,
                 "a {percent}% fill burst through the capsule's own wall"
             );
+            assert_eq!(
+                w % SPRITE_PX as f32,
+                0.0,
+                "a {percent}% fill ends inside a pixel"
+            );
         }
         widths.push(fill.unwrap_or(0.0));
     }
     for pair in widths.windows(2) {
         assert!(
-            pair[1] > pair[0],
-            "the fill must grow strictly with the percent, got {widths:?}"
+            pair[1] >= pair[0],
+            "the fill shrank as the percent grew: {widths:?}"
         );
+    }
+    let full = GAUGE_W - 4.0 * WALL;
+    assert_eq!(widths[0], 0.0, "an empty battery shows fill");
+    assert!(widths[1] > 0.0, "1% left shows an empty capsule");
+    assert!(widths[4] < full, "88% shows as full");
+    assert_eq!(widths[widths.len() - 1], full, "a full battery is not full");
+}
+
+#[test]
+fn the_capsule_lands_on_whole_pixels() {
+    let mut out = Vec::new();
+    draw_gauge(
+        24.0,
+        400.0,
+        at(68, Charge::Discharging),
+        percent_face(),
+        None,
+        &mut out,
+    );
+    for d in &out {
+        if let Draw::Rect { x, y, w, h, .. } = *d {
+            for v in [x, y, w, h] {
+                assert_eq!(v.fract(), 0.0, "{d:?} straddles a pixel");
+            }
+        }
     }
 }
 

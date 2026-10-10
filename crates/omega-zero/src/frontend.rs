@@ -5,13 +5,12 @@ use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_store::format_stamp;
 use omega_ui::{
-    arrows_hint_face, badge_face, bezel_mark_face, cart_face, cart_shadow, chip_face,
+    arrows_hint_face, badge_face, bezel_mark_face, bolt_face, cart_face, cart_shadow, chip_face,
     chip_shadow_face, date_time_text, gb_cart_shadow, hhmm, hint_face, icon_face, mark_height,
     mark_rect, menu_face, photo_face, quick_caret_face, quick_label_face, quick_legend_faces,
     quick_value_face, rim, set_clock_hint_face, socket_face, sticker_face, title_face, toast_face,
     wallpaper_face, word_face, GbShell, Icon, LinkBadge, PowerChoice, QuickMenuFaces, QuickRow,
-    QuickValue, StickerFields, Toast, UndoFace, ALERT_PX, BEZEL_FILL, BOLT_PX, HUD_ICON_PX,
-    HUD_INK, LEGEND,
+    QuickValue, StickerFields, Toast, UndoFace, ALERT_PX, BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
 };
 use omega_ui::{
     bottom_key_face, bottom_label, field_face, key_glyph_face, key_rect, network_name_face,
@@ -316,7 +315,7 @@ impl Frontend {
         let rounded = gb_cart_shadow(GbShell::Rounded);
         let rounded = compositor.create_texture(rounded.w, rounded.h, &rounded.rgba);
         self.session.app_mut().set_gb_cart_shadows(notched, rounded);
-        let bolt = icon_face(Icon::Charging, BOLT_PX, HUD_INK);
+        let bolt = bolt_face();
         let bolt_id = compositor.create_texture(bolt.w, bolt.h, &bolt.rgba);
         self.session.app_mut().set_bolt_face(bolt_id);
         let mut link = |l: Link| {

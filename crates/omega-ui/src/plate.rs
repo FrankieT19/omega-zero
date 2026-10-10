@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use crate::draw::{out_w, Draw, TexId};
 use crate::text;
 
@@ -90,6 +92,28 @@ pub fn hint_face(key: &str, label: &str) -> UndoFace {
 
 pub fn word_width(text: &str) -> u32 {
     band_width(text)
+}
+
+/// How far below the top of a `word_face` its capitals and figures start.
+pub fn word_cap_top() -> f32 {
+    static TOP: OnceLock<f32> = OnceLock::new();
+    *TOP.get_or_init(|| {
+        text::label_font()
+            .map(|font| text::cap_top(font, HINT_H, LABEL_PX))
+            .unwrap_or(0.0)
+    })
+}
+
+/// The clear columns a `word_face` keeps right of its ink: the face's spacing after its last
+/// letter. The same for every word, since every letter of a monospaced face is spaced alike.
+pub fn word_tail() -> f32 {
+    static TAIL: OnceLock<f32> = OnceLock::new();
+    *TAIL.get_or_init(|| {
+        let face = word_face("0");
+        let inked =
+            |x: u32| (0..face.h).any(|y| face.rgba[((y * face.w + x) * 4 + 3) as usize] > 0);
+        (0..face.w).rev().take_while(|&x| !inked(x)).count() as f32
+    })
 }
 
 pub fn word_face(text: &str) -> UndoFace {

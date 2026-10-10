@@ -1,7 +1,7 @@
 use omega_power::{Battery, Charge};
 use omega_ui::{
-    gauge_width, link_face, out_w, Draw, Link, LinkFaces, Links, Printed, TexId, TopBar, LINK_OFF,
-    LINK_ON, TOP_BAR_H,
+    bolt_face, gauge_width, link_face, out_w, word_cap_top, word_face, word_tail, Draw, Link,
+    LinkFaces, Links, Printed, TexId, TopBar, CELL_PX, GAUGE_H, LINK_OFF, LINK_ON, TOP_BAR_H,
 };
 
 const MARGIN: f32 = 24.0;
@@ -57,13 +57,17 @@ fn drawn(out: &[Draw], id: usize) -> bool {
 fn the_clock_sits_in_the_middle_and_the_battery_ends_at_the_right_margin() {
     let out = bar(Links::default(), battery(Charge::Discharging), None);
     let (a, b) = tex_x(&out, 1).expect("no clock");
-    assert_eq!(
-        (a + b) / 2.0,
-        out_w() as f32 / 2.0,
-        "the clock is off centre"
+    let ink_middle = (a + b - word_tail()) / 2.0;
+    assert!(
+        (ink_middle - out_w() as f32 / 2.0).abs() <= 0.5,
+        "the clock's ink is centred on {ink_middle}"
     );
     let (_, percent_end) = tex_x(&out, 2).expect("no figure");
-    assert_eq!(percent_end, out_w() as f32 - MARGIN);
+    assert_eq!(
+        percent_end - word_tail(),
+        out_w() as f32 - MARGIN,
+        "the figure's ink does not end at the margin"
+    );
     let leftmost_gauge = out
         .iter()
         .filter_map(|d| match *d {
@@ -200,12 +204,94 @@ fn on_and_off_faces_are_the_same_size_and_tell_themselves_apart() {
     for link in [Link::Wifi, Link::Bluetooth] {
         let shape =
             |on: bool| -> Vec<u8> { link_face(link, on).rgba.chunks(4).map(|p| p[3]).collect() };
-        assert_ne!(
+        assert_eq!(
             shape(true),
             shape(false),
-            "{link:?} off is only dimmer, not crossed out"
+            "{link:?} changes shape, not only ink, when it goes off"
         );
     }
+}
+
+fn inked_rows(face: &omega_ui::UndoFace) -> Vec<u32> {
+    (0..face.h)
+        .filter(|&y| (0..face.w).any(|x| face.rgba[((y * face.w + x) * 4 + 3) as usize] > 0))
+        .collect()
+}
+
+#[test]
+fn every_icon_is_one_square_cell_of_pixel_art() {
+    let cell = CELL_PX as u32;
+    for face in [
+        link_face(Link::Wifi, true),
+        link_face(Link::Bluetooth, true),
+        bolt_face(),
+    ] {
+        assert_eq!((face.w, face.h), (cell, cell), "an icon is not one cell");
+        assert!(
+            face.rgba.chunks(4).all(|p| p[3] == 0 || p[3] == 255),
+            "an icon has soft edges, not whole pixels"
+        );
+        let rows = inked_rows(&face);
+        assert_eq!(
+            (rows[0], rows[rows.len() - 1]),
+            (0, cell - 1),
+            "an icon leaves rows of its cell unused"
+        );
+    }
+    assert_eq!(GAUGE_H, CELL_PX, "the battery is not as tall as the icons");
+}
+
+#[test]
+fn words_stand_exactly_as_tall_as_the_icons() {
+    let ssh = link_face(Link::Ssh, true);
+    assert_eq!(ssh.h, CELL_PX as u32, "ssh is not as tall as the icons");
+    let figure = word_face("100%");
+    let rows = inked_rows(&figure);
+    assert_eq!(
+        (rows[0] as f32, rows[rows.len() - 1] as f32 + 1.0),
+        (word_cap_top(), word_cap_top() + CELL_PX),
+        "the figure's ink does not fill one cell below its cap top"
+    );
+}
+
+#[test]
+fn every_item_stands_in_the_same_band() {
+    let out = bar(
+        Links {
+            wifi: true,
+            bluetooth: Some(true),
+            ssh: true,
+        },
+        battery(Charge::Charging),
+        Some(TexId::from_raw(3)),
+    );
+    let top = |d: &Draw| match *d {
+        Draw::Tex { y, tex, .. } if [1, 2].map(TexId::from_raw).contains(&tex) => {
+            Some(y + word_cap_top())
+        }
+        Draw::Tex { y, h, .. } => Some(y + (h - CELL_PX) / 2.0),
+        _ => None,
+    };
+    let tops: Vec<f32> = out.iter().filter_map(top).collect();
+    assert_eq!(tops.len(), 6, "not every item drew: {out:?}");
+    assert!(
+        tops.iter().all(|&t| t == tops[0]),
+        "items stand at different heights: {tops:?}"
+    );
+    let band = tops[0];
+    assert_eq!(
+        band + CELL_PX / 2.0,
+        (TOP_BAR_H - 2.0) / 2.0,
+        "the band is not centred above the rule"
+    );
+    let capsule_top = out
+        .iter()
+        .filter_map(|d| match *d {
+            Draw::Rect { x, y, .. } if x > out_w() as f32 / 2.0 && y > 0.0 => Some(y),
+            _ => None,
+        })
+        .fold(f32::MAX, f32::min);
+    assert_eq!(capsule_top, band, "the battery does not stand in the band");
 }
 
 #[test]

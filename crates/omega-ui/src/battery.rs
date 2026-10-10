@@ -3,22 +3,35 @@ use omega_power::{Battery, Charge};
 
 use crate::footer::Printed;
 use crate::hud::HUD_INK;
-use crate::plate::HINT_H;
+use crate::plate::{word_cap_top, UndoFace, HINT_H};
+use crate::sprite::{sprite_face, Rows, CELL_PX, SPRITE_PX};
 
-pub const BOLT_PX: f32 = 18.0;
+/// The capsule is drawn a sprite pixel at a time, as tall as an icon's cell, so it sits on the
+/// same grid as the bolt and the figure beside it.
+const PX: f32 = SPRITE_PX as f32;
 
-pub const GAUGE_W: f32 = 22.0;
-pub const GAUGE_H: f32 = 11.0;
+pub const GAUGE_W: f32 = 12.0 * PX;
+pub const GAUGE_H: f32 = CELL_PX;
 const _: () = assert!(GAUGE_H < GAUGE_W);
-const NUB_W: f32 = 2.5;
-const NUB_H: f32 = 4.0;
-pub const WALL: f32 = 1.5;
-const GAP: f32 = 7.0;
+const NUB_W: f32 = PX;
+const NUB_H: f32 = 3.0 * PX;
+pub const WALL: f32 = PX;
+const GAP: f32 = 4.0 * PX;
 
-const BOLT_W: f32 = 14.0;
-const BOLT_H: f32 = 14.0;
-const BOLT_GAP: f32 = 5.0;
+const BOLT_W: f32 = CELL_PX;
+const BOLT_GAP: f32 = 2.0 * PX;
 const _: () = assert!(BOLT_GAP > 0.0);
+
+#[rustfmt::skip]
+const BOLT: Rows = [
+    "....##.",
+    "...##..",
+    "..##...",
+    ".#####.",
+    "...##..",
+    "..##...",
+    ".##....",
+];
 
 const INK: [f32; 4] = [
     HUD_INK[0] as f32 / 255.0,
@@ -26,6 +39,11 @@ const INK: [f32; 4] = [
     HUD_INK[2] as f32 / 255.0,
     1.0,
 ];
+
+/// The bolt shown beside the capsule while the handheld charges, one cell square.
+pub fn bolt_face() -> UndoFace {
+    sprite_face(&BOLT, HUD_INK)
+}
 
 /// How wide the gauge is drawn with `percent` beside it, from the room left for the bolt
 /// on its left to the end of the figure.
@@ -38,6 +56,17 @@ pub fn gauge_width(percent: Printed) -> f32 {
     BOLT_W + BOLT_GAP + GAUGE_W + NUB_W + figure
 }
 
+/// How many of the capsule's `cols` columns of fill `percent` lights: whole sprite pixels, so
+/// the fill steps like the rest of the art, and never none while there is any charge left.
+fn filled(percent: u8, cols: u32) -> u32 {
+    match u32::from(percent.min(100)) {
+        0 => 0,
+        p => ((p * cols + 50) / 100).max(1),
+    }
+}
+
+/// The gauge with the top of its capsule at `y`; the bolt and the figure stand on the same
+/// line, all three exactly `GAUGE_H` tall.
 pub fn draw_gauge(
     x: f32,
     y: f32,
@@ -68,8 +97,8 @@ pub fn draw_gauge(
     rect(cx + GAUGE_W - WALL, y, WALL, GAUGE_H, out);
     rect(cx + GAUGE_W, y + (GAUGE_H - NUB_H) / 2.0, NUB_W, NUB_H, out);
 
-    let inner = GAUGE_W - 4.0 * WALL;
-    let fill = inner * f32::from(b.percent.min(100)) / 100.0;
+    let cols = ((GAUGE_W - 4.0 * WALL) / PX) as u32;
+    let fill = filled(b.percent, cols) as f32 * PX;
     if fill > 0.0 {
         rect(
             cx + 2.0 * WALL,
@@ -83,9 +112,9 @@ pub fn draw_gauge(
     if let (Charge::Charging, Some(tex)) = (b.charge, bolt) {
         out.push(Draw::Tex {
             x,
-            y: y + (GAUGE_H - BOLT_H) / 2.0,
+            y,
             w: BOLT_W,
-            h: BOLT_H,
+            h: CELL_PX,
             tex,
             alpha: 1.0,
         });
@@ -93,7 +122,7 @@ pub fn draw_gauge(
 
     if percent.w > 0 {
         let px = cx + GAUGE_W + NUB_W + GAP;
-        let py = y + (GAUGE_H - HINT_H as f32) / 2.0;
+        let py = y - word_cap_top();
         out.push(match percent.face {
             Some(tex) => Draw::Tex {
                 x: px,

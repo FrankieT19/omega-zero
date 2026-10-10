@@ -21,6 +21,7 @@ mod shelf;
 mod shell;
 mod silhouette;
 mod slot_chrome;
+mod sprite;
 mod stage;
 mod status_bar;
 mod sticker;
@@ -33,7 +34,7 @@ pub use backdrop::{
     backdrop_speed, draw_backdrop, draw_pattern, draw_solid, wallpaper_face, BACKDROP_PALETTE,
 };
 pub use barcode::{code39, CODE39_NARROW, CODE39_WIDE};
-pub use battery::{draw_gauge, gauge_width, BOLT_PX, GAUGE_H, GAUGE_W, WALL};
+pub use battery::{bolt_face, draw_gauge, gauge_width, GAUGE_H, GAUGE_W, WALL};
 pub use bezel::{
     bezel_mark_face, mark_height, mark_rect, overlay_clear, overlay_face, overlay_path, rim,
     BEZEL_FILL, BEZEL_INK, RIM_W,
@@ -71,8 +72,8 @@ pub use link_art::{
 };
 pub use plate::{
     arrows_hint_face, arrows_hint_width, cap_width, centred_hints, hint_face, hint_quad, hint_row,
-    hint_width, title_face, word_face, word_width, Hint, UndoFace, ARROW_GAP, CAP, CAP_GAP,
-    HINT_EDGE, HINT_GAP, HINT_H, LEGEND_GAP, TITLE_H, TITLE_W,
+    hint_width, title_face, word_cap_top, word_face, word_tail, word_width, Hint, UndoFace,
+    ARROW_GAP, CAP, CAP_GAP, HINT_EDGE, HINT_GAP, HINT_H, LEGEND_GAP, TITLE_H, TITLE_W,
 };
 pub use polaroids::{photo_face, PhotoFace, Polaroids, DOT, LEGEND, PHOTO_H, PHOTO_W};
 pub use power_menu::{menu_face, PowerChoice, MENU_H, MENU_INK, MENU_PAD};
@@ -93,6 +94,7 @@ pub use slot_chrome::{
     draw_empty_slot, draw_slot_name, ease, edge, housing, opening, recess, set_theme, SlotChrome,
     ALERT_PX, LIP_H, MOUTH_H, MOUTH_W,
 };
+pub use sprite::{CELL_PX, SPRITE_PX};
 pub use stage::{stage_x, stage_y, MOCKUP_H, MOCKUP_W};
 pub use status_bar::{link_face, Link, LinkFaces, Links, TopBar, LINK_OFF, LINK_ON, TOP_BAR_H};
 pub use sticker::{

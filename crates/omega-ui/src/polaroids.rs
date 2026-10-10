@@ -6,7 +6,9 @@ use crate::art;
 use crate::battery::{draw_gauge, GAUGE_H};
 use crate::footer::{draw_printed, Printed};
 use crate::hud::{PLATE, PLATE_H};
-use crate::plate::{hint_quad, hint_row, hint_width, Hint, HINT_GAP, HINT_H, TITLE_H, TITLE_W};
+use crate::plate::{
+    hint_quad, hint_row, hint_width, word_cap_top, Hint, HINT_GAP, HINT_H, TITLE_H, TITLE_W,
+};
 
 pub const PHOTO_W: u32 = 240;
 pub const PHOTO_H: u32 = 160;
@@ -183,17 +185,11 @@ impl Polaroids {
             });
         }
 
-        draw_gauge(
-            MARGIN,
-            (PLATE_H - GAUGE_H) / 2.0,
-            battery,
-            battery_percent,
-            bolt,
-            out,
-        );
+        let band = ((PLATE_H - GAUGE_H) / 2.0).round();
+        draw_gauge(MARGIN, band, battery, battery_percent, bolt, out);
         if clock.w > 0 {
             let x = out_w() as f32 - MARGIN - clock.w as f32;
-            draw_printed(x, (PLATE_H - HINT_H as f32) / 2.0, clock, out);
+            draw_printed(x, band - word_cap_top(), clock, out);
         }
     }
 
