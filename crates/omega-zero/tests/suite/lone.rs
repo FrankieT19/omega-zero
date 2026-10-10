@@ -1,4 +1,4 @@
-//! The lone panels, CONTROLS, BACKGROUND, DATE & TIME and LABELS, against flow.html: each
+//! The lone panels, CONTROLS, THEME, DATE & TIME and LABELS, against flow.html: each
 //! panel's face is held to a screenshot of flow.html in Chrome (lone/ref/, made by
 //! lone/make-refs.sh from assets/ui/flow.html), pixel for pixel, in Night and in Amber. The
 //! screenshots are the whole 640x480 screen; a panel is in the middle of its page, which is the
@@ -9,7 +9,7 @@
 use crate::common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 
 use omega_input::{Action, Btn};
-use omega_store::{colour_index, write_app_state, AppState, BackdropStyle};
+use omega_store::{colour_index, write_app_state, AppState, BackdropStyle, Font};
 use omega_ui::kit::layout::{screen_px, BAR_U};
 use omega_ui::kit::palette::{palette, Palette};
 use omega_ui::kit::pixel::text_width;
@@ -134,18 +134,21 @@ fn matches_flow(face: &UndoFace, name: &str, flow_h: u32, rows: std::ops::Range<
 }
 
 fn background_view(colour: u8) -> omega_zero::list_view::ListView {
-    BackgroundScreen::default().view(Backdrop {
-        style: BackdropStyle::Grid,
-        moving: true,
-        colour,
-    })
+    BackgroundScreen::default().view(
+        Backdrop {
+            style: BackdropStyle::Grid,
+            moving: true,
+            colour,
+        },
+        Font::Bold,
+    )
 }
 
 #[test]
 fn background_is_flows() {
     for (colour, name) in colours() {
         let face = background_face(&background_view(colour), palette(colour));
-        assert_eq!((face.w, face.h), (200, 62), "{name}");
+        assert_eq!((face.w, face.h), (200, 75), "{name}");
         matches_flow(&face, &format!("background-{name}"), face.h, 0..face.h);
     }
 }
@@ -368,17 +371,22 @@ fn start_fetches_from_either_row() {
 }
 
 /// A row a style has no use for stays on the panel, faint, so the panel is as tall for every
-/// style: three rows.
+/// style: four rows, BACKGROUND, MOTION, COLOUR and FONT, under the title THEME.
 #[test]
-fn the_background_panel_keeps_its_three_rows() {
-    let view = BackgroundScreen::default().view(Backdrop {
-        style: BackdropStyle::Solid,
-        moving: true,
-        colour: 0,
-    });
-    assert_eq!(view.rows.len(), 3);
+fn the_theme_panel_keeps_its_four_rows() {
+    let view = BackgroundScreen::default().view(
+        Backdrop {
+            style: BackdropStyle::Solid,
+            moving: true,
+            colour: 0,
+        },
+        Font::Thin,
+    );
+    assert_eq!(view.rows.len(), 4);
     assert!(view.rows[1].dim, "Solid does not move");
-    assert_eq!(background_face(&view, palette(0)).h, panel_height(3 * 13));
+    assert!(!view.rows[3].dim, "the font is faint");
+    assert_eq!(background_face(&view, palette(0)).h, panel_height(4 * 13));
+    assert_eq!(omega_zero::screens::background::TITLE, "THEME");
     assert!(view.status.is_empty(), "a note under the rows");
     assert_eq!(view.legend, [LegendHint::Back, LegendHint::Change]);
 }

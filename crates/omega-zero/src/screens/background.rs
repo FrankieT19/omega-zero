@@ -1,6 +1,7 @@
-//! The Background screen, opened from Settings: a lone panel, as flow.html's
-//! `#screen=background`, its rows STYLE, MOTION and COLOUR drawn over the background they are
-//! choosing. A new colour re-tints the panel, and every screen after it, the next frame.
+//! The THEME screen, opened from Settings: a lone panel, as flow.html's `#screen=background`,
+//! its rows BACKGROUND, MOTION and COLOUR drawn over the background they are choosing, and FONT
+//! over the bar it is choosing for. A new colour re-tints the panel, and every screen after it,
+//! the next frame; a new font redraws the bar's actions under it in that frame too.
 
 use omega_input::Action;
 use omega_ui::kit::palette::Palette;
@@ -18,9 +19,9 @@ use crate::screens::lone::{hold, rows_height, Lone};
 pub const WIDTH: u32 = 200;
 
 /// The panel's title.
-pub const TITLE: &str = "BACKGROUND";
+pub const TITLE: &str = "THEME";
 
-/// The BACKGROUND panel holding `view`'s rows, in `pal`.
+/// The THEME panel holding `view`'s rows, in `pal`.
 pub fn background_face(view: &ListView, pal: &Palette) -> UndoFace {
     let content = rows_height(view.rows.len());
     let mut panel = panel_face(WIDTH, panel_height(content), TITLE, true, pal);
@@ -30,11 +31,11 @@ pub fn background_face(view: &ListView, pal: &Palette) -> UndoFace {
 
 impl App {
     pub(crate) fn background_input(&mut self, action: Action) {
-        let (look, wallpaper) = (self.backdrop(), self.wallpaper.is_some());
+        let (look, font, wallpaper) = (self.backdrop(), self.state.font, self.wallpaper.is_some());
         let Phase::Background(screen) = &mut self.phase else {
             return;
         };
-        match screen.input(look, wallpaper, action) {
+        match screen.input(look, font, wallpaper, action) {
             BackgroundOutcome::Close => self.go(
                 Phase::Settings {
                     row: SettingsRow::Background,
@@ -47,14 +48,18 @@ impl App {
                 self.state.backdrop_colour = b.colour;
                 self.persist();
             }
+            BackgroundOutcome::Font(font) => {
+                self.state.font = font;
+                self.persist();
+            }
             BackgroundOutcome::Stay => {}
         }
     }
 
-    /// The Background screen's list, while it is open.
+    /// The THEME screen's list, while it is open.
     pub fn background_view(&self) -> Option<ListView> {
         match &self.phase {
-            Phase::Background(screen) => Some(screen.view(self.backdrop())),
+            Phase::Background(screen) => Some(screen.view(self.backdrop(), self.state.font)),
             _ => None,
         }
     }

@@ -1,7 +1,8 @@
 #![cfg(target_os = "macos")]
 //! The bar along the bottom as the panel shows it: every pixel of its plate and its actions,
 //! notches and all, is the kit's face drawn at twice its size on whole pixels, on the shelf, in
-//! Settings and under the core picker with ◀▶ SWAP on its plate, in Night and in Amber.
+//! Settings and under the core picker with ◀▶ SWAP on its plate, in Night and in Amber, and in
+//! the font Settings > Theme picks, from the frame it is picked in.
 
 use crate::common;
 
@@ -15,7 +16,9 @@ use omega_store::{read_app_state, write_app_state};
 use omega_ui::kit::action::{action_pair, Font, Side, RISE, TALL};
 use omega_ui::kit::bar::{bar_layout, plate_face, Hint};
 use omega_ui::kit::palette::Palette;
+use omega_ui::SettingsRow;
 use omega_ui::{UndoFace, SPRITE_PX};
+use omega_zero::app::Phase;
 use omega_zero::frontend::Frontend;
 use omega_zero::screens::bar::{Actions, SWAP};
 
@@ -34,15 +37,15 @@ fn tap(f: &mut Frontend, input: &mut Script, btn: Btn) {
     f.advance(input);
 }
 
-/// The bar the screen's width with `actions` at its ends, made together as a pair, and `hints`
-/// on its plate, at one texel to an art pixel: the plate, then the actions over it, on a face
-/// `TALL` high whose row `RISE` is the bar's top.
-fn kit_bar(actions: Actions, hints: &[Hint], pal: &Palette) -> UndoFace {
+/// The bar the screen's width with `actions` at its ends, made together as a pair with their
+/// words in `font`, and `hints` on its plate, at one texel to an art pixel: the plate, then the
+/// actions over it, on a face `TALL` high whose row `RISE` is the bar's top.
+fn kit_bar(actions: Actions, hints: &[Hint], font: Font, pal: &Palette) -> UndoFace {
     let width = out_w() / SPRITE_PX;
     let [left, right] = action_pair(
         actions.action(Side::Left),
         actions.action(Side::Right),
-        Font::Bold,
+        font,
         pal,
     );
     let layout = bar_layout(width, &left, &right);
@@ -141,7 +144,7 @@ fn the_bar_is_the_kits_pixel_for_pixel_on_the_shelf_and_in_settings() {
         let pal = f.app().palette();
 
         let shelf = composed(&mut f, &mut c, &format!("shelf-{colour}"));
-        let off = misses(&shelf, &kit_bar(Actions::Shelf, &[], pal));
+        let off = misses(&shelf, &kit_bar(Actions::Shelf, &[], Font::Bold, pal));
         assert!(
             off.is_empty(),
             "{colour}: the shelf's bar is off the kit's at {} pixels, first {:?}",
@@ -152,7 +155,7 @@ fn the_bar_is_the_kits_pixel_for_pixel_on_the_shelf_and_in_settings() {
         let mut input = Script(VecDeque::new());
         tap(&mut f, &mut input, Btn::Start);
         let settings = composed(&mut f, &mut c, &format!("settings-{colour}"));
-        let off = misses(&settings, &kit_bar(Actions::Menu, &[], pal));
+        let off = misses(&settings, &kit_bar(Actions::Menu, &[], Font::Bold, pal));
         assert!(
             off.is_empty(),
             "{colour}: Settings' bar is off the kit's at {} pixels, first {:?}",
@@ -192,7 +195,7 @@ fn the_core_pickers_bar_has_the_swap_on_its_plate_pixel_for_pixel() {
         f.app_mut().update(1.0);
         assert_eq!(f.app().bar_hints_shown(), [SWAP], "{colour}");
         let picker = composed(&mut f, &mut c, &format!("core-picker-{colour}"));
-        let off = misses(&picker, &kit_bar(Actions::Menu, &[SWAP], pal));
+        let off = misses(&picker, &kit_bar(Actions::Menu, &[SWAP], Font::Bold, pal));
         assert!(
             off.is_empty(),
             "{colour}: the picker's bar is off the kit's at {} pixels, first {:?}",
@@ -200,6 +203,94 @@ fn the_core_pickers_bar_has_the_swap_on_its_plate_pixel_for_pixel() {
             &off[..off.len().min(4)]
         );
         // and the swap really is there: the plate without it is not what shows
-        assert!(!misses(&picker, &kit_bar(Actions::Menu, &[], pal)).is_empty());
+        assert!(!misses(&picker, &kit_bar(Actions::Menu, &[], Font::Bold, pal)).is_empty());
     }
+}
+
+/// FONT on the THEME screen redraws the bar's actions under it in the frame it changes in:
+/// thin, every action narrower and every plate grown into the room they leave, the shelf's
+/// CONTROLS and SETTINGS 107 art pixels each where bold has 115; and the shelf's bar is thin too
+/// once THEME is left.
+#[test]
+fn a_new_font_redraws_the_bars_actions_in_the_next_frame() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    clocked(d.path());
+    let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
+    f.upload_faces(&mut c);
+    let pal = f.app().palette();
+    let mut input = Script(VecDeque::new());
+    tap(&mut f, &mut input, Btn::Start);
+    while f.app().settings_row() != Some(SettingsRow::Background) {
+        tap(&mut f, &mut input, Btn::Down);
+    }
+    tap(&mut f, &mut input, Btn::A);
+    assert!(matches!(f.app().phase(), Phase::Background(_)));
+    let bold = composed(&mut f, &mut c, "theme-bold");
+    let off = misses(&bold, &kit_bar(Actions::Menu, &[], Font::Bold, pal));
+    assert!(
+        off.is_empty(),
+        "THEME's bar is not bold at {} pixels",
+        off.len()
+    );
+    let was = f.app().bar_faces().expect("the bar is made").sets;
+
+    tap(&mut f, &mut input, Btn::Up);
+    tap(&mut f, &mut input, Btn::Right);
+    assert_eq!(f.app().font(), Font::Thin, "FONT did not change");
+    let thin = composed(&mut f, &mut c, "theme-thin");
+    let off = misses(&thin, &kit_bar(Actions::Menu, &[], Font::Thin, pal));
+    assert!(
+        off.is_empty(),
+        "THEME's bar is off the thin kit's at {} pixels, first {:?}",
+        off.len(),
+        &off[..off.len().min(4)]
+    );
+    assert!(!misses(&thin, &kit_bar(Actions::Menu, &[], Font::Bold, pal)).is_empty());
+    let now = f.app().bar_faces().expect("the bar is made").sets;
+    for actions in Actions::ALL {
+        let (was, now) = (was[actions.index()], now[actions.index()]);
+        if actions != Actions::Confirm {
+            assert!(
+                now.left.1 < was.left.1,
+                "{actions:?}: the left action is no narrower"
+            );
+        }
+        assert!(
+            now.right.1 < was.right.1,
+            "{actions:?}: the right action is no narrower"
+        );
+        assert!(
+            now.layout.plate[2] > was.layout.plate[2],
+            "{actions:?}: the plate did not grow into the room"
+        );
+    }
+    let shelf = Actions::Shelf.index();
+    assert_eq!(
+        [
+            was[shelf].left.1,
+            was[shelf].right.1,
+            now[shelf].left.1,
+            now[shelf].right.1
+        ],
+        [115, 115, 107, 107]
+    );
+
+    tap(&mut f, &mut input, Btn::B);
+    f.app_mut().finish_slide();
+    tap(&mut f, &mut input, Btn::B);
+    assert!(matches!(f.app().phase(), Phase::Shelf));
+    let px = composed(&mut f, &mut c, "shelf-thin");
+    let off = misses(&px, &kit_bar(Actions::Shelf, &[], Font::Thin, pal));
+    assert!(
+        off.is_empty(),
+        "the shelf's bar is off the thin kit's at {} pixels, first {:?}",
+        off.len(),
+        &off[..off.len().min(4)]
+    );
 }
