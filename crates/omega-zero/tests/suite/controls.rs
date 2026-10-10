@@ -96,12 +96,12 @@ fn a_select_tap_in_a_game_opens_nothing() {
     );
 }
 
-/// What each button does, as `App::apply` and the gestures do it, in the words QUICKMENU draws:
+/// What each button does, as `App::apply` and the gestures do it, in the words CONTROLS draws:
 /// trimmed to flow.html's grid, each column's actions as many letters as it has room for.
 #[test]
 fn controls_says_what_the_shelf_and_a_game_do_with_each_button() {
     let view = ControlsView::new();
-    assert_eq!(view.title, "QUICKMENU");
+    assert_eq!(view.title, "CONTROLS");
     let names: Vec<_> = view.groups.iter().map(|g| g.name).collect();
     assert_eq!(names, ["SHELF", "IN GAME"]);
     assert_eq!(
@@ -111,7 +111,7 @@ fn controls_says_what_the_shelf_and_a_game_do_with_each_button() {
             ("HOLD A", "CLEAN START"),
             ("X", "CORE (GBA)"),
             ("START", "SETTINGS"),
-            ("SELECT", "QUICKMENU"),
+            ("SELECT", "CONTROLS"),
             ("◀▶", "BROWSE"),
             ("▲▼", "LETTER"),
             ("L1 R1", "SHELF"),

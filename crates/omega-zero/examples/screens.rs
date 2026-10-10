@@ -48,7 +48,7 @@ up b
 wait 60
 tap select
 wait 8
-shot slide-to-quickmenu
+shot slide-to-controls
 wait 60
 tap b
 wait 60

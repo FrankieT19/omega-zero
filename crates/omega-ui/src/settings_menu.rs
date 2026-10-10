@@ -60,6 +60,8 @@ pub enum SettingsRow {
     Labels,
     DateTime,
     Network,
+    /// THEME on the screen: the background, its motion and the colour everything takes, and the
+    /// bar's font.
     Background,
     About,
 }
@@ -90,7 +92,7 @@ impl SettingsRow {
             SettingsRow::Labels => "Labels",
             SettingsRow::DateTime => "Date & Time",
             SettingsRow::Network => "Network",
-            SettingsRow::Background => "Background",
+            SettingsRow::Background => "Theme",
             SettingsRow::About => "About",
         }
     }

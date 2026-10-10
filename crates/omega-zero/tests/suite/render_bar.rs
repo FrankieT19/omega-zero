@@ -12,7 +12,7 @@ use omega_gfx::{out_h, out_w, Compositor, HeadlessSurface};
 use omega_input::{Btn, InputSource, Millis, RawEvent};
 use omega_power::SimPlatform;
 use omega_store::{read_app_state, write_app_state};
-use omega_ui::kit::action::{action_face, Side, RISE, TALL};
+use omega_ui::kit::action::{action_pair, Font, Side, RISE, TALL};
 use omega_ui::kit::bar::{bar_layout, plate_face, Hint};
 use omega_ui::kit::palette::Palette;
 use omega_ui::{UndoFace, SPRITE_PX};
@@ -34,15 +34,17 @@ fn tap(f: &mut Frontend, input: &mut Script, btn: Btn) {
     f.advance(input);
 }
 
-/// The bar the screen's width with `actions` at its ends and `hints` on its plate, at one
-/// texel to an art pixel: the plate, then the actions over it, on a face `TALL` high whose row
-/// `RISE` is the bar's top.
+/// The bar the screen's width with `actions` at its ends, made together as a pair, and `hints`
+/// on its plate, at one texel to an art pixel: the plate, then the actions over it, on a face
+/// `TALL` high whose row `RISE` is the bar's top.
 fn kit_bar(actions: Actions, hints: &[Hint], pal: &Palette) -> UndoFace {
     let width = out_w() / SPRITE_PX;
-    let [left, right] = [Side::Left, Side::Right].map(|side| {
-        let (word, pill) = actions.action(side);
-        action_face(side, word, pill, pal)
-    });
+    let [left, right] = action_pair(
+        actions.action(Side::Left),
+        actions.action(Side::Right),
+        Font::Bold,
+        pal,
+    );
     let layout = bar_layout(width, &left, &right);
     let mut bar = UndoFace {
         rgba: vec![0; (width * TALL * 4) as usize],
