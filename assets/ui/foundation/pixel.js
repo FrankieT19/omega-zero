@@ -20,6 +20,7 @@ window.OmegaPixel = (() => {
     t: '--oz-tab',
     b: '--oz-band',
     s: '--oz-stripe',
+    d: '--oz-dim',
     A: '--oz-frame',
     H: '--oz-frame-hi',
     L: '--oz-label',

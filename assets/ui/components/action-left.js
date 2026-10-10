@@ -116,7 +116,9 @@
   const template = document.createElement('template');
   template.innerHTML = `
     <style>
-      :host { display: block; height: calc(${BAR} * var(--u)); }
+      /* text-rendering: Pixel Code drawn without the browser's hinting, which smears its edges by
+         part of a pixel even where it sits on whole pixels */
+      :host { display: block; height: calc(${BAR} * var(--u)); text-rendering: geometricPrecision; }
       :host([hidden]) { display: none; }
 
       .action { display: flex; height: 100%; }
