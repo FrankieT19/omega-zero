@@ -8,7 +8,7 @@
   the slot.
 - START on the shelf opens Settings, a window in the style of Mega Man Zero's menus, in place of
   the old quick menu. CONFIGS holds Fast Forward (2X, 3X, 4X or 6X), Fast Forward Sound, Colour
-  Correction, Rumble and Labels; GENERAL holds Date & Time, Network, Background and About.
+  Correction, Rumble and Labels; GENERAL holds Date & Time, Network, Theme and About.
 - A row that Left and Right change shows ◀ ▶ while it is lit. A row that opens a screen ends
   in ›.
 - A tap of SELECT on the shelf opens CONTROLS: what every button does, on the shelf and in a
@@ -20,15 +20,17 @@
   password and port 22. SFTP uses the same login. The password is BaseOS's: `root`, or what
   `ssh_password=` says in `baseos.conf` on the card.
 - Cart Labels is no longer on the Wi-Fi screen: it is Labels, in Settings.
-- Background, Date & Time and Labels are panels over the background, and the passphrase
+- Theme, Date & Time and Labels are panels over the background, and the passphrase
   keyboard is a window. About is the same sticker as before.
 - In the menus the bottom bar says B RETURN and A CONFIRM. A screen's own keys sit in the middle
   of it: Y FORGET on Network, START FETCH and Y SIGN OUT on Labels.
 - Every move between screens slides, over a background that keeps moving. Going into a screen,
   the one you leave goes out to the right and the new one comes in from the left; coming back is
   the mirror. Leaving the shelf, the top bar goes up, the carts right and the slot down.
-- The menus, both bars and the slot take their colours from Settings > Background > Colour.
+- The menus, both bars and the slot take their colours from Settings > Theme > Colour.
   Night is grey; Amber is Mega Man Zero's own colours.
+- Theme is what Background was: the background's pattern, its motion and its colour. It also
+  picks the font of the bottom bar's big words, Bold or Thin.
 
 ### For developers
 
