@@ -29,8 +29,10 @@ void main() {
 "#;
 
 /// A sprite, turned in the canvas by `u_turn` (cos, sin), then spun about its upright middle by
-/// `u_spin` (sin, cos, depth) and seen from `u_focal` pixels away. The spin divides through `w`, so
-/// the face's texture keeps true perspective; unspun, every step of it is exact and changes nothing.
+/// `u_spin` (sin, cos, depth) and seen from `u_focal` pixels away. The spin is divided through on
+/// the vertex, so the clipper only ever sees w = 1: some drivers drop a triangle that crosses the
+/// edge of the screen with any other w. For the texture to keep true perspective, `v_uvq` carries
+/// uv/w and 1/w, which the fragment divides back. Unspun, every step is exact and changes nothing.
 pub const SPRITE_VERT: &str = r#"
 attribute vec2 a_pos;
 uniform vec4 u_rect;
@@ -39,6 +41,7 @@ uniform vec2 u_turn;
 uniform vec3 u_spin;
 uniform float u_focal;
 varying vec2 v_uv;
+varying vec3 v_uvq;
 void main() {
     v_uv = a_pos;
     vec2 mid = u_rect.zw * 0.5;
@@ -47,9 +50,10 @@ void main() {
                        u_turn.y * local.x + u_turn.x * local.y);
     float across = turned.x * u_spin.y - u_spin.z * u_spin.x;
     float w = (u_focal + turned.x * u_spin.x) / u_focal;
+    v_uvq = vec3(a_pos, 1.0) / w;
     vec2 spun = vec2(across, turned.y) / w;
     vec2 p = (u_rect.xy + a_pos * u_rect.zw + (turned - local) + (spun - turned)) / u_target;
-    gl_Position = vec4(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0, 0.0, 1.0) * w;
+    gl_Position = vec4(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0, 0.0, 1.0);
 }
 "#;
 
@@ -96,9 +100,12 @@ pub const SPRITE_FRAG: &str = r#"
 precision mediump float;
 uniform sampler2D u_tex;
 uniform vec4 u_colour;
+uniform float u_spun;
 varying vec2 v_uv;
+varying vec3 v_uvq;
 void main() {
-    FRAG_COLOR = texture2D(u_tex, v_uv) * u_colour;
+    vec2 uv = u_spun > 0.5 ? v_uvq.xy / v_uvq.z : v_uv;
+    FRAG_COLOR = texture2D(u_tex, uv) * u_colour;
 }
 "#;
 

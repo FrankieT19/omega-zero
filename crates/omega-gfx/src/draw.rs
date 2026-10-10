@@ -80,6 +80,7 @@ pub struct Sprites {
     u_colour: gl::types::GLint,
     u_turn: gl::types::GLint,
     u_spin: gl::types::GLint,
+    u_spun: gl::types::GLint,
 }
 
 impl Sprites {
@@ -93,7 +94,7 @@ impl Sprites {
             gl::RGBA,
             Some(&[255u8; 4]),
         );
-        let (u_rect, u_colour, u_turn, u_spin);
+        let (u_rect, u_colour, u_turn, u_spin, u_spun);
         unsafe {
             gl::UseProgram(prog);
             gl::Uniform1i(crate::gl::uniform_location(prog, "u_tex"), 0);
@@ -106,6 +107,7 @@ impl Sprites {
             u_colour = crate::gl::uniform_location(prog, "u_colour");
             u_turn = crate::gl::uniform_location(prog, "u_turn");
             u_spin = crate::gl::uniform_location(prog, "u_spin");
+            u_spun = crate::gl::uniform_location(prog, "u_spun");
             gl::Uniform1f(crate::gl::uniform_location(prog, "u_focal"), FOCAL);
         }
         Ok(Sprites {
@@ -116,6 +118,7 @@ impl Sprites {
             u_colour,
             u_turn,
             u_spin,
+            u_spun,
         })
     }
 
@@ -251,6 +254,7 @@ impl Sprites {
                 gl::Uniform4f(self.u_rect, x, y, w, h);
                 gl::Uniform2f(self.u_turn, cos, sin);
                 gl::Uniform3f(self.u_spin, yaw_sin, yaw_cos, depth);
+                gl::Uniform1f(self.u_spun, if yaw == 0.0 { 0.0 } else { 1.0 });
                 gl::Uniform4f(self.u_colour, colour[0], colour[1], colour[2], colour[3]);
             }
             quad.draw();
