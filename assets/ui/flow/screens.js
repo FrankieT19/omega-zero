@@ -3,8 +3,8 @@
   are, and which screen a row opens. player.js does the moving between them; this file only
   answers each press with nothing, { go: <screen> } to go deeper or { back: true }.
 
-  The settings that show on more than one screen (Wi-Fi, the date, the backdrop) live once, in
-  FlowScreens.model, and every screen showing one follows it.
+  The settings that show on more than one screen (Wi-Fi, the date, the backdrop, the bar's font)
+  live once, in FlowScreens.model, and every screen showing one follows it.
 */
 window.FlowScreens = (() => {
   // ---- the settings, shared ----
@@ -17,6 +17,7 @@ window.FlowScreens = (() => {
     style: 'grid',
     moving: true,
     colour: 'night',
+    font: 'bold',         // the bottom bar's labels, bold or thin
   };
   const listeners = new Set();
   function set(key, value) {
@@ -32,6 +33,7 @@ window.FlowScreens = (() => {
     moving: { show: on => (on ? 'MOVING' : 'STILL'), read: value => value === 'MOVING' },
     style: { show: name => name.toUpperCase(), read: value => value.toLowerCase() },
     colour: { show: name => name.toUpperCase(), read: value => value.toLowerCase() },
+    font: { show: name => name.toUpperCase(), read: value => value.toLowerCase() },
   };
 
   const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -123,7 +125,7 @@ window.FlowScreens = (() => {
     press(key) { if (key === 'b') return { back: true }; }
   }
 
-  // The shelf, as far as these screens go: START to Settings, SELECT to the Quickmenu.
+  // The shelf, as far as these screens go: START to Settings, SELECT to Controls.
   class Shelf extends Still {
     press(key) {
       if (key === 'start') return { go: 'settings' };
