@@ -6,11 +6,12 @@
     SLIDE_MS 280, p = ease(t), ease(u) = u³(u(6u − 15) + 10), smootherstep.
     Going deeper, the screen on show leaves to the right, dx = +even(p·W), and the next comes in
       from the left, dx = −even((1 − p)·W); going back is the mirror. even() rounds to a whole
-      art pixel, 2px. Controls stands beside the shelf rather than under it, and slides the
-      mirror way: SELECT sends the shelf out to the left and brings the panel in from the right,
-      and back sends the panel out to the right and brings the shelf in from the left.
+      art pixel, 2px. Settings stands beside the shelf rather than under it, and slides the
+      mirror way: START sends the shelf out to the left and brings Settings in from the right,
+      and back sends Settings out to the right and brings the shelf in from the left. Only that
+      pair goes the mirror way: the screens under Settings, and Controls, go deeper and back.
     Leaving the shelf, its top bar goes up (dy = −p·36), its carts across the way the slide goes
-      (dx = ±p·(W + the widest cart): right for Settings, left for Controls) and its slot down
+      (dx = ±p·(W + the widest cart): right for Controls, left for Settings) and its slot down
       behind the bottom bar (dy = +p·110), while the menu comes in from the other side. Coming
       back, the same with q = 1 − p.
     The bottom bar never leaves. When its actions change (shelf and menus), the old ones sink out
@@ -58,11 +59,13 @@
   const MENU_BAR = { left: ['RETURN', 'B'], right: ['CONFIRM', 'A'] };
   const barOf = name => (name === 'shelf' ? SHELF_BAR : MENU_BAR);
   const HINTS = { network: 'Y FORGET', labels: 'START FETCH' };
-  // The screens beside the shelf rather than under it: a slide to or from one goes the mirror way.
-  const ASIDE = ['controls'];
-  const aside = ({ from, to }) => ASIDE.includes(from) || ASIDE.includes(to);
+  // The two screens that stand beside each other rather than one under the other: a slide
+  // between them goes the mirror way. A slide from Settings to a screen under it, or from the
+  // shelf to Controls, goes the usual way.
+  const ASIDE = ['shelf', 'settings'];
+  const aside = ({ from, to }) => from !== to && ASIDE.includes(from) && ASIDE.includes(to);
   // Which way the screen a slide leaves goes, 1 right or −1 left: right going deeper, left going
-  // back, and the mirror of each to and from a screen beside the shelf.
+  // back, and the mirror of each between the shelf and Settings.
   const leavesTo = slide => (slide.dir === 'in' ? 1 : -1) * (aside(slide) ? -1 : 1);
 
   const state = { current: 'shelf', slide: null, slow: false, armed: false };
