@@ -603,6 +603,12 @@ impl Frontend {
         self.session.core_settling()
     }
 
+    /// Whether the worker threads have handed back all they were asked for: the link art, and
+    /// the core picker's faces for the cart the shelf is on. compose takes them in.
+    pub fn settled(&self) -> bool {
+        self.link_art_done && self.core_asked == self.core_built && !self.core_settling()
+    }
+
     pub fn advance_at(&mut self, input: &mut dyn InputSource, now: Millis, dt: f32) {
         let events = input.poll(now);
         self.session.feed(events, now);

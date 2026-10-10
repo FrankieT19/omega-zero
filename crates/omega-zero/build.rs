@@ -9,9 +9,6 @@ fn git(args: &[&str]) -> Option<String> {
 }
 
 fn main() {
-    println!("cargo:rerun-if-changed=../../.git/HEAD");
-    println!("cargo:rerun-if-changed=../../.git/logs/HEAD");
-
     let hash = git(&["rev-parse", "--short", "HEAD"])
         .or_else(|| {
             let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -26,6 +23,16 @@ fn main() {
             git(&["rev-parse", "--short", "HEAD"])
         })
         .unwrap_or_else(|| "unknown".into());
+    // A worktree's HEAD lives in the main checkout's .git/worktrees, not under its own .git,
+    // which there is a file. Watching a path that does not exist reruns this script, and so
+    // rebuilds the crate and relinks every test, on every build.
+    match git(&["rev-parse", "--absolute-git-dir"]) {
+        Some(dir) => {
+            println!("cargo:rerun-if-changed={dir}/HEAD");
+            println!("cargo:rerun-if-changed={dir}/logs/HEAD");
+        }
+        None => println!("cargo:rerun-if-changed=build.rs"),
+    }
     let dirty = git(&["status", "--porcelain"]).is_some_and(|s| !s.is_empty());
     let date = Command::new("date")
         .args(["-u", "+%Y-%m-%d"])

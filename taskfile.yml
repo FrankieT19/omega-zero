@@ -26,7 +26,7 @@ tasks:
   test:
     desc: Run the whole test suite
     cmds:
-      - cargo test --workspace
+      - cargo test --workspace --no-fail-fast
 
   test:timing:
     desc: >-
@@ -40,14 +40,14 @@ tasks:
       Run the whole test suite again on every canvas but the default 720x480 one. The square
       720x720 canvas joins once the RG CubeXX layout lands
     cmds:
-      - OMEGA_CANVAS=640x480 cargo test --workspace
+      - OMEGA_CANVAS=640x480 cargo test --workspace --no-fail-fast
 
   test:one:
     desc: Run tests matching FILTER, eg task test:one FILTER=gesture
     requires:
       vars: [FILTER]
     cmds:
-      - cargo test --workspace {{.FILTER}}
+      - cargo test --workspace --no-fail-fast {{.FILTER}}
 
   fmt:
     desc: Format the workspace
@@ -288,7 +288,10 @@ tasks:
       - sh cores/gpsp/test/run.sh vendor/gpsp-src.tar.gz
 
   device:sh:
-    desc: Run CMD on the box the device build wants, fetching one if this is not it
+    desc: >-
+      Run CMD on the box the device build wants, fetching one if this is not it. The container
+      keeps the pinned toolchain and the crates it downloads in two docker volumes, so a build
+      does not fetch them all again
     internal: true
     requires:
       vars: [CMD]
@@ -298,19 +301,26 @@ tasks:
         if [ "$(uname -s)-$(uname -m)" = "Linux-aarch64" ]; then
           sh -c '{{.CMD}}'
         else
-          docker run --rm -e OMEGA_SS_DEVID -e OMEGA_SS_DEVPASSWORD -v "$PWD":/src -w /src rust:1-bullseye sh -c '{{.CMD}}'
+          docker run --rm -e OMEGA_SS_DEVID -e OMEGA_SS_DEVPASSWORD \
+            -v omega-zero-rustup:/usr/local/rustup -v omega-zero-cargo:/usr/local/cargo/registry \
+            -v "$PWD":/src -w /src rust:1-bullseye sh -c '{{.CMD}}'
         fi
 
   build:device:
-    desc: Build for the H700, in an arm64 container unless this is already one
+    desc: >-
+      Build for the H700, in an arm64 container unless this is already one. PROFILE=device-dev
+      skips the release build's whole-program optimisation, for a build in seconds while trying
+      a change on the console
+    vars:
+      PROFILE: '{{.PROFILE | default "device"}}'
     cmds:
       - task: device:sh
         vars:
           CMD: >-
-            cargo build --profile device --target-dir target-device
+            cargo build --profile {{.PROFILE}} --target-dir target-device
             -p omega-zero --no-default-features --features device
-      - file target-device/device/omega-zero | grep -q aarch64
-      - 'echo "built target-device/device/omega-zero"'
+      - file target-device/{{.PROFILE}}/omega-zero | grep -q aarch64
+      - 'echo "built target-device/{{.PROFILE}}/omega-zero"'
 
   bench:device:
     desc: Build core_bench, omega-retro's headless core benchmark, for the H700. It never ships
@@ -397,6 +407,34 @@ tasks:
       SD: '{{.SD | default "/mnt/sdcard"}}'
     cmds:
       - adb shell 'cat {{.SD}}/omega-zero.log'
+
+  deploy:wifi:
+    desc: >-
+      Build omega-zero and copy it onto a console on the home network over SSH, then reboot it
+      into the new build and wait until it starts. CONSOLE defaults to rg35xxsp.local, SD to
+      /mnt/sdcard and CONSOLE_PASSWORD to root. PROFILE defaults to device-dev, quick to
+      build; PROFILE=device copies the shipping build. SCRIPTS=1 copies card/System's scripts
+      too. A game still running loses whatever it has not saved
+    vars:
+      PROFILE: '{{.PROFILE | default "device-dev"}}'
+    env:
+      CONSOLE: '{{.CONSOLE}}'
+      SD: '{{.SD}}'
+      CONSOLE_PASSWORD: '{{.CONSOLE_PASSWORD}}'
+    cmds:
+      - task: build:device
+        vars:
+          PROFILE: '{{.PROFILE}}'
+      - sh scripts/console.sh deploy target-device/{{.PROFILE}}/omega-zero {{if .SCRIPTS}}card/System/*.sh{{end}}
+
+  log:wifi:
+    desc: Read omega-zero's log off a console on the home network, CONSOLE, SD and CONSOLE_PASSWORD as deploy:wifi
+    env:
+      CONSOLE: '{{.CONSOLE}}'
+      SD: '{{.SD}}'
+      CONSOLE_PASSWORD: '{{.CONSOLE_PASSWORD}}'
+    cmds:
+      - sh scripts/console.sh log
 
   clean:
     desc: Remove build output and dist

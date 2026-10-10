@@ -53,10 +53,10 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --workspace --no-fail-fast
 
       - name: Test on the 640x480 canvas
-        run: cargo test --workspace
+        run: cargo test --workspace --no-fail-fast
         env:
           OMEGA_CANVAS: 640x480
 

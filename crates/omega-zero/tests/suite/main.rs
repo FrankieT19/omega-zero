@@ -1,0 +1,95 @@
+//! omega-zero's tests, built as one binary. Built one per file, linking and starting them took
+//! longer than running them. A test that needs a process to itself stays a file of its own in
+//! tests/, beside this folder: core and e2e point OMEGA_CORE at a real core for the whole
+//! process, and emu runs against the clock.
+
+#[path = "../common/mod.rs"]
+mod common;
+
+mod app;
+mod audio;
+mod background_screen;
+mod bios;
+mod boot;
+mod bootlogo;
+mod build_info;
+mod cable;
+mod cable_session;
+mod clock;
+mod core_options;
+mod core_picker;
+mod delete;
+mod dist;
+mod drc;
+mod eject;
+mod evdev;
+mod face_builder;
+mod fastforward;
+mod flush;
+mod frames;
+mod gpsp;
+mod headphones;
+mod input;
+mod label_screen;
+mod label_sync;
+mod led;
+mod levels;
+mod link_art_builder;
+mod link_kind;
+mod link_screen;
+mod link_session;
+mod link_start;
+mod link_ui;
+mod mgba_gb_link;
+mod mgba_link;
+mod platform;
+mod play;
+mod polaroids;
+mod power;
+mod quick_menu;
+mod refusal;
+mod render;
+mod render_colour_correction;
+mod render_gb_palette;
+mod render_link_screen;
+mod render_overlay;
+mod render_picture_modes;
+mod render_power_wake;
+mod render_quick_menu;
+mod render_shelf;
+mod render_shelves;
+mod resample;
+mod resume;
+mod rewind;
+mod rumble;
+mod screen;
+mod sfx;
+mod single;
+mod swap;
+mod thumb;
+mod toast;
+mod undo;
+mod volume;
+mod wallpaper;
+mod wifi;
+mod wifi_screen;
+
+/// A file in this folder that the list above leaves out is never compiled, let alone run.
+#[test]
+fn every_file_in_the_folder_is_in_the_suite() {
+    let folder = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/suite");
+    let listed = include_str!("main.rs");
+    for entry in std::fs::read_dir(&folder).expect("the suite's folder") {
+        let path = entry.expect("a file in the suite's folder").path();
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default();
+        if path.extension().is_some_and(|e| e == "rs") && stem != "main" {
+            assert!(
+                listed.contains(&format!("\nmod {stem};")),
+                "tests/suite/{stem}.rs is missing from tests/suite/main.rs"
+            );
+        }
+    }
+}
