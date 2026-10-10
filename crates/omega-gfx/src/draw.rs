@@ -1,6 +1,6 @@
 use crate::canvas::{out_h, out_w};
 use crate::quad::Quad;
-use crate::shaders::{SPRITE_FRAG, SPRITE_VERT};
+use crate::shaders::{SPRITE_FRAG, SPRITE_VERT, SPUN_FRAG, SPUN_VERT};
 use crate::surface::GfxError;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -72,29 +72,18 @@ pub enum Draw {
     },
 }
 
-pub struct Sprites {
+/// A linked sprite program and where its uniforms are.
+struct Program {
     prog: gl::types::GLuint,
-    white: gl::types::GLuint,
-    textures: Vec<gl::types::GLuint>,
     u_rect: gl::types::GLint,
     u_colour: gl::types::GLint,
     u_turn: gl::types::GLint,
     u_spin: gl::types::GLint,
-    u_spun: gl::types::GLint,
 }
 
-impl Sprites {
-    pub fn new() -> Result<Self, GfxError> {
-        let prog = crate::shaders::program(SPRITE_VERT, SPRITE_FRAG)?;
-        let white = crate::gl::texture(
-            1,
-            1,
-            gl::NEAREST,
-            gl::CLAMP_TO_EDGE,
-            gl::RGBA,
-            Some(&[255u8; 4]),
-        );
-        let (u_rect, u_colour, u_turn, u_spin, u_spun);
+impl Program {
+    fn new(vert: &str, frag: &str) -> Result<Self, GfxError> {
+        let prog = crate::shaders::program(vert, frag)?;
         unsafe {
             gl::UseProgram(prog);
             gl::Uniform1i(crate::gl::uniform_location(prog, "u_tex"), 0);
@@ -103,22 +92,44 @@ impl Sprites {
                 out_w() as f32,
                 out_h() as f32,
             );
-            u_rect = crate::gl::uniform_location(prog, "u_rect");
-            u_colour = crate::gl::uniform_location(prog, "u_colour");
-            u_turn = crate::gl::uniform_location(prog, "u_turn");
-            u_spin = crate::gl::uniform_location(prog, "u_spin");
-            u_spun = crate::gl::uniform_location(prog, "u_spun");
             gl::Uniform1f(crate::gl::uniform_location(prog, "u_focal"), FOCAL);
+            Ok(Program {
+                prog,
+                u_rect: crate::gl::uniform_location(prog, "u_rect"),
+                u_colour: crate::gl::uniform_location(prog, "u_colour"),
+                u_turn: crate::gl::uniform_location(prog, "u_turn"),
+                u_spin: crate::gl::uniform_location(prog, "u_spin"),
+            })
         }
+    }
+}
+
+pub struct Sprites {
+    /// Everything that does not spin, through the shader sprites always had.
+    plain: Program,
+    /// Faces spun about their upright axis, which cost a little more to fill.
+    spun: Program,
+    white: gl::types::GLuint,
+    textures: Vec<gl::types::GLuint>,
+}
+
+impl Sprites {
+    pub fn new() -> Result<Self, GfxError> {
+        let plain = Program::new(SPRITE_VERT, SPRITE_FRAG)?;
+        let spun = Program::new(SPUN_VERT, SPUN_FRAG)?;
+        let white = crate::gl::texture(
+            1,
+            1,
+            gl::NEAREST,
+            gl::CLAMP_TO_EDGE,
+            gl::RGBA,
+            Some(&[255u8; 4]),
+        );
         Ok(Sprites {
-            prog,
+            plain,
+            spun,
             white,
             textures: Vec::new(),
-            u_rect,
-            u_colour,
-            u_turn,
-            u_spin,
-            u_spun,
         })
     }
 
@@ -168,10 +179,10 @@ impl Sprites {
         unsafe {
             gl::Enable(gl::BLEND);
             gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-            gl::UseProgram(self.prog);
             gl::ActiveTexture(gl::TEXTURE0);
         }
         let mut clipped = false;
+        let mut spinning = None;
         for item in items {
             let (mut yaw, mut depth, mut clip) = (0.0, 0.0, None);
             let (x, y, w, h, tex, colour, turn) = match *item {
@@ -224,12 +235,13 @@ impl Sprites {
             } else {
                 (turn.cos(), turn.sin())
             };
-            let (yaw_sin, yaw_cos) = if yaw == 0.0 {
-                (0.0, 1.0)
-            } else {
-                yaw.sin_cos()
-            };
+            let spins = yaw != 0.0;
+            let program = if spins { &self.spun } else { &self.plain };
             unsafe {
+                if spinning != Some(spins) {
+                    gl::UseProgram(program.prog);
+                    spinning = Some(spins);
+                }
                 match clip {
                     Some(r) => {
                         let (left, right) = (r[0].floor().max(0.0), (r[0] + r[2]).ceil());
@@ -251,11 +263,13 @@ impl Sprites {
                     None => {}
                 }
                 gl::BindTexture(gl::TEXTURE_2D, tex);
-                gl::Uniform4f(self.u_rect, x, y, w, h);
-                gl::Uniform2f(self.u_turn, cos, sin);
-                gl::Uniform3f(self.u_spin, yaw_sin, yaw_cos, depth);
-                gl::Uniform1f(self.u_spun, if yaw == 0.0 { 0.0 } else { 1.0 });
-                gl::Uniform4f(self.u_colour, colour[0], colour[1], colour[2], colour[3]);
+                gl::Uniform4f(program.u_rect, x, y, w, h);
+                gl::Uniform2f(program.u_turn, cos, sin);
+                if spins {
+                    let (yaw_sin, yaw_cos) = yaw.sin_cos();
+                    gl::Uniform3f(program.u_spin, yaw_sin, yaw_cos, depth);
+                }
+                gl::Uniform4f(program.u_colour, colour[0], colour[1], colour[2], colour[3]);
             }
             quad.draw();
         }
@@ -273,7 +287,8 @@ impl Drop for Sprites {
         unsafe {
             gl::DeleteTextures(self.textures.len() as i32, self.textures.as_ptr());
             gl::DeleteTextures(1, &self.white);
-            gl::DeleteProgram(self.prog);
+            gl::DeleteProgram(self.plain.prog);
+            gl::DeleteProgram(self.spun.prog);
         }
     }
 }
