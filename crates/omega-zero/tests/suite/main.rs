@@ -53,6 +53,7 @@ mod render;
 mod render_colour_correction;
 mod render_gb_palette;
 mod render_link_screen;
+mod render_network;
 mod render_overlay;
 mod render_picture_modes;
 mod render_power_wake;

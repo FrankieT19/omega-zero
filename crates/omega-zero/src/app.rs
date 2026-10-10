@@ -385,8 +385,8 @@ pub struct App {
     pub(crate) powering_off: bool,
     pub(crate) radio: Box<dyn RadioJobs>,
     pub(crate) wifi: Wifi,
-    pub(crate) network_faces: Option<WifiMenuFaces>,
-    pub(crate) ssh_faces: Option<WifiMenuFaces>,
+    pub(crate) network_faces: Option<omega_ui::network::NetworkFaces>,
+    pub(crate) ssh_faces: Option<omega_ui::network::SshFaces>,
     pub(crate) controls_faces: Option<ControlsFaces>,
     pub(crate) keyboard_faces: Option<KeyboardFaces>,
     pub(crate) typing_faces: Option<[(TexId, u32, u32); 2]>,
@@ -1910,6 +1910,8 @@ impl App {
             }
             // the list stands over the background it is choosing, with nothing between
             Phase::Background(_) => self.draw_background_screen(out),
+            // the modal and its panels stand over the backdrop, with nothing between
+            Phase::Network(screen) if screen.typing.is_none() => self.draw_network(out),
             Phase::Network(_) | Phase::Labels(_) => {
                 draw_plate(out);
                 match typing_of(phase) {
@@ -1918,10 +1920,7 @@ impl App {
                     None => self.draw_network(out),
                 }
             }
-            Phase::Ssh(_) => {
-                draw_plate(out);
-                self.draw_ssh(out);
-            }
+            Phase::Ssh(_) => self.draw_ssh(out),
             Phase::About => self.draw_about(out),
             Phase::Inserting { cart, resumed, .. } => {
                 if !resumed {

@@ -42,9 +42,9 @@ use sync_controls::sync_controls;
 use sync_core_picker::sync_core_picker;
 use sync_keyboard::sync_keyboard;
 use sync_labels::sync_labels;
-use sync_network::sync_network;
+use sync_network::{sync_network, NetworkTexes};
 use sync_settings::{sync_settings_clock, sync_settings_network, SettingsClock};
-use sync_ssh::sync_ssh;
+use sync_ssh::{sync_ssh, SshTexes};
 use sync_switcher::{sync_switcher, Faces, Switcher};
 
 const DOZE_TIMEOUT: Duration = Duration::from_secs(180);
@@ -74,7 +74,9 @@ pub struct Frontend {
     overlays: Vec<Overlay>,
     /// The Network screen's list, Settings' Network value and the keyboard.
     network: WifiTexes,
-    ssh: WifiTexes,
+    /// The Network modal's own faces.
+    network_modal: NetworkTexes,
+    ssh: SshTexes,
     labels: WifiTexes,
     background: WifiTexes,
     backdrop: BackdropTex,
@@ -127,7 +129,8 @@ impl Frontend {
             bezel_marks: Vec::new(),
             overlays: Vec::new(),
             network: WifiTexes::default(),
-            ssh: WifiTexes::default(),
+            network_modal: NetworkTexes::default(),
+            ssh: SshTexes::default(),
             labels: WifiTexes::default(),
             background: WifiTexes::default(),
             backdrop: BackdropTex::default(),
@@ -337,7 +340,7 @@ impl Frontend {
         sync_about(self.session.app_mut(), compositor, &mut self.about);
         sync_settings_clock(self.session.app_mut(), compositor, &mut self.settings_clock);
         sync_settings_network(self.session.app_mut(), compositor, &mut self.network);
-        sync_network(self.session.app_mut(), compositor, &mut self.network);
+        sync_network(self.session.app_mut(), compositor, &mut self.network_modal);
         sync_keyboard(self.session.app_mut(), compositor, &mut self.network);
         sync_ssh(self.session.app_mut(), compositor, &mut self.ssh);
         sync_controls(self.session.app_mut(), compositor);
