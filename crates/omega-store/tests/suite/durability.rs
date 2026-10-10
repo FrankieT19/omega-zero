@@ -198,6 +198,7 @@ fn a_card_from_before_the_settings_keeps_all_its_values() {
             ff_sound: false,
             colour_correction: false,
             wifi: false,
+            ssh: true,
             backdrop: None,
             backdrop_moving: true,
             backdrop_colour: 0,
@@ -464,6 +465,51 @@ fn the_font_round_trips_as_its_own_line() {
         ["bold", "thin"],
         "the keys a card keeps changed"
     );
+}
+
+#[test]
+fn ssh_round_trips_as_on_or_off() {
+    for ssh in [true, false] {
+        let d = tmp_root();
+        let s = AppState {
+            clock_set: true,
+            ssh,
+            ..AppState::default()
+        };
+        write_app_state(d.path(), &s).unwrap();
+        assert_eq!(read_app_state(d.path()), s, "ssh {ssh} did not come back");
+        let text = std::fs::read_to_string(d.path().join("Config/omega-zero.state")).unwrap();
+        let want = if ssh { "ssh=on" } else { "ssh=off" };
+        assert!(text.lines().any(|l| l == want), "no {want} in {text:?}");
+    }
+}
+
+#[test]
+fn ssh_is_on_unless_the_card_says_off() {
+    assert!(AppState::default().ssh, "a first boot switches SSH off");
+    let d = tmp_root();
+    let known =
+        "cart=\nbrightness=3\nblue_light=1\nvolume=40\nmuted=0\nclock_set=1\nutc_offset_min=0\n";
+    for (line, on) in [
+        ("", true),
+        ("ssh=on\n", true),
+        ("ssh=off\n", false),
+        ("ssh=\n", true),
+        ("ssh=0\n", true),
+        ("ssh=OFF\n", true),
+    ] {
+        std::fs::write(
+            d.path().join("Config/omega-zero.state"),
+            format!("{known}{line}"),
+        )
+        .unwrap();
+        let s = read_app_state(d.path());
+        assert_eq!(s.ssh, on, "{line:?}");
+        assert_eq!(
+            s.brightness, 3,
+            "{line:?} took the rest of the card with it"
+        );
+    }
 }
 
 #[test]
