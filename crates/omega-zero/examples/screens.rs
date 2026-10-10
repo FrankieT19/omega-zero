@@ -6,7 +6,7 @@
 //! names a file to run in place of the built-in script.
 
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use omega_gfx::{out_h, out_w, Bezel, Compositor, Draw, HeadlessSurface};
 use omega_input::{Btn, InputSource, Millis, RawEvent};
@@ -21,7 +21,8 @@ const FPS: f64 = 60.0;
 
 const CLOCK: i64 = 1_790_784_000;
 
-const SETTLE: Duration = Duration::from_millis(400);
+/// The longest a settle waits on the worker threads before it goes on without them.
+const SETTLE: Duration = Duration::from_secs(2);
 
 const LIT_FRAMES: u32 = 600;
 
@@ -378,6 +379,17 @@ fn tick(
     frontend.compose(compositor);
 }
 
+/// Composes until the worker threads have handed back what the script asked of them, so a shot
+/// shows the faces they build rather than the frame before those arrive.
+fn settle(frontend: &mut Frontend, compositor: &mut Compositor) {
+    let start = Instant::now();
+    frontend.compose(compositor);
+    while !frontend.settled() && start.elapsed() < SETTLE {
+        std::thread::sleep(Duration::from_millis(2));
+        frontend.compose(compositor);
+    }
+}
+
 fn card(dir: &Path) {
     for sub in omega_zero::root::DIRS {
         std::fs::create_dir_all(dir.join(sub)).expect("create the card's folders");
@@ -533,13 +545,9 @@ fn main() {
             }
             Step::Down(b) => input.0.push(RawEvent::Down(b)),
             Step::Up(b) => input.0.push(RawEvent::Up(b)),
-            Step::Settle => {
-                std::thread::sleep(SETTLE);
-                frontend.compose(&mut compositor);
-            }
+            Step::Settle => settle(&mut frontend, &mut compositor),
             Step::Shot(name) | Step::Look(name) => {
-                std::thread::sleep(SETTLE);
-                frontend.compose(&mut compositor);
+                settle(&mut frontend, &mut compositor);
                 compositor.upload_game(&still_frame());
                 frontend.compose(&mut compositor);
                 let rgba = compositor.read_frame();
