@@ -147,7 +147,7 @@
   .outlined action-right::part(button), .outlined action-right::part(hint),
   .outlined omega-row::part(row), .outlined omega-row::part(label), .outlined omega-row::part(caret-left),
   .outlined omega-row::part(value), .outlined omega-row::part(caret-right), .outlined omega-row::part(opens),
-  .outlined omega-bar::part(bar), .outlined omega-bar::part(plate), .outlined omega-bar::part(hints),
+  .outlined omega-bar::part(bar), .outlined omega-bar::part(middle), .outlined omega-bar::part(hints),
   .outlined omega-bar::part(key), .outlined omega-bar::part(word) {
     outline: 1px dashed var(--area); outline-offset: -1px;
   }
@@ -476,13 +476,11 @@
         <header><h3>&lt;omega-bar&gt;</h3><code>components/omega-bar.js</code></header>
         <p class="dim">The bar along the bottom of a screen, as wide as what holds it and 15 art pixels
           tall: an <code>&lt;action-left&gt;</code> and an <code>&lt;action-right&gt;</code> at its ends
-          and, between them, a plate that sits a little under their rails and runs on behind both
-          buttons' rounded ends, so the bar's bottom line never breaks. The two actions come out one
-          width: the bar gives both the <code>room</code> of the wider label and the wider hint, and
-          an empty one takes the other's. The keys a screen has beyond the two actions go on the
-          plate as hints, each its key in a small dark cap and then the word, centred on the plate
-          and on the same rows as the words in the buttons. <code>floating</code> leaves only the
-          two actions, at the corners.</p>
+          and, between them, nothing but the keys a screen has beyond the two actions, so whatever
+          is behind the bar shows through. The two actions come out one width: the bar gives both
+          the <code>room</code> of the wider label and the wider hint, and an empty one takes the
+          other's. The keys go between them as hints, each its key in a small dark cap and then the
+          word, centred between the actions and on the same rows as the words in the buttons.</p>
         <div class="preview actions omega-backdrop">
           <span class="tag">empty</span>
           <omega-bar class="bar-box">
@@ -504,28 +502,20 @@
             <action-left slot="left" label="BACK" hint="B"></action-left>
             <action-right slot="right" label="JOIN" hint="A"></action-right>
           </omega-bar>
-          <span class="tag">floating</span>
-          <omega-bar class="bar-box" floating>
-            <action-left slot="left" label="MENU" hint="SELECT"></action-left>
-            <action-right slot="right" label="SETTINGS" hint="START"></action-right>
-          </omega-bar>
         </div>
         <div class="table">
           <table>
             <tr><th>API</th><th>What it does</th></tr>
             <tr><td>hint</td><td>A key and what it does, the first word the key: <code>Y FORGET</code>, <code>START FETCH</code>. Two with a <code>|</code> between: <code>Y FORGET | X EDIT</code>.</td></tr>
-            <tr><td>floating</td><td>Only the two actions, at the bottom corners: no plate, so no hints.</td></tr>
             <tr><td>font</td><td><code>bold</code> (or none) or <code>thin</code>, given to both actions: see The bar's font.</td></tr>
             <tr><td>slot</td><td><code>left</code> for the <code>&lt;action-left&gt;</code>, <code>right</code> for the <code>&lt;action-right&gt;</code>.</td></tr>
-            <tr><td>::part</td><td><code>bar</code>, <code>plate</code>, <code>hints</code>, <code>hint</code>, <code>key</code>, <code>word</code></td></tr>
+            <tr><td>::part</td><td><code>bar</code>, <code>middle</code> (the room between the actions), <code>hints</code>, <code>hint</code>, <code>key</code>, <code>word</code></td></tr>
           </table>
         </div>
 <pre><code>&lt;omega-bar hint="Y FORGET | X EDIT"&gt;
   &lt;action-left slot="left" label="BACK" hint="B"&gt;&lt;/action-left&gt;
   &lt;action-right slot="right" label="JOIN" hint="A"&gt;&lt;/action-right&gt;
-&lt;/omega-bar&gt;
-
-&lt;omega-bar floating&gt;…&lt;/omega-bar&gt;</code></pre>
+&lt;/omega-bar&gt;</code></pre>
       </article>
 
       <article class="card wide">
@@ -635,7 +625,7 @@
    │     └─ &lt;omega-panel&gt;
    │        └─ &lt;omega-row&gt; ×2
    └─ &lt;omega-bar&gt;
-      │ bar › plate › hints › hint › key, word
+      │ bar › middle › hints › hint › key, word
       ├─ &lt;action-left&gt;
       │    action › icon, label › word,
       │    button › hint

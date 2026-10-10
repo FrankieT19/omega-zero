@@ -4,7 +4,7 @@
 
     <omega-row label value lit carets opens dim>         a setting: label left, value right
     <omega-list-row label value signal="0-3" lock lit>   a Wi-Fi network, its name in its own case
-    <omega-bar hint floating>                            the bottom bar, holding the two actions
+    <omega-bar hint>                                     the bottom bar, holding the two actions
       <action-left slot="left"></action-left>
       <action-right slot="right"></action-right>
     </omega-bar>
@@ -152,18 +152,8 @@
       :host([hidden]) { display: none; }
       .bar { position: relative; display: flex; height: 100%; }
       ::slotted(*) { position: relative; z-index: 1; flex: none; }
-      /* the plate between the actions, as storybook.html's Button Setting screen draws it: a little
-         under the rail, running on behind both buttons' rounded ends */
-      .plate {
-        flex: 1;
-        min-width: 0;
-        margin: calc(2 * var(--u)) calc(-5 * var(--u)) 0;
-        background: var(--oz-plate);
-        border-top: var(--u) solid var(--oz-edge);
-        border-bottom: var(--u) solid var(--oz-frame);
-        box-shadow: inset 0 var(--u) 0 var(--oz-band), inset 0 calc(-1 * var(--u)) 0 var(--oz-edge);
-      }
-      :host([floating]) .plate { visibility: hidden; }
+      /* nothing between the actions but the hint: whatever is behind the bar shows through */
+      .middle { flex: 1; min-width: 0; }
       /* the key hint, across the whole bar so it is centred on the screen (an even number of art
          pixels wide, so the centred word starts on a whole one), its capitals on rows 5 to 11 like
          the hints in the actions' pills */
@@ -182,7 +172,7 @@
     </style>
     <div class="bar" part="bar">
       <slot name="left"></slot>
-      <div class="plate" part="plate"></div>
+      <div class="middle" part="middle"></div>
       <slot name="right"></slot>
       <div class="hint" part="hint"></div>
     </div>`;

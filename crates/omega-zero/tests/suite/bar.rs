@@ -1,6 +1,6 @@
 //! The bar along the bottom: which actions it shows where, how they swap between the shelf and
-//! a menu, how it leaves for a game and comes back, the hints on its plate, and the shelf's
-//! chrome in the palette the player picked.
+//! a menu, how it leaves for a game and comes back, the hints between its actions and nothing
+//! else there, and the shelf's chrome in the palette the player picked.
 
 use crate::common;
 
@@ -9,9 +9,10 @@ use std::sync::{Arc, Mutex};
 use common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 use omega_input::{Action, Btn, Millis};
 use omega_store::{write_app_state, AppState, Theme};
-use omega_ui::kit::action::{action_pair, Font, Side, RISE};
-use omega_ui::kit::bar::{bar_layout, BarLayout, Hint, PLATE_TOP, SINK};
+use omega_ui::kit::action::{action_pair, Font, Side, BAR, RISE};
+use omega_ui::kit::bar::{bar_layout, BarLayout, Hint, SINK};
 use omega_ui::kit::palette::palette;
+use omega_ui::kit::pixel::quad;
 use omega_ui::{out_h, out_w, ChromeColours, Draw, SettingsRow, TexId, SPRITE_PX, TOP_BAR_H};
 use omega_zero::app::{App, Phase, SEATED_AT};
 use omega_zero::core_picker::OPEN_MS;
@@ -29,9 +30,9 @@ const MENU_LEFT: usize = 810;
 const MENU_RIGHT: usize = 811;
 const CONFIRM_LEFT: usize = 820;
 const CONFIRM_RIGHT: usize = 821;
-const SHELF_PLATE: usize = 850;
-const MENU_PLATE: usize = 851;
-const CONFIRM_PLATE: usize = 852;
+const SHELF_HINTS: usize = 850;
+const MENU_HINTS: usize = 851;
+const CONFIRM_HINTS: usize = 852;
 
 /// A radio that comes up hearing Home, a network it has saved, and Café, one it has not.
 #[derive(Clone, Default)]
@@ -71,6 +72,13 @@ impl WifiJobs for Radio {
 }
 
 fn booted(d: &TempDir) -> App {
+    let mut a = booted_without_bar(d);
+    fake_bar(&mut a);
+    a
+}
+
+/// The same app before the bar's faces are made, which draws no bar.
+fn booted_without_bar(d: &TempDir) -> App {
     write_app_state(
         d.path(),
         &AppState {
@@ -84,7 +92,6 @@ fn booted(d: &TempDir) -> App {
     a.set_wifi_jobs(Box::new(Radio::default()));
     a.tick_ms(16);
     assert!(matches!(a.phase(), Phase::Shelf), "{:?}", a.phase());
-    fake_bar(&mut a);
     a
 }
 
@@ -95,7 +102,7 @@ fn on_shelf() -> (TempDir, App) {
 }
 
 /// Both sets of actions as the kit lays them out, each pair made together, uploaded as made-up
-/// textures, and a plate for each.
+/// textures, and the hints between each.
 fn fake_bar(a: &mut App) {
     let width = out_w() / SPRITE_PX;
     let pal = a.palette();
@@ -114,9 +121,9 @@ fn fake_bar(a: &mut App) {
         }
     });
     a.set_bar_sets(sets);
-    a.set_bar_plate(Actions::Shelf, TexId::from_raw(SHELF_PLATE));
-    a.set_bar_plate(Actions::Menu, TexId::from_raw(MENU_PLATE));
-    a.set_bar_plate(Actions::Confirm, TexId::from_raw(CONFIRM_PLATE));
+    a.set_bar_hints_face(Actions::Shelf, TexId::from_raw(SHELF_HINTS));
+    a.set_bar_hints_face(Actions::Menu, TexId::from_raw(MENU_HINTS));
+    a.set_bar_hints_face(Actions::Confirm, TexId::from_raw(CONFIRM_HINTS));
 }
 
 fn hint(key: &'static str, word: &'static str) -> Hint<'static> {
@@ -143,9 +150,9 @@ fn rest_y() -> f32 {
     BarLayout::top(out_h()) - (RISE * SPRITE_PX) as f32
 }
 
-/// Where the plate's top is on the screen: `PLATE_TOP` down the bar, under the actions' rails.
-fn plate_y() -> f32 {
-    BarLayout::top(out_h()) + (PLATE_TOP * SPRITE_PX) as f32
+/// Where the hints' top is on the screen: the bar's own, level with the actions' rails.
+fn hints_y() -> f32 {
+    BarLayout::top(out_h())
 }
 
 /// The actions shown, each with how far below its place it is in screen pixels.
@@ -186,9 +193,9 @@ fn the_shelf_shows_controls_and_settings_and_a_menu_return_and_confirm() {
         "SETTINGS is off the right edge"
     );
     assert_eq!(
-        at(&out, SHELF_PLATE),
-        Some(((set.layout.plate[0] * SPRITE_PX) as f32, plate_y())),
-        "the plate is not between the shelf's actions"
+        at(&out, SHELF_HINTS),
+        Some(((set.left.1 * SPRITE_PX) as f32, hints_y())),
+        "the hints do not start at CONTROLS's end"
     );
 
     press(&mut a, Btn::Start);
@@ -196,8 +203,45 @@ fn the_shelf_shows_controls_and_settings_and_a_menu_return_and_confirm() {
     assert!(matches!(a.phase(), Phase::Settings { .. }));
     let out = frame(&a);
     assert_eq!(shown(&out), [(MENU_LEFT, 0.0), (MENU_RIGHT, 0.0)]);
-    assert!(at(&out, MENU_PLATE).is_some(), "Settings has no plate");
-    assert_eq!(at(&out, SHELF_PLATE), None);
+    assert!(at(&out, MENU_HINTS).is_some(), "Settings has no hints");
+    assert_eq!(at(&out, SHELF_HINTS), None);
+}
+
+/// The bar draws its hints and its two actions and nothing else, so nothing but the hints is
+/// between the actions: a frame with the bar is the same frame without it and those three
+/// quads, the hints' across the room from the left action's end to the right one's, on the
+/// shelf as in a menu.
+#[test]
+fn the_bar_draws_nothing_between_its_actions_but_the_hints() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    let mut a = booted(&d);
+    let mut bare = booted_without_bar(&d);
+    for (actions, hints) in [(Actions::Shelf, SHELF_HINTS), (Actions::Menu, MENU_HINTS)] {
+        let set = a.bar_faces().unwrap().sets[actions.index()];
+        let base = SHELF_LEFT + 10 * actions.index();
+        let ours = [base, base + 1, hints].map(TexId::from_raw);
+        let (with, without) = (frame(&a), frame(&bare));
+        let (bar, rest): (Vec<Draw>, Vec<Draw>) = with
+            .into_iter()
+            .partition(|d| matches!(*d, Draw::Tex { tex, .. } if ours.contains(&tex)));
+        assert_eq!(rest, without, "{actions:?}: the bar draws more");
+        let px = |art: u32| (art * SPRITE_PX) as f32;
+        let (width, lw, rw) = (out_w() / SPRITE_PX, set.left.1, set.right.1);
+        let top = BarLayout::top(out_h());
+        assert_eq!(
+            bar,
+            [
+                quad(ours[2], width - lw - rw, BAR, px(lw), top),
+                quad(ours[0], lw, set.left.2, 0.0, rest_y()),
+                quad(ours[1], rw, set.right.2, px(width - rw), rest_y()),
+            ],
+            "{actions:?}: the bar is not its hints between its two actions"
+        );
+        for app in [&mut a, &mut bare] {
+            press(app, Btn::Start);
+            app.finish_slide();
+        }
+    }
 }
 
 /// flow/player.js's sink: even((p / 0.5) · 38) over the first half, the new actions
@@ -229,11 +273,11 @@ fn the_shelfs_actions_sink_and_a_menus_rise_as_flow_does() {
             (false, _) => vec![(MENU_LEFT, sink), (MENU_RIGHT, sink)],
         };
         assert_eq!(shown(&out), want, "at t {t} (p {p})");
-        let plate = if p < 0.5 { SHELF_PLATE } else { MENU_PLATE };
+        let hints = if p < 0.5 { SHELF_HINTS } else { MENU_HINTS };
         assert_eq!(
-            at(&out, plate).map(|(_, y)| y),
-            Some(plate_y()),
-            "the plate moved at t {t}"
+            at(&out, hints).map(|(_, y)| y),
+            Some(hints_y()),
+            "the hints moved at t {t}"
         );
         seen.push(want);
     }
@@ -291,12 +335,12 @@ fn the_bar_sinks_as_a_cart_goes_in_stays_away_in_the_game_and_comes_back_on_ejec
     let (_d, mut a) = on_shelf();
     press(&mut a, Btn::A);
     assert!(matches!(a.phase(), Phase::Inserting { .. }));
-    let plate = |out: &[Draw]| at(out, SHELF_PLATE).map(|(_, y)| y - plate_y());
+    let dropped = |out: &[Draw]| at(out, SHELF_HINTS).map(|(_, y)| y - hints_y());
     let mut last = 0.0;
     let mut gone_at = None;
     for _ in 0..60 {
         let out = frame(&a);
-        match plate(&out) {
+        match dropped(&out) {
             Some(drop) => {
                 assert!(drop >= last, "the bar came back up as the cart went in");
                 assert_eq!(drop % SPRITE_PX as f32, 0.0, "the bar is off the art grid");
@@ -308,7 +352,7 @@ fn the_bar_sinks_as_a_cart_goes_in_stays_away_in_the_game_and_comes_back_on_ejec
             None => {
                 assert!(
                     shown(&out).is_empty(),
-                    "the actions stayed without the plate"
+                    "the actions stayed without the hints"
                 );
                 gone_at.get_or_insert(a.seat());
             }
@@ -331,7 +375,7 @@ fn the_bar_sinks_as_a_cart_goes_in_stays_away_in_the_game_and_comes_back_on_ejec
         a.phase()
     );
     let out = frame(&a);
-    assert_eq!(plate(&out), None, "the bar shows over the game");
+    assert_eq!(dropped(&out), None, "the bar shows over the game");
     assert!(shown(&out).is_empty(), "the actions show over the game");
 
     a.apply(Action::Eject);
@@ -342,7 +386,7 @@ fn the_bar_sinks_as_a_cart_goes_in_stays_away_in_the_game_and_comes_back_on_ejec
         if matches!(a.phase(), Phase::Shelf) {
             break;
         }
-        back |= plate(&frame(&a)).is_some();
+        back |= dropped(&frame(&a)).is_some();
     }
     assert!(back, "the bar did not rise as the cart came out");
     assert!(matches!(a.phase(), Phase::Shelf), "{:?}", a.phase());
@@ -402,10 +446,10 @@ fn the_core_pickers_cancel_and_choose_are_the_bars_return_and_confirm() {
         "the open picker's B and A are not RETURN and CONFIRM"
     );
     assert!(
-        at(&out, MENU_PLATE).is_some(),
-        "the open picker has no plate"
+        at(&out, MENU_HINTS).is_some(),
+        "the open picker has no hints"
     );
-    assert_eq!(a.bar_hints_shown(), [SWAP], "the swap is not on the plate");
+    assert_eq!(a.bar_hints_shown(), [SWAP], "the swap is not on the bar");
 
     press(&mut a, Btn::B);
     a.update(1.0);
@@ -425,7 +469,7 @@ fn network_at(ssid: &str) -> Phase {
 }
 
 #[test]
-fn a_saved_network_under_the_cursor_puts_y_forget_on_the_plate() {
+fn a_saved_network_under_the_cursor_puts_y_forget_on_the_bar() {
     let (_d, mut a) = on_shelf();
     a.tick_ms(1_000);
     assert!(
@@ -439,7 +483,7 @@ fn a_saved_network_under_the_cursor_puts_y_forget_on_the_plate() {
 }
 
 #[test]
-fn a_signed_in_account_puts_y_sign_out_on_the_plate() {
+fn a_signed_in_account_puts_y_sign_out_on_the_bar() {
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     let a = booted(&d);
     assert_eq!(a.bar_hints(&Phase::Labels(LabelsScreen::default())), []);
@@ -457,7 +501,7 @@ fn a_signed_in_account_puts_y_sign_out_on_the_plate() {
 }
 
 #[test]
-fn the_plates_hints_change_halfway_through_a_slide() {
+fn the_bars_hints_change_halfway_through_a_slide() {
     let (_d, mut a) = on_shelf();
     a.tick_ms(1_000);
     press(&mut a, Btn::Start);
@@ -591,7 +635,7 @@ fn the_first_boot_clock_offers_only_confirm() {
         [(CONFIRM_LEFT, 0.0), (CONFIRM_RIGHT, 0.0)],
         "the first clock offers a way back it has not got"
     );
-    assert!(at(&out, CONFIRM_PLATE).is_some());
+    assert!(at(&out, CONFIRM_HINTS).is_some());
     assert_eq!(Actions::Confirm.action(Side::Left), ("", ""));
     assert_eq!(Actions::Confirm.action(Side::Right), ("CONFIRM", "A"));
 }
@@ -607,11 +651,11 @@ fn picker_faces(a: &mut App) {
     a.set_core_board_faces(id(900), id(901));
 }
 
-/// ◀▶ SWAP is the picker's one key beyond the bar's actions: it comes onto the plate with
-/// RETURN and CONFIRM, halfway through their swap as the picker opens, and goes with them
-/// halfway through as it closes. The shelf's own plate never has it.
+/// ◀▶ SWAP is the picker's one key beyond the bar's actions: it comes in between RETURN and
+/// CONFIRM with them, halfway through their swap as the picker opens, and goes with them
+/// halfway through as it closes. The shelf's own bar never has it.
 #[test]
-fn the_swap_is_on_the_plate_only_while_the_picker_has_the_bar() {
+fn the_swap_is_on_the_bar_only_while_the_picker_has_it() {
     let (_d, mut a) = on_shelf();
     picker_faces(&mut a);
     assert_eq!(a.bar_hints_shown(), [], "the shelf has a hint");
@@ -668,21 +712,21 @@ fn the_swap_is_on_the_plate_only_while_the_picker_has_the_bar() {
     assert_eq!(a.bar_hints_shown(), [], "the shelf kept the picker's swap");
 }
 
-/// The swap fits the plate between RETURN and CONFIRM with room to spare, at 640 as at 720.
+/// The swap fits between RETURN and CONFIRM with room to spare, at 640 as at 720.
 #[test]
-fn the_swap_fits_the_menu_plate() {
+fn the_swap_fits_between_return_and_confirm() {
     let (_d, a) = on_shelf();
-    let plate = a.bar_faces().unwrap().sets[Actions::Menu.index()]
+    let room = a.bar_faces().unwrap().sets[Actions::Menu.index()]
         .layout
-        .plate[2];
+        .hints[2];
     let wide = omega_ui::kit::bar::hints_width(&[SWAP]);
     assert_eq!(
-        plate,
-        if out_w() == 640 { 136 } else { 176 },
-        "the plate's width"
+        room,
+        if out_w() == 640 { 126 } else { 166 },
+        "the room between the actions"
     );
     assert!(
-        wide + 8 <= plate,
-        "the swap is {wide} wide on a {plate} plate"
+        wide + 8 <= room,
+        "the swap is {wide} wide in a room {room} wide"
     );
 }

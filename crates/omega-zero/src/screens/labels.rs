@@ -3,8 +3,8 @@
 //!
 //! It is a lone panel, as flow.html's `#screen=labels`: SCREENSCRAPER (SIGN IN, or the account)
 //! and FETCH LABELS, then two lines saying how the sync stands. The keys it has beyond B and A
-//! (Y SIGN OUT, START FETCH) are hints on the bottom bar's plate. Its account is typed on the
-//! keyboard screen.
+//! (Y SIGN OUT, START FETCH) are hints on the bottom bar, between its actions. Its account is
+//! typed on the keyboard screen.
 
 use omega_input::Action;
 use omega_ui::kit::bar::Hint;
@@ -40,8 +40,9 @@ pub fn labels_face(view: &ListView, pal: &Palette) -> UndoFace {
     panel.face
 }
 
-/// What the bottom bar's plate shows for a Labels screen whose legend is `legend`: the keys
-/// beyond B (RETURN) and A (CONFIRM), Y to sign out and START to fetch, or to stop a fetch.
+/// What the bottom bar shows between its actions for a Labels screen whose legend is `legend`:
+/// the keys beyond B (RETURN) and A (CONFIRM), Y to sign out and START to fetch, or to stop a
+/// fetch.
 pub fn labels_hints(legend: &[LegendHint]) -> Vec<Hint<'static>> {
     legend
         .iter()

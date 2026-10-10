@@ -1,8 +1,9 @@
 #![cfg(target_os = "macos")]
-//! The bar along the bottom as the panel shows it: every pixel of its plate and its actions,
-//! notches and all, is the kit's face drawn at twice its size on whole pixels, on the shelf, in
-//! Settings and under the core picker with ◀▶ SWAP on its plate, in Night and in Amber, and in
-//! the font Settings > Theme picks, from the frame it is picked in.
+//! The bar along the bottom as the panel shows it: every pixel of its actions, notches and
+//! all, and of the hints between them is the kit's face drawn at twice its size on whole
+//! pixels, on the shelf, in Settings and under the core picker with ◀▶ SWAP between RETURN and
+//! CONFIRM, in Night and in Amber, and in the font Settings > Theme picks, from the frame it is
+//! picked in. Between the actions the background shows through everywhere but the hints.
 
 use crate::common;
 
@@ -12,14 +13,16 @@ use common::{clocked, tmp_root_with_carts};
 use omega_gfx::{out_h, out_w, Compositor, HeadlessSurface};
 use omega_input::{Btn, InputSource, Millis, RawEvent};
 use omega_power::SimPlatform;
-use omega_store::{read_app_state, write_app_state};
+use omega_store::{read_app_state, write_app_state, BackdropStyle};
+use omega_ui::backdrop_rgb;
 use omega_ui::kit::action::{action_pair, Font, Side, RISE, TALL};
-use omega_ui::kit::bar::{bar_layout, plate_face, Hint};
+use omega_ui::kit::bar::{bar_layout, hints_face, Hint};
 use omega_ui::kit::palette::Palette;
 use omega_ui::SettingsRow;
 use omega_ui::{UndoFace, SPRITE_PX};
 use omega_zero::app::Phase;
 use omega_zero::frontend::Frontend;
+use omega_zero::label_sync::Account;
 use omega_zero::screens::bar::{Actions, SWAP};
 
 struct Script(VecDeque<Vec<RawEvent>>);
@@ -38,8 +41,8 @@ fn tap(f: &mut Frontend, input: &mut Script, btn: Btn) {
 }
 
 /// The bar the screen's width with `actions` at its ends, made together as a pair with their
-/// words in `font`, and `hints` on its plate, at one texel to an art pixel: the plate, then the
-/// actions over it, on a face `TALL` high whose row `RISE` is the bar's top.
+/// words in `font`, and `hints` between them, at one texel to an art pixel, on a face `TALL`
+/// high whose row `RISE` is the bar's top and which is clear wherever the bar draws nothing.
 fn kit_bar(actions: Actions, hints: &[Hint], font: Font, pal: &Palette) -> UndoFace {
     let width = out_w() / SPRITE_PX;
     let [left, right] = action_pair(
@@ -54,9 +57,9 @@ fn kit_bar(actions: Actions, hints: &[Hint], font: Font, pal: &Palette) -> UndoF
         w: width,
         h: TALL,
     };
-    let [px, py, pw, _] = layout.plate;
-    let plate = plate_face(pw, hints, pal);
-    over(&mut bar, &plate, px as i32, (py + RISE) as i32);
+    let [hx, hy, hw, _] = layout.hints;
+    let hints = hints_face(hw, hints, pal);
+    over(&mut bar, &hints, hx as i32, (hy + RISE) as i32);
     for (face, [x, y]) in [(&left.face, layout.left), (&right.face, layout.right)] {
         over(&mut bar, face, x, y + RISE as i32);
     }
@@ -100,6 +103,44 @@ fn misses(px: &[u8], bar: &UndoFace) -> Vec<(usize, usize, [u8; 3], [u8; 3])> {
                 let got = [px[o], px[o + 1], px[o + 2]];
                 if got != want {
                     off.push((x, y, got, want));
+                }
+            }
+        }
+    }
+    off
+}
+
+/// Where the frame `px` is not the plain background `ground` between `actions`, on the bar's
+/// rows, where `bar` (their kit bar in `font`) draws nothing: the background should show
+/// through all of it. As (x, y, got).
+fn covered(
+    px: &[u8],
+    bar: &UndoFace,
+    actions: Actions,
+    font: Font,
+    pal: &Palette,
+    ground: [u8; 3],
+) -> Vec<(usize, usize, [u8; 3])> {
+    let [left, right] = action_pair(
+        actions.action(Side::Left),
+        actions.action(Side::Right),
+        font,
+        pal,
+    );
+    let [x0, _, room, _] = bar_layout(bar.w, &left, &right).hints;
+    let (w, top) = (out_w() as usize, (out_h() - TALL * SPRITE_PX) as usize);
+    let mut off = Vec::new();
+    for ty in RISE as usize..bar.h as usize {
+        for tx in x0 as usize..(x0 + room) as usize {
+            if bar.rgba[(ty * bar.w as usize + tx) * 4 + 3] != 0 {
+                continue;
+            }
+            for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                let (x, y) = (tx * 2 + dx, top + ty * 2 + dy);
+                let o = (y * w + x) * 4;
+                let got = [px[o], px[o + 1], px[o + 2]];
+                if got != ground {
+                    off.push((x, y, got));
                 }
             }
         }
@@ -166,7 +207,7 @@ fn the_bar_is_the_kits_pixel_for_pixel_on_the_shelf_and_in_settings() {
 }
 
 #[test]
-fn the_core_pickers_bar_has_the_swap_on_its_plate_pixel_for_pixel() {
+fn the_core_pickers_bar_has_the_swap_between_its_actions_pixel_for_pixel() {
     let Ok(surface) = HeadlessSurface::new() else {
         return;
     };
@@ -202,13 +243,89 @@ fn the_core_pickers_bar_has_the_swap_on_its_plate_pixel_for_pixel() {
             off.len(),
             &off[..off.len().min(4)]
         );
-        // and the swap really is there: the plate without it is not what shows
-        assert!(!misses(&picker, &kit_bar(Actions::Menu, &[], Font::Bold, pal)).is_empty());
+        // and the swap really is there: it draws pixels the bar without it leaves clear, and
+        // every one of them is in the frame
+        let drawn = |bar: UndoFace| bar.rgba.chunks_exact(4).filter(|p| p[3] != 0).count();
+        assert!(
+            drawn(kit_bar(Actions::Menu, &[SWAP], Font::Bold, pal))
+                > drawn(kit_bar(Actions::Menu, &[], Font::Bold, pal))
+        );
+    }
+}
+
+/// Nothing but the hints is drawn between the bar's actions: over a plain background, every
+/// pixel there on the bar's rows that the hints leave clear is the background's own colour, in
+/// Settings, which has none, and on Labels signed in, with Y SIGN OUT, in Night and in Amber.
+/// (On the shelf the slot's housing is what is behind the bar.)
+#[test]
+fn the_background_shows_between_the_bars_actions_but_for_the_hints() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    for colour in ["night", "amber"] {
+        let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+        clocked(d.path());
+        let mut state = read_app_state(d.path());
+        state.backdrop = Some(BackdropStyle::Solid);
+        state.backdrop_colour = omega_store::colour_index(colour).expect("a backdrop colour");
+        write_app_state(d.path(), &state).unwrap();
+        Account {
+            user: "zero".into(),
+            password: "x".into(),
+        }
+        .save(d.path())
+        .unwrap();
+        let ground = backdrop_rgb(state.backdrop_colour);
+        let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
+        f.upload_faces(&mut c);
+        let pal = f.app().palette();
+        let check = |px: &[u8], hints: &[Hint], name: &str| {
+            let bar = kit_bar(Actions::Menu, hints, Font::Bold, pal);
+            assert!(misses(px, &bar).is_empty(), "{colour}: {name}'s bar is off");
+            let off = covered(px, &bar, Actions::Menu, Font::Bold, pal, ground);
+            assert!(
+                off.is_empty(),
+                "{colour}: {name} draws over the background between the actions at {} \
+                 pixels, first {:?}",
+                off.len(),
+                &off[..off.len().min(4)]
+            );
+        };
+
+        let mut input = Script(VecDeque::new());
+        tap(&mut f, &mut input, Btn::Start);
+        assert!(
+            f.app().settings_row().is_some(),
+            "{colour}: START opened no Settings"
+        );
+        let settings = composed(&mut f, &mut c, &format!("solid-settings-{colour}"));
+        check(&settings, &[], "Settings");
+
+        while f.app().settings_row() != Some(SettingsRow::Labels) {
+            tap(&mut f, &mut input, Btn::Down);
+        }
+        tap(&mut f, &mut input, Btn::A);
+        f.app_mut().finish_slide();
+        assert!(matches!(f.app().phase(), Phase::Labels(_)), "{colour}");
+        let hints = f.app().bar_hints_shown();
+        let sign_out = Hint {
+            key: "Y",
+            word: "SIGN OUT",
+        };
+        assert!(
+            hints.contains(&sign_out),
+            "{colour}: Labels shows {hints:?}"
+        );
+        let labels = composed(&mut f, &mut c, &format!("solid-labels-{colour}"));
+        check(&labels, &hints, "Labels");
     }
 }
 
 /// FONT on the THEME screen redraws the bar's actions under it in the frame it changes in:
-/// thin, every action narrower and every plate grown into the room they leave, the shelf's
+/// thin, every action narrower and the room for the hints between them wider, the shelf's
 /// CONTROLS and SETTINGS 107 art pixels each where bold has 115; and the shelf's bar is thin too
 /// once THEME is left.
 #[test]
@@ -266,8 +383,8 @@ fn a_new_font_redraws_the_bars_actions_in_the_next_frame() {
             "{actions:?}: the right action is no narrower"
         );
         assert!(
-            now.layout.plate[2] > was.layout.plate[2],
-            "{actions:?}: the plate did not grow into the room"
+            now.layout.hints[2] > was.layout.hints[2],
+            "{actions:?}: the room between the actions did not grow"
         );
     }
     let shelf = Actions::Shelf.index();

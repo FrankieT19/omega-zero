@@ -1,8 +1,7 @@
 /*
   <omega-bar>: the bar along the bottom of a screen. An <action-left> and an <action-right> at its
-  ends and, between them, the game's plate, which sits a little under the actions' top rails and
-  runs on behind both buttons' rounded ends, so the bar's bottom line never breaks. The keys a
-  screen has beyond the two actions are shown on the plate as hints.
+  ends and, between them, nothing but the keys a screen has beyond the two actions, shown as
+  hints: whatever is behind the bar shows through the rest.
 
     <omega-bar hint="Y FORGET">
       <action-left slot="left" label="BACK" hint="B"></action-left>
@@ -12,9 +11,7 @@
   hint      a key and what it does, the first word the key: "Y FORGET", "START FETCH". Two are
             given with a | between them: "Y FORGET | X RENAME". Each is drawn as its key in a
             small dark cap, then the word, in Pixel Code one face pixel to an art pixel, and the
-            hints together are centred on the plate, 8 pixels apart.
-  floating  only the two actions, at the bottom corners, with no plate between them (and so no
-            hints), for a screen that wants what is behind the bar to show between them.
+            hints together are centred between the two actions, 8 pixels apart.
   font      the actions' labels, "bold" (or none) or "thin", as Settings > Theme > Font picks:
             the bar gives it to both its actions.
 
@@ -27,22 +24,18 @@
   above it, over whatever is there. The hints' capitals are on rows 5 to 11, the same rows as the
   words in the actions' buttons, and each key's cap is 9 rows tall around them: a dark row above
   and below its letters' capitals, two dark pixels either side. Areas, each a div that ::part()
-  reaches: bar, plate, hints, hint, key, word.
+  reaches: bar, middle (the room between the actions), hints, hint, key, word.
 
   Needs everything in foundation/ on the page (see README.md) and the two actions' components; its
   colours follow palette.js.
 */
 (() => {
-  // Sizes in art pixels: the bar's height, how far down the plate starts, how far it runs on
-  // behind each button's rounded end, and how tall a key's cap is.
+  // Sizes in art pixels: the bar's height and how tall a key's cap is.
   const BAR = 15;
-  const PLATE_TOP = 2;
-  const UNDER = 5;
   const KEY_H = 9;
-  // How far into the plate, under its top line, the hints' line starts: the top line is the bar's
-  // row 2, so their line starts on row 3 and their capitals, two rows down it, are on rows 5 to 11,
-  // the rows of the words in the actions' buttons.
-  const HINTS_TOP = 0;
+  // How far down the bar the hints' line starts: row 3, as the pills' words' does, so their
+  // capitals, two rows down it, are on rows 5 to 11 with the words in the actions' buttons.
+  const HINTS_TOP = 3;
   // How far down the hint's line its key's cap starts: a row above the capitals.
   const KEY_TOP = OmegaPixel.ACCENT - (KEY_H - OmegaPixel.CAP) / 2;
   // The gap between a key's cap and its word, and between two hints, in pixels of ink to ink.
@@ -67,21 +60,12 @@
       .bar { display: flex; height: 100%; }
       ::slotted(*) { position: relative; z-index: 1; flex: none; }
 
-      /* the plate: its top line, a lit row, the plate colour, a shadow row, and the bar's bottom line
-         in the frame colour under all of it, level with the actions' own */
-      .plate {
-        flex: 1;
-        min-width: 0;
-        margin: calc(${PLATE_TOP} * var(--u)) calc(-${UNDER} * var(--u)) 0;
-        background: var(--oz-plate);
-        border-top: var(--u) solid var(--oz-edge);
-        border-bottom: var(--u) solid var(--oz-frame);
-        box-shadow: inset 0 var(--u) 0 var(--oz-band), inset 0 calc(-1 * var(--u)) 0 var(--oz-edge);
-      }
-      :host([floating]) .plate { visibility: hidden; }
+      /* the room between the two actions, from one's end to the other's: nothing is drawn in it but
+         the hints, so whatever is behind the bar shows through */
+      .middle { flex: 1; min-width: 0; }
 
-      /* Centred on the plate, rounded down to a whole art pixel: --ink is the hints' width in art
-         pixels from their first ink to their last, which paintHints() works out from the text. */
+      /* Centred between the actions, rounded down to a whole art pixel: --ink is the hints' width in
+         art pixels from their first ink to their last, which paintHints() works out from the text. */
       .hints {
         display: flex;
         width: max-content;
@@ -116,7 +100,7 @@
     </style>
     <div class="bar" part="bar">
       <slot name="left"></slot>
-      <div class="plate" part="plate"><div class="hints" part="hints"></div></div>
+      <div class="middle" part="middle"><div class="hints" part="hints"></div></div>
       <slot name="right"></slot>
     </div>`;
 

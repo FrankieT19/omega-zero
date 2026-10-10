@@ -34,7 +34,7 @@ window.OmegaPalette = (() => {
     '--oz-dark': '#2a0f04',     // the bar under the actions, outlines
     '--oz-edge': '#6a3d01',     // the shadow line inside a well
     '--oz-well': '#4f300d',     // a panel's body, a label's shadow
-    '--oz-plate': '#765020',    // the bar's middle plate
+    '--oz-plate': '#765020',    // what is off on a row: the bars a signal does not reach
     '--oz-tab': '#845a1a',      // a panel's title tab
     '--oz-band': '#a57221',     // the top of an action's button
     '--oz-stripe': '#b0731b',   // the dark line between two frame lines
