@@ -8,6 +8,18 @@
     kit.html?c=action-left&label=RETURN&hint=B
     kit.html?c=action-left&label=RETURN&hint=B&u=2       at 2px an art pixel, as on the device
     kit.html?c=action-left&label=RETURN&hint=B&smooth    with macOS's font smoothing left on
+    kit.html?c=row&w=150&label=FAST%20FORWARD&value=6X&lit&carets
+    kit.html?c=list-row&w=150&label=Home&value=CONNECTED&signal=3&lock&lit
+    kit.html?c=bar&w=320&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET
+    kit.html?c=text&tone=dim&text=SFTP%20uses%20the%20same%20login
+    kit.html?c=flow&screen=ssh                           a panel as flow.html builds it
+
+  row and list-row take omega-row's and omega-list-row's attributes, bar omega-bar's hint and
+  its two actions' words and hints. text is a line of Pixel Code as flow.html sets a panel's
+  notes and the Quickmenu's columns, in the --oz-<tone> colour, a newline in it a <br>, and
+  ◀ ▶ ▲ ▼ drawn as flow/art.js's glyphs, as flow.html draws them (the web font has none). flow is
+  one of flow.html's lone panels, its markup copied here (ssh, labels, controls) and drawn
+  with flow/flow.css.
 
   The colours are palette.js's RAMP as written, set straight on the page, so the faces and the
   screenshots are drawn in exactly the same ones whatever palette.js makes of a backdrop colour.
@@ -27,8 +39,12 @@
 <script src="../../../../../assets/ui/foundation/palette.js"></script>
 <script src="../../../../../assets/ui/components/omega-modal.js"></script>
 <script src="../../../../../assets/ui/components/omega-panel.js"></script>
+<script src="../../../../../assets/ui/components/omega-row.js"></script>
+<script src="../../../../../assets/ui/components/omega-list-row.js"></script>
 <script src="../../../../../assets/ui/components/action-left.js"></script>
 <script src="../../../../../assets/ui/components/action-right.js"></script>
+<script src="../../../../../assets/ui/components/omega-bar.js"></script>
+<script src="../../../../../assets/ui/flow/art.js"></script>
 <style>
   :root { --u: 1px; }
   html, body { margin: 0; background: transparent; }
@@ -39,12 +55,78 @@
     --oz-tab: #845a1a; --oz-band: #a57221; --oz-stripe: #b0731b; --oz-dim: #be9732;
     --oz-frame: #e6ab47; --oz-frame-hi: #f8b83f; --oz-label: #f2c87d; --oz-cream: #f5e5bb;
   }
-  /* an action's notch rises above it, so it stands that far down the page */
+  /* an action's notch rises above it, so it (and a bar of them) stands that far down the page */
   #kit.action { top: calc(6 * var(--u)); }
+  /* a line set as a note in a panel's well is: Pixel Code on a line of 10, drawn without the
+     browser's hinting (omega-panel's text-rendering, which what is in it inherits) */
+  .line {
+    font: 400 calc(9 * var(--u)) / calc(10 * var(--u)) var(--oz-font);
+    text-rendering: geometricPrecision;
+    white-space: nowrap;
+  }
 </style>
 </head>
 <body>
 <div id="kit"></div>
+
+<!-- flow.html's lone panels, as it has them (#screen=ssh, labels, controls). SSH's two ways
+     are one each here, its rows straight in the panel: flow.html keeps them in a div it shows
+     or hides, where omega-panel's ::slotted rule cannot reach them, so there they miss the
+     pixel every row reaches into a well's sides (its network list's rows, in .list, too). -->
+<template id="flow-ssh">
+  <omega-panel label="SSH" active class="lone small ssh">
+    <omega-row label="IP" value="192.168.1.20"></omega-row>
+    <omega-row label="HOST" value="rg35xxsp.local"></omega-row>
+    <omega-row label="USER" value="root"></omega-row>
+    <omega-row label="PASSWORD" value="root"></omega-row>
+    <omega-row label="PORT" value="22"></omega-row>
+    <p class="note">SFTP uses the same login</p>
+  </omega-panel>
+</template>
+<template id="flow-ssh-offline">
+  <omega-panel label="SSH" active class="lone small ssh offline">
+    <p class="note">Join a Wi-Fi network first.</p>
+  </omega-panel>
+</template>
+<template id="flow-labels">
+  <omega-panel label="LABELS" active class="lone labels-panel">
+    <omega-row label="SCREENSCRAPER" value="SIGN IN" lit></omega-row>
+    <omega-row label="FETCH LABELS"></omega-row>
+    <p class="note">Sign in with your free ScreenScraper account<br>to fetch the real labels of your carts.</p>
+  </omega-panel>
+</template>
+<template id="flow-controls">
+  <omega-panel label="QUICKMENU" active class="lone controls-panel">
+    <div class="columns">
+      <div class="keymap" style="--keys: 6; --does: 11">
+        <h3>SHELF</h3>
+        <span class="k">A</span><span>PLAY</span>
+        <span class="k">HOLD A</span><span>CLEAN START</span>
+        <span class="k">X</span><span>CORE</span>
+        <span class="k">START</span><span>SETTINGS</span>
+        <span class="k">SELECT</span><span>QUICKMENU</span>
+        <span class="k"><i class="g left"></i><i class="g right"></i></span><span>BROWSE</span>
+        <span class="k"><i class="g up"></i><i class="g down"></i></span><span>LETTER</span>
+        <span class="k">L1 R1</span><span>SHELF</span>
+      </div>
+      <div class="keymap" style="--keys: 12; --does: 15">
+        <h3>IN GAME</h3>
+        <span class="k">L2</span><span>REWIND</span>
+        <span class="k">R2</span><span>FAST FORWARD</span>
+        <span class="k">MENU ×2</span><span>SAVE STATES</span>
+        <span class="k">HOLD MENU</span><span>EJECT</span>
+        <span class="k">SELECT+MENU</span><span>LINK</span>
+        <span class="k">SELECT+<i class="g up"></i><i class="g down"></i></span><span>BRIGHTNESS</span>
+        <span class="k">SELECT+<i class="g left"></i><i class="g right"></i></span><span>BLUE LIGHT</span>
+        <span class="k">SELECT+L1/R1</span><span>LOAD/SAVE STATE</span>
+        <span class="k">SELECT+Y</span><span>COLOUR</span>
+        <span class="k">VOL+ VOL-</span><span>MUTE</span>
+        <span class="k">HOLD POWER</span><span>POWER MENU</span>
+      </div>
+    </div>
+  </omega-panel>
+</template>
+
 <script>
   const q = new URLSearchParams(location.search);
   const kit = document.getElementById('kit');
@@ -55,6 +137,21 @@
     el.style.width = `calc(${q.get('w')} * var(--u))`;
     el.style.height = `calc(${q.get('h')} * var(--u))`;
   };
+  // the query's attributes on `el`: those with a value as given, the rest present or not
+  const attrs = (el, valued, flags) => {
+    for (const name of valued) if (q.get(name)) el.setAttribute(name, q.get(name));
+    for (const name of flags) if (q.has(name)) el.setAttribute(name, '');
+  };
+  // flow/flow.css, ahead of this page's own styles so they still win (the page stays clear)
+  const flowStyles = () => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '../../../../../assets/ui/flow/flow.css';
+    document.head.insertBefore(link, document.querySelector('style'));
+    FlowArt.paint(kit);
+  };
+  const GLYPHS = { '◀': 'left', '▶': 'right', '▲': 'up', '▼': 'down' };
+
   if (c === 'modal') {
     const modal = document.createElement('omega-modal');
     size(modal);
@@ -73,6 +170,42 @@
     panel.setAttribute('label', q.get('label') ?? '');
     if (q.has('active')) panel.setAttribute('active', '');
     kit.append(panel);
+  } else if (c === 'row' || c === 'list-row') {
+    const row = document.createElement(`omega-${c}`);
+    row.style.width = `calc(${q.get('w')} * var(--u))`;
+    attrs(row, ['label', 'value', 'signal'], ['lit', 'carets', 'opens', 'dim', 'lock']);
+    kit.append(row);
+  } else if (c === 'bar') {
+    kit.className = 'action';
+    kit.style.width = `calc(${q.get('w')} * var(--u))`;
+    const bar = document.createElement('omega-bar');
+    if (q.get('hint')) bar.setAttribute('hint', q.get('hint'));
+    for (const side of ['left', 'right']) {
+      const action = document.createElement(`action-${side}`);
+      action.slot = side;
+      if (q.get(side)) action.setAttribute('label', q.get(side));
+      if (q.get(`${side}-hint`)) action.setAttribute('hint', q.get(`${side}-hint`));
+      bar.append(action);
+    }
+    kit.append(bar);
+  } else if (c === 'text') {
+    flowStyles();
+    const line = document.createElement('div');
+    line.className = 'line';
+    line.style.color = `var(--oz-${q.get('tone') ?? 'cream'})`;
+    for (const [i, text] of (q.get('text') ?? '').split('\n').entries()) {
+      if (i) line.append(document.createElement('br'));
+      for (const ch of text) {
+        if (!GLYPHS[ch]) { line.append(ch); continue; }
+        const glyph = document.createElement('i');
+        glyph.className = `g ${GLYPHS[ch]}`;
+        line.append(glyph);
+      }
+    }
+    kit.append(line);
+  } else if (c === 'flow') {
+    flowStyles();
+    kit.append(document.getElementById(`flow-${q.get('screen')}`).content.cloneNode(true));
   } else {
     kit.className = 'action';
     const action = document.createElement(c);

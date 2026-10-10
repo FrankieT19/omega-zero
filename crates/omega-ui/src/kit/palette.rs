@@ -51,8 +51,8 @@ pub struct Palette {
 
 impl Palette {
     /// The colour a sprite key stands for, as pixel.js KEYS: k dark, e edge, w well, p plate,
-    /// t tab, b band, s stripe, A frame, H frame_hi, L label, c cream; anything else (and '.')
-    /// is None.
+    /// t tab, b band, s stripe, d dim, A frame, H frame_hi, L label, c cream; anything else
+    /// (and '.') is None.
     pub fn key(&self, k: char) -> Option<[u8; 3]> {
         Some(match k {
             'k' => self.dark,
@@ -62,6 +62,7 @@ impl Palette {
             't' => self.tab,
             'b' => self.band,
             's' => self.stripe,
+            'd' => self.dim,
             'A' => self.frame,
             'H' => self.frame_hi,
             'L' => self.label,
