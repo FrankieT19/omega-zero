@@ -142,8 +142,25 @@ fn background_opens_from_the_quick_menu_and_b_comes_back_to_its_row() {
 fn left_and_right_go_round_the_styles_and_each_shows_only_the_rows_it_uses() {
     let mut r = Rig::new();
     r.open();
-    r.press(Btn::Right);
-    assert_eq!(r.a.backdrop().style, BackdropStyle::Bits);
+    for style in [
+        BackdropStyle::Plates,
+        BackdropStyle::Dotted,
+        BackdropStyle::Dither,
+        BackdropStyle::Rivets,
+        BackdropStyle::Bits,
+    ] {
+        r.press(Btn::Right);
+        assert_eq!(r.a.backdrop().style, style);
+        assert_eq!(
+            r.rows(),
+            [
+                choice("Style", style.label()),
+                choice("Motion", "Moving"),
+                choice("Colour", "Night")
+            ],
+            "{style:?} lost a row"
+        );
+    }
     r.press(Btn::Right);
     assert_eq!(r.a.backdrop().style, BackdropStyle::Solid);
     assert_eq!(
@@ -202,8 +219,8 @@ fn the_cursor_leaves_a_row_its_style_no_longer_has() {
     r.press(Btn::Up);
     r.press(Btn::Up);
     assert_eq!(r.sel(), Sel::Style);
-    r.press(Btn::Right);
-    r.press(Btn::Right);
+    r.press(Btn::Left);
+    assert_eq!(r.a.backdrop().style, BackdropStyle::Solid);
     r.press(Btn::Down);
     assert_eq!(r.sel(), Sel::Colour, "Solid has no Motion row to land on");
 }

@@ -5,6 +5,14 @@
 pub enum BackdropStyle {
     /// Lines crossing, like squared paper.
     Grid,
+    /// Raised square plates, lit from the top left like a 16-bit floor.
+    Plates,
+    /// Dotted lines, a cross where they meet.
+    Dotted,
+    /// The grid's squares shaded from the top left in an ordered dither.
+    Dither,
+    /// The plates riveted at each corner.
+    Rivets,
     /// Square pixels scattered like a 1-bit picture.
     Bits,
     /// The colour alone.
@@ -14,8 +22,12 @@ pub enum BackdropStyle {
 }
 
 impl BackdropStyle {
-    pub const ALL: [BackdropStyle; 4] = [
+    pub const ALL: [BackdropStyle; 8] = [
         BackdropStyle::Grid,
+        BackdropStyle::Plates,
+        BackdropStyle::Dotted,
+        BackdropStyle::Dither,
+        BackdropStyle::Rivets,
         BackdropStyle::Bits,
         BackdropStyle::Solid,
         BackdropStyle::Wallpaper,
@@ -24,6 +36,10 @@ impl BackdropStyle {
     pub fn key(self) -> &'static str {
         match self {
             BackdropStyle::Grid => "grid",
+            BackdropStyle::Plates => "plates",
+            BackdropStyle::Dotted => "dotted",
+            BackdropStyle::Dither => "dither",
+            BackdropStyle::Rivets => "rivets",
             BackdropStyle::Bits => "bits",
             BackdropStyle::Solid => "solid",
             BackdropStyle::Wallpaper => "wallpaper",
@@ -37,6 +53,10 @@ impl BackdropStyle {
     pub fn label(self) -> &'static str {
         match self {
             BackdropStyle::Grid => "Grid",
+            BackdropStyle::Plates => "Plates",
+            BackdropStyle::Dotted => "Dotted",
+            BackdropStyle::Dither => "Dither",
+            BackdropStyle::Rivets => "Rivets",
             BackdropStyle::Bits => "Bits",
             BackdropStyle::Solid => "Solid",
             BackdropStyle::Wallpaper => "Wallpaper",
@@ -45,7 +65,7 @@ impl BackdropStyle {
 
     /// A pattern that can drift.
     pub fn moves(self) -> bool {
-        matches!(self, BackdropStyle::Grid | BackdropStyle::Bits)
+        !matches!(self, BackdropStyle::Solid | BackdropStyle::Wallpaper)
     }
 
     /// Drawn in one of the palette's colours.

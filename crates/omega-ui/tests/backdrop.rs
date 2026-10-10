@@ -4,11 +4,13 @@ use omega_ui::{
     backdrop_speed, out_h, out_w, BACKDROP_PALETTE,
 };
 
-const PATTERNS: [BackdropStyle; 2] = [BackdropStyle::Grid, BackdropStyle::Bits];
+fn patterns() -> impl Iterator<Item = BackdropStyle> {
+    BackdropStyle::ALL.into_iter().filter(|s| s.moves())
+}
 
 #[test]
 fn a_pattern_repeats_every_period_so_drifting_it_never_shows_a_seam() {
-    for style in PATTERNS {
+    for style in patterns() {
         let p = backdrop_period(style);
         let face = backdrop_pattern_face(style, 3).expect("no pattern");
         assert_eq!((face.w, face.h), (out_w() + p, out_h()));
@@ -27,10 +29,41 @@ fn a_pattern_repeats_every_period_so_drifting_it_never_shows_a_seam() {
 
 #[test]
 fn every_period_divides_every_canvas_so_a_still_pattern_sits_square() {
-    for style in PATTERNS {
+    for style in patterns() {
         let p = backdrop_period(style);
         for size in [480, 640, 720] {
             assert_eq!(size % p, 0, "{style:?}'s {p} does not divide {size}");
+        }
+    }
+}
+
+#[test]
+fn every_pattern_is_drawn_in_whole_2x2_pixels_like_the_words_over_it() {
+    for style in patterns() {
+        let face = backdrop_pattern_face(style, 7).expect("no pattern");
+        let px = |x: u32, y: u32| &face.rgba[((y * face.w + x) * 4) as usize..][..4];
+        for y in (0..face.h).step_by(2) {
+            for x in (0..face.w).step_by(2) {
+                let c = px(x, y);
+                assert!(
+                    [px(x + 1, y), px(x, y + 1), px(x + 1, y + 1)]
+                        .iter()
+                        .all(|p| *p == c),
+                    "{style:?} splits the pixel at {x},{y}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn no_two_patterns_look_the_same() {
+    let faces: Vec<_> = patterns()
+        .map(|s| (s, backdrop_pattern_face(s, 0).expect("no pattern").rgba))
+        .collect();
+    for (i, (a, fa)) in faces.iter().enumerate() {
+        for (b, fb) in &faces[i + 1..] {
+            assert_ne!(fa, fb, "{a:?} and {b:?} are one pattern");
         }
     }
 }
@@ -43,7 +76,7 @@ fn a_plain_colour_or_a_picture_has_no_pattern_to_make() {
 
 #[test]
 fn a_drifting_pattern_moves_slowly_by_the_clock_not_the_frame_and_starts_over() {
-    for style in PATTERNS {
+    for style in patterns() {
         let p = backdrop_period(style);
         assert_eq!(
             backdrop_shift(style, false, 123_456),

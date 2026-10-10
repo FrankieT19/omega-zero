@@ -40,8 +40,10 @@ The first release, for the RG35XX SP and the other H700 handhelds BaseOS runs on
 - Every word on screen is in Pixel Code, a pixel font set on its own grid so it stays sharp.
 - A top bar over the shelf: Wi-Fi, Bluetooth and ssh on the left, lit while they are up; the
   clock in the middle; the battery on the right.
-- The shelf's background is yours to pick under START > Background: a grid, bits or a plain
-  colour, drifting or still, in eight colours. A wallpaper on the card still works.
+- The shelf's background is yours to pick under START > Background: a grid, raised plates
+  (riveted or not), dotted lines, a dithered grid, bits or a plain colour, drifting or still, in
+  eight colours, every pattern in the same 2x2 pixels as the words over it. A wallpaper on the
+  card still works.
 - The slot below the shelf is bigger: a cart slides into it at full size instead of shrinking.
 - The quick menu scrolls when its rows outgrow the screen.
 - On the shelf START opens the quick menu and X the core picker; MENU opens nothing there.

@@ -64,7 +64,8 @@ pub fn backdrop_rgb(colour: u8) -> [u8; 3] {
     BACKDROP_PALETTE[(colour as usize).min(BACKDROP_PALETTE.len() - 1)]
 }
 
-/// How far a pattern goes before it looks the same again: the grid's square, the bits' tile.
+/// How far a pattern goes before it looks the same again: a tiled pattern's square, the bits'
+/// scatter.
 /// Both divide 640, 720 and 480, so a still pattern sits square on every canvas.
 pub fn backdrop_period(style: BackdropStyle) -> u32 {
     match style {
@@ -92,13 +93,92 @@ pub fn backdrop_shift(style: BackdropStyle, moving: bool, ms: u64) -> u32 {
     (moved.floor() as u64 % backdrop_period(style) as u64) as u32
 }
 
-fn tint(base: [u8; 3], toward_white: f32) -> [u8; 4] {
-    let c = |v: u8| (v as f32 + (255.0 - v as f32) * toward_white).round() as u8;
+/// `base` lifted toward white by `lift`, or sunk toward black by as much when it is below 0.
+fn tint(base: [u8; 3], lift: f32) -> [u8; 4] {
+    let c = |v: u8| {
+        let v = v as f32;
+        let to = if lift < 0.0 {
+            v * (1.0 + lift)
+        } else {
+            v + (255.0 - v) * lift
+        };
+        to.round() as u8
+    };
     [c(base[0]), c(base[1]), c(base[2]), 255]
 }
 
-const GRID_LINE: u32 = 2;
+/// One of a tiled pattern's pixels is 2x2 of the canvas's, as the words' and the sprites' are.
+const ART: u32 = 2;
+/// A tiled pattern's square, in its own pixels: one period.
+const TILE: u32 = 20;
 const BIT: u32 = 4;
+
+/// Ordered dither thresholds, out of 16.
+const BAYER: [[u8; 4]; 4] = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+
+/// A plate lit from the top left: a light edge above and to the left, a dark one below and to
+/// the right, and a face a shade above the colour so the dark edge shows even on Night.
+fn plate(tx: u32, ty: u32) -> f32 {
+    let (top, left) = (ty == 0, tx == 0);
+    let (bottom, right) = (ty == TILE - 1, tx == TILE - 1);
+    if (top && right) || (bottom && left) {
+        0.045
+    } else if top || left {
+        0.13
+    } else if bottom || right {
+        -0.6
+    } else {
+        0.045
+    }
+}
+
+/// How far the pixel (`tx`, `ty`) of a tiled pattern's square lifts the colour (see [`tint`]).
+fn tile_lift(style: BackdropStyle, tx: u32, ty: u32) -> f32 {
+    let last = TILE - 1;
+    match style {
+        BackdropStyle::Plates => plate(tx, ty),
+        BackdropStyle::Rivets => {
+            let at = |v: u32| v == 2 || v == last - 2;
+            if at(tx) && at(ty) {
+                0.2
+            } else if tx > 0 && ty > 0 && at(tx - 1) && at(ty - 1) {
+                -0.6
+            } else {
+                plate(tx, ty)
+            }
+        }
+        BackdropStyle::Dotted => {
+            let cross =
+                (tx == 0 && [0, 1, last].contains(&ty)) || (ty == 0 && [1, last].contains(&tx));
+            if cross {
+                0.17
+            } else if (tx == 0 && ty % 2 == 1) || (ty == 0 && tx % 2 == 1) {
+                0.09
+            } else {
+                0.0
+            }
+        }
+        BackdropStyle::Dither => {
+            if tx == 0 || ty == 0 {
+                return 0.1;
+            }
+            let light = 1.0 - (tx + ty - 2) as f32 / (2 * (TILE - 2)) as f32;
+            if (BAYER[(ty % 4) as usize][(tx % 4) as usize] as f32) < light * light * 11.0 {
+                0.045
+            } else {
+                0.0
+            }
+        }
+        BackdropStyle::Grid => {
+            if tx == 0 || ty == 0 {
+                0.09
+            } else {
+                0.0
+            }
+        }
+        BackdropStyle::Bits | BackdropStyle::Solid | BackdropStyle::Wallpaper => 0.0,
+    }
+}
 
 /// Whether the bit at (`cx`, `cy`) of a tile is lit, and how brightly: a scatter that looks
 /// random but is the same every time.
@@ -125,14 +205,6 @@ pub fn backdrop_pattern_face(style: BackdropStyle, colour: u8) -> Option<UndoFac
     for y in 0..h {
         for x in 0..w {
             let px = match style {
-                BackdropStyle::Grid => {
-                    let line = x % period < GRID_LINE || y % period < GRID_LINE;
-                    if line {
-                        tint(base, 0.09)
-                    } else {
-                        ground
-                    }
-                }
                 BackdropStyle::Bits => {
                     let cells = period / BIT;
                     match bit((x / BIT) % cells, (y / BIT) % cells) {
@@ -141,6 +213,7 @@ pub fn backdrop_pattern_face(style: BackdropStyle, colour: u8) -> Option<UndoFac
                     }
                 }
                 BackdropStyle::Solid | BackdropStyle::Wallpaper => return None,
+                tiled => tint(base, tile_lift(tiled, (x / ART) % TILE, (y / ART) % TILE)),
             };
             rgba.extend_from_slice(&px);
         }
