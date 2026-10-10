@@ -81,6 +81,8 @@ tap down
 wait 10
 tap down
 wait 10
+tap down
+wait 10
 tap a
 settle
 wait 30
@@ -138,6 +140,8 @@ tap down
 wait 10
 tap down
 wait 10
+tap down
+wait 10
 tap a
 settle
 wait 30
@@ -151,6 +155,8 @@ tap down
 wait 10
 settle
 shot settings-scrolled
+tap up
+wait 10
 tap up
 wait 10
 tap up
@@ -224,6 +230,41 @@ wait 30
 settle
 wait 10
 shot settings-network
+tap down
+wait 10
+settle
+shot settings-bluetooth
+tap a
+settle
+wait 30
+shot bluetooth-off
+tap a
+wait 30
+settle
+wait 30
+shot bluetooth
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
+tap a
+wait 10
+settle
+shot bluetooth-pairing
+tap up
+wait 10
+tap up
+wait 10
+tap up
+wait 10
+tap a
+wait 10
+tap b
+wait 30
+tap up
+wait 10
 tap up
 wait 10
 tap a
@@ -262,6 +303,8 @@ tap a
 wait 10
 tap b
 wait 30
+tap down
+wait 10
 tap down
 wait 10
 tap down
