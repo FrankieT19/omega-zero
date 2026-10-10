@@ -8,7 +8,7 @@
 #
 # flow.html draws at two screen pixels to an art pixel, every art pixel one colour, so ImageMagick
 # takes one pixel of each two by two after cutting the modal out (its rect: 16 and 14 art pixels
-# in, kit/layout.rs's margins, above the bar's 21).
+# in, kit/layout.rs's margins, above the bar's 15).
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 flow="$(cd "$here/../../../../../assets/ui" && pwd)/flow.html"
@@ -22,7 +22,7 @@ shoot() {
   "$chrome" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
     --virtual-time-budget=3000 --window-size="$w,$h" --screenshot="$shot" \
     "file://$flow#screen=keyboard&size=$1&colour=$2&row=$3&shot=1" 2>/dev/null
-  magick "$shot" -crop "$((w - 64))x$((h - 80))+32+28" +repage -sample 50% \
+  magick "$shot" -crop "$((w - 64))x$((h - 68))+32+28" +repage -sample 50% \
     "$here/ref/keyboard-$1-$2-${3/,/-}.png"
 }
 

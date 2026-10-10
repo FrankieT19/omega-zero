@@ -29,12 +29,21 @@ shoot panel-button-setting-active 160 60 'c=panel&w=160&h=60&label=BUTTON%20SETT
 shoot panel-button-setting 160 60 'c=panel&w=160&h=60&label=BUTTON%20SETTING'
 shoot panel-configs-active 160 60 'c=panel&w=160&h=60&label=CONFIGS&active'
 shoot panel-configs 160 60 'c=panel&w=160&h=60&label=CONFIGS'
-shoot action-left-quickmenu 131 27 'c=action-left&label=QUICKMENU&hint=SELECT'
-shoot action-right-settings 124 27 'c=action-right&label=SETTINGS&hint=START'
-shoot action-left-return 110 27 'c=action-left&label=RETURN&hint=B'
-shoot action-right-confirm 117 27 'c=action-right&label=CONFIRM&hint=A'
-shoot action-left-empty 107 27 'c=action-left'
-shoot action-right-empty 107 27 'c=action-right'
+shoot action-left-controls 115 19 'c=action-left&label=CONTROLS&hint=SELECT'
+shoot action-right-settings 109 19 'c=action-right&label=SETTINGS&hint=START'
+shoot action-left-return 90 19 'c=action-left&label=RETURN&hint=B'
+shoot action-right-confirm 97 19 'c=action-right&label=CONFIRM&hint=A'
+shoot action-left-empty 75 19 'c=action-left'
+shoot action-right-empty 75 19 'c=action-right'
+# given the room of the action beside them: SETTINGS's pill as wide as SELECT's, RETURN's word
+# box as wide as CONFIRM's
+shoot action-right-settings-paired 115 19 'c=action-right&label=SETTINGS&hint=START&room=61%2041'
+shoot action-left-return-paired 97 19 'c=action-left&label=RETURN&hint=B&room=54%2030'
+# in the thin font, paired: the shelf's two 107 wide, a menu's 90
+shoot action-left-controls-thin 107 19 'c=action-left&label=CONTROLS&hint=SELECT&font=thin&room=53%2041'
+shoot action-right-settings-thin 107 19 'c=action-right&label=SETTINGS&hint=START&font=thin&room=53%2041'
+shoot action-left-return-thin 90 19 'c=action-left&label=RETURN&hint=B&font=thin&room=47%2030'
+shoot action-right-confirm-thin 90 19 'c=action-right&label=CONFIRM&hint=A&font=thin&room=47%2030'
 
 # rows: every colour state, carets kept unlit, the opens chevron, a label cut where it runs out
 shoot row-plain 150 13 'c=row&w=150&label=FAST%20FORWARD&value=6X&carets'
@@ -65,16 +74,22 @@ shoot list-dim-lit 150 13 'c=list-row&w=150&label=Home&value=CONNECTED&signal=3&
 shoot list-bare 150 13 'c=list-row&w=150&label=Hidden'
 shoot list-cut 100 13 'c=list-row&w=100&label=A%20very%20long%20network%20name&signal=2&lock&lit'
 
-# the bar at 640 and 720 (320 and 360 art pixels): the shelf's, a menu's, with one hint and two
+# the bar at 640 and 720 (320 and 360 art pixels): the shelf's, a menu's, with one hint and two;
+# its two actions one width
 for w in 320 360; do
-  shoot bar-shelf-$w $w 27 "c=bar&w=$w&left=QUICKMENU&left-hint=SELECT&right=SETTINGS&right-hint=START"
-  shoot bar-menu-$w $w 27 "c=bar&w=$w&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A"
-  shoot bar-forget-$w $w 27 "c=bar&w=$w&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET"
-  shoot bar-two-$w $w 27 "c=bar&w=$w&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET%20%7C%20X%20RENAME"
+  shoot bar-shelf-$w $w 19 "c=bar&w=$w&left=CONTROLS&left-hint=SELECT&right=SETTINGS&right-hint=START"
+  shoot bar-menu-$w $w 19 "c=bar&w=$w&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A"
+  shoot bar-forget-$w $w 19 "c=bar&w=$w&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET"
+  shoot bar-two-$w $w 19 "c=bar&w=$w&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET%20%7C%20X%20RENAME"
 done
-shoot bar-fetch-320 320 27 'c=bar&w=320&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=START%20FETCH'
+shoot bar-fetch-320 320 19 'c=bar&w=320&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=START%20FETCH'
+# the first-boot clock's: CONFIRM, and the empty action as wide beside it
+shoot bar-confirm-320 320 19 'c=bar&w=320&right=CONFIRM&right-hint=A'
+# in the thin font, which the bar gives its actions
+shoot bar-shelf-thin-320 320 19 'c=bar&w=320&font=thin&left=CONTROLS&left-hint=SELECT&right=SETTINGS&right-hint=START'
+shoot bar-menu-thin-320 320 19 'c=bar&w=320&font=thin&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET'
 
-# lines of text as flow.html sets them, the Quickmenu's arrows as flow/art.js draws them
+# lines of text as flow.html sets them, the Controls panel's arrows as flow/art.js draws them
 shoot text-sftp 144 11 'c=text&tone=dim&text=SFTP%20uses%20the%20same%20login'
 shoot text-offline 162 11 'c=text&tone=dim&text=Join%20a%20Wi-Fi%20network%20first.'
 shoot text-labels 264 21 'c=text&tone=dim&text=Sign%20in%20with%20your%20free%20ScreenScraper%20account%0Ato%20fetch%20the%20real%20labels%20of%20your%20carts.'

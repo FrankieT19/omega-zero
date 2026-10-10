@@ -22,13 +22,13 @@ shoot() {
   "$chrome" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
     --virtual-time-budget=3000 --window-size="$w,$h" --screenshot="$shot/$name.png" \
     "file://$flow#screen=settings&size=$1&colour=$2&row=$3&shot=1" 2>/dev/null
-  # modal_rect(), in art pixels: 16 in at the sides, 14 from the top, 5 above the 21 pixel bar
+  # modal_rect(), in art pixels: 16 in at the sides, 14 from the top, 5 above the 15 pixel bar
   python3 -I - "$shot/$name.png" "$here/ref/$name.png" "$w" "$h" <<'EOF'
 import sys
 from PIL import Image
 src, out, w, h = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
 x, y = 16, 14
-mw, mh = w // 2 - 2 * 16, h // 2 - 21 - 14 - 5
+mw, mh = w // 2 - 2 * 16, h // 2 - 15 - 14 - 5
 im = Image.open(src).convert('RGB')
 art = Image.new('RGB', (mw, mh))
 for ay in range(mh):

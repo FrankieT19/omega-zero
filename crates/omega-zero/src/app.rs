@@ -10,6 +10,7 @@ use omega_store::{
     format_stamp, read_app_state, scan, write_app_state, AppState, BackdropStyle, Cart, Core,
     Platform, StateEntry, StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, RING_MAX, VOLUME_MAX,
 };
+use omega_ui::kit::action::Font;
 use omega_ui::{
     backdrop_shift, board_from, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease, grown,
     lid_at, lid_from, lift_of, on_board, posed_face, push_cart_side, shelf_cart_at, ChromeColours,
@@ -1249,7 +1250,7 @@ impl App {
     }
 
     /// The backdrop colour the kit's faces are drawn in, as an index in BACKDROP_COLOURS: a sync
-    /// keys its faces on it, so a new colour in Settings > Background re-tints every screen.
+    /// keys its faces on it, so a new colour in Settings > Theme re-tints every screen.
     pub fn palette_colour(&self) -> u8 {
         self.state.backdrop_colour
     }
@@ -1259,8 +1260,17 @@ impl App {
         omega_ui::kit::palette::palette(self.palette_colour())
     }
 
+    /// The font the bar's actions write their big words in: the bar's sync keys their faces on
+    /// it, so a new font in Settings > Theme redraws the bar at once.
+    pub fn font(&self) -> Font {
+        match self.state.font {
+            omega_store::Font::Bold => Font::Bold,
+            omega_store::Font::Thin => Font::Thin,
+        }
+    }
+
     /// What the shelf's slot and top bar are drawn in: the card's theme.txt when it has one,
-    /// or else the kit's palette, so a new colour in Settings > Background re-tints them too.
+    /// or else the kit's palette, so a new colour in Settings > Theme re-tints them too.
     pub fn chrome_colours(&self) -> ChromeColours {
         match &self.theme {
             Some(theme) => ChromeColours::themed(theme),

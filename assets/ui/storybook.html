@@ -67,7 +67,7 @@
   .preview { display: grid; gap: 20px; padding: 28px 24px; border-radius: 4px; overflow: hidden; }
   .preview.actions { padding-top: 40px; justify-items: start; }
   .preview .tag { font: 0.75rem var(--mono); color: var(--dim); margin-bottom: -12px; }
-  /* an action's notch rises 12px over what is above it; keep its tag clear of that */
+  /* an action's notch rises 8px over what is above it; keep its tag clear of that */
   .preview.actions .tag { margin-bottom: 0; }
   /* examples side by side, each a whole number of art pixels wide so their edges stay on the grid */
   .side { display: grid; grid-template-columns: repeat(auto-fill, calc(240 * var(--u))); gap: 20px; }
@@ -160,7 +160,7 @@
     <p class="dim">The kit omega-zero's menus are drawn from: pixel-art components rebuilt in HTML as
       the reference for each screen, before and while it is drawn on the device. Every shape is a
       sprite written pixel by pixel, every word lands on whole pixels, and every colour follows the
-      backdrop colour the player picks in Settings › Background › Colour, over the pattern picked in
+      backdrop colour the player picks in Settings › Theme › Colour, over the pattern picked in
       Style. The rules for adding to the kit are in <code>assets/ui/README.md</code>.</p>
     <nav class="toc" aria-label="Contents">
       <a href="#foundation">Foundation</a>
@@ -169,7 +169,7 @@
     </nav>
     <div class="controls">
       <fieldset class="group">
-        <legend>Settings › Background › Style</legend>
+        <legend>Settings › Theme › Background</legend>
         <div class="seg" id="styles"></div>
       </fieldset>
       <fieldset class="group">
@@ -220,7 +220,7 @@
       <article class="card wide">
         <header><h3>Backdrop</h3><code>foundation/backdrop.js</code></header>
         <p class="dim">The shelf's backdrop: the backdrop colour under one of the patterns in
-          Settings › Background › Style, each a tile drawn in whole art pixels and drifting left with
+          Settings › Theme › Background, each a tile drawn in whole art pixels and drifting left with
           <code>data-moving</code> (16px a second, Bits 10), as
           <code>crates/omega-ui/src/backdrop.rs</code> draws them. The Style picked above puts the
           same pattern behind every example on this page.</p>
@@ -306,19 +306,23 @@
       <article class="card">
         <header><h3>&lt;action-left&gt;</h3><code>components/action-left.js</code></header>
         <p class="dim">The bottom bar's left action: a return arrow in a notch at the screen's edge, a
-          big label, and a button pill with a hint. 21 art pixels tall; the notch rises 6 above it.
+          big label, and a button pill with a hint. 15 art pixels tall; the notch rises 4 above it.
           Without attributes it is empty, with room kept for its label.</p>
         <div class="preview actions omega-backdrop">
           <span class="tag">empty</span>
           <action-left></action-left>
           <span class="tag">with text</span>
           <action-left label="MENU" hint="SELECT"></action-left>
+          <span class="tag">given room, as wide as CONFIRM A beside it</span>
+          <action-left label="RETURN" hint="B" room="54 30"></action-left>
         </div>
         <div class="table">
           <table>
             <tr><th>API</th><th>What it does</th></tr>
-            <tr><td>label</td><td>The big word: a sprite, bold, twice as tall, with a shadow.</td></tr>
+            <tr><td>label</td><td>The big word: a sprite, bold, its capitals 10 pixels tall, with a shadow.</td></tr>
+            <tr><td>font</td><td><code>bold</code> (or none) or <code>thin</code>: the label drawn again a pixel to the right, or in Pixel Code's own strokes. See The bar's font.</td></tr>
             <tr><td>hint</td><td>The smaller word in the pill.</td></tr>
+            <tr><td>room</td><td>How wide the label's box and the hint's box are at least, in art pixels: <code>54 30</code>. Each word stays in the middle of its box, rounded down to a whole pixel. <code>&lt;omega-bar&gt;</code> sets it on both its actions.</td></tr>
             <tr><td>::part</td><td><code>action</code>, <code>icon</code>, <code>label</code>, <code>word</code>, <code>button</code>, <code>hint</code></td></tr>
           </table>
         </div>
@@ -339,8 +343,10 @@
         <div class="table">
           <table>
             <tr><th>API</th><th>What it does</th></tr>
-            <tr><td>label</td><td>The big word: a sprite, bold, twice as tall, with a shadow.</td></tr>
+            <tr><td>label</td><td>The big word: a sprite, bold, its capitals 10 pixels tall, with a shadow.</td></tr>
+            <tr><td>font</td><td><code>bold</code> (or none) or <code>thin</code>, as <code>&lt;action-left&gt;</code>'s.</td></tr>
             <tr><td>hint</td><td>The smaller word in the pill.</td></tr>
+            <tr><td>room</td><td>How wide the label's box and the hint's box are at least, as <code>&lt;action-left&gt;</code>'s.</td></tr>
             <tr><td>::part</td><td><code>action</code>, <code>button</code>, <code>hint</code>, <code>label</code>, <code>word</code>, <code>icon</code></td></tr>
           </table>
         </div>
@@ -468,18 +474,25 @@
 
       <article class="card wide">
         <header><h3>&lt;omega-bar&gt;</h3><code>components/omega-bar.js</code></header>
-        <p class="dim">The bar along the bottom of a screen, as wide as what holds it and 21 art pixels
+        <p class="dim">The bar along the bottom of a screen, as wide as what holds it and 15 art pixels
           tall: an <code>&lt;action-left&gt;</code> and an <code>&lt;action-right&gt;</code> at its ends
           and, between them, a plate that sits a little under their rails and runs on behind both
-          buttons' rounded ends, so the bar's bottom line never breaks. The keys a screen has beyond
-          the two actions go on the plate as hints, each its key in a small dark cap and then the
-          word, centred on the plate and on the same rows as the words in the buttons.
-          <code>floating</code> leaves only the two actions, at the corners.</p>
+          buttons' rounded ends, so the bar's bottom line never breaks. The two actions come out one
+          width: the bar gives both the <code>room</code> of the wider label and the wider hint, and
+          an empty one takes the other's. The keys a screen has beyond the two actions go on the
+          plate as hints, each its key in a small dark cap and then the word, centred on the plate
+          and on the same rows as the words in the buttons. <code>floating</code> leaves only the
+          two actions, at the corners.</p>
         <div class="preview actions omega-backdrop">
           <span class="tag">empty</span>
           <omega-bar class="bar-box">
             <action-left slot="left"></action-left>
             <action-right slot="right"></action-right>
+          </omega-bar>
+          <span class="tag">one action, the empty one as wide</span>
+          <omega-bar class="bar-box">
+            <action-left slot="left"></action-left>
+            <action-right slot="right" label="CONFIRM" hint="A"></action-right>
           </omega-bar>
           <span class="tag">with a hint</span>
           <omega-bar class="bar-box" hint="START FETCH">
@@ -502,6 +515,7 @@
             <tr><th>API</th><th>What it does</th></tr>
             <tr><td>hint</td><td>A key and what it does, the first word the key: <code>Y FORGET</code>, <code>START FETCH</code>. Two with a <code>|</code> between: <code>Y FORGET | X EDIT</code>.</td></tr>
             <tr><td>floating</td><td>Only the two actions, at the bottom corners: no plate, so no hints.</td></tr>
+            <tr><td>font</td><td><code>bold</code> (or none) or <code>thin</code>, given to both actions: see The bar's font.</td></tr>
             <tr><td>slot</td><td><code>left</code> for the <code>&lt;action-left&gt;</code>, <code>right</code> for the <code>&lt;action-right&gt;</code>.</td></tr>
             <tr><td>::part</td><td><code>bar</code>, <code>plate</code>, <code>hints</code>, <code>hint</code>, <code>key</code>, <code>word</code></td></tr>
           </table>
@@ -512,6 +526,40 @@
 &lt;/omega-bar&gt;
 
 &lt;omega-bar floating&gt;…&lt;/omega-bar&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>The bar's font</h3><code>omega-bar font="thin"</code></header>
+        <p class="dim">Settings › Theme › Font picks how the actions' labels are drawn. Bold, the
+          default, draws each letter again a pixel to its right; thin draws Pixel Code's own
+          one-pixel strokes, a pixel a letter narrower, over the same shadow and with the same 10
+          rows of capitals. <code>font</code> on the bar gives it to both actions, which still come
+          out one width: the shelf's two 107 art pixels wide in thin and 115 in bold, a menu's 90
+          and 97.</p>
+        <div class="preview actions omega-backdrop">
+          <span class="tag">bold</span>
+          <omega-bar class="bar-box">
+            <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
+            <action-right slot="right" label="SETTINGS" hint="START"></action-right>
+          </omega-bar>
+          <omega-bar class="bar-box">
+            <action-left slot="left" label="RETURN" hint="B"></action-left>
+            <action-right slot="right" label="CONFIRM" hint="A"></action-right>
+          </omega-bar>
+          <span class="tag">thin</span>
+          <omega-bar class="bar-box" font="thin">
+            <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
+            <action-right slot="right" label="SETTINGS" hint="START"></action-right>
+          </omega-bar>
+          <omega-bar class="bar-box" font="thin">
+            <action-left slot="left" label="RETURN" hint="B"></action-left>
+            <action-right slot="right" label="CONFIRM" hint="A"></action-right>
+          </omega-bar>
+        </div>
+<pre><code>&lt;omega-bar font="thin"&gt;
+  &lt;action-left slot="left" label="RETURN" hint="B"&gt;&lt;/action-left&gt;
+  &lt;action-right slot="right" label="CONFIRM" hint="A"&gt;&lt;/action-right&gt;
+&lt;/omega-bar&gt;</code></pre>
       </article>
 
     </div>
@@ -600,7 +648,7 @@
 </main>
 
 <script>
-  // Settings › Background › Style: one choice per pattern; picking one puts it behind every example
+  // Settings › Theme › Background: one choice per pattern; picking one puts it behind every example
   // but the Backdrop card's own
   const STYLE_NAMES = {
     grid: 'Grid', plates: 'Plates', dotted: 'Dotted', dither: 'Dither', rivets: 'Rivets', bits: 'Bits',
@@ -624,7 +672,7 @@
     return figure;
   }));
 
-  // Settings › Background › Colour: one choice per backdrop colour, each showing the backdrop and
+  // Settings › Theme › Colour: one choice per backdrop colour, each showing the backdrop and
   // the frame colour it gives; picking one recolours the whole page
   const colours = document.getElementById('colours');
   for (const name of OmegaPalette.COLOURS) {

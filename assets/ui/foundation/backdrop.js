@@ -10,7 +10,7 @@
   before palette.js.
 */
 window.OmegaBackdrop = (() => {
-  // Settings > Background > Style in the device's order, less Wallpaper, a picture of the player's.
+  // Settings > Theme > Background in the device's order, less Wallpaper, a picture of the player's.
   const STYLES = ['grid', 'plates', 'dotted', 'dither', 'rivets', 'bits', 'solid'];
   // A tiled pattern's square in art pixels, one period: 40px.
   const TILE = 20;

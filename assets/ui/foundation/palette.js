@@ -1,6 +1,6 @@
 /*
   The colours the components draw in, made from the backdrop colour the player picks in
-  Settings > Background > Colour, so the menus always sit in the same colour as the shelf behind
+  Settings > Theme > Colour, so the menus always sit in the same colour as the shelf behind
   them. Night, the default, gives plain greys.
 
   The ramp is Mega Man Zero's own menu colours, which are what Amber gives. Any other backdrop

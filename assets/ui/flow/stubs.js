@@ -148,7 +148,7 @@
   const BAR = document.createElement('template');
   BAR.innerHTML = `
     <style>
-      :host { display: block; height: calc(21 * var(--u)); }
+      :host { display: block; height: calc(15 * var(--u)); }
       :host([hidden]) { display: none; }
       .bar { position: relative; display: flex; height: 100%; }
       ::slotted(*) { position: relative; z-index: 1; flex: none; }
@@ -157,7 +157,7 @@
       .plate {
         flex: 1;
         min-width: 0;
-        margin: calc(3 * var(--u)) calc(-7 * var(--u)) 0;
+        margin: calc(2 * var(--u)) calc(-5 * var(--u)) 0;
         background: var(--oz-plate);
         border-top: var(--u) solid var(--oz-edge);
         border-bottom: var(--u) solid var(--oz-frame);
@@ -165,14 +165,14 @@
       }
       :host([floating]) .plate { visibility: hidden; }
       /* the key hint, across the whole bar so it is centred on the screen (an even number of art
-         pixels wide, so the centred word starts on a whole one), its capitals on rows 9 to 15 like
+         pixels wide, so the centred word starts on a whole one), its capitals on rows 5 to 11 like
          the hints in the actions' pills */
       .hint {
         position: absolute;
         z-index: 2;
         left: 0;
         right: 0;
-        top: calc(7 * var(--u));
+        top: calc(3 * var(--u));
         text-align: center;
         font: 400 calc(9 * var(--u)) / calc(10 * var(--u)) var(--oz-font);
         color: var(--oz-cream);

@@ -8,11 +8,12 @@
       from the left, dx = −even((1 − p)·W); going back is the mirror. even() rounds to a whole
       art pixel, 2px.
     Leaving the shelf, its top bar goes up (dy = −p·36), its carts right (dx = +p·(W + the widest
-      cart)) and its slot down behind the bottom bar (dy = +p·122), while the menu comes in from
+      cart)) and its slot down behind the bottom bar (dy = +p·110), while the menu comes in from
       the left. Coming back, the same with q = 1 − p.
     The bottom bar never leaves. When its actions change (shelf and menus), the old ones sink out
       of the screen over p 0 to 0.5 and the new ones rise into place over p 0.5 to 1; between two
-      menus they stay put. Its hint changes with the screen.
+      menus they stay put. Its hint changes with the screen, and its font the moment Theme's FONT
+      does.
 
   Everything is placed with left and top in whole pixels, a frame at a time, from
   requestAnimationFrame: no transforms and no CSS transitions, so nothing ever lands between
@@ -25,12 +26,12 @@
   const FRAME_MS = 1000 / 60;
 
   // The shelf's parts' sizes in pixels (flow.css): its top bar; how far its slot rises from the
-  // screen's bottom, its own 80 and the bottom bar's 42 under it; the widest cart.
+  // screen's bottom, its own 80 and the bottom bar's 30 under it; the widest cart.
   const TOP_H = 36;
-  const SLOT_RISE = 122;
+  const SLOT_RISE = 110;
   const WIDEST = 360;
-  // An action's 21 art pixels and the 6 its notch rises above them: how far it sinks to be gone.
-  const SINK = 27 * 2;
+  // An action's 15 art pixels and the 4 its notch rises above them: how far it sinks to be gone.
+  const SINK = 19 * 2;
 
   const screen = document.getElementById('screen');
   const backdrop = screen.querySelector('.backdrop');
@@ -47,10 +48,10 @@
 
   const NAMES = {
     shelf: 'Shelf', settings: 'Settings', network: 'Network', ssh: 'SSH', keyboard: 'Keyboard',
-    labels: 'Labels', datetime: 'Date & Time', background: 'Background', about: 'About', controls: 'Quickmenu',
+    labels: 'Labels', datetime: 'Date & Time', background: 'Theme', about: 'About', controls: 'Controls',
   };
   // What the bottom bar shows: the shelf's actions, every menu's, and the key hints some menus add.
-  const SHELF_BAR = { left: ['QUICKMENU', 'SELECT'], right: ['SETTINGS', 'START'] };
+  const SHELF_BAR = { left: ['CONTROLS', 'SELECT'], right: ['SETTINGS', 'START'] };
   const MENU_BAR = { left: ['RETURN', 'B'], right: ['CONFIRM', 'A'] };
   const barOf = name => (name === 'shelf' ? SHELF_BAR : MENU_BAR);
   const HINTS = { network: 'Y FORGET', labels: 'START FETCH' };
@@ -231,6 +232,7 @@
   // ---- the URL ----
 
   const SIZES = ['640x480', '720x480', '720x720'];
+  const FONTS = ['bold', 'thin'];
   const clamp01 = v => Math.max(0, Math.min(1, v));
 
   function writeHash() {
@@ -245,6 +247,7 @@
     if (model.colour !== 'night') q.set('colour', model.colour);
     if (model.style !== 'grid') q.set('style', model.style);
     if (!model.moving) q.set('moving', '0');
+    if (model.font !== 'bold') q.set('font', model.font);
     if (bar.hasAttribute('floating')) q.set('bar', 'floating');
     if (!model.wifi) q.set('wifi', 'off');
     if (state.slow) q.set('slow', '1');
@@ -277,6 +280,7 @@
     FlowScreens.set('colour', pick('colour', OmegaPalette.COLOURS, 'night'));
     FlowScreens.set('style', pick('style', OmegaBackdrop.STYLES, 'grid'));
     FlowScreens.set('moving', q.get('moving') !== '0');
+    FlowScreens.set('font', pick('font', FONTS, 'bold'));
     FlowScreens.set('wifi', q.get('wifi') !== 'off');
     bar.toggleAttribute('floating', q.get('bar') === 'floating');
     state.slow = q.get('slow') === '1';
@@ -331,6 +335,9 @@
   }
 
   document.getElementById('moving').addEventListener('change', e => FlowScreens.set('moving', e.target.checked));
+  for (const input of radios('font')) {
+    input.addEventListener('change', () => FlowScreens.set('font', input.value));
+  }
   document.getElementById('wifi').addEventListener('change', e => FlowScreens.set('wifi', e.target.checked));
   for (const input of radios('size')) {
     input.addEventListener('change', () => {
@@ -374,6 +381,7 @@
   function syncControls() {
     for (const input of radios('style')) input.checked = input.value === model.style;
     for (const input of radios('colour')) input.checked = input.value === model.colour;
+    for (const input of radios('font')) input.checked = input.value === model.font;
     for (const input of radios('size')) input.checked = input.value === screen.dataset.size;
     for (const input of radios('bar')) input.checked = (input.value === 'floating') === bar.hasAttribute('floating');
     document.getElementById('moving').checked = model.moving;
@@ -381,11 +389,12 @@
     document.getElementById('slow').checked = state.slow;
   }
 
-  // Settings › Background works the real backdrop and palette, and so does the page.
+  // Settings › Theme works the real backdrop, palette and bar, and so does the page.
   FlowScreens.onChange(key => {
     if (key === 'style' && backdrop.dataset.style !== model.style) backdrop.dataset.style = model.style;
     if (key === 'moving' && backdrop.hasAttribute('data-moving') !== model.moving) backdrop.toggleAttribute('data-moving', model.moving);
     if (key === 'colour' && document.documentElement.dataset.colour !== model.colour) OmegaPalette.apply(model.colour);
+    if (key === 'font') bar.setAttribute('font', model.font);
     syncControls();
     writeHash();
   });

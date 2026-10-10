@@ -7,7 +7,7 @@ use crate::draw::{out_h, out_w};
 use crate::sprite::SPRITE_PX;
 
 /// The bottom bar's height in art pixels; the page the menus sit in ends on its top.
-pub const BAR_U: u32 = 21;
+pub const BAR_U: u32 = super::action::BAR;
 
 /// The modal's margin inside the page: from the top, either side, and above the bar.
 pub const MODAL_MARGIN: [u32; 3] = [14, 16, 5];

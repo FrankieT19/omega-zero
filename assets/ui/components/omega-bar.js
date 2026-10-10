@@ -15,14 +15,19 @@
             hints together are centred on the plate, 8 pixels apart.
   floating  only the two actions, at the bottom corners, with no plate between them (and so no
             hints), for a screen that wants what is behind the bar to show between them.
+  font      the actions' labels, "bold" (or none) or "thin", as Settings > Theme > Font picks:
+            the bar gives it to both its actions.
 
-  Slots: left and right, for the two actions.
+  Slots: left and right, for the two actions. The bar makes them one width: it gives both the
+  room (see action-left.js) of the wider label and the wider hint of the two, again whenever
+  either's text or the font changes, so each label and each hint is centred in a box as wide as
+  the other's. An empty action takes the room of the one beside it.
 
-  It fills its parent's width and is 21 art pixels tall, the actions' height; their notches rise 6
-  above it, over whatever is there. The hints' capitals are on rows 9 to 15, the same rows as the
-  words in the actions' buttons, and each key's cap is 11 rows tall around them: two dark rows above
-  and below its letters, two dark pixels either side. Areas, each a div that ::part() reaches: bar,
-  plate, hints, hint, key, word.
+  It fills its parent's width and is 15 art pixels tall, the actions' height; their notches rise 4
+  above it, over whatever is there. The hints' capitals are on rows 5 to 11, the same rows as the
+  words in the actions' buttons, and each key's cap is 9 rows tall around them: a dark row above
+  and below its letters' capitals, two dark pixels either side. Areas, each a div that ::part()
+  reaches: bar, plate, hints, hint, key, word.
 
   Needs everything in foundation/ on the page (see README.md) and the two actions' components; its
   colours follow palette.js.
@@ -30,21 +35,23 @@
 (() => {
   // Sizes in art pixels: the bar's height, how far down the plate starts, how far it runs on
   // behind each button's rounded end, and how tall a key's cap is.
-  const BAR = 21;
-  const PLATE_TOP = 3;
-  const UNDER = 7;
-  const CAP = 11;
-  // How far into the plate, under its top line, the hints start: the top line is the bar's row 3,
-  // so they start on row 7 and their capitals, two rows down their line, are on rows 9 to 15, the
-  // rows of the words in the actions' buttons.
-  const HINTS_TOP = 3;
+  const BAR = 15;
+  const PLATE_TOP = 2;
+  const UNDER = 5;
+  const KEY_H = 9;
+  // How far into the plate, under its top line, the hints' line starts: the top line is the bar's
+  // row 2, so their line starts on row 3 and their capitals, two rows down it, are on rows 5 to 11,
+  // the rows of the words in the actions' buttons.
+  const HINTS_TOP = 0;
+  // How far down the hint's line its key's cap starts: a row above the capitals.
+  const KEY_TOP = OmegaPixel.ACCENT - (KEY_H - OmegaPixel.CAP) / 2;
   // The gap between a key's cap and its word, and between two hints, in pixels of ink to ink.
   const GAP = 3;
   const BETWEEN = 8;
 
   // A key's cap: its left end, the column that stretches, its right end; dark, with its four
   // corner pixels left out.
-  const KEY = ['.k.', ...Array(CAP - 2).fill('kkk'), '.k.'];
+  const KEY = ['.k.', ...Array(KEY_H - 2).fill('kkk'), '.k.'];
 
   // Pixel Code letters are 6 pixels apart, the last of the 6 blank.
   const ADVANCE = 6;
@@ -86,11 +93,15 @@
       }
       .hint { display: flex; }
       .hint + .hint { margin-left: calc(${BETWEEN - 1} * var(--u)); }
-      /* the key's letters start two dark pixels in, its end column and one more; on the right the
-         letters' own blank pixel and the end column make the same two */
+      /* The key's cap starts a row above the capitals and ends a row below them. Its own line is
+         that row shorter at either end, so its letters stay on the hint's capitals' rows. They
+         start two dark pixels in, its end column and one more; on the right the letters' own blank
+         pixel and the end column make the same two. */
       .key {
         box-sizing: border-box;
-        height: calc(${CAP} * var(--u));
+        height: calc(${KEY_H} * var(--u));
+        margin-top: calc(${KEY_TOP} * var(--u));
+        line-height: calc(${10 - 2 * KEY_TOP} * var(--u));
         padding-left: var(--u);
         border-style: solid;
         border-color: transparent;
@@ -118,15 +129,35 @@
   }
 
   customElements.define('omega-bar', class extends OmegaPixel.Element {
-    static observedAttributes = ['hint'];
+    static observedAttributes = ['hint', 'font'];
 
     constructor() {
       super();
       this.attachShadow({ mode: 'open' }).append(template.content.cloneNode(true));
+      // the actions paired again whenever one comes or goes, or changes its text
+      this.shadowRoot.addEventListener('slotchange', () => this.pair());
+      new MutationObserver(() => this.pair()).observe(this, { subtree: true, attributeFilter: ['label', 'hint'] });
     }
 
     paint() {
       this.shadowRoot.querySelector('.bar').style.setProperty('--cap', OmegaPixel.sprite(KEY, this));
+    }
+
+    // The two actions in the bar's font and one width, as action.rs's action_pair: each given
+    // the room of the wider label's box and the wider hint's box of the two.
+    pair() {
+      const actions = [...this.shadowRoot.querySelectorAll('slot')]
+        .map(slot => slot.assignedElements()[0])
+        .filter(action => action?.boxes);
+      const font = this.getAttribute('font') === 'thin' ? 'thin' : 'bold';
+      for (const action of actions) {
+        if (action.getAttribute('font') !== font) action.setAttribute('font', font);
+      }
+      const boxes = actions.map(action => action.boxes());
+      const room = [0, 1].map(i => Math.max(...boxes.map(box => box[i]))).join(' ');
+      for (const action of actions) {
+        if (action.getAttribute('room') !== room) action.setAttribute('room', room);
+      }
     }
 
     // One key and word per hint, and the width they take, ink to ink, to centre them by.
@@ -157,6 +188,7 @@
 
     attributeChangedCallback(name, _old, value) {
       if (name === 'hint') this.paintHints(value);
+      else this.pair();
     }
   });
 })();

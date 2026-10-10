@@ -15,23 +15,24 @@ use omega_gfx::{Draw, TexId};
 
 use super::action::{ActionFace, Side, BAR, TALL};
 use super::palette::Palette;
-use super::pixel::{blank, fill, ink, letters, nine_slice, quad, text_width, ADVANCE};
+use super::pixel::{blank, fill, ink, letters, nine_slice, quad, text_width, ACCENT, ADVANCE, CAP};
 use crate::plate::UndoFace;
 use crate::sprite::SPRITE_PX;
 
 /// How far down the bar the plate starts, under the actions' top rails, and how far it runs on
 /// behind each button's rounded end.
-pub const PLATE_TOP: u32 = 3;
-pub const UNDER: u32 = 7;
+pub const PLATE_TOP: u32 = 2;
+pub const UNDER: u32 = 5;
 /// The plate's height: down to the bar's bottom line, which is its own last row.
 pub const PLATE_H: u32 = BAR - PLATE_TOP;
 
-/// How tall a key's cap is: two dark rows above and below its letters.
-pub const KEY_H: u32 = 11;
-/// How far into the plate, under its top line, the hints start: the top line is the bar's row
-/// 3, so they start on row 7 and their capitals, two rows down their line, are on rows 9 to 15,
-/// the rows of the words in the actions' buttons.
-const HINTS_TOP: u32 = 3;
+/// How tall a key's cap is: a dark row above and below its letters' capitals.
+pub const KEY_H: u32 = 9;
+/// How far into the plate, under its top line, the hints' line starts: the top line is the bar's
+/// row 2, so their line starts on row 3 and their capitals, two rows down it, are on rows 5 to
+/// 11, the rows of the words in the actions' buttons. Each key's cap starts a row above its
+/// capitals.
+const HINTS_TOP: u32 = 0;
 /// The gap between a key's cap and its word, and between two hints, in pixels of ink to ink.
 const GAP: u32 = 3;
 const BETWEEN: u32 = 8;
@@ -41,8 +42,6 @@ const BETWEEN: u32 = 8;
 #[rustfmt::skip]
 const KEY: [&str; KEY_H as usize] = [
     ".k.",
-    "kkk",
-    "kkk",
     "kkk",
     "kkk",
     "kkk",
@@ -108,7 +107,9 @@ pub fn plate_face(w: u32, hints: &[Hint], pal: &Palette) -> UndoFace {
             x += (BETWEEN - 1) as i32;
         }
         // the key's letters start two dark pixels in: the cap's end column and one more
-        let cap = [x, y, cap_width(hint.key) as i32, KEY_H as i32];
+        // the cap starts a row above the capitals, which are ACCENT rows down the hint's line
+        let cap_y = y + (ACCENT - (KEY_H as usize - CAP) / 2) as i32;
+        let cap = [x, cap_y, cap_width(hint.key) as i32, KEY_H as i32];
         nine_slice(&mut face, &KEY, cap, [0, 1, 0, 1], [0, 1, 0, 1], pal);
         ink(&mut face, &letters(hint.key, ADVANCE), x + 2, y, pal.cream);
         x += cap[2];

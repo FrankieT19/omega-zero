@@ -2,7 +2,7 @@ use crate::common;
 
 use common::tmp_root;
 use omega_store::{
-    atomic_write, read_app_state, write_app_state, AppState, BackdropStyle, Platform,
+    atomic_write, read_app_state, write_app_state, AppState, BackdropStyle, Font, Platform,
     BACKDROP_COLOURS, FF_SPEEDS, FF_SPEED_DEFAULT,
 };
 use tempfile::tempdir;
@@ -201,6 +201,7 @@ fn a_card_from_before_the_settings_keeps_all_its_values() {
             backdrop: None,
             backdrop_moving: true,
             backdrop_colour: 0,
+            font: Font::Bold,
         }
     );
 }
@@ -441,4 +442,47 @@ fn a_background_the_reader_does_not_know_falls_back_to_the_default() {
         (None, true, 0)
     );
     assert_eq!(s.brightness, 3, "a bad background line sank the rest");
+}
+
+#[test]
+fn the_font_round_trips_as_its_own_line() {
+    for font in Font::ALL {
+        let d = tmp_root();
+        let s = AppState {
+            clock_set: true,
+            font,
+            ..AppState::default()
+        };
+        write_app_state(d.path(), &s).unwrap();
+        assert_eq!(read_app_state(d.path()), s, "{font:?} did not come back");
+        let text = std::fs::read_to_string(d.path().join("Config/omega-zero.state")).unwrap();
+        let want = format!("font={}", font.key());
+        assert!(text.lines().any(|l| l == want), "no {want} in {text:?}");
+    }
+    assert_eq!(
+        Font::ALL.map(Font::key),
+        ["bold", "thin"],
+        "the keys a card keeps changed"
+    );
+}
+
+#[test]
+fn a_font_the_reader_does_not_know_or_never_saw_is_bold() {
+    let d = tmp_root();
+    let known =
+        "cart=\nbrightness=3\nblue_light=1\nvolume=40\nmuted=0\nclock_set=1\nutc_offset_min=0\n";
+    for line in ["", "font=\n", "font=Thin\n", "font=light\n", "font=1\n"] {
+        std::fs::write(
+            d.path().join("Config/omega-zero.state"),
+            format!("{known}{line}"),
+        )
+        .unwrap();
+        let s = read_app_state(d.path());
+        assert_eq!(s.font, Font::Bold, "read {line:?} as {:?}", s.font);
+        assert_eq!(
+            s.brightness, 3,
+            "{line:?} took the rest of the card with it"
+        );
+    }
+    assert_eq!(AppState::default().font, Font::Bold);
 }

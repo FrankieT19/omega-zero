@@ -1,4 +1,4 @@
-//! Controls, opened with a SELECT tap on the shelf and titled QUICKMENU: what each button does
+//! Controls, opened with a SELECT tap on the shelf and titled CONTROLS: what each button does
 //! on the shelf and in a game, as `App::apply` and the gestures in omega-input do it.
 //!
 //! It is a lone panel, as flow.html's `#screen=controls`: SHELF and IN GAME side by side, each a
@@ -34,7 +34,7 @@ pub struct ControlsView {
 impl ControlsView {
     pub fn new() -> Self {
         ControlsView {
-            title: "QUICKMENU",
+            title: "CONTROLS",
             groups: vec![
                 ControlsGroup {
                     name: "SHELF",
@@ -43,7 +43,7 @@ impl ControlsView {
                         ("HOLD A", "CLEAN START"),
                         ("X", "CORE (GBA)"),
                         ("START", "SETTINGS"),
-                        ("SELECT", "QUICKMENU"),
+                        ("SELECT", "CONTROLS"),
                         ("◀▶", "BROWSE"),
                         ("▲▼", "LETTER"),
                         ("L1 R1", "SHELF"),
@@ -132,7 +132,7 @@ pub fn line_y(i: usize) -> u32 {
     FIRST_LINE + PITCH * i as u32
 }
 
-/// The QUICKMENU panel as flow.html draws it, in `pal`.
+/// The CONTROLS panel as flow.html draws it, in `pal`.
 pub fn controls_face(view: &ControlsView, pal: &Palette) -> UndoFace {
     let mut panel = panel_face(
         WIDTH,

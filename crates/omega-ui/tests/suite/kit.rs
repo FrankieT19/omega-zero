@@ -14,7 +14,9 @@
 //! Latin-1, so é and × match too. flow.html's ◀ ▶ ▲ ▼, which the cut face has not, are
 //! flow/art.js's sprites, copied from the full face and the same pixels as fontdue's.
 
-use omega_ui::kit::action::{action_face, action_width, Side, BAR, RISE, TALL};
+use omega_ui::kit::action::{
+    action_face, action_pair, action_width, ActionFace, Font, Side, BAR, RISE, TALL,
+};
 use omega_ui::kit::bar::{
     action_swap, bar_layout, cap_width, hint_width, hints_width, plate_face, BarLayout, Hint, Swap,
     PLATE_H, PLATE_TOP, SINK,
@@ -23,7 +25,9 @@ use omega_ui::kit::list_row::{list_row_face, ListRow};
 use omega_ui::kit::modal::{modal_face, modal_layout};
 use omega_ui::kit::palette::Palette;
 use omega_ui::kit::panel::{panel_face, tab_width, title_face, PanelFace, TAB_W};
-use omega_ui::kit::pixel::{big_word, flip, keyed, letters, mirror, quad, ACCENT, ADVANCE, CAP};
+use omega_ui::kit::pixel::{
+    big_word, flip, keyed, letters, mirror, quad, ACCENT, ADVANCE, BAR_ROWS, CAP,
+};
 use omega_ui::kit::row::{panel_height, row_face, row_rect, row_width, Row, ROW_H};
 use omega_ui::kit::text::text_face;
 use omega_ui::{Draw, TexId, UndoFace};
@@ -211,7 +215,7 @@ fn a_tab_grows_to_a_long_title_and_no_narrower() {
 #[test]
 fn actions_are_chromes() {
     let cases = [
-        (Side::Left, "QUICKMENU", "SELECT", "action-left-quickmenu"),
+        (Side::Left, "CONTROLS", "SELECT", "action-left-controls"),
         (Side::Right, "SETTINGS", "START", "action-right-settings"),
         (Side::Left, "RETURN", "B", "action-left-return"),
         (Side::Right, "CONFIRM", "A", "action-right-confirm"),
@@ -219,45 +223,130 @@ fn actions_are_chromes() {
         (Side::Right, "", "", "action-right-empty"),
     ];
     for (side, word, pill, name) in cases {
-        let action = action_face(side, word, pill, &RAMP);
+        let action = action_face(side, word, pill, Font::Bold, &RAMP);
         assert_eq!(action.rise, RISE);
         matches(&action.face, name);
     }
 }
 
+/// A bar's two actions made together in bold, as omega-bar gives them their room: `left` and
+/// `right` as (word, pill).
+fn pair(left: (&str, &str), right: (&str, &str)) -> [ActionFace; 2] {
+    action_pair(left, right, Font::Bold, &RAMP)
+}
+
+/// The same in the thin font.
+fn thin_pair(left: (&str, &str), right: (&str, &str)) -> [ActionFace; 2] {
+    action_pair(left, right, Font::Thin, &RAMP)
+}
+
+/// An action given the room of the one beside it is as wide as that one, its word and its hint
+/// in the middle of their boxes, as action-left.js lays it out with `room`.
 #[test]
-fn actions_are_as_wide_as_their_text() {
-    assert_eq!(action_width("SETTINGS", "START"), 124);
-    assert_eq!(action_width("QUICKMENU", "SELECT"), 131);
-    assert_eq!(action_width("RETURN", "B"), 110);
-    assert_eq!(action_width("CONFIRM", "A"), 117);
-    assert_eq!(action_width("", ""), 107, "room is kept for text to come");
-    let face = action_face(Side::Left, "SETTINGS", "START", &RAMP).face;
-    assert_eq!((face.w, face.h), (124, TALL));
-    assert_eq!(TALL, BAR + RISE);
-    assert_eq!(TALL, 27);
+fn paired_actions_are_chromes() {
+    let [controls, settings] = pair(("CONTROLS", "SELECT"), ("SETTINGS", "START"));
+    matches(&controls.face, "action-left-controls");
+    matches(&settings.face, "action-right-settings-paired");
+    let [back, confirm] = pair(("RETURN", "B"), ("CONFIRM", "A"));
+    matches(&back.face, "action-left-return-paired");
+    matches(&confirm.face, "action-right-confirm");
+}
+
+/// In the thin font each pair is one width too, its words in Pixel Code's own strokes.
+#[test]
+fn thin_actions_are_chromes() {
+    let [controls, settings] = thin_pair(("CONTROLS", "SELECT"), ("SETTINGS", "START"));
+    matches(&controls.face, "action-left-controls-thin");
+    matches(&settings.face, "action-right-settings-thin");
+    let [back, confirm] = thin_pair(("RETURN", "B"), ("CONFIRM", "A"));
+    matches(&back.face, "action-left-return-thin");
+    matches(&confirm.face, "action-right-confirm-thin");
 }
 
 #[test]
-fn a_big_word_is_twice_letters_and_its_shadow() {
-    let word = big_word("SETTINGS");
+fn actions_are_as_wide_as_their_text() {
+    let width = |word, pill| action_width(word, pill, Font::Bold);
+    assert_eq!(width("SETTINGS", "START"), 109);
+    assert_eq!(width("CONTROLS", "SELECT"), 115);
+    assert_eq!(width("RETURN", "B"), 90);
+    assert_eq!(width("CONFIRM", "A"), 97);
+    assert_eq!(width("", ""), 75, "room is kept for text to come");
+    // thin, a pixel a letter narrower
+    assert_eq!(action_width("SETTINGS", "START", Font::Thin), 101);
+    assert_eq!(action_width("", "", Font::Thin), 75);
+    let face = action_face(Side::Left, "SETTINGS", "START", Font::Bold, &RAMP).face;
+    assert_eq!((face.w, face.h), (109, TALL));
+    assert_eq!(TALL, BAR + RISE);
+    assert_eq!(TALL, 19);
+}
+
+/// A bar's two actions are one width, the wider one's: the shelf's as wide as CONTROLS SELECT,
+/// a menu's as CONFIRM A, and the first-boot clock's empty one as CONFIRM A beside it.
+#[test]
+fn a_bars_two_actions_are_one_width() {
+    let widths = |[left, right]: [ActionFace; 2]| {
+        assert_eq!((left.face.h, right.face.h), (TALL, TALL));
+        [left.face.w, right.face.w]
+    };
+    let shelf = pair(("CONTROLS", "SELECT"), ("SETTINGS", "START"));
+    assert_eq!(widths(shelf), [115, 115]);
+    assert_eq!(widths(pair(("RETURN", "B"), ("CONFIRM", "A"))), [97, 97]);
+    assert_eq!(widths(pair(("", ""), ("CONFIRM", "A"))), [97, 97]);
+    assert_eq!(widths(pair(("", ""), ("", ""))), [75, 75]);
+    let shelf = thin_pair(("CONTROLS", "SELECT"), ("SETTINGS", "START"));
+    assert_eq!(widths(shelf), [107, 107]);
+    assert_eq!(
+        widths(thin_pair(("RETURN", "B"), ("CONFIRM", "A"))),
+        [90, 90]
+    );
+    assert_eq!(widths(thin_pair(("", ""), ("CONFIRM", "A"))), [90, 90]);
+}
+
+#[test]
+fn a_big_word_is_the_capitals_with_their_bars_doubled_and_a_shadow() {
+    let word = big_word("SETTINGS", Font::Bold);
     let ink = letters("SETTINGS", ADVANCE + 1);
-    assert_eq!(ink.len(), 11);
-    assert_eq!(word.len(), ink.len() * 2 + 1);
-    assert_eq!(word.len(), 23);
+    assert_eq!(word.len(), CAP + BAR_ROWS.len() + 1);
+    assert_eq!(word.len(), 11);
     assert!(word.iter().all(|row| row.len() == 8 * 7));
-    // the capitals stand on letters' rows 2 to 8, so twice that, shadow one row under
+    // the capitals, letters' rows 2 to 8 with three of them twice, on rows 0 to 9, and the
+    // shadow a row under each
     let inked = |rows: &[String], key: char| -> Vec<usize> {
         (0..rows.len()).filter(|&y| rows[y].contains(key)).collect()
     };
-    assert_eq!(
-        inked(&word, 'L'),
-        (2 * ACCENT..2 * (ACCENT + CAP)).collect::<Vec<_>>()
-    );
-    assert_eq!(
-        inked(&word, 'w'),
-        (2 * ACCENT + 1..=2 * (ACCENT + CAP)).collect::<Vec<_>>()
-    );
+    assert_eq!(inked(&word, 'L'), (0..10).collect::<Vec<_>>());
+    assert_eq!(inked(&word, 'w'), (1..=10).collect::<Vec<_>>());
+    // each row its capitals' row made bold: the letters, and again a pixel to their right
+    let capital = [0, 0, 1, 2, 3, 3, 4, 5, 6, 6];
+    for (y, &cap) in capital.iter().enumerate() {
+        let row = ink[ACCENT + cap].as_bytes();
+        let at = |x: usize| row.get(x) == Some(&b'#');
+        let bold: String = (0..row.len())
+            .map(|x| {
+                if at(x) || (x > 0 && at(x - 1)) {
+                    'L'
+                } else {
+                    '.'
+                }
+            })
+            .collect();
+        assert_eq!(word[y].replace('w', "."), bold, "row {y}");
+    }
+}
+
+#[test]
+fn a_thin_big_word_is_the_capitals_as_they_are() {
+    let word = big_word("SETTINGS", Font::Thin);
+    let ink = letters("SETTINGS", ADVANCE);
+    assert_eq!(word.len(), 11);
+    assert!(word.iter().all(|row| row.len() == 8 * 6));
+    let capital = [0, 0, 1, 2, 3, 3, 4, 5, 6, 6];
+    for (y, &cap) in capital.iter().enumerate() {
+        let row = ink[ACCENT + cap].replace('#', "L");
+        assert_eq!(word[y].replace('w', "."), row, "row {y}");
+    }
+    // the same shadow, a pixel down and right of the ink
+    assert!(word[10].contains('w') && !word[10].contains('L'));
 }
 
 #[test]
@@ -311,12 +400,12 @@ fn keyed_paints_each_key_and_leaves_dots_clear() {
 fn a_face_is_drawn_two_screen_pixels_to_a_texel() {
     let tex = TexId::from_raw(1);
     assert_eq!(
-        quad(tex, 124, 27, 10.0, 20.0),
+        quad(tex, 115, 19, 10.0, 20.0),
         Draw::Tex {
             x: 10.0,
             y: 20.0,
-            w: 248.0,
-            h: 54.0,
+            w: 230.0,
+            h: 38.0,
             tex,
             alpha: 1.0
         }
@@ -436,11 +525,15 @@ fn a_signal_past_three_is_three() {
     assert!(face(&past) == face(&full));
 }
 
-/// The bar `w` art pixels wide as omega-bar draws it with these actions and hints: the plate,
-/// then the actions over it, on a face `TALL` high whose row `RISE` is the bar's top.
+/// The bar `w` art pixels wide as omega-bar draws it with these actions, one width, and hints:
+/// the plate, then the actions over it, on a face `TALL` high whose row `RISE` is the bar's top.
 fn bar(w: u32, left: (&str, &str), right: (&str, &str), hints: &[Hint]) -> UndoFace {
-    let left = action_face(Side::Left, left.0, left.1, &RAMP);
-    let right = action_face(Side::Right, right.0, right.1, &RAMP);
+    bar_in(Font::Bold, w, left, right, hints)
+}
+
+/// The same bar, its actions' words in `font`.
+fn bar_in(font: Font, w: u32, left: (&str, &str), right: (&str, &str), hints: &[Hint]) -> UndoFace {
+    let [left, right] = action_pair(left, right, font, &RAMP);
     let layout = bar_layout(w, &left, &right);
     let mut face = omega_ui::kit::pixel::blank(w, TALL);
     let [x, y, pw, _] = layout.plate;
@@ -458,7 +551,7 @@ fn bar(w: u32, left: (&str, &str), right: (&str, &str), hints: &[Hint]) -> UndoF
 
 #[test]
 fn the_bar_is_chromes_at_640_and_720() {
-    let shelf = (("QUICKMENU", "SELECT"), ("SETTINGS", "START"));
+    let shelf = (("CONTROLS", "SELECT"), ("SETTINGS", "START"));
     let menu = (("RETURN", "B"), ("CONFIRM", "A"));
     let forget = [Hint {
         key: "Y",
@@ -482,30 +575,38 @@ fn the_bar_is_chromes_at_640_and_720() {
         word: "FETCH",
     }];
     matches(&bar(320, menu.0, menu.1, &fetch), "bar-fetch-320");
+    // the first-boot clock's: its empty action as wide as CONFIRM
+    matches(&bar(320, ("", ""), menu.1, &[]), "bar-confirm-320");
+}
+
+#[test]
+fn the_thin_bar_is_chromes() {
+    let thin = |left, right, hints| bar_in(Font::Thin, 320, left, right, hints);
+    let shelf = (("CONTROLS", "SELECT"), ("SETTINGS", "START"));
+    matches(&thin(shelf.0, shelf.1, &[]), "bar-shelf-thin-320");
+    let forget = [Hint {
+        key: "Y",
+        word: "FORGET",
+    }];
+    let menu = (("RETURN", "B"), ("CONFIRM", "A"));
+    matches(&thin(menu.0, menu.1, &forget), "bar-menu-thin-320");
 }
 
 #[test]
 fn the_plate_runs_between_the_actions_and_under_their_ends() {
-    let action = |side, word, pill| action_face(side, word, pill, &RAMP);
-    let (quickmenu, settings) = (
-        action(Side::Left, "QUICKMENU", "SELECT"),
-        action(Side::Right, "SETTINGS", "START"),
-    );
-    let (back, confirm) = (
-        action(Side::Left, "RETURN", "B"),
-        action(Side::Right, "CONFIRM", "A"),
-    );
-    let shelf = bar_layout(320, &quickmenu, &settings);
-    assert_eq!(shelf.plate, [124, PLATE_TOP, 79, PLATE_H]);
-    assert_eq!((shelf.left, shelf.right), ([0, -6], [196, -6]));
+    let [controls, settings] = pair(("CONTROLS", "SELECT"), ("SETTINGS", "START"));
+    let [back, confirm] = pair(("RETURN", "B"), ("CONFIRM", "A"));
+    let shelf = bar_layout(320, &controls, &settings);
+    assert_eq!(shelf.plate, [110, PLATE_TOP, 100, PLATE_H]);
+    assert_eq!((shelf.left, shelf.right), ([0, -4], [205, -4]));
     assert_eq!(
-        bar_layout(360, &quickmenu, &settings).plate,
-        [124, 3, 119, 18]
+        bar_layout(360, &controls, &settings).plate,
+        [110, 2, 140, 13]
     );
     let menu = bar_layout(320, &back, &confirm);
-    assert_eq!(menu.plate, [103, 3, 107, 18]);
-    assert_eq!(menu.right, [203, -6]);
-    assert_eq!(bar_layout(360, &back, &confirm).plate, [103, 3, 147, 18]);
+    assert_eq!(menu.plate, [92, 2, 136, 13]);
+    assert_eq!(menu.right, [223, -4]);
+    assert_eq!(bar_layout(360, &back, &confirm).plate, [92, 2, 176, 13]);
     assert_eq!(PLATE_H + PLATE_TOP, BAR);
 }
 
@@ -527,30 +628,27 @@ fn hints_are_as_wide_as_their_caps_and_words() {
     assert_eq!(hints_width(&[forget, rename]), 47 + 8 + 47);
     assert_eq!(hints_width(&[Hint { key: "Y", word: "" }]), 9);
     assert_eq!(hints_width(&[]), 0);
-    let plate = plate_face(107, &[forget], &RAMP);
-    assert_eq!((plate.w, plate.h), (107, PLATE_H));
+    let plate = plate_face(136, &[forget], &RAMP);
+    assert_eq!((plate.w, plate.h), (136, PLATE_H));
 }
 
 #[test]
 fn the_bar_stands_on_the_screens_bottom_and_its_actions_sink_on_their_own() {
-    let (left, right) = (
-        action_face(Side::Left, "RETURN", "B", &RAMP),
-        action_face(Side::Right, "CONFIRM", "A", &RAMP),
-    );
+    let [left, right] = pair(("RETURN", "B"), ("CONFIRM", "A"));
     let layout = bar_layout(320, &left, &right);
     let tex = TexId::from_raw(3);
-    assert_eq!(BarLayout::top(480), 438.0);
+    assert_eq!(BarLayout::top(480), 450.0);
     assert_eq!(
         layout.plate_quad(tex, 480),
-        quad(tex, 107, 18, 206.0, 444.0)
+        quad(tex, 136, 13, 184.0, 454.0)
     );
     assert_eq!(
         layout.action_quad(Side::Left, tex, &left, 480, 0),
-        quad(tex, 110, TALL, 0.0, 426.0)
+        quad(tex, 97, TALL, 0.0, 442.0)
     );
     assert_eq!(
         layout.action_quad(Side::Right, tex, &right, 720, SINK),
-        quad(tex, 117, TALL, 406.0, 678.0 - 12.0 + 54.0)
+        quad(tex, 97, TALL, 446.0, 690.0 - 8.0 + 38.0)
     );
 }
 
@@ -558,11 +656,11 @@ fn the_bar_stands_on_the_screens_bottom_and_its_actions_sink_on_their_own() {
 fn a_change_of_actions_sinks_the_old_and_raises_the_new() {
     let swap = |new, sink| Swap { new, sink };
     assert_eq!(action_swap(0.0), swap(false, 0));
-    // flow/player.js: even(p / 0.5 * 54) screen pixels, 13.5 art pixels rounding up
-    assert_eq!(action_swap(0.25), swap(false, 14));
-    assert_eq!(action_swap(0.49), swap(false, 26));
+    // flow/player.js: even(p / 0.5 * 38) screen pixels, 9.5 art pixels rounding up
+    assert_eq!(action_swap(0.25), swap(false, 10));
+    assert_eq!(action_swap(0.49), swap(false, 19));
     assert_eq!(action_swap(0.5), swap(true, SINK));
-    assert_eq!(action_swap(0.75), swap(true, 14));
+    assert_eq!(action_swap(0.75), swap(true, 10));
     assert_eq!(action_swap(1.0), swap(true, 0));
     assert_eq!(action_swap(2.0), swap(true, 0));
     assert_eq!(SINK, TALL, "sunk that far an action is out of sight");
@@ -587,11 +685,11 @@ fn lines_of_text_are_chromes() {
     }
 }
 
-/// flow.html draws the Quickmenu's ◀ ▶ ▲ ▼ as sprites copied from the full Pixel Code, which
-/// the web font it is set in has no letter for; the face the crate embeds has them, pixel for
-/// pixel the same.
+/// flow.html draws the Controls panel's ◀ ▶ ▲ ▼ as sprites copied from the full Pixel Code,
+/// which the web font it is set in has no letter for; the face the crate embeds has them, pixel
+/// for pixel the same.
 #[test]
-fn the_quickmenus_arrows_are_pixel_codes_own_as_flow_copies_them() {
+fn the_controls_panels_arrows_are_pixel_codes_own_as_flow_copies_them() {
     matches(
         &text_face("SELECT+▲▼", RAMP.frame_hi),
         "text-select-up-down",
@@ -660,17 +758,17 @@ fn labels_is_flows() {
     matches(&panel.face, "flow-labels");
 }
 
-/// The Quickmenu's two columns: a heading, then each button and what it does, a line and a
+/// The Controls panel's two columns: a heading, then each button and what it does, a line and a
 /// pixel apart; each column's buttons as many letters wide as `keys`, and 16 pixels between
 /// the two columns.
 #[test]
-fn the_quickmenu_is_flows() {
+fn the_controls_panel_is_flows() {
     let shelf: [(&str, &str); 8] = [
         ("A", "PLAY"),
         ("HOLD A", "CLEAN START"),
         ("X", "CORE"),
         ("START", "SETTINGS"),
-        ("SELECT", "QUICKMENU"),
+        ("SELECT", "CONTROLS"),
         ("◀▶", "BROWSE"),
         ("▲▼", "LETTER"),
         ("L1 R1", "SHELF"),
@@ -690,7 +788,7 @@ fn the_quickmenu_is_flows() {
     ];
     // the heading's line and 2 below it, a pixel, then the lines; and a pixel under them all
     let content = 10 + 2 + 1 + 11 * 11 - 1 + 1;
-    let mut panel = panel_face(304, panel_height(content), "QUICKMENU", true, &RAMP);
+    let mut panel = panel_face(304, panel_height(content), "CONTROLS", true, &RAMP);
     let [wx, wy, ww, _] = panel.well;
     assert_eq!(ww, 108 + 16 + 168, "the widest line sets the panel's width");
     /// A button and what it does.
