@@ -122,10 +122,16 @@ impl SettingsRow {
         )
     }
 
-    /// The row's value stands between a ◀ and a ▶ while it is lit, as flow.html has it for
-    /// Fast Forward: its speeds step up and down, where an ON or an OFF only flips.
+    /// The row's value stands between a ◀ and a ▶ while it is lit: every row Left and Right
+    /// change, Fast Forward's speeds and the ON/OFF switches alike, as on the Network screen.
     pub fn carets(self) -> bool {
-        self == SettingsRow::FastForward
+        matches!(
+            self,
+            SettingsRow::FastForward
+                | SettingsRow::FastForwardSound
+                | SettingsRow::ColourCorrection
+                | SettingsRow::Rumble
+        )
     }
 
     /// The row above this one among `rows`, the rows a handheld shows, wrapping at the top.

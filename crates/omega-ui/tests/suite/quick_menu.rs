@@ -286,12 +286,20 @@ fn the_lit_row_is_a_band_and_the_others_are_clear_round_their_words() {
 }
 
 #[test]
-fn only_fast_forward_steps_between_arrows_and_the_rows_that_open_end_in_one() {
+fn the_rows_left_and_right_change_step_between_arrows_and_the_rows_that_open_end_in_one() {
     let carets: Vec<SettingsRow> = SettingsRow::ALL
         .into_iter()
         .filter(|r| r.carets())
         .collect();
-    assert_eq!(carets, [SettingsRow::FastForward]);
+    assert_eq!(
+        carets,
+        [
+            SettingsRow::FastForward,
+            SettingsRow::FastForwardSound,
+            SettingsRow::ColourCorrection,
+            SettingsRow::Rumble
+        ]
+    );
     let pal = palette(NIGHT);
     let w = settings_row_width(268);
     let face = |row, lit| {
