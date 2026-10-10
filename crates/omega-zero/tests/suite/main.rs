@@ -6,6 +6,7 @@
 #[path = "../common/mod.rs"]
 mod common;
 
+mod about;
 mod app;
 mod audio;
 mod background_screen;
