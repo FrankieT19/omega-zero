@@ -9,6 +9,7 @@ use crate::footer::Printed;
 use crate::icon::icon_box;
 use crate::plate::HINT_H;
 use crate::shelf::foot_y;
+use crate::spin::{self, Pose};
 
 /// The alert shown on a refused cart as it comes back out, sized to the cart, which now
 /// keeps its shelf size in the slot.
@@ -115,6 +116,9 @@ pub struct SlotChrome<'a> {
     pub face: Option<TexId>,
     pub rest: f32,
     pub scale: f32,
+    /// How the cart was held on the shelf: it comes level and square by the time it reaches
+    /// the lip, and goes back to this as it comes out.
+    pub pose: Pose,
     pub seat: f32,
     pub alert: Option<(TexId, f32)>,
     pub dim: f32,
@@ -155,17 +159,14 @@ impl SlotChrome<'_> {
         let (cw, ch) = (cw * grown, ch * grown);
         let centre = self.rest + w0 / 2.0;
         let x = centre + (cx() - centre) * k - cw / 2.0;
-        let y = foot0 + (seated_foot - foot0) * travel - ch;
+        let pose = self.pose.toward_rest(k);
+        let y = foot0 + (seated_foot - foot0) * travel - ch - pose.lift;
         let cart_alpha = if seat >= 1.0 { chrome } else { 1.0 };
+        if let Some(tex) = self.face {
+            spin::push_cart_side(out, (x, y, cw, ch), tex, 0.0, pose.yaw, 1.0, cart_alpha);
+        }
         out.push(match self.face {
-            Some(tex) => Draw::Tex {
-                x,
-                y,
-                w: cw,
-                h: ch,
-                tex,
-                alpha: cart_alpha,
-            },
+            Some(tex) => spin::posed_face((x, y, cw, ch), tex, cart_alpha, 0.0, pose.yaw),
             None => {
                 let c = label_colour(&label_text(self.cart));
                 Draw::Rect {

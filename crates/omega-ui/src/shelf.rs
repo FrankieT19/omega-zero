@@ -1,10 +1,11 @@
-use omega_gfx::{out_w, Draw, TexId};
+use omega_gfx::{out_w, Draw, TexId, FOCAL};
 use omega_store::Cart;
 
 use crate::cart::{cart_box, gb_shell_of, label_colour, label_text, CART_H, CART_W};
 use crate::hud::Millis;
 use crate::silhouette::GbShell;
-use crate::slot_chrome::{draw_empty_slot, MOUTH_H};
+use crate::slot_chrome::{draw_empty_slot, ease, MOUTH_H};
+use crate::spin::{self, Pose};
 use crate::stage::{stage_y, MOCKUP_H};
 use crate::status_bar::TOP_BAR_H;
 
@@ -26,10 +27,39 @@ pub fn rest_y(h: f32) -> f32 {
 pub fn foot_y(h: f32) -> f32 {
     rest_y(h) + h
 }
+
+/// How far above where it stands a cart `w` by `h` can reach as it sways: it floats up, and
+/// the side that turns towards the eye grows.
+pub fn sway_reach(w: f32, h: f32) -> f32 {
+    let grown = FOCAL / (FOCAL - w / 2.0 * SWAY.sin());
+    BOB + h / 2.0 * (grown - 1.0)
+}
 const OMEGA: f32 = 16.0;
 const PART: f32 = 130.0;
 
 const SLOTS: i32 = 3;
+
+/// The selected cart sways this far either way about its upright axis, in radians, once the
+/// shelf stands still...
+const SWAY: f32 = 10.0 * std::f32::consts::PI / 180.0;
+const SWAY_S: f32 = 3.6;
+/// ...and floats this many canvas pixels up and down, out of step with the sway so the two
+/// never fall into one mechanical beat.
+const BOB: f32 = 4.0;
+const BOB_S: f32 = 2.4;
+/// Both periods divide this, so the clock that drives them wraps here without a jump.
+const LOOP_S: f32 = 7.2;
+/// How fast the sway comes in once the shelf stops, and goes once it moves, per second.
+const CALM_IN: f32 = 1.6;
+const CALM_OUT: f32 = 8.0;
+/// Carts lean into a scroll this many radians per cart a second, up to LEAN_MAX, and stand
+/// straight once the scroll is slower than LEAN_FROM carts a second.
+const LEAN: f32 = 0.045;
+const LEAN_MAX: f32 = 0.35;
+const LEAN_FROM: f32 = 0.05;
+/// A turn or a lift smaller than these cannot be seen, so the cart is drawn square and level.
+const STILL_YAW: f32 = 0.002;
+const STILL_LIFT: f32 = 0.05;
 
 const REPEAT_DELAY_MS: Millis = 400;
 const REPEAT_MS: [Millis; 4] = [110, 85, 65, 50];
@@ -46,6 +76,9 @@ pub struct Shelf {
     ride: f32,
     vel: f32,
     held: Option<(i32, Millis, usize)>,
+    calm: f32,
+    age: f32,
+    still: bool,
 }
 
 impl Shelf {
@@ -62,6 +95,9 @@ impl Shelf {
             ride: 0.0,
             vel: 0.0,
             held: None,
+            calm: 0.0,
+            age: 0.0,
+            still: false,
         }
     }
 
@@ -247,10 +283,51 @@ impl Shelf {
         (out_w() as f32 / 2.0 + offset * w - w * scale / 2.0, scale)
     }
 
+    /// How the selected cart is held right now, wherever it is in the row.
+    pub fn pose(&self) -> Pose {
+        self.pose_at(self.scroll_target() - self.scroll)
+    }
+
+    /// How a cart `offset` places from the middle of the row is held: the one in the middle
+    /// sways and floats while the shelf stands still, and every cart leans into a scroll.
+    fn pose_at(&self, offset: f32) -> Pose {
+        let calm = ease(self.calm) * (1.0 - offset.abs().min(1.0));
+        let lean = match self.vel.abs() < LEAN_FROM {
+            true => 0.0,
+            false => (-self.vel * LEAN).clamp(-LEAN_MAX, LEAN_MAX),
+        };
+        let wave = |period: f32| (self.age * std::f32::consts::TAU / period).sin();
+        let seen = |v: f32, least: f32| if v.abs() < least { 0.0 } else { v };
+        Pose {
+            yaw: seen(SWAY * calm * wave(SWAY_S) + lean, STILL_YAW),
+            lift: seen(BOB * calm * wave(BOB_S), STILL_LIFT),
+        }
+    }
+
     pub fn update(&mut self, dt: f32) {
+        self.calm_down(dt);
         let accel = -2.0 * OMEGA * self.vel - OMEGA * OMEGA * (self.scroll - self.scroll_target());
         self.vel += accel * dt;
         self.scroll += self.vel * dt;
+    }
+
+    /// Keeps the selected cart from swaying while something else has it, such as the core
+    /// picker: it settles square and level, and starts again once let go.
+    pub fn hold_still(&mut self, still: bool) {
+        self.still = still;
+    }
+
+    fn calm_down(&mut self, dt: f32) {
+        let moving = (self.scroll - self.scroll_target()).abs() > 0.01 || self.vel.abs() > 0.2;
+        if moving || self.still {
+            self.calm = (self.calm - CALM_OUT * dt).max(0.0);
+        } else {
+            if self.calm == 0.0 {
+                self.age = 0.0;
+            }
+            self.calm = (self.calm + CALM_IN * dt).min(1.0);
+        }
+        self.age = (self.age + dt).rem_euclid(LOOP_S);
     }
 
     pub fn draw(&self, shake: f32, out: &mut Vec<Draw>) {
@@ -290,6 +367,24 @@ impl Shelf {
             }
             let x = x + shake;
             let y = foot_y(ch as f32) - h;
+            let face = self.faces.get(i).copied();
+            // A cart still waiting for its face stands still: only a face can turn.
+            let pose = match face {
+                Some(_) => self.pose_at(offset).toward_rest(recede),
+                None => Pose::REST,
+            };
+            let y = y - pose.lift;
+            if let Some(tex) = face {
+                spin::push_cart_side(
+                    out,
+                    (x, y, w, h),
+                    tex,
+                    0.0,
+                    pose.yaw,
+                    alpha * dim,
+                    recede_alpha(alpha),
+                );
+            }
             if alpha < 1.0 {
                 let backing = match self.shells.get(i).copied().flatten() {
                     None => self.shadow,
@@ -297,25 +392,17 @@ impl Shelf {
                     Some(GbShell::Rounded) => self.gbc_shadow,
                 };
                 if let Some(tex) = backing {
-                    out.push(Draw::Tex {
-                        x,
-                        y,
-                        w,
-                        h,
+                    out.push(spin::posed_face(
+                        (x, y, w, h),
                         tex,
-                        alpha: recede_alpha(alpha),
-                    });
+                        recede_alpha(alpha),
+                        0.0,
+                        pose.yaw,
+                    ));
                 }
             }
-            out.push(match self.faces.get(i) {
-                Some(tex) => Draw::Tex {
-                    x,
-                    y,
-                    w,
-                    h,
-                    tex: *tex,
-                    alpha: alpha * dim,
-                },
+            out.push(match face {
+                Some(tex) => spin::posed_face((x, y, w, h), tex, alpha * dim, 0.0, pose.yaw),
                 None => {
                     let c = label_colour(&label_text(cart));
                     Draw::Rect {

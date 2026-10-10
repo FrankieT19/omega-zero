@@ -53,6 +53,15 @@ fn quads(out: &[Draw]) -> Vec<Quad> {
             Draw::Turned {
                 x, y, w, h, alpha, ..
             } => Quad { x, y, w, h, alpha },
+            Draw::Spun {
+                x, y, w, h, colour, ..
+            } => Quad {
+                x,
+                y,
+                w,
+                h,
+                alpha: colour[3],
+            },
             Draw::Game | Draw::Shot { .. } => Quad {
                 x: 0.0,
                 y: 0.0,

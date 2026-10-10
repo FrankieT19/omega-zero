@@ -47,6 +47,9 @@ The first release, for the RG35XX SP and the other H700 handhelds BaseOS runs on
 - The slot below the shelf is bigger: a cart slides into it at full size instead of shrinking.
 - The quick menu scrolls when its rows outgrow the screen.
 - On the shelf START opens the quick menu and X the core picker; MENU opens nothing there.
+- The carts on the shelf are solid. The one you are on floats and sways ten degrees either way,
+  showing its edge, and every cart leans into a scroll. It squares up as it slides into the
+  slot or opens for the core picker.
 - The boot logo is the OMEGA ZERO title in pixel art, edged in white, over the shelf's grid.
   Its source is `assets/logo/omega-zero-logo.html`; `task bootlogos` renders it for every
   panel, and `STYLE=smooth` renders the drawn-straight version instead.

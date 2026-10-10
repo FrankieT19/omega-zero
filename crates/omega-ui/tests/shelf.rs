@@ -28,6 +28,7 @@ fn placed(s: &Shelf) -> Vec<(f32, f32)> {
             Draw::Rect { x, w, .. } => (x, w),
             Draw::Tex { x, w, .. } => (x, w),
             Draw::Turned { x, w, .. } => (x, w),
+            Draw::Spun { x, w, .. } => (x, w),
             Draw::Game | Draw::Shot { .. } => (0.0, out_w() as f32),
         })
         .collect()
@@ -35,7 +36,10 @@ fn placed(s: &Shelf) -> Vec<(f32, f32)> {
 
 fn xw(d: &Draw) -> (f32, f32) {
     match *d {
-        Draw::Rect { x, w, .. } | Draw::Tex { x, w, .. } | Draw::Turned { x, w, .. } => (x, w),
+        Draw::Rect { x, w, .. }
+        | Draw::Tex { x, w, .. }
+        | Draw::Turned { x, w, .. }
+        | Draw::Spun { x, w, .. } => (x, w),
         Draw::Game | Draw::Shot { .. } => (0.0, out_w() as f32),
     }
 }
@@ -534,6 +538,9 @@ fn cart_spans(out: &[Draw]) -> Vec<(f32, f32)> {
             Draw::Rect { x, y, w, h, .. }
             | Draw::Tex { x, y, w, h, .. }
             | Draw::Turned { x, y, w, h, .. } => (h > 60.0 && y < bar).then_some((x, x + w)),
+            Draw::Spun {
+                x, y, w, h, depth, ..
+            } => (depth == 0.0 && h > 60.0 && y < bar).then_some((x, x + w)),
             Draw::Game | Draw::Shot { .. } => None,
         })
         .filter(|(x0, x1)| *x1 > 0.0 && *x0 < out_w() as f32)
@@ -635,15 +642,22 @@ fn the_row_draws_a_game_boy_pak_at_its_own_height() {
     let (h, y) = out
         .iter()
         .find_map(|d| match *d {
-            Draw::Tex { y, w, h, .. } if (w - GB_CART_W as f32).abs() < 0.01 => Some((h, y)),
+            Draw::Tex { y, w, h, .. }
+            | Draw::Spun {
+                y,
+                w,
+                h,
+                depth: 0.0,
+                ..
+            } if (w - GB_CART_W as f32).abs() < 0.01 => Some((h, y)),
             _ => None,
         })
         .expect("no cart is drawn at full size");
     assert_eq!(h, GB_CART_H as f32, "the pak was drawn at the GBA height");
     assert_eq!(
         y,
-        rest_y(GB_CART_H as f32),
-        "the pak is not centred on the carousel"
+        rest_y(GB_CART_H as f32) - s.pose().lift,
+        "the pak is not centred on the carousel, give or take the float"
     );
 }
 

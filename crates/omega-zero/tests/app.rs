@@ -585,12 +585,17 @@ fn a_cart_in_flight_is_not_also_left_standing_on_the_shelf() {
     let carts = out
         .iter()
         .filter(|d| match **d {
-            Draw::Rect { w, h, .. } | Draw::Tex { w, h, .. } | Draw::Turned { w, h, .. } => {
+            Draw::Rect { w, h, .. }
+            | Draw::Tex { w, h, .. }
+            | Draw::Turned { w, h, .. }
+            | Draw::Spun {
+                w, h, depth: 0.0, ..
+            } => {
                 w > 200.0
                     && w <= CART_W as f32 + 0.01
                     && (w / h - CART_W as f32 / CART_H as f32).abs() < 0.05
             }
-            Draw::Game | Draw::Shot { .. } => false,
+            Draw::Spun { .. } | Draw::Game | Draw::Shot { .. } => false,
         })
         .count();
     assert_eq!(
@@ -1125,10 +1130,20 @@ fn frame(app: &App) -> Vec<Draw> {
     out
 }
 
+/// A face drawn flat, or spun as a swaying cart is: the face itself, not the slices behind it.
 fn tex_at(out: &[Draw], want: TexId) -> Option<(usize, [f32; 4])> {
     out.iter().enumerate().find_map(|(i, d)| match *d {
         Draw::Tex {
             x, y, w, h, tex, ..
+        }
+        | Draw::Spun {
+            x,
+            y,
+            w,
+            h,
+            tex,
+            depth: 0.0,
+            ..
         } if tex == want => Some((i, [x, y, w, h])),
         _ => None,
     })
@@ -1140,6 +1155,15 @@ fn tex_all(out: &[Draw], want: TexId) -> Vec<(usize, [f32; 4])> {
         .filter_map(|(i, d)| match *d {
             Draw::Tex {
                 x, y, w, h, tex, ..
+            }
+            | Draw::Spun {
+                x,
+                y,
+                w,
+                h,
+                tex,
+                depth: 0.0,
+                ..
             } if tex == want => Some((i, [x, y, w, h])),
             _ => None,
         })
@@ -1646,6 +1670,7 @@ fn closing_puts_the_cart_back_on_the_shelf() {
         .iter()
         .filter(|d| {
             matches!(**d, Draw::Rect { w, .. } | Draw::Tex { w, .. }
+                | Draw::Spun { w, depth: 0.0, .. }
                 if (w - CART_W as f32).abs() < 0.01)
         })
         .count();

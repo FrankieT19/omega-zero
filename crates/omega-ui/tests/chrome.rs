@@ -1,8 +1,8 @@
 use omega_store::{Cart, Platform};
 use omega_ui::{
     cart_box, draw_empty_slot, edge, foot_y, housing, icon_box, opening, out_h, out_w, recess,
-    Draw, Shelf, SlotChrome, TexId, ALERT_PX, CART_H, CART_W, GB_LABEL_H, GB_LABEL_Y, LABEL_H,
-    LABEL_Y, MOUTH_H,
+    Draw, Pose, Shelf, SlotChrome, TexId, ALERT_PX, CART_H, CART_W, GB_LABEL_H, GB_LABEL_Y,
+    LABEL_H, LABEL_Y, MOUTH_H,
 };
 
 fn centre_x() -> f32 {
@@ -60,7 +60,8 @@ fn quad(d: &Draw) -> Quad {
     match *d {
         Draw::Rect { x, y, w, h, .. }
         | Draw::Tex { x, y, w, h, .. }
-        | Draw::Turned { x, y, w, h, .. } => Quad { x, y, w, h },
+        | Draw::Turned { x, y, w, h, .. }
+        | Draw::Spun { x, y, w, h, .. } => Quad { x, y, w, h },
         Draw::Game | Draw::Shot { .. } => Quad {
             x: 0.0,
             y: 0.0,
@@ -109,7 +110,7 @@ fn as_lip(d: &Draw) -> Option<Quad> {
 
 fn alpha(d: &Draw) -> f32 {
     match *d {
-        Draw::Rect { colour, .. } => colour[3],
+        Draw::Rect { colour, .. } | Draw::Spun { colour, .. } => colour[3],
         Draw::Tex { alpha, .. } | Draw::Turned { alpha, .. } => alpha,
         Draw::Game | Draw::Shot { .. } => 1.0,
     }
@@ -142,6 +143,7 @@ fn chrome_into(c: &Cart, seat: f32, out: &mut Vec<Draw>) {
         face: None,
         rest: centred(c),
         scale: 1.0,
+        pose: Pose::REST,
         seat,
         alert: None,
         dim: 0.5,
@@ -171,6 +173,7 @@ fn a_cart_the_row_had_not_finished_moving_slides_across_as_it_goes_in() {
             face: Some(face),
             rest,
             scale,
+            pose: Pose::REST,
             seat,
             alert: None,
             dim: 0.0,
@@ -227,6 +230,7 @@ fn draw_powering_on(t: f32, out: &mut Vec<Draw>) {
         face: None,
         rest: centre_x(),
         scale: 1.0,
+        pose: Pose::REST,
         seat: 1.0,
         alert: None,
         dim: 0.0,
@@ -646,6 +650,7 @@ fn the_empty_slot_is_the_same_slot_the_chrome_draws() {
         face: None,
         rest: centre_x(),
         scale: 1.0,
+        pose: Pose::REST,
         seat: 1.0,
         alert: None,
         dim: 0.0,
@@ -862,4 +867,53 @@ fn the_cart_catches_on_the_top_edge_of_the_slot() {
             "{name} hesitates at {at} but the slot's top edge is {lip}"
         );
     }
+}
+
+#[test]
+fn a_swaying_cart_squares_up_on_its_way_to_the_lip_and_back() {
+    let c = cart();
+    let face = TexId::from_raw(3);
+    let pose = Pose {
+        yaw: 0.17,
+        lift: 3.0,
+    };
+    let at = |seat: f32| {
+        let mut out = Vec::new();
+        SlotChrome {
+            cart: &c,
+            face: Some(face),
+            rest: centred(&c),
+            scale: 1.0,
+            pose,
+            seat,
+            alert: None,
+            dim: 0.0,
+            screen: 0.0,
+            game: false,
+        }
+        .draw(&mut out);
+        out
+    };
+    let (yaw, y) = at(0.0)
+        .iter()
+        .find_map(|d| match *d {
+            Draw::Spun {
+                tex,
+                yaw,
+                y,
+                depth: 0.0,
+                ..
+            } if tex == face => Some((yaw, y)),
+            _ => None,
+        })
+        .expect("the cart left the row square, not turned the way the row had it");
+    assert_eq!(yaw, pose.yaw, "the cart left the row turned another way");
+    assert!(
+        (y + CART_H as f32 - (foot_y(CART_H as f32) - pose.lift)).abs() < 0.01,
+        "the cart left the row at {y}, not floating where the row had it"
+    );
+    assert!(
+        !at(1.0).iter().any(|d| matches!(d, Draw::Spun { .. })),
+        "the cart went into the slot still turned"
+    );
 }

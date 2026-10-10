@@ -90,9 +90,17 @@ fn bare_edges(px: &[u8]) -> (usize, usize) {
 }
 
 fn held_scroll(c: &mut Compositor, n: usize, frames: usize) -> Vec<Vec<u8>> {
+    row_frames(c, n, frames, true)
+}
+
+/// `frames` frames of a row of `n` carts from the last one, with the right shoulder held from
+/// the first frame if `held`.
+fn row_frames(c: &mut Compositor, n: usize, frames: usize, held: bool) -> Vec<Vec<u8>> {
     let (mut s, _) = uploaded(n, c);
     s.select(n - 1);
-    s.hold_right(0);
+    if held {
+        s.hold_right(0);
+    }
     (0..frames)
         .map(|f| {
             s.tick(f as u64 * 1000 / 60);
@@ -138,6 +146,7 @@ fn a_shelf_of_one_does_not_move_when_a_shoulder_is_held() {
         return;
     };
     let frames = held_scroll(&mut c, 1, 120);
+    let alone = row_frames(&mut c, 1, 120, false);
     shot(&frames[0], "row-1-first");
     shot(&frames[119], "row-1-last");
     let want = bare_edges(&frames[0]);
@@ -149,12 +158,13 @@ fn a_shelf_of_one_does_not_move_when_a_shoulder_is_held() {
         ),
         "the lone cart is not standing centred at its own width even before the press"
     );
-    for (f, px) in frames.iter().enumerate() {
-        assert_eq!(
+    for (f, (px, still)) in frames.iter().zip(&alone).enumerate() {
+        assert!(
+            px == still,
+            "frame {f}: holding the shoulder moved the lone cart to {:?}, where left alone it \
+             stands at {:?}",
             bare_edges(px),
-            want,
-            "frame {f}: the lone cart moved to {:?}",
-            bare_edges(px)
+            bare_edges(still)
         );
     }
 }
@@ -183,6 +193,7 @@ fn the_slot_takes_over_the_cart_where_the_row_had_it() {
         face: Some(faces[s.index]),
         rest,
         scale,
+        pose: s.pose(),
         seat: 0.0,
         alert: None,
         dim: 0.0,

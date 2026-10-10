@@ -21,6 +21,7 @@ mod shelf;
 mod shell;
 mod silhouette;
 mod slot_chrome;
+mod spin;
 mod sprite;
 mod stage;
 mod status_bar;
@@ -83,7 +84,7 @@ pub use quick_menu::{
     QUICK_EDGE, QUICK_PITCH,
 };
 pub use refusal::Refusal;
-pub use shelf::{foot_y, rest_y, Shelf};
+pub use shelf::{foot_y, rest_y, sway_reach, Shelf};
 pub use shell::{
     gb_table_shells, gba_shell_for, lookup_order_is_exact_then_family_then_default, shell_for,
     shell_presets, table_keys, Finish, Shell, DEFAULT_SHELL, DMG_SHELL, DUAL_MODE_SHELL,
@@ -94,6 +95,7 @@ pub use slot_chrome::{
     draw_empty_slot, draw_slot_name, ease, edge, housing, opening, recess, set_theme, SlotChrome,
     ALERT_PX, LIP_H, MOUTH_H, MOUTH_W,
 };
+pub use spin::{posed_face, push_cart_side, Pose, OUTLINE_INSET, THICK};
 pub use sprite::{CELL_PX, SPRITE_PX};
 pub use stage::{stage_x, stage_y, MOCKUP_H, MOCKUP_W};
 pub use status_bar::{link_face, Link, LinkFaces, Links, TopBar, LINK_OFF, LINK_ON, TOP_BAR_H};

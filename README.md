@@ -31,7 +31,8 @@ is the most useful thing you can send.
 
 ## Highlights
 
-- A shelf of carts in their own plastics with real label scans, sliding into the slot at full size.
+- A shelf of solid carts in their own plastics with real label scans. The one you are on floats
+  and sways, and slides into the slot at full size.
 - Two GBA cores, mGBA and gpSP, chosen per cart. GBA fills a 640x480 screen; Game Boy stays at 3x.
 - Resume on boot, save states with a switcher, rewind, fast-forward, turbo buttons.
 - Link play between two handhelds over Wi-Fi, for Pokémon trades, Advance Wars, Mario Kart and Tetris.

@@ -6,6 +6,17 @@ use crate::surface::GfxError;
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct TexId(usize);
 
+/// How far in front of the canvas the eye stands when it looks at a `Draw::Spun` face, in
+/// canvas pixels: the nearer it stands, the more the side of a face that turns towards it grows.
+pub const FOCAL: f32 = 1100.0;
+
+/// Where the point `dx` across from the upright middle of a `Draw::Spun` face lands, measured
+/// across the canvas from that middle, once the face is spun `yaw` and slid back `depth`.
+pub fn spun_x(dx: f32, yaw: f32, depth: f32) -> f32 {
+    let (sin, cos) = yaw.sin_cos();
+    (dx * cos - depth * sin) * FOCAL / (FOCAL + dx * sin)
+}
+
 #[cfg(feature = "test-support")]
 impl TexId {
     pub const fn from_raw(id: usize) -> Self {
@@ -39,6 +50,22 @@ pub enum Draw {
         alpha: f32,
         turn: f32,
     },
+    /// `tex` turned `turn` radians in the canvas like `Turned`, then spun `yaw` radians about
+    /// its upright middle and seen in perspective. `depth` slides it that many canvas pixels
+    /// straight back, unshrunk, the way a slice through something thick would sit behind its
+    /// face. Only what falls inside `clip`, a canvas rect, is drawn.
+    Spun {
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        tex: TexId,
+        colour: [f32; 4],
+        turn: f32,
+        yaw: f32,
+        depth: f32,
+        clip: Option<[f32; 4]>,
+    },
     Game,
     Shot {
         tex: TexId,
@@ -52,6 +79,7 @@ pub struct Sprites {
     u_rect: gl::types::GLint,
     u_colour: gl::types::GLint,
     u_turn: gl::types::GLint,
+    u_spin: gl::types::GLint,
 }
 
 impl Sprites {
@@ -65,7 +93,7 @@ impl Sprites {
             gl::RGBA,
             Some(&[255u8; 4]),
         );
-        let (u_rect, u_colour, u_turn);
+        let (u_rect, u_colour, u_turn, u_spin);
         unsafe {
             gl::UseProgram(prog);
             gl::Uniform1i(crate::gl::uniform_location(prog, "u_tex"), 0);
@@ -77,6 +105,8 @@ impl Sprites {
             u_rect = crate::gl::uniform_location(prog, "u_rect");
             u_colour = crate::gl::uniform_location(prog, "u_colour");
             u_turn = crate::gl::uniform_location(prog, "u_turn");
+            u_spin = crate::gl::uniform_location(prog, "u_spin");
+            gl::Uniform1f(crate::gl::uniform_location(prog, "u_focal"), FOCAL);
         }
         Ok(Sprites {
             prog,
@@ -85,6 +115,7 @@ impl Sprites {
             u_rect,
             u_colour,
             u_turn,
+            u_spin,
         })
     }
 
@@ -137,9 +168,29 @@ impl Sprites {
             gl::UseProgram(self.prog);
             gl::ActiveTexture(gl::TEXTURE0);
         }
+        let mut clipped = false;
         for item in items {
+            let (mut yaw, mut depth, mut clip) = (0.0, 0.0, None);
             let (x, y, w, h, tex, colour, turn) = match *item {
                 Draw::Rect { x, y, w, h, colour } => (x, y, w, h, self.white, colour, 0.0),
+                Draw::Spun {
+                    x,
+                    y,
+                    w,
+                    h,
+                    tex,
+                    colour,
+                    turn,
+                    yaw: spun,
+                    depth: back,
+                    clip: within,
+                } => match self.textures.get(tex.0) {
+                    Some(t) => {
+                        (yaw, depth, clip) = (spun, back, within);
+                        (x, y, w, h, *t, colour, turn)
+                    }
+                    None => continue,
+                },
                 Draw::Tex {
                     x,
                     y,
@@ -170,15 +221,46 @@ impl Sprites {
             } else {
                 (turn.cos(), turn.sin())
             };
+            let (yaw_sin, yaw_cos) = if yaw == 0.0 {
+                (0.0, 1.0)
+            } else {
+                yaw.sin_cos()
+            };
             unsafe {
+                match clip {
+                    Some(r) => {
+                        let (left, right) = (r[0].floor().max(0.0), (r[0] + r[2]).ceil());
+                        let (top, bottom) = (r[1].floor().max(0.0), (r[1] + r[3]).ceil());
+                        let bottom = bottom.min(out_h() as f32);
+                        gl::Enable(gl::SCISSOR_TEST);
+                        gl::Scissor(
+                            left as i32,
+                            (out_h() as f32 - bottom) as i32,
+                            (right - left).max(0.0) as i32,
+                            (bottom - top).max(0.0) as i32,
+                        );
+                        clipped = true;
+                    }
+                    None if clipped => {
+                        gl::Disable(gl::SCISSOR_TEST);
+                        clipped = false;
+                    }
+                    None => {}
+                }
                 gl::BindTexture(gl::TEXTURE_2D, tex);
                 gl::Uniform4f(self.u_rect, x, y, w, h);
                 gl::Uniform2f(self.u_turn, cos, sin);
+                gl::Uniform3f(self.u_spin, yaw_sin, yaw_cos, depth);
                 gl::Uniform4f(self.u_colour, colour[0], colour[1], colour[2], colour[3]);
             }
             quad.draw();
         }
-        unsafe { gl::Disable(gl::BLEND) };
+        unsafe {
+            if clipped {
+                gl::Disable(gl::SCISSOR_TEST);
+            }
+            gl::Disable(gl::BLEND);
+        }
     }
 }
 

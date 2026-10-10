@@ -12,8 +12,8 @@ use omega_power::SimPlatform;
 use omega_store::{Cart, Platform as CartPlatform};
 use omega_ui::{
     cart_box, cart_face, clean_label, edge, housing, label_colour, label_text, opening, recess,
-    rest_y, stage_x, stage_y, Draw, SlotChrome, CART_W, GB_CART_H, GB_LABEL_H, GB_LABEL_Y, LABEL_H,
-    LABEL_Y, TOP_BAR_H,
+    rest_y, stage_x, stage_y, sway_reach, Draw, Pose, SlotChrome, CART_W, GB_CART_H, GB_CART_W,
+    GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, TOP_BAR_H,
 };
 use omega_zero::app::{App, SEATED_AT};
 use omega_zero::frontend::Frontend;
@@ -59,9 +59,12 @@ fn apart(a: [u32; 3], b: [u32; 3]) -> u32 {
 
 /// Lit pixels across the top of the shelf, between the bar and the tallest cart, where a
 /// name banner would go.
+/// Lit pixels over a lone pak, where a banner would go: clear of the top bar, and of the
+/// highest the pak reaches as it sways.
 fn banner_ink(px: &[u8]) -> usize {
     let top = (TOP_BAR_H + stage_y()) as usize + 1;
-    (top..rest_y(GB_CART_H as f32) as usize)
+    let reach = sway_reach(GB_CART_W as f32, GB_CART_H as f32).ceil();
+    (top..(rest_y(GB_CART_H as f32) - reach) as usize)
         .flat_map(|y| (200..520).map(move |x| (x, y)))
         .filter(|(x, y)| at(px, *x, *y).iter().all(|c| *c > 0x80))
         .count()
@@ -731,6 +734,7 @@ fn both_cartridges_go_into_the_slot_at_their_own_size() {
                 face: Some(tex),
                 rest,
                 scale: 1.0,
+                pose: Pose::REST,
                 seat,
                 alert: None,
                 dim: 0.0,
@@ -815,6 +819,7 @@ fn no_frame_of_the_travel_jumps_further_than_the_cartridge_is_tall() {
                     face: None,
                     rest: (out_w() - w) as f32 / 2.0,
                     scale: 1.0,
+                    pose: Pose::REST,
                     seat: (f as f32 / 27.0).min(1.0),
                     alert: None,
                     dim: 0.0,

@@ -14,12 +14,12 @@ use omega_store::{
 use omega_ui::{
     backdrop_shift, board_from, board_x, board_zoom, draw_backdrop, draw_empty_slot, draw_pattern,
     draw_slot_name, draw_solid, draw_sticker, ease, grown, lid_at, lid_from, lift_of, on_board,
-    quick_window, shelf_cart_at, ClockPicker, Draw, FfState, GbShell, Hud, HudKind, Icon,
-    KeyboardFaces, KeyboardScreen, LinkBadge, LinkFaces, Links, Millis, Placed, Polaroids,
-    PowerChoice, QuickMenu, QuickMenuFaces, QuickRow, QuickValue, Refusal, Shelf, SlotChrome,
-    TexId, Toast, TopBar, WifiMenuFaces, BOARD_W, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W,
-    HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W,
-    TURN_PAD,
+    posed_face, push_cart_side, quick_window, shelf_cart_at, ClockPicker, Draw, FfState, GbShell,
+    Hud, HudKind, Icon, KeyboardFaces, KeyboardScreen, LinkBadge, LinkFaces, Links, Millis, Placed,
+    Polaroids, PowerChoice, QuickMenu, QuickMenuFaces, QuickRow, QuickValue, Refusal, Shelf,
+    SlotChrome, TexId, Toast, TopBar, WifiMenuFaces, BOARD_W, CART_W, CHIP_H, CHIP_U, CHIP_V,
+    CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V,
+    SOCKET_W, TURN_PAD,
 };
 
 use crate::audio::Sfx;
@@ -82,6 +82,25 @@ const PLATFORM_NAME_HOLD_MS: Millis = 1200;
 const PLATFORM_NAME_OUT_MS: Millis = 800;
 const PLATFORM_NAME_ALPHA: f32 = 0.4;
 const CORE_PICKER_DIM: f32 = 0.614;
+/// The core picker's lid, the cart's own face, turned `turn` as it lifts and spun `yaw` as it
+/// leaves the shelf. Unspun, it is drawn exactly as it was before carts swayed.
+fn push_lid(out: &mut Vec<Draw>, at: (f32, f32, f32, f32), tex: TexId, turn: f32, yaw: f32) {
+    let (x, y, w, h) = at;
+    push_cart_side(out, at, tex, turn, yaw, 1.0, 1.0);
+    out.push(match yaw == 0.0 {
+        true => Draw::Turned {
+            x,
+            y,
+            w,
+            h,
+            tex,
+            alpha: 1.0,
+            turn,
+        },
+        false => posed_face(at, tex, 1.0, turn, yaw),
+    });
+}
+
 fn core_legend_y() -> f32 {
     362.0 + stage_y()
 }
@@ -1799,10 +1818,12 @@ impl App {
         }
         let mut touched = false;
         let at = self.shelf_at;
+        let picking = self.core_picker.is_some();
         let next = match &mut self.phase {
             Phase::Shelf => {
                 let shelf = &mut self.shelves[at].1;
                 shelf.tick(now);
+                shelf.hold_still(picking);
                 shelf.update(dt);
                 None
             }
@@ -2254,6 +2275,7 @@ impl App {
             face,
             rest,
             scale,
+            pose: self.shelf().pose(),
             seat: self.seat(),
             alert: self.alert_face.filter(|_| alpha > 0.0).map(|t| (t, alpha)),
             dim,
@@ -2367,21 +2389,27 @@ impl App {
         let progress = picker.openness(now);
         let lift = lift_of(progress);
         let (rest, scale) = self.shelf().selected_at();
+        // The cart leaves the shelf held the way it was swaying there, and squares up as it
+        // opens.
+        let pose = self.shelf().pose().toward_rest(lift);
         let shelf = shelf_cart_at(rest, scale);
+        let shelf = Placed {
+            y: shelf.y - pose.lift,
+            ..shelf
+        };
         let board = board_from(shelf, progress);
         let zoom = board_zoom(board);
         let ready = self.core_faces_ready();
 
         if ready {
             if let Some(tex) = self.core_board_face {
-                out.push(Draw::Tex {
-                    x: board.x,
-                    y: board.y,
-                    w: board.w,
-                    h: board.h,
+                out.push(posed_face(
+                    (board.x, board.y, board.w, board.h),
                     tex,
-                    alpha: 1.0,
-                });
+                    1.0,
+                    0.0,
+                    pose.yaw,
+                ));
             }
             for (i, tex) in self.core_socket_faces.iter().copied().enumerate() {
                 let (x, y) = on_board(board, SOCKET_U[i], SOCKET_V);
@@ -2454,30 +2482,14 @@ impl App {
             if let Some(tex) = self.core_lid_face {
                 let (lid, turn) = lid_from(shelf, progress);
                 let at = grown(lid, TURN_PAD as f32 * lid.w / CART_W as f32);
-                out.push(Draw::Turned {
-                    x: at.x,
-                    y: at.y,
-                    w: at.w,
-                    h: at.h,
-                    tex,
-                    alpha: 1.0,
-                    turn,
-                });
+                push_lid(out, (at.x, at.y, at.w, at.h), tex, turn, pose.yaw);
             }
         } else if let Some((_, Some(tex))) = self
             .selected_stem()
             .and_then(|stem| self.shelf().find(stem))
         {
             let (lid, turn) = lid_from(shelf, progress);
-            out.push(Draw::Turned {
-                x: lid.x,
-                y: lid.y,
-                w: lid.w,
-                h: lid.h,
-                tex,
-                alpha: 1.0,
-                turn,
-            });
+            push_lid(out, (lid.x, lid.y, lid.w, lid.h), tex, turn, pose.yaw);
         }
 
         if let [cancel, swap, choose] = self.core_legend_faces.as_slice() {

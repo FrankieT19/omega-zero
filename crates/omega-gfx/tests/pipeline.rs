@@ -1,8 +1,8 @@
 #![cfg(target_os = "macos")]
 
 use omega_gfx::{
-    blue_light_gain, lcd3x_mask, out_h, out_w, Compositor, Draw, Filter, GameView, HeadlessSurface,
-    SRC_H, SRC_W,
+    blue_light_gain, lcd3x_mask, out_h, out_w, spun_x, Compositor, Draw, Filter, GameView,
+    HeadlessSurface, SRC_H, SRC_W,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -622,5 +622,149 @@ fn the_mask_period_is_three_pixels_in_both_modes() {
         period_y(&full, 0..out_w() as usize, 0..out_h() as usize),
         Some(3),
         "fullscreen: the grille does not repeat every 3 px down"
+    );
+}
+
+fn spun(x: f32, y: f32, w: f32, h: f32, tex: omega_gfx::TexId, yaw: f32) -> Draw {
+    Draw::Spun {
+        x,
+        y,
+        w,
+        h,
+        tex,
+        colour: [1.0, 1.0, 1.0, 1.0],
+        turn: 0.0,
+        yaw,
+        depth: 0.0,
+        clip: None,
+    }
+}
+
+fn lit(frame: &[u8], x: usize, y: usize) -> bool {
+    px(frame, x, y)[0] > 128
+}
+
+/// How many rows of column `x` a white face covers.
+fn lit_rows(frame: &[u8], x: usize) -> usize {
+    (0..out_h() as usize).filter(|y| lit(frame, x, *y)).count()
+}
+
+/// The first and last columns a white face covers along row `y`.
+fn lit_span(frame: &[u8], y: usize) -> (usize, usize) {
+    let lit_at: Vec<usize> = (0..out_w() as usize)
+        .filter(|x| lit(frame, *x, y))
+        .collect();
+    (lit_at[0], *lit_at.last().unwrap())
+}
+
+#[test]
+fn an_unspun_face_draws_exactly_as_a_plain_one() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let rgba: Vec<u8> = (0..16u32 * 8)
+        .flat_map(|i| [(i * 7) as u8, (i * 13) as u8, (i * 29) as u8, 255])
+        .collect();
+    let tex = c.create_texture(16, 8, &rgba);
+
+    c.begin_frame();
+    c.draw_list(&[Draw::Tex {
+        x: 101.3,
+        y: 57.6,
+        w: 37.0,
+        h: 19.0,
+        tex,
+        alpha: 0.8,
+    }]);
+    let plain = c.read_frame();
+
+    c.begin_frame();
+    c.draw_list(&[Draw::Spun {
+        x: 101.3,
+        y: 57.6,
+        w: 37.0,
+        h: 19.0,
+        tex,
+        colour: [1.0, 1.0, 1.0, 0.8],
+        turn: 0.0,
+        yaw: 0.0,
+        depth: 0.0,
+        clip: None,
+    }]);
+    let spun = c.read_frame();
+
+    assert!(plain == spun, "a spin of zero moved something");
+}
+
+#[test]
+fn a_spun_face_grows_on_the_side_that_turns_towards_the_eye() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let tex = c.create_texture_nearest(2, 2, &[255u8; 16]);
+    let (x, w, yaw) = (200.0, 200.0, 0.3);
+
+    c.begin_frame();
+    c.draw_list(&[spun(x, 100.0, w, 100.0, tex, yaw)]);
+    let frame = c.read_frame();
+
+    let (left, right) = lit_span(&frame, 150);
+    let near = lit_rows(&frame, left + 2);
+    let far = lit_rows(&frame, right - 2);
+    assert!(
+        near > far + 2,
+        "the side turning towards the eye is {near} rows tall and the far side {far}"
+    );
+    let want = x + w / 2.0 + spun_x(-w / 2.0, yaw, 0.0);
+    assert!(
+        (left as f32 - want).abs() <= 1.0,
+        "the near edge landed at {left}, where spun_x puts it at {want}"
+    );
+    assert!(
+        ((right - left) as f32) < w - 4.0,
+        "the face did not narrow as it turned: {left}..{right}"
+    );
+}
+
+#[test]
+fn a_clip_keeps_a_spun_face_inside_it_and_ends_with_it() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let tex = c.create_texture_nearest(2, 2, &[255u8; 16]);
+    let face = |clip| Draw::Spun {
+        x: 200.0,
+        y: 100.0,
+        w: 200.0,
+        h: 100.0,
+        tex,
+        colour: [1.0, 1.0, 1.0, 1.0],
+        turn: 0.0,
+        yaw: 0.2,
+        depth: 0.0,
+        clip,
+    };
+
+    c.begin_frame();
+    c.draw_list(&[
+        face(Some([250.0, 0.0, 50.0, out_h() as f32])),
+        Draw::Rect {
+            x: 10.0,
+            y: 10.0,
+            w: 20.0,
+            h: 20.0,
+            colour: [1.0, 1.0, 1.0, 1.0],
+        },
+    ]);
+    let frame = c.read_frame();
+
+    assert!(lit(&frame, 260, 150), "nothing was drawn inside the clip");
+    assert!(
+        !lit(&frame, 240, 150) && !lit(&frame, 310, 150),
+        "the face spilled out of its clip"
+    );
+    assert!(
+        lit(&frame, 20, 20),
+        "the clip outlived its face and hid what came after it"
     );
 }

@@ -28,11 +28,16 @@ void main() {
 }
 "#;
 
+/// A sprite, turned in the canvas by `u_turn` (cos, sin), then spun about its upright middle by
+/// `u_spin` (sin, cos, depth) and seen from `u_focal` pixels away. The spin divides through `w`, so
+/// the face's texture keeps true perspective; unspun, every step of it is exact and changes nothing.
 pub const SPRITE_VERT: &str = r#"
 attribute vec2 a_pos;
 uniform vec4 u_rect;
 uniform vec2 u_target;
 uniform vec2 u_turn;
+uniform vec3 u_spin;
+uniform float u_focal;
 varying vec2 v_uv;
 void main() {
     v_uv = a_pos;
@@ -40,8 +45,11 @@ void main() {
     vec2 local = a_pos * u_rect.zw - mid;
     vec2 turned = vec2(u_turn.x * local.x - u_turn.y * local.y,
                        u_turn.y * local.x + u_turn.x * local.y);
-    vec2 p = (u_rect.xy + a_pos * u_rect.zw + (turned - local)) / u_target;
-    gl_Position = vec4(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0, 0.0, 1.0);
+    float across = turned.x * u_spin.y - u_spin.z * u_spin.x;
+    float w = (u_focal + turned.x * u_spin.x) / u_focal;
+    vec2 spun = vec2(across, turned.y) / w;
+    vec2 p = (u_rect.xy + a_pos * u_rect.zw + (turned - local) + (spun - turned)) / u_target;
+    gl_Position = vec4(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0, 0.0, 1.0) * w;
 }
 "#;
 
