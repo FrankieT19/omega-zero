@@ -20,6 +20,7 @@ mod label;
 mod legend;
 mod letters;
 mod link_art;
+mod palette;
 mod plate;
 mod polaroids;
 mod quick_menu;

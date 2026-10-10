@@ -11,6 +11,7 @@ mod footer;
 mod hud;
 mod icon;
 mod keyboard;
+pub mod kit;
 mod link_art;
 mod plate;
 mod polaroids;
