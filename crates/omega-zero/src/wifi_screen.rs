@@ -663,8 +663,9 @@ impl WifiScreen {
                     EntryState::Saved => Some("SAVED"),
                     EntryState::New => None,
                 },
-                // four steps of strength drawn as three arcs, the weakest with none lit
-                signal: e.rssi.map(|r| bars(r).saturating_sub(1)),
+                // four steps of strength on the kit's dot and two arcs: the weakest lights the
+                // dot, the two strongest everything, so a network in reach never looks dead
+                signal: e.rssi.map(|r| bars(r).min(3)),
                 lock: e.rssi.is_some() && e.secured,
             })
             .collect();

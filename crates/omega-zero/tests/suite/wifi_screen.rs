@@ -520,10 +520,10 @@ fn the_networks_list_the_joined_one_then_by_signal_then_the_saved_out_of_reach()
     assert_eq!(
         r.view().networks,
         [
-            line("Home", Some("CONNECTED"), Some(1), true),
+            line("Home", Some("CONNECTED"), Some(2), true),
             line("Upstairs 5G", None, Some(3), true),
-            line("Café Wi-Fi", None, Some(2), false),
-            line("Attic", None, Some(0), true),
+            line("Café Wi-Fi", None, Some(3), false),
+            line("Attic", None, Some(1), true),
             line("Cabin", Some("SAVED"), None, false),
         ],
         "the name keeps its case, accent and all"

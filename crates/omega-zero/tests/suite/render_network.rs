@@ -96,8 +96,8 @@ impl Rig {
         if online != Online::Off {
             let seen = [
                 ("Home", -48, true),
-                ("Café Wi-Fi", -60, false),
-                ("Upstairs 5G", -70, true),
+                ("Café Wi-Fi", -70, false),
+                ("Upstairs 5G", -80, true),
             ];
             radio.say(WifiNews::Seen(
                 seen.iter()
