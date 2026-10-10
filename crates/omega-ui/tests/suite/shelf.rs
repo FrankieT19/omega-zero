@@ -1,7 +1,7 @@
 use omega_store::{Cart, Platform};
 use omega_ui::{
-    label_colour, out_h, out_w, rest_y, Draw, GbShell, Shelf, TexId, CART_W, GB_CART_H, GB_CART_W,
-    MOUTH_H,
+    label_colour, out_w, rest_y, shelf_box, slot_top, Draw, GbShell, Shelf, TexId, CART_W,
+    GB_CART_H, GB_CART_W, GB_SHELF_SCALE,
 };
 
 fn shelf_with(n: usize) -> Shelf {
@@ -532,7 +532,7 @@ fn the_neighbours_peek_in_from_both_edges() {
 }
 
 fn cart_spans(out: &[Draw]) -> Vec<(f32, f32)> {
-    let bar = out_h() as f32 - MOUTH_H;
+    let bar = slot_top();
     out.iter()
         .filter_map(|d| match *d {
             Draw::Rect { x, y, w, h, .. }
@@ -639,6 +639,11 @@ fn the_row_draws_a_game_boy_pak_at_its_own_height() {
     s.set_faces((0..3).map(|i| TexId::from_raw(20 + i)).collect());
     let mut out = Vec::new();
     s.draw_row(None, 0.0, 0.0, 1.0, &mut out);
+    let (sw, sh) = (
+        GB_CART_W as f32 * GB_SHELF_SCALE,
+        GB_CART_H as f32 * GB_SHELF_SCALE,
+    );
+    assert_eq!(shelf_box(Platform::Gb), (sw, sh));
     let (h, y) = out
         .iter()
         .find_map(|d| match *d {
@@ -649,15 +654,45 @@ fn the_row_draws_a_game_boy_pak_at_its_own_height() {
                 h,
                 depth: 0.0,
                 ..
-            } if (w - GB_CART_W as f32).abs() < 0.01 => Some((h, y)),
+            } if (w - sw).abs() < 0.01 => Some((h, y)),
             _ => None,
         })
-        .expect("no cart is drawn at full size");
-    assert_eq!(h, GB_CART_H as f32, "the pak was drawn at the GBA height");
-    assert_eq!(
-        y,
-        rest_y(GB_CART_H as f32) - s.pose().lift,
-        "the pak is not centred on the carousel, give or take the float"
+        .expect("no cart is drawn at the pak's shelf size");
+    assert_eq!(h, sh, "the pak was drawn at the GBA height");
+    let middle = y + h / 2.0 + s.pose().lift;
+    let want = rest_y(GB_CART_H as f32) + GB_CART_H as f32 / 2.0;
+    assert!(
+        (middle - want).abs() < 0.01,
+        "the pak is centred on {middle}, not on {want} where it would stand at its own size, \
+         give or take the float"
+    );
+}
+
+#[test]
+fn the_neighbours_of_a_pak_are_spaced_by_its_shelf_size() {
+    let mut s = gb_shelf_with(3);
+    settle(&mut s);
+    let mut out = Vec::new();
+    s.draw_row(None, 0.0, 0.0, 1.0, &mut out);
+    let mut centres: Vec<f32> = cart_spans(&out)
+        .iter()
+        .map(|(x0, x1)| (x0 + x1) / 2.0)
+        .collect();
+    centres.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let w = shelf_box(Platform::Gb).0;
+    assert_eq!(centres.len(), 3, "expected three paks, got {centres:?}");
+    for pair in centres.windows(2) {
+        assert!(
+            (pair[1] - pair[0] - w).abs() < 0.01,
+            "paks stand {} apart on a shelf that holds them {w} wide",
+            pair[1] - pair[0]
+        );
+    }
+    let (rest, scale) = s.selected_at();
+    assert!(
+        (rest + GB_CART_W as f32 * scale / 2.0 - out_w() as f32 / 2.0).abs() < 0.01
+            && (scale - GB_SHELF_SCALE).abs() < 1e-6,
+        "the selected pak is said to stand at {rest} at {scale} of its size"
     );
 }
 

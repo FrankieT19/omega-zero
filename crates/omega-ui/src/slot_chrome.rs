@@ -8,8 +8,9 @@ use crate::cart::{cart_box, label_colour, label_text, CART_W, SEATED_W};
 use crate::footer::Printed;
 use crate::icon::icon_box;
 use crate::plate::HINT_H;
-use crate::shelf::foot_y;
+use crate::shelf::{foot_y, shelf_box, shelf_scale};
 use crate::spin::{self, Pose};
+use crate::sprite::SPRITE_PX;
 
 /// The alert shown on a refused cart as it comes back out, sized to the cart, which now
 /// keeps its shelf size in the slot.
@@ -19,10 +20,27 @@ pub const ALERT_PX: f32 = 66.0;
 /// the size it has on the shelf all the way in, so the slot is built around that size.
 const K: f32 = CART_W as f32 / SEATED_W as f32;
 
-/// The bar across the bottom that holds the slot.
+/// The band that holds the slot, standing on the bar across the bottom.
 pub const MOUTH_H: f32 = 80.0;
+
+/// The UI kit's bar across the bottom of the shelf: 21 of its art pixels tall.
+pub const BAR_H: f32 = 21.0 * SPRITE_PX as f32;
+
+/// How far above the bottom of the screen the slot stands: it sits on top of the bar.
+pub const SLOT_RAISE: f32 = BAR_H;
+
+/// The top of the slot's bar, where a cart going in lands on the lip.
+pub fn slot_top() -> f32 {
+    slot_top_at(SLOT_RAISE)
+}
+
+/// Where the top of the slot's bar would be with the slot `raise` above the bottom.
+pub fn slot_top_at(raise: f32) -> f32 {
+    out_h() as f32 - raise - MOUTH_H
+}
+
 fn band_y() -> f32 {
-    out_h() as f32 - MOUTH_H
+    slot_top()
 }
 
 pub const MOUTH_W: f32 = CART_W as f32 + 14.0 * K;
@@ -115,6 +133,8 @@ pub struct SlotChrome<'a> {
     pub cart: &'a Cart,
     pub face: Option<TexId>,
     pub rest: f32,
+    /// How big the cart was drawn on the shelf, as a share of its own size, with `rest` its
+    /// left edge there: both as `Shelf::selected_at` gives them.
     pub scale: f32,
     /// How the cart was held on the shelf: it comes level and square by the time it reaches
     /// the lip, and goes back to this as it comes out.
@@ -147,15 +167,20 @@ impl SlotChrome<'_> {
         let (cw, ch) = cart_box(self.cart.platform);
         let (cw, ch) = (cw as f32, ch as f32);
 
-        // A cart the row had not finished growing comes up to its own size by the lip, and
-        // keeps it the rest of the way in.
+        // A cart comes up to its own size as it goes in: what the row had not finished growing
+        // by the lip, and what the shelf holds a pak smaller than it is as it sinks from the
+        // lip to its seat, since at its own size on the lip a pak would stand over the bar
+        // at the top.
         let scale = self.scale.clamp(0.0, 1.0);
+        let shelf = shelf_scale(self.cart.platform);
+        let row = (scale / shelf).min(1.0);
         let w0 = cw * scale;
-        let (foot0, seated_foot) = (foot_y(ch), seated_y() + ch);
+        let (foot0, seated_foot) = (foot_y(shelf_box(self.cart.platform).1), seated_y() + ch);
         let catch = catch_at(foot0, seated_foot);
         let travel = travel(seat, catch);
         let k = (travel / catch).min(1.0);
-        let grown = scale + (1.0 - scale) * k;
+        let sunk = ((travel - catch) / (1.0 - catch)).clamp(0.0, 1.0);
+        let grown = (row + (1.0 - row) * k) * (shelf + (1.0 - shelf) * sunk);
         let (cw, ch) = (cw * grown, ch * grown);
         let centre = self.rest + w0 / 2.0;
         let x = centre + (cx() - centre) * k - cw / 2.0;

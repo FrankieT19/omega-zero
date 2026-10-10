@@ -1,5 +1,5 @@
 use omega_store::scan;
-use omega_ui::{cart_face, out_h, rest_y, CartFace, CART_W, MOUTH_H, PLATE_H};
+use omega_ui::{cart_face, out_h, rest_y, slot_top, CartFace, CART_W, PLATE_H};
 use tempfile::TempDir;
 
 const COLS: u32 = 4;
@@ -68,7 +68,7 @@ fn render_gb_cart() {
         frame[d..d + 3].copy_from_slice(&FLOOR);
     }
     for x in 0..SHEET_W {
-        let d = (((out_h() - MOUTH_H as u32) * SHEET_W + x) * 3) as usize;
+        let d = ((slot_top() as u32 * SHEET_W + x) * 3) as usize;
         frame[d..d + 3].copy_from_slice(&FLOOR);
     }
 
