@@ -16,6 +16,7 @@ mod font;
 mod hud;
 mod icon;
 mod keyboard;
+mod kit;
 mod label;
 mod legend;
 mod letters;

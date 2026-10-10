@@ -1,0 +1,85 @@
+<!doctype html>
+<!--
+  The kit's components one at a time, at one CSS pixel to an art pixel, on nothing: what
+  make-refs.sh screenshots into ref/ for kit.rs to hold the Rust faces to, pixel for pixel.
+
+    kit.html?c=modal&w=200&h=120
+    kit.html?c=panel&w=160&h=60&label=CONFIGS&active
+    kit.html?c=action-left&label=RETURN&hint=B
+    kit.html?c=action-left&label=RETURN&hint=B&u=2       at 2px an art pixel, as on the device
+    kit.html?c=action-left&label=RETURN&hint=B&smooth    with macOS's font smoothing left on
+
+  The colours are palette.js's RAMP as written, set straight on the page, so the faces and the
+  screenshots are drawn in exactly the same ones whatever palette.js makes of a backdrop colour.
+
+  macOS smooths DOM text (CoreText font smoothing), ringing each glyph of a hint or a title with
+  a faint halo, at most about a quarter of the ink over the pixels round it; a canvas word never
+  gets one. The page turns it off unless asked, so text lands on whole pixels as the faces draw
+  it; the ink itself is the same either way.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../../../../assets/ui/foundation/fonts.css">
+<link rel="stylesheet" href="../../../../../assets/ui/foundation/tokens.css">
+<script src="../../../../../assets/ui/foundation/pixel.js"></script>
+<script src="../../../../../assets/ui/foundation/backdrop.js"></script>
+<script src="../../../../../assets/ui/foundation/palette.js"></script>
+<script src="../../../../../assets/ui/components/omega-modal.js"></script>
+<script src="../../../../../assets/ui/components/omega-panel.js"></script>
+<script src="../../../../../assets/ui/components/action-left.js"></script>
+<script src="../../../../../assets/ui/components/action-right.js"></script>
+<style>
+  :root { --u: 1px; }
+  html, body { margin: 0; background: transparent; }
+  #kit {
+    position: absolute; left: 0; top: 0;
+    -webkit-font-smoothing: var(--smoothing, antialiased);
+    --oz-dark: #2a0f04; --oz-edge: #6a3d01; --oz-well: #4f300d; --oz-plate: #765020;
+    --oz-tab: #845a1a; --oz-band: #a57221; --oz-stripe: #b0731b; --oz-dim: #be9732;
+    --oz-frame: #e6ab47; --oz-frame-hi: #f8b83f; --oz-label: #f2c87d; --oz-cream: #f5e5bb;
+  }
+  /* an action's notch rises above it, so it stands that far down the page */
+  #kit.action { top: calc(6 * var(--u)); }
+</style>
+</head>
+<body>
+<div id="kit"></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const kit = document.getElementById('kit');
+  const c = q.get('c');
+  if (q.has('u')) document.documentElement.style.setProperty('--u', `${q.get('u')}px`);
+  if (q.has('smooth')) kit.style.setProperty('--smoothing', 'auto');
+  const size = el => {
+    el.style.width = `calc(${q.get('w')} * var(--u))`;
+    el.style.height = `calc(${q.get('h')} * var(--u))`;
+  };
+  if (c === 'modal') {
+    const modal = document.createElement('omega-modal');
+    size(modal);
+    // weights=1,1 fills it with panels that share its height by those flex-grows
+    for (const [i, grow] of (q.get('weights') ?? '').split(',').filter(Boolean).entries()) {
+      const panel = document.createElement('omega-panel');
+      panel.setAttribute('label', i ? 'ATTACK MODE' : 'BUTTON SETTING');
+      if (!i) panel.setAttribute('active', '');
+      panel.style.flexGrow = grow;
+      modal.append(panel);
+    }
+    kit.append(modal);
+  } else if (c === 'panel') {
+    const panel = document.createElement('omega-panel');
+    size(panel);
+    panel.setAttribute('label', q.get('label') ?? '');
+    if (q.has('active')) panel.setAttribute('active', '');
+    kit.append(panel);
+  } else {
+    kit.className = 'action';
+    const action = document.createElement(c);
+    if (q.get('label')) action.setAttribute('label', q.get('label'));
+    if (q.get('hint')) action.setAttribute('hint', q.get('hint'));
+    kit.append(action);
+  }
+</script>
+</body>
+</html>
