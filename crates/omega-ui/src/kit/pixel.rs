@@ -82,7 +82,7 @@ pub fn letters(text: &str, advance: usize) -> Vec<String> {
     for (i, &ch) in chars.iter().enumerate() {
         let (m, cov) = font.rasterize(ch, LETTER_PX);
         let left = (i * advance) as i32 + m.xmin;
-        let top = baseline - (m.height as i32 + m.ymin);
+        let top = baseline - (m.height as i32 + m.ymin) - raised_colon(&chars, i) as i32;
         for gy in 0..m.height {
             for gx in 0..m.width {
                 let (x, y) = (left + gx as i32, top + gy as i32);
@@ -96,6 +96,26 @@ pub fn letters(text: &str, advance: usize) -> Vec<String> {
     grid.into_iter()
         .map(|row| String::from_utf8(row).expect("ascii"))
         .collect()
+}
+
+/// Whether the `i`th letter is a colon Pixel Code draws a pixel higher: its `calt` swaps in
+/// `colon.calt`, 112 of its 1008 units up (one pixel at 9 px), for a colon with a figure or a
+/// capital on either side, a space apart at most, as in 16:00. The browser shapes the text and
+/// so draws it there; fontdue doesn't shape, so the colon is lifted here.
+fn raised_colon(chars: &[char], i: usize) -> bool {
+    let tall = |c: Option<&char>| {
+        c.is_some_and(|&c| {
+            c.is_ascii_digit() || c == 'ß' || (c.is_uppercase() && (c as u32) < 0x100)
+        })
+    };
+    let side =
+        |near: Option<&char>, far: Option<&char>| tall(near) || (near == Some(&' ') && tall(far));
+    chars[i] == ':'
+        && side(
+            i.checked_sub(1).and_then(|j| chars.get(j)),
+            i.checked_sub(2).and_then(|j| chars.get(j)),
+        )
+        && side(chars.get(i + 1), chars.get(i + 2))
 }
 
 /// An action's big word as sprite rows, as action-left.js's word(): Pixel Code drawn one face

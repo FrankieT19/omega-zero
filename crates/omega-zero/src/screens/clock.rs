@@ -75,12 +75,9 @@ impl App {
             Some((line, hint)) => (Some(line), Some(hint)),
             None => (None, None),
         };
-        let back = self
-            .settings_faces
-            .as_ref()
-            .filter(|_| from_menu)
-            .map(|f| f.legend[0]);
-        picker.draw(line, hint, back, out);
+        // the bar under every menu says B RETURN now, so the clock no longer prints its own
+        let _ = from_menu;
+        picker.draw(line, hint, None, out);
     }
 }
 

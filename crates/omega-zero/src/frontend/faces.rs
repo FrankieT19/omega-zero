@@ -8,22 +8,15 @@ use omega_ui::{
 };
 
 use crate::list_view::{LegendHint, ListView, RowLabel, RowValue};
-use crate::wifi_screen::Summary;
 
-/// Textures for a list screen, Wi-Fi's or Labels', and for the quick menu's Wi-Fi row and
-/// the keyboard, each reused as what it shows changes.
+/// Textures for a list screen, Labels' or Background's, each reused as what it shows changes.
 #[derive(Default)]
 pub(crate) struct WifiTexes {
-    pub(crate) summary: Option<Summary>,
-    pub(crate) summary_tex: [Option<TexId>; 2],
     pub(crate) view: Option<ListView>,
     pub(crate) rows: Vec<[Option<TexId>; 3]>,
     pub(crate) status: Vec<Option<TexId>>,
     pub(crate) legend: Vec<(TexId, u32)>,
     pub(crate) carets: Option<[(TexId, u32, u32); 2]>,
-    pub(crate) typed: Option<(String, String, bool)>,
-    pub(crate) prompt: Option<TexId>,
-    pub(crate) field: Option<TexId>,
 }
 
 pub(crate) fn wifi_faces(
@@ -155,7 +148,6 @@ pub(crate) fn upload_rgba(
 /// A kit face (one texel to an art pixel, drawn at 2x by `omega_ui::kit::pixel::quad`) into the
 /// texture `held`, made on first use with NEAREST filtering so it stays sharp at 2x, and filled
 /// in place after that (an updated texture keeps its filter).
-#[allow(dead_code)] // until the kit screens upload through it
 pub(crate) fn upload_nearest(
     compositor: &mut Compositor,
     held: &mut Option<TexId>,

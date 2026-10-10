@@ -116,18 +116,18 @@ fn swapped(from: Option<Actions>, to: Option<Actions>, p: f32) -> Option<(Action
     }
 }
 
-/// The keys of a screen's legend that are not its two actions, as its plate shows them. B and
-/// A are the actions' own, and left and right are on the rows that take them.
-fn plate_hint(hint: LegendHint) -> Option<BarHint> {
+/// What the Labels screen's legend says on the plate. B and A are the actions' own, and left
+/// and right are on the rows that take them; fetching is START's, as flow.html has it.
+fn labels_hint(hint: LegendHint) -> Option<BarHint> {
     match hint {
-        LegendHint::Forget => Some(("Y", "FORGET")),
+        LegendHint::Start => Some(("START", "FETCH")),
+        LegendHint::Stop => Some(("START", "STOP")),
         LegendHint::SignOut => Some(("Y", "SIGN OUT")),
+        LegendHint::Forget => Some(("Y", "FORGET")),
         LegendHint::Back
         | LegendHint::Change
         | LegendHint::Join
         | LegendHint::SignIn
-        | LegendHint::Start
-        | LegendHint::Stop
         | LegendHint::Open => None,
     }
 }
@@ -162,19 +162,22 @@ impl App {
     }
 
     /// The keys `phase` has beyond its two actions, for its plate: Y FORGET on a saved network,
-    /// Y SIGN OUT on a signed-in ScreenScraper account, as their legends had them. A screen
-    /// with more keys adds them here; the keyboard keeps its own in its panel.
+    /// and on Labels START FETCH or START STOP on the fetch and Y SIGN OUT on a signed-in
+    /// account, as its legend has them. A screen with more keys adds them here; Settings and
+    /// SSH have none, and the keyboard keeps its own line in its modal.
     pub fn bar_hints(&self, phase: &Phase) -> Vec<BarHint> {
-        let legend = match phase {
-            Phase::Network(screen) if screen.typing.is_none() => {
-                screen.clone().view(&self.wifi).legend
+        match phase {
+            Phase::Network(screen) if screen.typing.is_none() && screen.forgets(&self.wifi) => {
+                vec![("Y", "FORGET")]
             }
-            Phase::Labels(screen) if screen.typing.is_none() => {
-                screen.view(&self.labels, self.online()).legend
-            }
+            Phase::Labels(screen) if screen.typing.is_none() => screen
+                .view(&self.labels, self.online())
+                .legend
+                .into_iter()
+                .filter_map(labels_hint)
+                .collect(),
             _ => Vec::new(),
-        };
-        legend.into_iter().filter_map(plate_hint).collect()
+        }
     }
 
     /// The hints the plate shows now: the screen's on show, and through a slide the leaving

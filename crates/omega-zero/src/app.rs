@@ -14,7 +14,7 @@ use omega_ui::{
     backdrop_shift, board_from, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease, grown,
     lid_at, lid_from, lift_of, on_board, posed_face, push_cart_side, shelf_cart_at, ChromeColours,
     ClockPicker, Draw, FfState, GbShell, Hud, HudKind, Icon, KeyboardFaces, LinkBadge, LinkFaces,
-    Links, Millis, Placed, Polaroids, PowerChoice, QuickMenuFaces, Refusal, SettingsRow, Shelf,
+    Links, Millis, Placed, Polaroids, PowerChoice, Refusal, SettingsFaces, SettingsRow, Shelf,
     SlotChrome, TexId, Toast, WifiMenuFaces, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, HINT_EDGE,
     HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
 };
@@ -359,8 +359,7 @@ pub struct App {
     pub(crate) legend_faces: Vec<TexId>,
     pub(crate) undo_face: Option<TexId>,
     pub(crate) clock_faces: Option<(TexId, TexId)>,
-    pub(crate) settings_faces: Option<QuickMenuFaces>,
-    pub(crate) settings_clock_faces: Option<[(TexId, u32, u32); 2]>,
+    pub(crate) settings_faces: Option<SettingsFaces>,
     pub(crate) sticker_face: Option<TexId>,
     pub(crate) wallpaper: Option<TexId>,
     pub(crate) battery_percent: omega_ui::Printed,
@@ -388,12 +387,10 @@ pub struct App {
     pub(crate) powering_off: bool,
     pub(crate) radio: Box<dyn RadioJobs>,
     pub(crate) wifi: Wifi,
-    pub(crate) network_faces: Option<WifiMenuFaces>,
-    pub(crate) ssh_faces: Option<WifiMenuFaces>,
+    pub(crate) network_faces: Option<omega_ui::network::NetworkFaces>,
+    pub(crate) ssh_faces: Option<omega_ui::network::SshFaces>,
     pub(crate) controls_faces: Option<ControlsFaces>,
     pub(crate) keyboard_faces: Option<KeyboardFaces>,
-    pub(crate) typing_faces: Option<[(TexId, u32, u32); 2]>,
-    pub(crate) settings_network_faces: Option<[(TexId, u32, u32); 2]>,
     pub(crate) link_faces: Option<LinkFaces>,
     /// None on a handheld without Bluetooth; otherwise whether it is on.
     pub(crate) bluetooth: Option<bool>,
@@ -405,8 +402,6 @@ pub struct App {
     /// The pattern the shelf is drawn over, the width of its picture, and what it was drawn
     /// as, so a stale one is not shown while the new one is made.
     pub(crate) backdrop_face: Option<(TexId, u32, BackdropStyle, u8)>,
-    /// The first Settings row in view, on a canvas too short for them all.
-    pub(crate) settings_first: usize,
     /// The move between screens under way, while it slides.
     pub(crate) slide: Option<Slide>,
     /// The card's Config/theme.txt, which the shelf's chrome is drawn in when there is one.
@@ -442,8 +437,6 @@ impl App {
             ssh_faces: None,
             controls_faces: None,
             keyboard_faces: None,
-            typing_faces: None,
-            settings_network_faces: None,
             link_faces: None,
             bluetooth: Some(false),
             labels: Labels::new(Box::new(NoKey::default()), None),
@@ -451,7 +444,6 @@ impl App {
             stale_faces: Vec::new(),
             background_faces: None,
             backdrop_face: None,
-            settings_first: 0,
             slide: None,
             theme: None,
             bar_faces: None,
@@ -509,7 +501,6 @@ impl App {
             undo_face: None,
             clock_faces: None,
             settings_faces: None,
-            settings_clock_faces: None,
             sticker_face: None,
             wallpaper: None,
             battery_percent: omega_ui::Printed::default(),
@@ -1924,28 +1915,29 @@ impl App {
                 draw_plate(out);
                 self.draw_clock(picker, *from_menu, out);
             }
-            Phase::Settings { row } => {
-                draw_plate(out);
-                self.draw_settings(*row, out);
-            }
+            // the modal stands over the backdrop, which shows round it
+            Phase::Settings { row } => self.draw_settings(*row, out),
             Phase::Controls => {
                 draw_plate(out);
                 self.draw_controls(out);
             }
             // the list stands over the background it is choosing, with nothing between
             Phase::Background(_) => self.draw_background_screen(out),
+            // the modal and its panels stand over the backdrop, with nothing between
+            Phase::Network(screen) if screen.typing.is_none() => self.draw_network(out),
             Phase::Network(_) | Phase::Labels(_) => {
-                draw_plate(out);
-                match typing_of(phase) {
+                let typing = typing_of(phase);
+                // the keyboard's modal stands on the backdrop itself
+                if typing.is_none() {
+                    draw_plate(out);
+                }
+                match typing {
                     Some(t) => self.draw_keyboard(&t, out),
                     None if matches!(phase, Phase::Labels(_)) => self.draw_labels(out),
                     None => self.draw_network(out),
                 }
             }
-            Phase::Ssh(_) => {
-                draw_plate(out);
-                self.draw_ssh(out);
-            }
+            Phase::Ssh(_) => self.draw_ssh(out),
             Phase::About => self.draw_about(out),
             Phase::Inserting { cart, resumed, .. } => {
                 if !resumed {

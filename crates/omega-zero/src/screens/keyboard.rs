@@ -1,7 +1,7 @@
 //! The on-screen keyboard, which the Network screen raises for a passphrase and the Labels
-//! screen for an account.
+//! screen for an account: a modal over the backdrop, titled with what it asks for.
 
-use omega_ui::{Draw, KeyboardFaces, KeyboardScreen, TexId};
+use omega_ui::{Draw, KeyboardFaces, KeyboardScreen};
 
 use crate::app::{App, Phase};
 use crate::list_view::TypingView;
@@ -13,25 +13,20 @@ impl App {
         typing_of(&self.phase)
     }
 
+    /// The keyboard's faces as the sync last baked them. They stay once the keyboard is put
+    /// away, so it can still be drawn sliding out.
     pub fn set_keyboard_faces(&mut self, faces: KeyboardFaces) {
         self.keyboard_faces = Some(faces);
     }
 
-    pub fn keyboard_faces_ready(&self) -> bool {
-        self.keyboard_faces.is_some()
-    }
-
-    pub fn set_typing_faces(&mut self, prompt: (TexId, u32, u32), field: (TexId, u32, u32)) {
-        self.typing_faces = Some([prompt, field]);
+    pub fn keyboard_faces(&self) -> Option<&KeyboardFaces> {
+        self.keyboard_faces.as_ref()
     }
 
     pub(crate) fn draw_keyboard(&self, t: &TypingView, out: &mut Vec<Draw>) {
         KeyboardScreen {
             keys: t.keys,
             faces: self.keyboard_faces.as_ref(),
-            prompt: self.typing_faces.map(|f| f[0]),
-            field: self.typing_faces.map(|f| f[1]),
-            refused: t.refused,
         }
         .draw(out)
     }

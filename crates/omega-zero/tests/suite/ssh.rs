@@ -154,12 +154,12 @@ fn joined_it_says_how_to_log_in() {
         SshView {
             lines: vec![
                 ("IP", "192.168.1.20".to_string()),
-                ("Host", "rg35xxsp.local".to_string()),
-                ("User", "root".to_string()),
-                ("Password", "root".to_string()),
-                ("Port", "22".to_string()),
+                ("HOST", "rg35xxsp.local".to_string()),
+                ("USER", "root".to_string()),
+                ("PASSWORD", "root".to_string()),
+                ("PORT", "22".to_string()),
             ],
-            note: "SFTP uses the same login.",
+            note: "SFTP uses the same login",
         }
     );
 }
@@ -171,7 +171,6 @@ fn offline_it_asks_for_a_network_first() {
     let view = r.a.ssh_view().expect("the SSH screen is not showing");
     assert!(view.lines.is_empty(), "{view:?}");
     assert_eq!(view.note, "Join a Wi-Fi network first.");
-    assert_eq!(view.list().status, ["Join a Wi-Fi network first."]);
 }
 
 #[test]
@@ -180,7 +179,7 @@ fn a_handheld_with_no_name_is_reached_by_its_address() {
         password: "root".into(),
     };
     let view = screen.view(&status(""));
-    assert_eq!(view.lines[1], ("Host", "192.168.1.20".to_string()));
+    assert_eq!(view.lines[1], ("HOST", "192.168.1.20".to_string()));
 }
 
 #[test]
@@ -198,7 +197,7 @@ fn the_password_is_read_from_the_cards_baseos_conf_when_the_screen_opens() {
     };
     assert_eq!(screen.password, "hunter2");
     let view = r.a.ssh_view().unwrap();
-    assert_eq!(view.lines[3], ("Password", "hunter2".to_string()));
+    assert_eq!(view.lines[3], ("PASSWORD", "hunter2".to_string()));
 }
 
 #[test]

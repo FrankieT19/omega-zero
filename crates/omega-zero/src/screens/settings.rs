@@ -1,9 +1,9 @@
-//! Settings, opened with START on the shelf: the configs left and right change in place, and
-//! the rows that open a screen of their own, in two groups.
+//! Settings, opened with START on the shelf: a modal holding CONFIGS, whose values left and
+//! right change in place, and GENERAL, whose rows open a screen of their own.
 
 use omega_input::{Action, Btn};
 use omega_store::FF_SPEEDS;
-use omega_ui::{quick_window, Draw, QuickMenu, QuickMenuFaces, QuickValue, TexId};
+use omega_ui::{date_time_text, Draw, QuickValue, RowShown, SettingsFaces, SettingsMenu};
 
 pub use omega_ui::{SettingsGroup, SettingsRow};
 
@@ -12,7 +12,7 @@ use crate::background_screen::BackgroundScreen;
 use crate::label_screen::LabelsScreen;
 use crate::nav::Dir;
 use crate::screens::clock::clock_screen;
-use crate::wifi_screen::WifiScreen;
+use crate::wifi_screen::{Summary, WifiScreen};
 
 impl App {
     /// The lit row, while Settings is open.
@@ -38,20 +38,43 @@ impl App {
         }
     }
 
-    pub fn set_settings_faces(&mut self, faces: QuickMenuFaces) {
+    /// What a row says on its right: a config's value, the date and time, or the network
+    /// joined (in capitals, as flow.html prints it), ON with none, OFF with the radio off.
+    pub fn settings_text(&self, row: SettingsRow) -> Option<String> {
+        match row {
+            SettingsRow::DateTime => Some(date_time_text(self.wall_secs())),
+            SettingsRow::Network => Some(match self.wifi_summary() {
+                Summary::Off => QuickValue::Off.text().to_string(),
+                Summary::On => QuickValue::On.text().to_string(),
+                Summary::Joined(name) => name.to_uppercase(),
+            }),
+            _ => self.settings_value(row).map(|v| v.text().to_string()),
+        }
+    }
+
+    /// Every row Settings shows, as it shows it now: what each says and which is lit. Its
+    /// faces are baked from this.
+    pub fn settings_shown(&self) -> Vec<RowShown> {
+        let lit = self.settings_row();
+        self.settings_rows()
+            .into_iter()
+            .map(|row| RowShown {
+                row,
+                value: self.settings_text(row),
+                lit: lit == Some(row),
+            })
+            .collect()
+    }
+
+    pub fn set_settings_faces(&mut self, faces: SettingsFaces) {
         self.settings_faces = Some(faces);
     }
 
-    pub fn set_settings_clock_faces(&mut self, dim: (TexId, u32, u32), lit: (TexId, u32, u32)) {
-        self.settings_clock_faces = Some([dim, lit]);
-    }
-
-    pub fn set_settings_network_faces(&mut self, dim: (TexId, u32, u32), lit: (TexId, u32, u32)) {
-        self.settings_network_faces = Some([dim, lit]);
+    pub fn settings_faces(&self) -> Option<&SettingsFaces> {
+        self.settings_faces.as_ref()
     }
 
     pub(crate) fn open_settings(&mut self) {
-        self.settings_first = 0;
         self.go(
             Phase::Settings {
                 row: SettingsRow::ALL[0],
@@ -81,15 +104,7 @@ impl App {
             }
             _ => return,
         };
-        self.settings_first = self.settings_first_for(row);
         self.phase = Phase::Settings { row };
-    }
-
-    /// The first row to show with `row` lit, moving the list as little as it can.
-    fn settings_first_for(&self, row: SettingsRow) -> usize {
-        let rows = self.settings_rows();
-        let at = rows.iter().position(|r| *r == row).unwrap_or(0);
-        quick_window(at, rows.len(), self.settings_first)
     }
 
     fn open_settings_row(&mut self, row: SettingsRow) {
@@ -132,15 +147,12 @@ impl App {
         self.persist();
     }
 
+    /// The modal with `row` lit, over the backdrop, which shows round it.
     pub(crate) fn draw_settings(&self, row: SettingsRow, out: &mut Vec<Draw>) {
-        QuickMenu {
+        SettingsMenu {
             row,
             rows: &self.settings_rows(),
-            values: SettingsRow::ALL.map(|r| self.settings_value(r)),
-            clock: self.settings_clock_faces,
-            network: self.settings_network_faces,
             faces: self.settings_faces.as_ref(),
-            first: self.settings_first_for(row),
         }
         .draw(out)
     }

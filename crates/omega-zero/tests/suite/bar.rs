@@ -41,8 +41,8 @@ impl WifiJobs for Radio {
     fn ask(&mut self, job: WifiJob) {
         let mut news = self.0.lock().unwrap();
         match job {
-            WifiJob::Up => news.push(WifiNews::Started(true)),
-            WifiJob::Scan | WifiJob::Refresh => {
+            WifiJob::Up => {
+                news.push(WifiNews::Started(true));
                 news.push(WifiNews::Seen(
                     [("Home", -48), ("Café", -60)]
                         .map(|(ssid, rssi)| Seen {
@@ -154,8 +154,16 @@ fn the_shelf_shows_quickmenu_and_settings_and_a_menu_return_and_confirm() {
     assert_eq!(shown(&out), [(SHELF_LEFT, 0.0), (SHELF_RIGHT, 0.0)]);
     let set = a.bar_faces().unwrap().sets[Actions::Shelf.index()];
     let edge = (out_w() - set.right.1 * SPRITE_PX) as f32;
-    assert_eq!(at(&out, SHELF_LEFT).unwrap().0, 0.0, "QUICKMENU is off the left edge");
-    assert_eq!(at(&out, SHELF_RIGHT).unwrap().0, edge, "SETTINGS is off the right edge");
+    assert_eq!(
+        at(&out, SHELF_LEFT).unwrap().0,
+        0.0,
+        "QUICKMENU is off the left edge"
+    );
+    assert_eq!(
+        at(&out, SHELF_RIGHT).unwrap().0,
+        edge,
+        "SETTINGS is off the right edge"
+    );
     assert_eq!(
         at(&out, SHELF_PLATE),
         Some((
@@ -234,15 +242,9 @@ fn going_back_to_the_shelf_swaps_them_the_other_way() {
     a.apply_at(Action::GbaDown(Btn::B), start);
     assert!(matches!(a.phase(), Phase::Shelf));
     a.tick_ms(start + SLIDE_MS / 4);
-    assert_eq!(
-        shown(&frame(&a)),
-        [(MENU_LEFT, 12.0), (MENU_RIGHT, 12.0)]
-    );
+    assert_eq!(shown(&frame(&a)), [(MENU_LEFT, 12.0), (MENU_RIGHT, 12.0)]);
     a.tick_ms(start + 3 * SLIDE_MS / 4);
-    assert_eq!(
-        shown(&frame(&a)),
-        [(SHELF_LEFT, 12.0), (SHELF_RIGHT, 12.0)]
-    );
+    assert_eq!(shown(&frame(&a)), [(SHELF_LEFT, 12.0), (SHELF_RIGHT, 12.0)]);
 }
 
 #[test]
@@ -272,9 +274,10 @@ fn the_bar_sinks_as_a_cart_goes_in_stays_away_in_the_game_and_comes_back_on_ejec
     let (_d, mut a) = on_shelf();
     press(&mut a, Btn::A);
     assert!(matches!(a.phase(), Phase::Inserting { .. }));
-    let plate = |out: &[Draw]| at(out, SHELF_PLATE).map(|(_, y)| y - (BarLayout::top(out_h()) + 6.0));
+    let plate =
+        |out: &[Draw]| at(out, SHELF_PLATE).map(|(_, y)| y - (BarLayout::top(out_h()) + 6.0));
     let mut last = 0.0;
-    let mut went = false;
+    let mut gone_at = None;
     for _ in 0..60 {
         let out = frame(&a);
         match plate(&out) {
@@ -287,19 +290,30 @@ fn the_bar_sinks_as_a_cart_goes_in_stays_away_in_the_game_and_comes_back_on_ejec
                 last = drop;
             }
             None => {
-                went = true;
-                assert!(shown(&out).is_empty(), "the actions stayed without the plate");
-                assert!(a.seat() >= omega_ui::CATCH_OUT * 0.95, "gone at seat {}", a.seat());
+                assert!(
+                    shown(&out).is_empty(),
+                    "the actions stayed without the plate"
+                );
+                gone_at.get_or_insert(a.seat());
             }
         }
         a.update(SEATED_AT / 40.0);
     }
-    assert!(went, "the bar never left as the cart went in");
+    // gone by the time the cart starts down into the slot, and not before it nears the lip
+    let gone_at = gone_at.expect("the bar never left as the cart went in");
+    assert!(
+        gone_at > omega_ui::CATCH_OUT / 2.0 && gone_at <= omega_ui::CATCH_OUT,
+        "the bar was gone at seat {gone_at}"
+    );
     assert!(a.seat() >= 1.0);
 
     a.on_core_ready();
     a.update(1.0);
-    assert!(matches!(a.phase(), Phase::Playing { .. }), "{:?}", a.phase());
+    assert!(
+        matches!(a.phase(), Phase::Playing { .. }),
+        "{:?}",
+        a.phase()
+    );
     let out = frame(&a);
     assert_eq!(plate(&out), None, "the bar shows over the game");
     assert!(shown(&out).is_empty(), "the actions show over the game");
@@ -346,7 +360,12 @@ fn a_resumed_game_never_shows_the_bar() {
 fn the_core_pickers_cancel_and_choose_are_the_bars_return_and_confirm() {
     let (_d, mut a) = on_shelf();
     let id = TexId::from_raw;
-    a.set_core_part_faces(vec![id(902), id(903)], vec![id(904), id(905)], id(906), id(907));
+    a.set_core_part_faces(
+        vec![id(902), id(903)],
+        vec![id(904), id(905)],
+        id(906),
+        id(907),
+    );
     a.set_core_swap_face((id(909), 90));
     a.set_core_board_faces(id(900), id(901));
     a.apply(Action::GbaDown(Btn::X));
@@ -355,7 +374,9 @@ fn the_core_pickers_cancel_and_choose_are_the_bars_return_and_confirm() {
     a.update(0.07);
     let opening = shown(&frame(&a));
     assert!(
-        opening.iter().all(|&(tex, sink)| [SHELF_LEFT, SHELF_RIGHT].contains(&tex) && sink > 0.0),
+        opening
+            .iter()
+            .all(|&(tex, sink)| [SHELF_LEFT, SHELF_RIGHT].contains(&tex) && sink > 0.0),
         "the shelf's actions are not sinking as the picker opens: {opening:?}"
     );
     a.update(0.5);
@@ -427,14 +448,25 @@ fn the_plates_hints_change_halfway_through_a_slide() {
     }
     press(&mut a, Btn::A);
     a.finish_slide();
-    while !matches!(a.phase(), Phase::Network(s) if s.sel == Sel::Network(b"Home".to_vec())) {
+    for _ in 0..10 {
+        if a.network_forgets() {
+            break;
+        }
         press(&mut a, Btn::Down);
     }
+    assert!(
+        a.network_forgets(),
+        "the cursor never reached a saved network"
+    );
     assert_eq!(a.bar_hints_shown(), [("Y", "FORGET")]);
     let start: Millis = 30_000;
     a.apply_at(Action::GbaDown(Btn::B), start);
     a.tick_ms(start + SLIDE_MS / 4);
-    assert_eq!(a.bar_hints_shown(), [("Y", "FORGET")], "Network's hint left early");
+    assert_eq!(
+        a.bar_hints_shown(),
+        [("Y", "FORGET")],
+        "Network's hint left early"
+    );
     a.tick_ms(start + 3 * SLIDE_MS / 4);
     assert_eq!(a.bar_hints_shown(), [], "Settings kept Network's hint");
 }
@@ -456,7 +488,11 @@ fn top_bar_fill(a: &App) -> Option<[f32; 4]> {
 fn a_new_colour_in_background_retints_the_top_bar_and_the_slot() {
     let (_d, mut a) = on_shelf();
     let night = ChromeColours::of(palette(0));
-    assert_eq!(a.chrome_colours(), night, "the shelf is not in Night's chrome");
+    assert_eq!(
+        a.chrome_colours(),
+        night,
+        "the shelf is not in Night's chrome"
+    );
     assert_eq!(top_bar_fill(&a), Some(night.housing));
 
     press(&mut a, Btn::Start);
@@ -484,7 +520,11 @@ fn a_new_colour_in_background_retints_the_top_bar_and_the_slot() {
     press(&mut a, Btn::B);
     a.finish_slide();
     assert!(matches!(a.phase(), Phase::Shelf));
-    assert_eq!(top_bar_fill(&a), Some(picked.housing), "the top bar kept Night");
+    assert_eq!(
+        top_bar_fill(&a),
+        Some(picked.housing),
+        "the top bar kept Night"
+    );
     let slot = frame(&a)
         .iter()
         .filter(|d| matches!(**d, Draw::Rect { colour, .. } if colour == picked.recess))
@@ -504,5 +544,8 @@ fn a_cards_theme_is_the_chrome_whatever_the_colour() {
     let a = booted(&d);
     let theme = Theme::parse("housing #102030\n");
     assert_eq!(a.chrome_colours(), ChromeColours::themed(&theme));
-    assert_eq!(top_bar_fill(&a), Some(ChromeColours::themed(&theme).housing));
+    assert_eq!(
+        top_bar_fill(&a),
+        Some(ChromeColours::themed(&theme).housing)
+    );
 }
