@@ -4,7 +4,7 @@ use omega_store::{Cart, Platform};
 use crate::cart::{cart_box, gb_shell_of, label_colour, label_text, CART_H};
 use crate::hud::Millis;
 use crate::silhouette::GbShell;
-use crate::slot_chrome::{draw_empty_slot, ease, MOUTH_H, SLOT_RAISE};
+use crate::slot_chrome::{draw_empty_slot, ease, ChromeColours, MOUTH_H, SLOT_RAISE};
 use crate::spin::{self, Pose};
 use crate::stage::{stage_y, MOCKUP_H};
 use crate::status_bar::TOP_BAR_H;
@@ -357,9 +357,10 @@ impl Shelf {
         self.age = (self.age + dt).rem_euclid(LOOP_S);
     }
 
+    /// The row over an empty slot in the greys the slot was drawn in before the kit's palette.
     pub fn draw(&self, shake: f32, out: &mut Vec<Draw>) {
         self.draw_row(None, shake, 0.0, 1.0, out);
-        draw_empty_slot(out);
+        draw_empty_slot(&ChromeColours::default(), out);
     }
 
     pub fn draw_row(

@@ -7,6 +7,7 @@ use omega_ui::opening;
 
 pub mod about;
 pub mod background;
+pub mod bar;
 pub mod clock;
 pub mod controls;
 pub mod keyboard;
@@ -30,85 +31,4 @@ pub(crate) fn draw_plate(out: &mut Vec<Draw>) {
         h: out_h() as f32,
         colour: [r, g, b, PLATE_ALPHA],
     });
-}
-
-/// `d` moved `dx` across and `dy` down, a spun face's clip with it. It moves to omega-gfx as
-/// `Draw::shifted` once that lands.
-fn shift(d: Draw, dx: f32, dy: f32) -> Draw {
-    match d {
-        Draw::Rect { x, y, w, h, colour } => Draw::Rect {
-            x: x + dx,
-            y: y + dy,
-            w,
-            h,
-            colour,
-        },
-        Draw::Tex {
-            x,
-            y,
-            w,
-            h,
-            tex,
-            alpha,
-        } => Draw::Tex {
-            x: x + dx,
-            y: y + dy,
-            w,
-            h,
-            tex,
-            alpha,
-        },
-        Draw::Turned {
-            x,
-            y,
-            w,
-            h,
-            tex,
-            alpha,
-            turn,
-        } => Draw::Turned {
-            x: x + dx,
-            y: y + dy,
-            w,
-            h,
-            tex,
-            alpha,
-            turn,
-        },
-        Draw::Spun {
-            x,
-            y,
-            w,
-            h,
-            tex,
-            colour,
-            turn,
-            yaw,
-            depth,
-            clip,
-        } => Draw::Spun {
-            x: x + dx,
-            y: y + dy,
-            w,
-            h,
-            tex,
-            colour,
-            turn,
-            yaw,
-            depth,
-            clip: clip.map(|[cx, cy, cw, ch]| [cx + dx, cy + dy, cw, ch]),
-        },
-        // the game and a shot fill the screen wherever they are drawn
-        Draw::Game | Draw::Shot { .. } => d,
-    }
-}
-
-/// Moves everything in `drawn` by `dx` across and `dy` down.
-pub(crate) fn shift_all(drawn: &mut [Draw], dx: f32, dy: f32) {
-    if dx == 0.0 && dy == 0.0 {
-        return;
-    }
-    for d in drawn {
-        *d = shift(*d, dx, dy);
-    }
 }

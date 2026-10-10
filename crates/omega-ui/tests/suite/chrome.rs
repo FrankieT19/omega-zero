@@ -1,8 +1,8 @@
 use omega_store::{Cart, Platform};
 use omega_ui::{
     cart_box, draw_empty_slot, edge, foot_y, housing, icon_box, opening, out_h, out_w, recess,
-    shelf_box, slot_top, stage_y, Draw, Pose, Shelf, SlotChrome, TexId, ALERT_PX, CART_H, CART_W,
-    GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, SLOT_RAISE, TOP_BAR_H,
+    shelf_box, slot_top, stage_y, ChromeColours, Draw, Pose, Shelf, SlotChrome, TexId, ALERT_PX,
+    CART_H, CART_W, GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, SLOT_RAISE, TOP_BAR_H,
 };
 
 fn centre_x() -> f32 {
@@ -145,6 +145,7 @@ fn on_shelf(c: &Cart) -> (f32, f32) {
 fn chrome_into(c: &Cart, seat: f32, out: &mut Vec<Draw>) {
     let (rest, scale) = on_shelf(c);
     SlotChrome {
+        colours: ChromeColours::default(),
         cart: c,
         face: None,
         rest,
@@ -175,6 +176,7 @@ fn a_cart_the_row_had_not_finished_moving_slides_across_as_it_goes_in() {
     let at = |seat: f32| {
         let mut out = Vec::new();
         SlotChrome {
+            colours: ChromeColours::default(),
             cart: &c,
             face: Some(face),
             rest,
@@ -232,6 +234,7 @@ fn a_cart_the_row_had_not_finished_moving_slides_across_as_it_goes_in() {
 fn draw_powering_on(t: f32, out: &mut Vec<Draw>) {
     let c = cart();
     SlotChrome {
+        colours: ChromeColours::default(),
         cart: &c,
         face: None,
         rest: centre_x(),
@@ -454,7 +457,7 @@ fn the_slot_is_wide_enough_for_the_widest_cart() {
 
 fn draw_empty_slot_mouth() -> Quad {
     let mut out = Vec::new();
-    draw_empty_slot(&mut out);
+    draw_empty_slot(&ChromeColours::default(), &mut out);
     out.iter().find_map(as_mouth).expect("no mouth drawn")
 }
 
@@ -712,11 +715,12 @@ fn the_travel_eases_out_into_the_seat() {
 #[test]
 fn the_empty_slot_is_the_same_slot_the_chrome_draws() {
     let mut empty = Vec::new();
-    draw_empty_slot(&mut empty);
+    draw_empty_slot(&ChromeColours::default(), &mut empty);
 
     let c = cart();
     let mut seated = Vec::new();
     SlotChrome {
+        colours: ChromeColours::default(),
         cart: &c,
         face: None,
         rest: centre_x(),
@@ -951,6 +955,7 @@ fn a_swaying_cart_squares_up_on_its_way_to_the_lip_and_back() {
     let at = |seat: f32| {
         let mut out = Vec::new();
         SlotChrome {
+            colours: ChromeColours::default(),
             cart: &c,
             face: Some(face),
             rest: centred(&c),
@@ -987,4 +992,86 @@ fn a_swaying_cart_squares_up_on_its_way_to_the_lip_and_back() {
         !at(1.0).iter().any(|d| matches!(d, Draw::Spun { .. })),
         "the cart went into the slot still turned"
     );
+}
+
+/// Each backdrop colour's chrome, by name.
+fn chrome_in(name: &str) -> ChromeColours {
+    let colour = omega_store::colour_index(name).expect("a backdrop colour");
+    ChromeColours::of(omega_ui::kit::palette::palette(colour))
+}
+
+fn byte(c: [f32; 4]) -> [u8; 3] {
+    [0, 1, 2].map(|i| (c[i] * 255.0).round() as u8)
+}
+
+#[test]
+fn the_slot_is_drawn_in_the_kits_palette() {
+    let (night, amber) = (chrome_in("night"), chrome_in("amber"));
+    assert_ne!(night, amber, "the slot looks the same in every colour");
+    for (name, c) in [("night", night), ("amber", amber)] {
+        let mut out = Vec::new();
+        draw_empty_slot(&c, &mut out);
+        let own = [c.housing, c.recess, c.opening, c.edge];
+        for (part, want) in ["housing", "recess", "opening", "edge"]
+            .into_iter()
+            .zip(own)
+        {
+            assert!(
+                out.iter().any(|d| tinted(d, want)),
+                "the {name} slot has no {part}"
+            );
+        }
+        assert!(
+            out.iter().all(|d| own.iter().any(|&want| tinted(d, want))),
+            "the {name} slot draws in a colour that is not its own"
+        );
+    }
+    // as flow.html's shelf: the band in the well colour ruled in the edge one, the bay dark
+    let pal = omega_ui::kit::palette::palette(omega_store::colour_index("amber").unwrap());
+    assert_eq!(
+        [amber.housing, amber.recess, amber.edge].map(byte),
+        [pal.well, pal.dark, pal.edge]
+    );
+}
+
+#[test]
+fn night_keeps_the_slot_in_greys_near_the_ones_it_had() {
+    let (night, before) = (chrome_in("night"), ChromeColours::default());
+    let grey = |c: [f32; 4]| {
+        let [r, g, b] = byte(c);
+        r == g && g == b
+    };
+    for (part, now, was) in [
+        ("housing", night.housing, before.housing),
+        ("recess", night.recess, before.recess),
+        ("opening", night.opening, before.opening),
+        ("edge", night.edge, before.edge),
+    ] {
+        assert!(grey(now), "Night's {part} is not grey: {:?}", byte(now));
+        let off: i32 = (0..3)
+            .map(|i| (byte(now)[i] as i32 - byte(was)[i] as i32).abs())
+            .sum();
+        assert!(
+            off <= 60,
+            "Night's {part} {:?} is far from the {:?} it was",
+            byte(now),
+            byte(was)
+        );
+    }
+}
+
+#[test]
+fn every_colours_slot_steps_down_from_its_housing_into_the_hole() {
+    let light = |c: [f32; 4]| c[0] + c[1] + c[2];
+    for name in omega_store::BACKDROP_COLOURS {
+        let c = chrome_in(name);
+        assert!(
+            light(c.housing) > light(c.recess) && light(c.recess) > light(c.opening),
+            "{name}: the bay does not read as a step between the housing and the hole"
+        );
+        assert!(
+            (light(c.edge) - light(c.opening)) * 255.0 > 60.0,
+            "{name}: the lip vanishes into the hole"
+        );
+    }
 }

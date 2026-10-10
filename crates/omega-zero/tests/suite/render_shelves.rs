@@ -12,8 +12,8 @@ use omega_power::SimPlatform;
 use omega_store::{Cart, Platform as CartPlatform};
 use omega_ui::{
     cart_box, cart_face, clean_label, edge, housing, label_colour, label_text, opening, recess,
-    rest_y, shelf_box, shelf_scale, slot_top, stage_x, stage_y, sway_reach, Draw, Pose, Shelf,
-    SlotChrome, CART_W, GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, MOUTH_H, TOP_BAR_H,
+    rest_y, shelf_box, shelf_scale, slot_top, stage_x, stage_y, sway_reach, ChromeColours, Draw,
+    Pose, Shelf, SlotChrome, CART_W, GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, MOUTH_H, TOP_BAR_H,
 };
 use omega_zero::app::{App, SEATED_AT};
 use omega_zero::frontend::Frontend;
@@ -742,6 +742,7 @@ fn both_cartridges_go_into_the_slot_at_their_own_size() {
         for (beat, seat) in beats {
             let mut out = Vec::new();
             SlotChrome {
+                colours: ChromeColours::default(),
                 cart: &cart,
                 face: Some(tex),
                 rest,
@@ -830,6 +831,7 @@ fn no_frame_of_the_travel_jumps_further_than_the_cartridge_is_tall() {
             .map(|f| {
                 let mut out = Vec::new();
                 SlotChrome {
+                    colours: ChromeColours::default(),
                     cart: &cart,
                     face: None,
                     rest,

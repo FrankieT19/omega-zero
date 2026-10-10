@@ -74,8 +74,10 @@ fn settings_renders_full_screen() {
     tap(&mut f, &mut input, Btn::Start);
 
     let bar = [0x4d, 0x4d, 0x57];
-    // a plain backdrop seen through the plate, wherever the list draws nothing
-    let ground = at(&composed(&mut f, &mut c, "ground"), 2, out_h() as usize - 2);
+    // a plain backdrop seen through the plate, wherever the list draws nothing: over the
+    // bottom bar and its notches
+    let over_the_bar = out_h() as usize - 2 - 2 * omega_ui::kit::action::TALL as usize;
+    let ground = at(&composed(&mut f, &mut c, "ground"), 2, over_the_bar);
     assert_ne!(ground, bar, "the ground is the bar's colour");
     let mut bar_on = SettingsRow::ALL[0];
     let (n, mut first) = (SettingsRow::ALL.len(), 0);

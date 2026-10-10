@@ -6,9 +6,7 @@ use std::sync::{Arc, Mutex};
 use common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 use omega_input::{Action, Btn, Millis};
 use omega_store::{write_app_state, AppState};
-use omega_ui::{
-    housing, out_w, Draw, QuickMenuFaces, QuickValue, SettingsRow, TexId, SPRITE_PX, TOP_BAR_H,
-};
+use omega_ui::{out_w, Draw, QuickMenuFaces, QuickValue, SettingsRow, TexId, SPRITE_PX, TOP_BAR_H};
 use omega_zero::app::{App, Phase};
 use omega_zero::label_screen::LabelsScreen;
 use omega_zero::nav::{
@@ -462,7 +460,7 @@ fn halfway_to_settings_both_screens_are_drawn_where_the_slide_has_them() {
     );
     let bar_top = out.iter().any(|d| {
         matches!(*d, Draw::Rect { x, y, w: bw, colour, .. }
-            if x == 0.0 && y == -TOP_BAR_H / 2.0 && bw == w && colour == housing())
+            if x == 0.0 && y == -TOP_BAR_H / 2.0 && bw == w && colour == a.chrome_colours().housing)
     });
     assert!(bar_top, "the top bar is not halfway up off the screen");
 }

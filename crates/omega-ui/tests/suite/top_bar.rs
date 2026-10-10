@@ -1,7 +1,8 @@
 use omega_power::{Battery, Charge};
 use omega_ui::{
-    bolt_face, gauge_width, link_face, out_w, word_cap_top, word_face, word_tail, Draw, Link,
-    LinkFaces, Links, Printed, TexId, TopBar, CELL_PX, GAUGE_H, LINK_OFF, LINK_ON, TOP_BAR_H,
+    bolt_face, gauge_width, link_face, out_w, word_cap_top, word_face, word_tail, ChromeColours,
+    Draw, Link, LinkFaces, Links, Printed, TexId, TopBar, CELL_PX, GAUGE_H, LINK_OFF, LINK_ON,
+    TOP_BAR_H,
 };
 
 const MARGIN: f32 = 24.0;
@@ -24,6 +25,7 @@ fn bar(links: Links, battery: Option<Battery>, bolt: Option<TexId>) -> Vec<Draw>
     let faces = faces();
     let mut out = Vec::new();
     TopBar {
+        colours: ChromeColours::default(),
         links,
         faces: Some(&faces),
         clock: Printed::new(TexId::from_raw(1), 40),
@@ -292,6 +294,39 @@ fn every_item_stands_in_the_same_band() {
         })
         .fold(f32::MAX, f32::min);
     assert_eq!(capsule_top, band, "the battery does not stand in the band");
+}
+
+#[test]
+fn the_bar_is_drawn_in_the_colours_it_is_handed() {
+    let faces = faces();
+    let bar_in = |name: &str| {
+        let colour = omega_store::colour_index(name).expect("a backdrop colour");
+        let colours = ChromeColours::of(omega_ui::kit::palette::palette(colour));
+        let mut out = Vec::new();
+        TopBar {
+            colours,
+            links: Links::default(),
+            faces: Some(&faces),
+            clock: Printed::new(TexId::from_raw(1), 40),
+            battery: None,
+            percent: Printed::default(),
+            bolt: None,
+        }
+        .draw(&mut out);
+        let fills: Vec<[f32; 4]> = out
+            .iter()
+            .filter_map(|d| match *d {
+                Draw::Rect { w, colour, .. } if w == out_w() as f32 => Some(colour),
+                _ => None,
+            })
+            .collect();
+        (fills, colours)
+    };
+    let (night, night_colours) = bar_in("night");
+    let (amber, amber_colours) = bar_in("amber");
+    assert_eq!(night, [night_colours.housing, night_colours.edge]);
+    assert_eq!(amber, [amber_colours.housing, amber_colours.edge]);
+    assert_ne!(night, amber, "the bar looks the same in Night and Amber");
 }
 
 #[test]

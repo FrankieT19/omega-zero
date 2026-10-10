@@ -11,7 +11,7 @@ use crate::battery::{draw_gauge, gauge_width};
 use crate::footer::{draw_printed, Printed};
 use crate::hud::HUD_INK;
 use crate::plate::{word_cap_top, word_tail, UndoFace, HINT_H};
-use crate::slot_chrome::{edge, housing};
+use crate::slot_chrome::ChromeColours;
 use crate::sprite::{cropped, sprite_face, Rows, CELL_PX, SPRITE_PX};
 use crate::text;
 
@@ -142,6 +142,8 @@ impl LinkFaces {
 }
 
 pub struct TopBar<'a> {
+    /// What the bar and its rule are drawn in: the housing and the edge.
+    pub colours: ChromeColours,
     pub links: Links,
     pub faces: Option<&'a LinkFaces>,
     pub clock: Printed,
@@ -163,14 +165,14 @@ impl TopBar<'_> {
             y: 0.0,
             w,
             h: TOP_BAR_H - RULE_H,
-            colour: housing(),
+            colour: self.colours.housing,
         });
         out.push(Draw::Rect {
             x: 0.0,
             y: TOP_BAR_H - RULE_H,
             w,
             h: RULE_H,
-            colour: edge(),
+            colour: self.colours.edge,
         });
         if let Some(faces) = self.faces {
             let mut x = MARGIN;

@@ -24,6 +24,7 @@ use crate::wallpaper;
 mod faces;
 mod sync_about;
 mod sync_background;
+mod sync_bar;
 mod sync_clock;
 mod sync_controls;
 mod sync_core_picker;
@@ -37,6 +38,7 @@ mod sync_switcher;
 use faces::WifiTexes;
 use sync_about::{sync_about, AboutFace};
 use sync_background::{sync_background, BackdropTex};
+use sync_bar::{sync_bar, BarTexes};
 use sync_clock::{sync_clock, Clocks};
 use sync_controls::sync_controls;
 use sync_core_picker::sync_core_picker;
@@ -78,6 +80,7 @@ pub struct Frontend {
     labels: WifiTexes,
     background: WifiTexes,
     backdrop: BackdropTex,
+    bar: BarTexes,
 }
 
 /// A card's own overlay for one system, read once and checked against each layout it is
@@ -131,6 +134,7 @@ impl Frontend {
             labels: WifiTexes::default(),
             background: WifiTexes::default(),
             backdrop: BackdropTex::default(),
+            bar: BarTexes::default(),
         }
     }
 
@@ -228,15 +232,12 @@ impl Frontend {
         self.session
             .app_mut()
             .set_core_part_faces(sockets, chips, blank, shadow);
-        let legend = [
-            hint_face("B", "Cancel"),
-            arrows_hint_face("Swap"),
-            hint_face("A", "Choose"),
-        ]
-        .into_iter()
-        .map(|f| (compositor.create_texture(f.w, f.h, &f.rgba), f.w))
-        .collect();
-        self.session.app_mut().set_core_legend_faces(legend);
+        let swap = arrows_hint_face("Swap");
+        let swap = (
+            compositor.create_texture(swap.w, swap.h, &swap.rgba),
+            swap.w,
+        );
+        self.session.app_mut().set_core_swap_face(swap);
         let roles = menu_faces(compositor, LinkRow::ALL.iter().map(|r| r.text()));
         self.session.app_mut().set_link_menu_faces(roles);
         if let Some(linked) = menu_faces(compositor, ["Linked"].into_iter()).pop() {
@@ -348,6 +349,7 @@ impl Frontend {
             &mut self.backdrop,
             &mut self.background,
         );
+        sync_bar(self.session.app_mut(), compositor, &mut self.bar);
         self.relabel(compositor);
         sync_core_picker(
             self.session.app_mut(),

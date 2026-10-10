@@ -7,6 +7,7 @@ use omega_store::Theme;
 use crate::cart::{cart_box, label_colour, label_text, CART_W, SEATED_W};
 use crate::footer::Printed;
 use crate::icon::icon_box;
+use crate::kit::palette::Palette;
 use crate::plate::HINT_H;
 use crate::shelf::{foot_y, shelf_box, shelf_scale};
 use crate::spin::{self, Pose};
@@ -71,6 +72,9 @@ fn cx() -> f32 {
 }
 const SCOOP_FLAT: f32 = 4.0;
 
+/// The card's Config/theme.txt, for the widgets that still draw in its greys rather than the
+/// kit's palette. The slot and the top bar take theirs from [`ChromeColours`] instead, handed
+/// to them where they are drawn.
 static THEME: OnceLock<Theme> = OnceLock::new();
 
 pub fn set_theme(theme: Theme) {
@@ -106,6 +110,56 @@ pub fn recess() -> [f32; 4] {
     rgb(theme().recess)
 }
 
+/// The colours the shelf's chrome is drawn in: the slot, and the bar across the top.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct ChromeColours {
+    /// The slot's body, and the bar across the top.
+    pub housing: [f32; 4],
+    /// The bay the slot is set in, a step down from the housing.
+    pub recess: [f32; 4],
+    /// The slit and the scoop under it, the darkest of them: the hole a cart goes into.
+    pub opening: [f32; 4],
+    /// The lip over the slit, the scoop's rim and the top bar's rule.
+    pub edge: [f32; 4],
+}
+
+/// How much of the kit's darkest colour the slot's hole keeps: a quarter, so on Night it is as
+/// near black as the hole always was, and on any other colour the same hue a step deeper than
+/// the bay around it.
+const HOLE: u32 = 4;
+
+impl ChromeColours {
+    /// The chrome in the kit's colours, as flow.html draws the shelf: the slot's band and the
+    /// top bar in the well colour, ruled in the edge colour, the bay in the dark one and the
+    /// hole in it darker still.
+    pub fn of(pal: &Palette) -> Self {
+        ChromeColours {
+            housing: rgb(pal.well),
+            recess: rgb(pal.dark),
+            opening: rgb(pal.dark.map(|c| ((c as u32 + HOLE / 2) / HOLE) as u8)),
+            edge: rgb(pal.edge),
+        }
+    }
+
+    /// The chrome a card's Config/theme.txt sets, whatever the palette.
+    pub fn themed(theme: &Theme) -> Self {
+        ChromeColours {
+            housing: rgb(theme.housing),
+            recess: rgb(theme.recess),
+            opening: rgb(theme.opening),
+            edge: rgb(theme.edge),
+        }
+    }
+}
+
+/// The greys the chrome was drawn in before it took the kit's palette, which a theme.txt
+/// still starts from.
+impl Default for ChromeColours {
+    fn default() -> Self {
+        ChromeColours::themed(&Theme::default())
+    }
+}
+
 fn lip_y() -> f32 {
     band_y()
 }
@@ -119,13 +173,17 @@ fn catch_at(foot: f32, seated_foot: f32) -> f32 {
 }
 
 const CATCH_IN: f32 = 0.42;
-const CATCH_OUT: f32 = 0.62;
+/// How far into its way in (`SlotChrome::seat`) a cart has crept along the lip and starts down
+/// into the slot; coming out, where it has just left the slot.
+pub const CATCH_OUT: f32 = 0.62;
 /// How far a cart creeps on the lip before it goes in, as a share of the way it came down to
 /// it: a tall pak that stands just over the slot still visibly stops there.
 const CREEP: f32 = 0.1;
 
 pub struct SlotChrome<'a> {
     pub cart: &'a Cart,
+    /// What the slot is drawn in.
+    pub colours: ChromeColours,
     pub face: Option<TexId>,
     pub rest: f32,
     /// How big the cart was drawn on the shelf, as a share of its own size, with `rest` its
@@ -157,7 +215,7 @@ impl SlotChrome<'_> {
 
         let chrome = 1.0 - self.screen.clamp(0.0, 1.0);
 
-        draw_slot_back(chrome, out);
+        draw_slot_back(&self.colours, chrome, out);
 
         let (cw, ch) = cart_box(self.cart.platform);
         let (cw, ch) = (cw as f32, ch as f32);
@@ -218,7 +276,7 @@ impl SlotChrome<'_> {
         }
 
         if chrome < 1.0 {
-            front_bands(|x, y, w, h, _| {
+            front_bands(&self.colours, |x, y, w, h, _| {
                 out.push(Draw::Rect {
                     x,
                     y,
@@ -233,7 +291,7 @@ impl SlotChrome<'_> {
             out.push(Draw::Game);
         }
 
-        draw_slot_front(chrome, out);
+        draw_slot_front(&self.colours, chrome, out);
     }
 }
 
@@ -247,26 +305,27 @@ fn band(x: f32, y: f32, w: f32, h: f32, c: [f32; 4], alpha: f32) -> Draw {
     }
 }
 
-fn draw_slot_back(alpha: f32, out: &mut Vec<Draw>) {
-    out.push(band(bay_x(), band_y(), BAY_W, LIP_H, housing(), alpha));
-    out.push(band(mouth_x(), band_y(), MOUTH_W, LIP_H, edge(), alpha));
-    out.push(band(bay_x(), bay_y(), BAY_W, RECESS_H, recess(), alpha));
-    out.push(band(mouth_x(), slit_y(), MOUTH_W, SLIT_H, opening(), alpha));
+fn draw_slot_back(c: &ChromeColours, alpha: f32, out: &mut Vec<Draw>) {
+    out.push(band(bay_x(), band_y(), BAY_W, LIP_H, c.housing, alpha));
+    out.push(band(mouth_x(), band_y(), MOUTH_W, LIP_H, c.edge, alpha));
+    out.push(band(bay_x(), bay_y(), BAY_W, RECESS_H, c.recess, alpha));
+    out.push(band(mouth_x(), slit_y(), MOUTH_W, SLIT_H, c.opening, alpha));
     for_each_scoop_span(|x, w, depth| {
-        out.push(band(x, scoop_y(), w, depth, opening(), alpha));
+        out.push(band(x, scoop_y(), w, depth, c.opening, alpha));
     });
 }
 
-fn draw_slot_front(alpha: f32, out: &mut Vec<Draw>) {
-    front_bands(|x, y, w, h, c| out.push(band(x, y, w, h, c, alpha)));
+fn draw_slot_front(c: &ChromeColours, alpha: f32, out: &mut Vec<Draw>) {
+    front_bands(c, |x, y, w, h, c| out.push(band(x, y, w, h, c, alpha)));
 }
 
-fn front_bands(mut band: impl FnMut(f32, f32, f32, f32, [f32; 4])) {
+fn front_bands(c: &ChromeColours, mut band: impl FnMut(f32, f32, f32, f32, [f32; 4])) {
     let w = out_w() as f32;
     let right = bay_x() + BAY_W;
     let floor = scoop_y() + scoop_d() + RIM_W;
-    band(0.0, band_y(), bay_x(), MOUTH_H, housing());
-    band(right, band_y(), w - right, MOUTH_H, housing());
+    let housing = c.housing;
+    band(0.0, band_y(), bay_x(), MOUTH_H, housing);
+    band(right, band_y(), w - right, MOUTH_H, housing);
 
     let near = cx() - SCOOP_W / 2.0;
     band(
@@ -274,18 +333,18 @@ fn front_bands(mut band: impl FnMut(f32, f32, f32, f32, [f32; 4])) {
         scoop_y(),
         near - bay_x(),
         floor - scoop_y(),
-        housing(),
+        housing,
     );
     let far = cx() + SCOOP_W / 2.0;
-    band(far, scoop_y(), right - far, floor - scoop_y(), housing());
+    band(far, scoop_y(), right - far, floor - scoop_y(), housing);
 
     for_each_scoop_span(|x, w, depth| {
         let top = scoop_y() + depth + RIM_W;
-        band(x, top, w, floor - top, housing());
+        band(x, top, w, floor - top, housing);
     });
-    band(0.0, floor, w, out_h() as f32 - floor, housing());
+    band(0.0, floor, w, out_h() as f32 - floor, housing);
     for_each_scoop_span(|x, w, depth| {
-        band(x, scoop_y() + depth, w, RIM_W, edge());
+        band(x, scoop_y() + depth, w, RIM_W, c.edge);
     });
 }
 
@@ -319,9 +378,10 @@ pub fn draw_slot_name(name: Printed, alpha: f32, out: &mut Vec<Draw>) {
     });
 }
 
-pub fn draw_empty_slot(out: &mut Vec<Draw>) {
-    draw_slot_back(1.0, out);
-    draw_slot_front(1.0, out);
+/// The slot with no cart in it, in `colours`.
+pub fn draw_empty_slot(colours: &ChromeColours, out: &mut Vec<Draw>) {
+    draw_slot_back(colours, 1.0, out);
+    draw_slot_front(colours, 1.0, out);
 }
 
 fn travel(seat: f32, catch: f32) -> f32 {

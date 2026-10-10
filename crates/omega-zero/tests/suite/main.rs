@@ -9,6 +9,7 @@ mod common;
 mod app;
 mod audio;
 mod background_screen;
+mod bar;
 mod bios;
 mod boot;
 mod bootlogo;

@@ -94,7 +94,7 @@ pub use shell::{
 pub use silhouette::{gb_silhouette, silhouette, GbShell};
 pub use slot_chrome::{
     draw_empty_slot, draw_slot_name, ease, edge, housing, opening, recess, set_theme, slot_top,
-    SlotChrome, ALERT_PX, BAR_H, LIP_H, MOUTH_H, MOUTH_W, SLOT_RAISE,
+    ChromeColours, SlotChrome, ALERT_PX, BAR_H, CATCH_OUT, LIP_H, MOUTH_H, MOUTH_W, SLOT_RAISE,
 };
 pub use spin::{posed_face, push_cart_side, Pose, OUTLINE_INSET, THICK};
 pub use sprite::{CELL_PX, SPRITE_PX};

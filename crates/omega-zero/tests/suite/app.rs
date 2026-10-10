@@ -10,10 +10,10 @@ use omega_retro::ButtonMask;
 use omega_store::{write_app_state, AppState, Cart, Core, Platform};
 use omega_ui::{
     board_at, grown, lid_at, lid_from, on_board, opening, shelf_cart_at, Draw, Icon, Placed, TexId,
-    BOARD_W, CART_H, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, HINT_EDGE, HINT_H, LID_TURN, SLIDE_UP,
+    BOARD_W, CART_H, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, HINT_EDGE, LID_TURN, SLIDE_UP,
     SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
 };
-use omega_ui::{stage_x, stage_y};
+use omega_ui::{slot_top, stage_x, stage_y};
 use omega_zero::app::{App, Phase, EJECT_S, INSERT_S, SEATED_AT};
 use omega_zero::audio::Sfx;
 use omega_zero::emu::{EmuHandle, Speed};
@@ -1088,7 +1088,7 @@ struct PickerFaces {
     chips: [TexId; 2],
     blank: TexId,
     shadow: TexId,
-    legend: [(TexId, u32); 3],
+    swap: (TexId, u32),
 }
 
 fn fake_boot_faces(app: &mut App) -> PickerFaces {
@@ -1100,10 +1100,10 @@ fn fake_boot_faces(app: &mut App) -> PickerFaces {
         chips: [id(904), id(905)],
         blank: id(906),
         shadow: id(907),
-        legend: [(id(908), 60), (id(909), 90), (id(910), 80)],
+        swap: (id(909), 90),
     };
     app.set_core_part_faces(f.sockets.to_vec(), f.chips.to_vec(), f.blank, f.shadow);
-    app.set_core_legend_faces(f.legend.to_vec());
+    app.set_core_swap_face(f.swap);
     f
 }
 
@@ -1264,9 +1264,7 @@ fn assert_plain_shelf(out: &[Draw], f: &PickerFaces, when: &str) {
         f.chips[1],
         f.blank,
         f.shadow,
-        f.legend[0].0,
-        f.legend[1].0,
-        f.legend[2].0,
+        f.swap.0,
     ];
     let drawn: Vec<TexId> = out
         .iter()
@@ -1368,24 +1366,19 @@ fn the_open_cart_rests_over_the_shelf_with_its_lid_turned() {
     );
     assert!(shadow_i < lid_i, "the lid's shadow is drawn over the lid");
 
-    let [cancel, swap, choose] = f.legend;
-    let at = |tex| tex_at(&out, tex).expect("a legend hint is missing").1;
-    let seen = |w: u32| (w - HINT_EDGE) as f32;
+    // B and A are the bar's RETURN and CONFIRM: the picker keeps only its swap, on the slot
+    let swap = tex_at(&out, f.swap.0).expect("the swap hint is missing").1;
+    let seen = (f.swap.1 - HINT_EDGE) as f32;
     assert_eq!(
-        at(cancel.0),
-        [174.0 + sx, 362.0 + sy, cancel.1 as f32, HINT_H as f32]
-    );
-    assert_eq!(
-        at(swap.0)[0] + seen(swap.1) / 2.0,
+        swap[0] + seen / 2.0,
         360.0 + sx,
         "Swap is off the panel's centre"
     );
     assert_eq!(
-        at(choose.0)[0] + seen(choose.1),
-        546.0 + sx,
-        "Choose does not end at the cart's edge"
+        swap[1] + swap[3],
+        slot_top(),
+        "Swap does not stand on the slot"
     );
-    assert_eq!((at(swap.0)[1], at(choose.0)[1]), (362.0 + sy, 362.0 + sy));
 }
 
 #[test]

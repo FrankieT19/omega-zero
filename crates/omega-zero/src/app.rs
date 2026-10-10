@@ -11,13 +11,12 @@ use omega_store::{
     Platform, StateEntry, StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, RING_MAX, VOLUME_MAX,
 };
 use omega_ui::{
-    backdrop_shift, board_from, board_x, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease,
-    grown, lid_at, lid_from, lift_of, on_board, posed_face, push_cart_side, shelf_cart_at,
+    backdrop_shift, board_from, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease, grown,
+    lid_at, lid_from, lift_of, on_board, posed_face, push_cart_side, shelf_cart_at, ChromeColours,
     ClockPicker, Draw, FfState, GbShell, Hud, HudKind, Icon, KeyboardFaces, LinkBadge, LinkFaces,
     Links, Millis, Placed, Polaroids, PowerChoice, QuickMenuFaces, Refusal, SettingsRow, Shelf,
-    SlotChrome, TexId, Toast, WifiMenuFaces, BOARD_W, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W,
-    HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W,
-    TURN_PAD,
+    SlotChrome, TexId, Toast, WifiMenuFaces, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, HINT_EDGE,
+    HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
 };
 
 use crate::audio::Sfx;
@@ -31,11 +30,12 @@ use crate::link_screen::LinkSprites;
 use crate::link_start::{link_port, LinkFail, LinkProgress, LinkStarter, LinkStep};
 use crate::nav::{offsets, Dir, End, Offsets, Slide};
 use crate::persist::{self, Snapshot};
+use crate::screens::bar::BarFaces;
 use crate::screens::clock::clock_screen;
 use crate::screens::controls::ControlsFaces;
+use crate::screens::draw_plate;
 use crate::screens::keyboard::typing_of;
 use crate::screens::ssh::SshScreen;
-use crate::screens::{draw_plate, shift_all};
 use crate::video_mode::{self, VideoMode};
 use crate::wifi::{wifi_jobs, WifiJobs};
 use crate::wifi_screen::{Summary, Watch, Wifi, WifiScreen};
@@ -100,8 +100,9 @@ fn push_lid(out: &mut Vec<Draw>, at: (f32, f32, f32, f32), tex: TexId, turn: f32
     });
 }
 
-fn core_legend_y() -> f32 {
-    362.0 + stage_y()
+/// Where the core picker's swap hint stands: on the slot, just over its lip.
+fn core_swap_y() -> f32 {
+    omega_ui::slot_top() - HINT_H as f32
 }
 
 fn link_text_y() -> f32 {
@@ -321,7 +322,9 @@ pub struct App {
     pub(crate) core_chip_faces: Vec<TexId>,
     pub(crate) core_blank_chip_face: Option<TexId>,
     pub(crate) core_chip_shadow_face: Option<TexId>,
-    pub(crate) core_legend_faces: Vec<(TexId, u32)>,
+    /// The core picker's one hint of its own, "◀▶ Swap", and its width: the rest are the
+    /// bar's actions.
+    pub(crate) core_swap_face: Option<(TexId, u32)>,
     pub(crate) game_menu: Option<GameMenu>,
     pub(crate) link_sprites: Option<LinkSprites>,
     pub(crate) link_hardware: LinkKind,
@@ -406,6 +409,10 @@ pub struct App {
     pub(crate) settings_first: usize,
     /// The move between screens under way, while it slides.
     pub(crate) slide: Option<Slide>,
+    /// The card's Config/theme.txt, which the shelf's chrome is drawn in when there is one.
+    pub(crate) theme: Option<Theme>,
+    /// The bar along the bottom: its actions and its plate.
+    pub(crate) bar_faces: Option<BarFaces>,
 }
 
 fn shelves_of(carts: Vec<Cart>) -> Vec<(Platform, Shelf)> {
@@ -446,6 +453,8 @@ impl App {
             backdrop_face: None,
             settings_first: 0,
             slide: None,
+            theme: None,
+            bar_faces: None,
             phase: Phase::Shelf,
             shelves,
             shelf_at,
@@ -464,7 +473,7 @@ impl App {
             core_chip_faces: Vec::new(),
             core_blank_chip_face: None,
             core_chip_shadow_face: None,
-            core_legend_faces: Vec::new(),
+            core_swap_face: None,
             game_menu: None,
             link_sprites: None,
             link_hardware: LinkKind::Cable,
@@ -534,6 +543,7 @@ impl App {
         omega_ui::set_theme(Theme::read(root));
         let mut app = App::new(scan(root).unwrap_or_default());
         app.root = Some(root.to_path_buf());
+        app.theme = Theme::read_override(root);
         app.state = read_app_state(root);
         app.wifi.start(app.state.wifi);
         app.labels = Labels::new(label_jobs(root), Account::load(root));
@@ -1260,6 +1270,20 @@ impl App {
         omega_ui::kit::palette::palette(self.palette_colour())
     }
 
+    /// What the shelf's slot and top bar are drawn in: the card's theme.txt when it has one,
+    /// or else the kit's palette, so a new colour in Settings > Background re-tints them too.
+    pub fn chrome_colours(&self) -> ChromeColours {
+        match &self.theme {
+            Some(theme) => ChromeColours::themed(theme),
+            None => ChromeColours::of(self.palette()),
+        }
+    }
+
+    /// Draws the shelf's chrome in the card's own colours, as a Config/theme.txt does.
+    pub fn set_theme(&mut self, theme: Option<Theme>) {
+        self.theme = theme;
+    }
+
     /// The pattern the frontend should make a picture of, when the background is one.
     pub fn backdrop_pattern(&self) -> Option<(BackdropStyle, u8)> {
         let b = self.backdrop();
@@ -1959,12 +1983,10 @@ impl App {
                 colour: [0.0, 0.0, 0.0, 1.0],
             }),
         }
-        shift_all(&mut out[start..], off.dx, 0.0);
+        for d in &mut out[start..] {
+            *d = d.shifted(off.dx, 0.0);
+        }
     }
-
-    /// Where the bar across the bottom of the menus will be drawn, over every screen and
-    /// still while they slide. The bar itself comes next.
-    fn draw_bar(&self, _out: &mut Vec<Draw>) {}
 
     pub fn screen_shake(&self) -> f32 {
         self.shake_at(self.now())
@@ -1999,6 +2021,7 @@ impl App {
         let (rest, scale) = self.shelf().selected_at();
         SlotChrome {
             cart,
+            colours: self.chrome_colours(),
             face,
             rest,
             scale,
@@ -2059,8 +2082,9 @@ impl App {
         self.core_chip_shadow_face = Some(shadow);
     }
 
-    pub fn set_core_legend_faces(&mut self, faces: Vec<(TexId, u32)>) {
-        self.core_legend_faces = faces;
+    /// The core picker's "◀▶ Swap" hint, and its width.
+    pub fn set_core_swap_face(&mut self, face: (TexId, u32)) {
+        self.core_swap_face = Some(face);
     }
 
     pub fn set_link_menu_faces(&mut self, faces: Vec<(TexId, u32, u32)>) {
@@ -2219,23 +2243,17 @@ impl App {
             push_lid(out, (lid.x, lid.y, lid.w, lid.h), tex, turn, pose.yaw);
         }
 
-        if let [cancel, swap, choose] = self.core_legend_faces.as_slice() {
-            let right = board_x() + BOARD_W as f32;
-            let seen = |w: u32| w.saturating_sub(HINT_EDGE) as f32;
-            for (tex, w, x) in [
-                (cancel.0, cancel.1, board_x()),
-                (swap.0, swap.1, (out_w() as f32 - seen(swap.1)) / 2.0),
-                (choose.0, choose.1, right - seen(choose.1)),
-            ] {
-                out.push(Draw::Tex {
-                    x: x.round(),
-                    y: core_legend_y(),
-                    w: w as f32,
-                    h: HINT_H as f32,
-                    tex,
-                    alpha: lift,
-                });
-            }
+        // B and A are the bar's RETURN and CONFIRM now; only the swap is the picker's own
+        if let Some((tex, w)) = self.core_swap_face {
+            let seen = w.saturating_sub(HINT_EDGE) as f32;
+            out.push(Draw::Tex {
+                x: ((out_w() as f32 - seen) / 2.0).round(),
+                y: core_swap_y(),
+                w: w as f32,
+                h: HINT_H as f32,
+                tex,
+                alpha: lift,
+            });
         }
     }
 
