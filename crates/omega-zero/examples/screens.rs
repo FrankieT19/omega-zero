@@ -27,7 +27,13 @@ const SETTLE: Duration = Duration::from_secs(2);
 const LIT_FRAMES: u32 = 600;
 
 const SCRIPT: &str = "
-wait 120
+wait 1
+shot boot-logo
+wait 15
+shot boot-fade-half
+wait 15
+shot boot-fade-end
+wait 89
 settle
 shot shelf-gba
 frames shelf-drift 90
@@ -459,6 +465,10 @@ fn card(dir: &Path) {
     for sub in omega_zero::root::DIRS {
         std::fs::create_dir_all(dir.join(sub)).expect("create the card's folders");
     }
+    // the boot logo omega-zero ships for this canvas, as the card carries it
+    let logo = format!("bootlogo-{}x{}.bmp", out_w(), out_h());
+    let shipped = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../card/System");
+    std::fs::copy(shipped.join(&logo), dir.join("System").join(&logo)).expect("copy the boot logo");
     for title in ["Emerald", "Fire Red", "Minish Cap", "Zelda"] {
         let mut rom = vec![0u8; 0x100];
         let header = title.to_uppercase();
@@ -578,6 +588,10 @@ fn main() {
         SimPlatform::at(root.path().into()).stopped_at(CLOCK),
     ));
     frontend.upload_faces(&mut compositor);
+    let system = root.path().join("System");
+    if let Some(logo) = omega_zero::bootlogo::shown(&system, (out_w(), out_h())) {
+        frontend.show_boot_logo(&mut compositor, &logo);
+    }
     frontend.drive_emulator();
     frontend
         .app_mut()
