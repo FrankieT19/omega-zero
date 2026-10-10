@@ -116,12 +116,27 @@ deploy)
 	on sync
 	echo "copied, rebooting $host"
 	on "(sleep 1; reboot) > /dev/null 2>&1 &"
-	# The launcher writes a line to the session log as it starts omega-zero.
+	# The launcher writes a line to the session log as it starts omega-zero. A console that is
+	# back but turns the password away three times running has had a new one given to root: the
+	# first omega-zero to run on a card with no ssh_password does that as it starts.
 	waited=0
+	refused=0
 	while [ "$waited" -lt 120 ]; do
 		sleep 3
 		waited=$((waited + 3))
-		now="$(lines "$log")"
+		status=0
+		out="$(ssh_once "cat '$log' 2> /dev/null | wc -l" < /dev/null 2> /dev/null)" || status=$?
+		if [ "$status" -eq 5 ]; then
+			refused=$((refused + 1))
+			if [ "$refused" -ge 3 ]; then
+				echo "console.sh: $host is back, but turned the password away: omega-zero gave root a new one as it started" >&2
+				echo "console.sh: the password is on the console under Settings > Network > SSH > INFO; put it in .console-password" >&2
+				exit 1
+			fi
+			continue
+		fi
+		refused=0
+		now="$(printf '%s' "$out" | tr -d ' ')"
 		if [ "${now:-0}" -gt "${before:-0}" ]; then
 			ssh_once "tail -n 1 '$log'" < /dev/null
 			exit 0
