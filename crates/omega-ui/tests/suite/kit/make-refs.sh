@@ -74,6 +74,19 @@ shoot list-dim-lit 150 13 'c=list-row&w=150&label=Home&value=CONNECTED&signal=3&
 shoot list-bare 150 13 'c=list-row&w=150&label=Hidden'
 shoot list-cut 100 13 'c=list-row&w=100&label=A%20very%20long%20network%20name&signal=2&lock&lit'
 
+# device rows: each kind's icon, unlit and lit, in the middle of its room where the bars end and
+# no room kept for a padlock; a device with no name shows its MAC; dim; a name cut short
+shoot list-gamepad 150 13 'c=list-row&w=150&label=8BitDo%20SN30%20Pro&value=CONNECTED&device=gamepad'
+shoot list-gamepad-lit 150 13 'c=list-row&w=150&label=8BitDo%20SN30%20Pro&value=CONNECTED&device=gamepad&lit'
+shoot list-audio 150 13 'c=list-row&w=150&label=WH-1000XM4&value=PAIRED&device=audio'
+shoot list-audio-lit 150 13 'c=list-row&w=150&label=WH-1000XM4&value=PAIRED&device=audio&lit'
+shoot list-keyboard 150 13 'c=list-row&w=150&label=Keychron%20K3&device=keyboard'
+shoot list-keyboard-lit 150 13 'c=list-row&w=150&label=Keychron%20K3&device=keyboard&lit'
+shoot list-other 150 13 'c=list-row&w=150&label=4C%3A4C%3A6B%3A1A%3A80%3AD3&device=other'
+shoot list-other-lit 150 13 'c=list-row&w=150&label=4C%3A4C%3A6B%3A1A%3A80%3AD3&device=other&lit'
+shoot list-device-dim 150 13 'c=list-row&w=150&label=Keychron%20K3&value=PAIRING&device=keyboard&dim'
+shoot list-device-cut 100 13 'c=list-row&w=100&label=8BitDo%20SN30%20Pro&value=CONNECTING&device=gamepad&lit'
+
 # the bar at 640 and 720 (320 and 360 art pixels): the shelf's, a menu's, with one hint and two;
 # its two actions one width
 for w in 320 360; do
@@ -92,6 +105,8 @@ shoot bar-menu-thin-320 320 19 'c=bar&w=320&font=thin&left=RETURN&left-hint=B&ri
 # lines of text as flow.html sets them, the Controls panel's arrows as flow/art.js draws them
 shoot text-sftp 144 11 'c=text&tone=dim&text=SFTP%20uses%20the%20same%20login'
 shoot text-offline 162 11 'c=text&tone=dim&text=Join%20a%20Wi-Fi%20network%20first.'
+shoot text-bluetooth-off 102 11 'c=text&tone=dim&text=Bluetooth%20is%20off.'
+shoot text-looking 120 11 'c=text&tone=dim&text=Looking%20for%20devices%E2%80%A6'
 shoot text-labels 264 21 'c=text&tone=dim&text=Sign%20in%20with%20your%20free%20ScreenScraper%20account%0Ato%20fetch%20the%20real%20labels%20of%20your%20carts.'
 shoot text-heading 42 11 'c=text&tone=dim&text=IN%20GAME'
 shoot text-select-up-down 54 11 'c=text&tone=frame-hi&text=SELECT%2B%E2%96%B2%E2%96%BC'

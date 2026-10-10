@@ -425,11 +425,14 @@
 
       <article class="card wide">
         <header><h3>&lt;omega-list-row&gt;</h3><code>components/omega-list-row.js</code></header>
-        <p class="dim">A Wi-Fi network in a list: an <code>&lt;omega-row&gt;</code> whose name keeps its
-          own case, with what the network is to the handheld on the right, then a padlock if it needs
-          a password and the top bar's Wi-Fi icon, as many of its three parts lit as the signal is
-          strong. Room is kept for the padlock and the bars on every row, so they line up down the
-          list. Lit and dim as <code>&lt;omega-row&gt;</code>.</p>
+        <p class="dim">A Wi-Fi network or a Bluetooth device in a list: an <code>&lt;omega-row&gt;</code>
+          whose name keeps its own case, with what it is to the handheld on the right. A network's
+          row then has a padlock if it needs a password and the top bar's Wi-Fi icon, as many of its
+          three parts lit as the signal is strong; room is kept for the padlock and the bars on every
+          row, so they line up down the list. A device's row has its kind's icon where the bars end,
+          in the middle of a room 9 art pixels wide, and keeps no room for a padlock or bars, so a
+          list of devices lines its values and icons up the same way. Lit and dim as
+          <code>&lt;omega-row&gt;</code>.</p>
         <div class="preview omega-backdrop">
           <div class="side">
             <figure>
@@ -456,20 +459,48 @@
               </omega-panel>
             </figure>
           </div>
+          <div class="side">
+            <figure>
+              <span class="tag">Bluetooth devices</span>
+              <omega-panel label="DEVICES" active style="height: calc(75 * var(--u))">
+                <omega-list-row label="8BitDo SN30 Pro" value="CONNECTED" device="gamepad"></omega-list-row>
+                <omega-list-row label="WH-1000XM4" value="PAIRED" device="audio" lit></omega-list-row>
+                <omega-list-row label="Keychron K3" value="PAIRING" device="keyboard"></omega-list-row>
+                <omega-list-row label="4C:4C:6B:1A:80:D3" device="other"></omega-list-row>
+              </omega-panel>
+            </figure>
+            <figure>
+              <span class="tag">each kind, unlit and lit</span>
+              <omega-panel label="KINDS" style="height: calc(127 * var(--u))">
+                <omega-list-row label="audio" device="audio"></omega-list-row>
+                <omega-list-row label="gamepad" device="gamepad"></omega-list-row>
+                <omega-list-row label="keyboard" device="keyboard"></omega-list-row>
+                <omega-list-row label="other" device="other"></omega-list-row>
+                <omega-list-row label="audio" device="audio" lit></omega-list-row>
+                <omega-list-row label="gamepad" device="gamepad" lit></omega-list-row>
+                <omega-list-row label="keyboard" device="keyboard" lit></omega-list-row>
+                <omega-list-row label="other" device="other" lit></omega-list-row>
+              </omega-panel>
+            </figure>
+          </div>
         </div>
         <div class="table">
           <table>
             <tr><th>API</th><th>What it does</th></tr>
-            <tr><td>label</td><td>The network's name, from the left, in its own case.</td></tr>
-            <tr><td>value</td><td>What it is to the handheld, right-aligned before the icons: <code>CONNECTED</code>, <code>JOINING</code>, <code>SAVED</code>. Optional.</td></tr>
+            <tr><td>label</td><td>The network's or the device's name, from the left, in its own case.</td></tr>
+            <tr><td>value</td><td>What it is to the handheld, right-aligned before the icons: <code>CONNECTED</code>, <code>JOINING</code>, <code>SAVED</code> for a network; <code>CONNECTED</code>, <code>CONNECTING</code>, <code>PAIRING</code>, <code>PAIRED</code> for a device. Optional.</td></tr>
             <tr><td>signal</td><td><code>0</code> to <code>3</code>: the Wi-Fi bars, that many of their three parts lit (dot, small arc, big arc), the rest faint. No bars without it.</td></tr>
             <tr><td>lock</td><td>A padlock beside the bars, for a network with a password.</td></tr>
+            <tr><td>device</td><td><code>audio</code>, <code>gamepad</code>, <code>keyboard</code> or <code>other</code>: a Bluetooth device's row, with headphones, a gamepad, a keyboard or the Bluetooth rune (also for a kind not known) where the bars end, 7 art pixels tall like the capitals. Its row has no padlock or bars and keeps no room for them.</td></tr>
             <tr><td>lit, dim</td><td>As <code>&lt;omega-row&gt;</code>'s. The icons are drawn in the name's colour.</td></tr>
-            <tr><td>::part</td><td><code>row</code>, <code>label</code>, <code>value</code>, <code>lock</code>, <code>signal</code></td></tr>
+            <tr><td>::part</td><td><code>row</code>, <code>label</code>, <code>value</code>, <code>lock</code>, <code>signal</code>, <code>device</code></td></tr>
           </table>
         </div>
 <pre><code>&lt;omega-list-row label="Home" value="CONNECTED" signal="3" lock lit&gt;&lt;/omega-list-row&gt;
-&lt;omega-list-row label="Café Guest" signal="2"&gt;&lt;/omega-list-row&gt;</code></pre>
+&lt;omega-list-row label="Café Guest" signal="2"&gt;&lt;/omega-list-row&gt;
+
+&lt;omega-list-row label="8BitDo SN30 Pro" value="CONNECTED" device="gamepad"&gt;&lt;/omega-list-row&gt;
+&lt;omega-list-row label="4C:4C:6B:1A:80:D3" device="other"&gt;&lt;/omega-list-row&gt;   &lt;!-- no name: its MAC --&gt;</code></pre>
       </article>
 
       <article class="card wide">

@@ -6,11 +6,12 @@
     SLIDE_MS 280, p = ease(t), ease(u) = u³(u(6u − 15) + 10), smootherstep.
     Going deeper, the screen on show leaves to the right, dx = +even(p·W), and the next comes in
       from the left, dx = −even((1 − p)·W); going back is the mirror. even() rounds to a whole
-      art pixel, 2px. Controls stands beside the shelf rather than under it, and slides the
-      mirror way: SELECT sends the shelf out to the left and brings the panel in from the right,
-      and back sends the panel out to the right and brings the shelf in from the left.
+      art pixel, 2px. Settings stands beside the shelf rather than under it, and slides the
+      mirror way: START sends the shelf out to the left and brings Settings in from the right,
+      and back sends Settings out to the right and brings the shelf in from the left. Only that
+      pair goes the mirror way: the screens under Settings, and Controls, go deeper and back.
     Leaving the shelf, its top bar goes up (dy = −p·36), its carts across the way the slide goes
-      (dx = ±p·(W + the widest cart): right for Settings, left for Controls) and its slot down
+      (dx = ±p·(W + the widest cart): right for Controls, left for Settings) and its slot down
       behind the bottom bar (dy = +p·110), while the menu comes in from the other side. Coming
       back, the same with q = 1 − p.
     The bottom bar never leaves. When its actions change (shelf and menus), the old ones sink out
@@ -51,18 +52,21 @@
 
   const NAMES = {
     shelf: 'Shelf', settings: 'Settings', network: 'Network', ssh: 'SSH', keyboard: 'Keyboard',
-    labels: 'Labels', datetime: 'Date & Time', background: 'Theme', about: 'About', controls: 'Controls',
+    bluetooth: 'Bluetooth', labels: 'Labels', datetime: 'Date & Time', background: 'Theme', about: 'About',
+    controls: 'Controls',
   };
   // What the bottom bar shows: the shelf's actions, every menu's, and the key hints some menus add.
   const SHELF_BAR = { left: ['CONTROLS', 'SELECT'], right: ['SETTINGS', 'START'] };
   const MENU_BAR = { left: ['RETURN', 'B'], right: ['CONFIRM', 'A'] };
   const barOf = name => (name === 'shelf' ? SHELF_BAR : MENU_BAR);
   const HINTS = { network: 'Y FORGET', labels: 'START FETCH' };
-  // The screens beside the shelf rather than under it: a slide to or from one goes the mirror way.
-  const ASIDE = ['controls'];
-  const aside = ({ from, to }) => ASIDE.includes(from) || ASIDE.includes(to);
+  // The two screens that stand beside each other rather than one under the other: a slide
+  // between them goes the mirror way. A slide from Settings to a screen under it, or from the
+  // shelf to Controls, goes the usual way.
+  const ASIDE = ['shelf', 'settings'];
+  const aside = ({ from, to }) => from !== to && ASIDE.includes(from) && ASIDE.includes(to);
   // Which way the screen a slide leaves goes, 1 right or −1 left: right going deeper, left going
-  // back, and the mirror of each to and from a screen beside the shelf.
+  // back, and the mirror of each between the shelf and Settings.
   const leavesTo = slide => (slide.dir === 'in' ? 1 : -1) * (aside(slide) ? -1 : 1);
 
   const state = { current: 'shelf', slide: null, slow: false, armed: false };
@@ -104,8 +108,9 @@
   function sinkActions(dy) {
     for (const action of actions) action.style.top = `${dy}px`;
   }
+  // The screen's hint for where its cursor is, if it has one (screens.js), else the screen's own.
   function setHint(name) {
-    const hint = HINTS[name];
+    const hint = screens[name].hint?.() ?? HINTS[name];
     if (!hint) bar.removeAttribute('hint');
     else if (bar.getAttribute('hint') !== hint) bar.setAttribute('hint', hint);
   }
@@ -191,7 +196,10 @@
     const answer = screens[state.current].press(key);
     if (answer?.go) go(answer.go, 'in');
     else if (answer?.back && PARENT[state.current]) go(PARENT[state.current], 'out');
-    else writeHash();
+    else {
+      setHint(state.current);
+      writeHash();
+    }
   }
 
   // ---- whole pixels for what is centred ----
@@ -262,6 +270,7 @@
     if (!model.moving) q.set('moving', '0');
     if (model.font !== 'bold') q.set('font', model.font);
     if (!model.wifi) q.set('wifi', 'off');
+    if (FlowScreens.bluetoothState() !== 'on') q.set('bt', FlowScreens.bluetoothState());
     if (state.slow) q.set('slow', '1');
     if (document.body.classList.contains('shot')) q.set('shot', '1');
     history.replaceState(null, '', `#${q}`.replaceAll('%2C', ','));
@@ -294,6 +303,7 @@
     FlowScreens.set('moving', q.get('moving') !== '0');
     FlowScreens.set('font', pick('font', FONTS, 'bold'));
     FlowScreens.set('wifi', q.get('wifi') !== 'off');
+    FlowScreens.bluetoothAs(pick('bt', FlowScreens.BT, 'on'));
     state.slow = q.get('slow') === '1';
     syncControls();
 
@@ -350,6 +360,7 @@
     input.addEventListener('change', () => FlowScreens.set('font', input.value));
   }
   document.getElementById('wifi').addEventListener('change', e => FlowScreens.set('wifi', e.target.checked));
+  document.getElementById('bluetooth').addEventListener('change', e => FlowScreens.set('bluetooth', e.target.checked));
   for (const input of radios('size')) {
     input.addEventListener('change', () => {
       screen.dataset.size = input.value;
@@ -390,6 +401,7 @@
     for (const input of radios('size')) input.checked = input.value === screen.dataset.size;
     document.getElementById('moving').checked = model.moving;
     document.getElementById('wifi').checked = model.wifi;
+    document.getElementById('bluetooth').checked = model.bluetooth;
     document.getElementById('slow').checked = state.slow;
   }
 
@@ -399,6 +411,8 @@
     if (key === 'moving' && backdrop.hasAttribute('data-moving') !== model.moving) backdrop.toggleAttribute('data-moving', model.moving);
     if (key === 'colour' && document.documentElement.dataset.colour !== model.colour) OmegaPalette.apply(model.colour);
     if (key === 'font') bar.setAttribute('font', model.font);
+    // a device paired or forgotten under the cursor changes the hint
+    if (!state.slide) setHint(state.current);
     syncControls();
     writeHash();
   });
@@ -411,7 +425,7 @@
 
   const KEYS = {
     ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
-    x: 'a', a: 'a', z: 'b', b: 'b', Escape: 'b', Enter: 'start', ' ': 'select',
+    x: 'a', a: 'a', z: 'b', b: 'b', Escape: 'b', y: 'y', Enter: 'start', ' ': 'select',
   };
   document.addEventListener('keydown', e => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;

@@ -5,6 +5,7 @@
 pub mod about;
 pub mod background;
 pub mod bar;
+pub mod bluetooth;
 pub mod clock;
 pub mod controls;
 pub mod keyboard;

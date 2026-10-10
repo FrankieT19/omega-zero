@@ -58,7 +58,7 @@ fn going_back_the_screen_left_goes_left_and_the_one_before_comes_from_the_right(
 }
 
 #[test]
-fn out_to_controls_the_shelf_goes_left_and_the_panel_comes_from_the_right() {
+fn out_to_settings_the_shelf_goes_left_and_settings_comes_from_the_right() {
     let w = 720.0;
     let leave = |p| across(Dir::Aside, End::Leaving, p, w);
     let arrive = |p| across(Dir::Aside, End::Arriving, p, w);
@@ -68,7 +68,7 @@ fn out_to_controls_the_shelf_goes_left_and_the_panel_comes_from_the_right() {
 }
 
 #[test]
-fn back_from_controls_the_panel_goes_right_and_the_shelf_comes_from_the_left() {
+fn back_from_settings_it_goes_right_and_the_shelf_comes_from_the_left() {
     let w = 640.0;
     let leave = |p| across(Dir::FromAside, End::Leaving, p, w);
     let arrive = |p| across(Dir::FromAside, End::Arriving, p, w);
@@ -100,7 +100,7 @@ fn every_offset_is_whole_art_pixels() {
 fn the_shelf_leaves_in_three_layers_and_comes_back_the_same_ways() {
     let w = out_w() as f32;
     let span = w + widest_cart();
-    // leaving for Settings
+    // leaving for Controls
     let leave = |p| offsets(Dir::Deeper, End::Leaving, p, w);
     assert_eq!(leave(0.0), Offsets::NONE);
     let half = leave(0.5);
@@ -116,7 +116,7 @@ fn the_shelf_leaves_in_three_layers_and_comes_back_the_same_ways() {
         gone.carts_dx >= w + widest_cart(),
         "the neighbour peeking in at the left edge is still on the screen"
     );
-    // coming back from them
+    // coming back from it
     let back = |p| offsets(Dir::Back, End::Arriving, p, w);
     assert_eq!(
         (back(0.0).carts_dx, back(0.0).bar_dy, back(0.0).slot_dy),
@@ -143,10 +143,10 @@ fn the_shelf_leaves_in_three_layers_and_comes_back_the_same_ways() {
 }
 
 #[test]
-fn the_shelf_leaves_for_controls_with_its_carts_the_other_way_and_comes_back_from_the_left() {
+fn the_shelf_leaves_for_settings_with_its_carts_the_other_way_and_comes_back_from_the_left() {
     let w = out_w() as f32;
     let span = w + widest_cart();
-    // leaving for Controls
+    // leaving for Settings
     let leave = |p| offsets(Dir::Aside, End::Leaving, p, w);
     assert_eq!(leave(0.0), Offsets::NONE);
     let half = leave(0.5);
@@ -278,22 +278,32 @@ fn every_move_between_screens_slides_the_way_it_goes() {
     let shelf = Phase::Shelf;
 
     a.apply(Action::SelectTap);
-    slid(&a, &Phase::Controls, Dir::Aside, &shelf);
+    slid(&a, &Phase::Controls, Dir::Deeper, &shelf);
     press(&mut a, Btn::B);
-    slid(&a, &shelf, Dir::FromAside, &Phase::Controls);
+    slid(&a, &shelf, Dir::Back, &Phase::Controls);
     a.apply(Action::SelectTap);
     a.apply(Action::SelectTap);
-    slid(&a, &shelf, Dir::FromAside, &Phase::Controls);
+    slid(&a, &shelf, Dir::Back, &Phase::Controls);
 
     for close in [Btn::B, Btn::Start] {
         press(&mut a, Btn::Start);
-        slid(&a, &settings(SettingsRow::FastForward), Dir::Deeper, &shelf);
+        slid(&a, &settings(SettingsRow::FastForward), Dir::Aside, &shelf);
         press(&mut a, close);
-        slid(&a, &shelf, Dir::Back, &settings(SettingsRow::FastForward));
+        slid(
+            &a,
+            &shelf,
+            Dir::FromAside,
+            &settings(SettingsRow::FastForward),
+        );
     }
     press(&mut a, Btn::Start);
     a.apply(Action::QuickMenu);
-    slid(&a, &shelf, Dir::Back, &settings(SettingsRow::FastForward));
+    slid(
+        &a,
+        &shelf,
+        Dir::FromAside,
+        &settings(SettingsRow::FastForward),
+    );
 
     press(&mut a, Btn::Start);
     press(&mut a, Btn::Down);
@@ -417,14 +427,14 @@ fn a_press_during_a_slide_finishes_it_and_acts() {
     slid(
         &a,
         &Phase::Shelf,
-        Dir::Back,
+        Dir::FromAside,
         &settings(SettingsRow::FastForwardSound),
     );
     a.apply_at(Action::GbaDown(Btn::Start), 5_120);
     slid(
         &a,
         &settings(SettingsRow::FastForward),
-        Dir::Deeper,
+        Dir::Aside,
         &Phase::Shelf,
     );
     assert_eq!(a.slide().unwrap().started, 5_120);
@@ -489,47 +499,6 @@ fn x_of(out: &[Draw], tex: TexId) -> Option<f32> {
     })
 }
 
-#[test]
-fn halfway_to_settings_both_screens_are_drawn_where_the_slide_has_them() {
-    let (_d, mut a) = on_shelf();
-    let carts = [TexId::from_raw(900), TexId::from_raw(901)];
-    a.set_faces(carts.to_vec());
-    fake_settings_faces(&mut a);
-    let label = TexId::from_raw(100);
-    let cart = carts[0];
-    let rest = x_of(&frame(&a), cart).expect("the selected cart is not drawn");
-
-    let at: Millis = 10_000;
-    a.apply_at(Action::GbaDown(Btn::Start), at);
-    let rest_label = {
-        let mut done = Vec::new();
-        a.finish_slide();
-        a.draw(&mut done);
-        x_of(&done, label).expect("Settings' modal is not drawn")
-    };
-    a.apply_at(Action::GbaDown(Btn::B), at + 1_000);
-    a.apply_at(Action::GbaDown(Btn::Start), at + 2_000);
-    a.tick_ms(at + 2_000 + SLIDE_MS / 2);
-    let out = frame(&a);
-    let w = out_w() as f32;
-    let half = offsets(Dir::Deeper, End::Leaving, 0.5, w);
-    assert_eq!(
-        x_of(&out, cart),
-        Some(rest + half.carts_dx),
-        "the carts are not halfway off to the right"
-    );
-    assert_eq!(
-        x_of(&out, label),
-        Some(rest_label - w / 2.0),
-        "Settings is not halfway in from the left"
-    );
-    let bar_top = out.iter().any(|d| {
-        matches!(*d, Draw::Rect { x, y, w: bw, colour, .. }
-            if x == 0.0 && y == -TOP_BAR_H / 2.0 && bw == w && colour == a.chrome_colours().housing)
-    });
-    assert!(bar_top, "the top bar is not halfway up off the screen");
-}
-
 /// Whether the top bar is drawn `dy` down from its place, across the whole screen.
 fn top_bar_at(a: &App, out: &[Draw], dy: f32) -> bool {
     let w = out_w() as f32;
@@ -540,7 +509,67 @@ fn top_bar_at(a: &App, out: &[Draw], dy: f32) -> bool {
 }
 
 #[test]
-fn halfway_to_controls_and_back_the_carts_and_the_panel_go_the_other_way_round() {
+fn halfway_to_settings_and_back_the_carts_and_settings_go_the_other_way_round() {
+    let (_d, mut a) = on_shelf();
+    let carts = [TexId::from_raw(900), TexId::from_raw(901)];
+    a.set_faces(carts.to_vec());
+    fake_settings_faces(&mut a);
+    let label = TexId::from_raw(100);
+    let cart = carts[0];
+    let rest = x_of(&frame(&a), cart).expect("the selected cart is not drawn");
+    let w = out_w() as f32;
+
+    let at: Millis = 10_000;
+    a.apply_at(Action::GbaDown(Btn::Start), at);
+    a.finish_slide();
+    let rest_label = x_of(&frame(&a), label).expect("Settings' modal is not drawn");
+
+    // B: Settings goes back out to the right, the carts come back from the left
+    a.apply_at(Action::GbaDown(Btn::B), at + 1_000);
+    a.tick_ms(at + 1_000 + SLIDE_MS / 2);
+    let out = frame(&a);
+    let half = offsets(Dir::FromAside, End::Arriving, 0.5, w);
+    assert!(half.carts_dx < 0.0);
+    assert_eq!(
+        x_of(&out, cart),
+        Some(rest + half.carts_dx),
+        "the carts are not halfway back from the left"
+    );
+    assert_eq!(
+        x_of(&out, label),
+        Some(rest_label + w / 2.0),
+        "Settings is not halfway off to the right"
+    );
+    assert!(
+        top_bar_at(&a, &out, -TOP_BAR_H / 2.0),
+        "the top bar is not halfway down from the top"
+    );
+
+    // START: the carts go out to the left, Settings comes in from the right
+    a.finish_slide();
+    a.apply_at(Action::GbaDown(Btn::Start), at + 2_000);
+    a.tick_ms(at + 2_000 + SLIDE_MS / 2);
+    let out = frame(&a);
+    let half = offsets(Dir::Aside, End::Leaving, 0.5, w);
+    assert!(half.carts_dx < 0.0);
+    assert_eq!(
+        x_of(&out, cart),
+        Some(rest + half.carts_dx),
+        "the carts are not halfway off to the left"
+    );
+    assert_eq!(
+        x_of(&out, label),
+        Some(rest_label + w / 2.0),
+        "Settings is not halfway in from the right"
+    );
+    assert!(
+        top_bar_at(&a, &out, -TOP_BAR_H / 2.0),
+        "the top bar is not halfway up off the screen"
+    );
+}
+
+#[test]
+fn halfway_to_controls_and_back_both_screens_are_drawn_where_the_slide_has_them() {
     let (_d, mut a) = on_shelf();
     let carts = [TexId::from_raw(900), TexId::from_raw(901)];
     a.set_faces(carts.to_vec());
@@ -559,47 +588,83 @@ fn halfway_to_controls_and_back_the_carts_and_the_panel_go_the_other_way_round()
     a.finish_slide();
     let rest_panel = x_of(&frame(&a), panel).expect("the Controls panel is not drawn");
 
-    // B: the panel goes back out to the right, the carts come back from the left
+    // B: the panel goes back out to the left, the carts come back from the right
     a.apply_at(Action::GbaDown(Btn::B), at + 1_000);
     a.tick_ms(at + 1_000 + SLIDE_MS / 2);
     let out = frame(&a);
-    let half = offsets(Dir::FromAside, End::Arriving, 0.5, w);
-    assert!(half.carts_dx < 0.0);
+    let half = offsets(Dir::Back, End::Arriving, 0.5, w);
+    assert!(half.carts_dx > 0.0);
     assert_eq!(
         x_of(&out, cart),
         Some(rest + half.carts_dx),
-        "the carts are not halfway back from the left"
+        "the carts are not halfway back from the right"
     );
     assert_eq!(
         x_of(&out, panel),
-        Some(rest_panel + w / 2.0),
-        "Controls is not halfway off to the right"
+        Some(rest_panel - w / 2.0),
+        "Controls is not halfway off to the left"
     );
     assert!(
         top_bar_at(&a, &out, -TOP_BAR_H / 2.0),
         "the top bar is not halfway down from the top"
     );
 
-    // SELECT: the carts go out to the left, the panel comes in from the right
+    // SELECT: the carts go out to the right, the panel comes in from the left
     a.finish_slide();
     a.apply_at(Action::SelectTap, at + 2_000);
     a.tick_ms(at + 2_000 + SLIDE_MS / 2);
     let out = frame(&a);
-    let half = offsets(Dir::Aside, End::Leaving, 0.5, w);
-    assert!(half.carts_dx < 0.0);
+    let half = offsets(Dir::Deeper, End::Leaving, 0.5, w);
+    assert!(half.carts_dx > 0.0);
     assert_eq!(
         x_of(&out, cart),
         Some(rest + half.carts_dx),
-        "the carts are not halfway off to the left"
+        "the carts are not halfway off to the right"
     );
     assert_eq!(
         x_of(&out, panel),
-        Some(rest_panel + w / 2.0),
-        "Controls is not halfway in from the right"
+        Some(rest_panel - w / 2.0),
+        "Controls is not halfway in from the left"
     );
     assert!(
         top_bar_at(&a, &out, -TOP_BAR_H / 2.0),
         "the top bar is not halfway up off the screen"
+    );
+}
+
+/// Settings comes in from the right, but going deeper from it is as it always was: it leaves to
+/// the right as Network comes in from the left, and comes back from the right.
+#[test]
+fn halfway_to_network_settings_still_goes_out_to_the_right_and_comes_back_from_it() {
+    let (_d, mut a) = on_shelf();
+    fake_settings_faces(&mut a);
+    let label = TexId::from_raw(100);
+    press(&mut a, Btn::Start);
+    a.finish_slide();
+    walk_to(&mut a, SettingsRow::Network);
+    let rest = x_of(&frame(&a), label).expect("Settings' modal is not drawn");
+    let w = out_w() as f32;
+    let network = Phase::Network(WifiScreen::default());
+
+    let at: Millis = 10_000;
+    a.apply_at(Action::GbaDown(Btn::A), at);
+    slid(&a, &network, Dir::Deeper, &settings(SettingsRow::Network));
+    a.tick_ms(at + SLIDE_MS / 2);
+    assert_eq!(offsets(Dir::Deeper, End::Leaving, 0.5, w).dx, w / 2.0);
+    assert_eq!(
+        x_of(&frame(&a), label),
+        Some(rest + w / 2.0),
+        "Settings is not halfway off to the right"
+    );
+
+    a.finish_slide();
+    a.apply_at(Action::GbaDown(Btn::B), at + 1_000);
+    slid(&a, &settings(SettingsRow::Network), Dir::Back, &network);
+    a.tick_ms(at + 1_000 + SLIDE_MS / 2);
+    assert_eq!(
+        x_of(&frame(&a), label),
+        Some(rest + w / 2.0),
+        "Settings is not halfway back from the right"
     );
 }
 

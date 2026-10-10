@@ -14,7 +14,7 @@ assets/ui/
 │   ├── flow.css           the page, and the screen in art pixels
 │   ├── screens.js         FlowScreens: what each screen does with a button
 │   ├── player.js          the slides, the keys and the URL's hash
-│   ├── art.js             FlowArt: placeholders for what Rust draws, and the arrows
+│   ├── art.js             FlowArt: placeholders for what Rust draws, the arrows and the …
 │   └── stubs.js           stand-ins for omega-row, omega-list-row and omega-bar, if missing
 ├── foundation/            what every component draws with
 │   ├── fonts.css          Pixel Code Regular, cut to Latin-1 and inlined
@@ -26,7 +26,7 @@ assets/ui/
     ├── omega-modal.js     <omega-modal>     the menu window, a frame that stacks its content
     ├── omega-panel.js     <omega-panel>     a titled section for inside it
     ├── omega-row.js       <omega-row>       one setting in a panel, lit under the cursor
-    ├── omega-list-row.js  <omega-list-row>  a Wi-Fi network in a list, built on omega-row
+    ├── omega-list-row.js  <omega-list-row>  a Wi-Fi network or Bluetooth device in a list
     ├── omega-bar.js       <omega-bar>       the bottom bar: two actions, key hints between them
     ├── action-left.js     <action-left>     the bottom bar's left action
     └── action-right.js    <action-right>    the same, mirrored
@@ -46,6 +46,7 @@ classic scripts, no build step, so it works from `file://`.
 <script src="components/omega-modal.js"></script>
 <script src="components/omega-panel.js"></script>
 <script src="components/omega-row.js"></script>   <!-- omega-list-row.js needs it first -->
+<script src="components/omega-list-row.js"></script>
 <script src="components/action-left.js"></script>
 <script src="components/action-right.js"></script>
 <script src="components/omega-bar.js"></script>
@@ -55,6 +56,9 @@ classic scripts, no build step, so it works from `file://`.
 <omega-modal>
   <omega-panel label="BUTTON SETTING" active>
     <omega-row label="JUMP" value="A" lit carets></omega-row>
+  </omega-panel>
+  <omega-panel label="DEVICES">
+    <omega-list-row label="8BitDo SN30 Pro" value="CONNECTED" device="gamepad"></omega-list-row>
   </omega-panel>
 </omega-modal>
 <omega-bar hint="Y RESET">
@@ -80,6 +84,7 @@ Walk it with the keyboard or the buttons under the screen:
 | D-pad | arrows |
 | A | `X` or `A` |
 | B | `Z`, `B` or `Esc` |
+| Y | `Y` |
 | START | `Enter` |
 | SELECT | `Space` or right `Shift` |
 
@@ -87,12 +92,22 @@ The sidebar jumps straight to a screen, sets Settings > Theme and the panel size
 **slow motion ×5** and **step one frame**, which holds a slide and moves it a frame at a time.
 A key pressed during a slide finishes it, then does what it does.
 
+Settings > Bluetooth is a modal like Network's: BLUETOOTH, its one row switching the radio ON
+or OFF with Left and Right, and DEVICES, each device it knows or finds while it is on, its name
+in its own case (its address when it gives none), what it is to the handheld (CONNECTED,
+CONNECTING, PAIRING, PAIRED, or nothing for one only found) and its kind's icon
+(`<omega-list-row device>`). A on a found device pairs with it and connects (PAIRING, then
+CONNECTED), on a paired one connects and on a connected one disconnects; Y forgets a paired
+device, and the bar says `Y FORGET` while the cursor is on one. With nothing to list, a note
+says "Looking for devices…", or with the radio off "Bluetooth is off.". Settings' BLUETOOTH row
+shows the connected device's name in capitals, else ON or OFF.
+
 The URL's hash says what is shown, and the page keeps it up to date as you walk, so a link or a
 headless Chrome screenshot lands on the same frame:
 
 | Key | Values |
 |---|---|
-| `screen` | `shelf`, `settings`, `controls`, `network`, `ssh`, `keyboard`, `labels`, `datetime`, `background` (THEME), `about` |
+| `screen` | `shelf`, `settings`, `controls`, `network`, `ssh`, `keyboard`, `bluetooth`, `labels`, `datetime`, `background` (THEME), `about` |
 | `from` | slide into `screen` from this one, deeper or back as the tree has it; `dir=in` or `dir=out` forces the way |
 | `t` | with `from`: hold the slide at this time, 0 to 1 |
 | `size` | `640x480` (default), `720x480`, `720x720` |
@@ -100,6 +115,7 @@ headless Chrome screenshot lands on the same frame:
 | `style`, `moving` | the backdrop, as Settings > Theme sets it: `style=plates`, `moving=0` |
 | `font` | `thin`: the bottom bar's labels in the thin font, as Settings > Theme > Font sets it |
 | `wifi` | `off`: SSH shows what it says offline, and the networks dim |
+| `bt` | Bluetooth: `on` (default) with four devices, `off`, `pairing` (the keyboard pairing, the cursor on it) or `empty` (nothing found yet) |
 | `row` | the cursor's row on `screen`, from 0 |
 | `slow` | `1`: slides at a fifth of their speed |
 | `shot` | `1`: the screen alone at the window's top left, for screenshots |

@@ -136,6 +136,7 @@ pub(crate) fn sync_network(app: &mut App, compositor: &mut Compositor, state: &m
                     value: line.value,
                     signal: line.signal,
                     lock: line.lock,
+                    device: None,
                     lit: *lit,
                     dim: false,
                 };

@@ -26,6 +26,7 @@ mod lone;
 mod sync_about;
 mod sync_background;
 mod sync_bar;
+mod sync_bluetooth;
 mod sync_clock;
 mod sync_controls;
 mod sync_core_picker;
@@ -41,6 +42,7 @@ use lone::Baked;
 use sync_about::{sync_about, AboutFace};
 use sync_background::{sync_background, BackdropTex};
 use sync_bar::{sync_bar, BarTexes};
+use sync_bluetooth::{sync_bluetooth, BluetoothTexes};
 use sync_clock::{sync_clock, Clocks};
 use sync_controls::sync_controls;
 use sync_core_picker::sync_core_picker;
@@ -80,6 +82,8 @@ pub struct Frontend {
     overlays: Vec<Overlay>,
     /// The Network modal's own faces.
     network_modal: NetworkTexes,
+    /// The Bluetooth modal's own faces.
+    bluetooth_modal: BluetoothTexes,
     /// The keyboard's window, field, keys and lit key.
     keyboard: KeyboardTexes,
     ssh: SshTexes,
@@ -140,6 +144,7 @@ impl Frontend {
             bezel_marks: Vec::new(),
             overlays: Vec::new(),
             network_modal: NetworkTexes::default(),
+            bluetooth_modal: BluetoothTexes::default(),
             keyboard: KeyboardTexes::default(),
             ssh: SshTexes::default(),
             labels: Baked::default(),
@@ -331,6 +336,11 @@ impl Frontend {
         sync_about(self.session.app_mut(), compositor, &mut self.about);
         sync_settings(self.session.app_mut(), compositor, &mut self.settings);
         sync_network(self.session.app_mut(), compositor, &mut self.network_modal);
+        sync_bluetooth(
+            self.session.app_mut(),
+            compositor,
+            &mut self.bluetooth_modal,
+        );
         sync_keyboard(self.session.app_mut(), compositor, &mut self.keyboard);
         sync_ssh(self.session.app_mut(), compositor, &mut self.ssh);
         sync_controls(self.session.app_mut(), compositor, &mut self.controls);
