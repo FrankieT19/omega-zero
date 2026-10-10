@@ -478,6 +478,7 @@ fn network<'a>(
         value,
         signal,
         lock: has("lock"),
+        device: None,
         lit: has("lit"),
         dim: has("dim"),
     }

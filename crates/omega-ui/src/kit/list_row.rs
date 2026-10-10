@@ -46,6 +46,17 @@ const SIGNAL_GAP: i32 = 3;
 /// The most bars a signal lights.
 pub const BARS: u8 = 3;
 
+/// What a Bluetooth device is, for the icon its row shows.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum DeviceKind {
+    /// Headphones, a headset or a speaker.
+    Audio,
+    Gamepad,
+    Keyboard,
+    /// Anything else, or a device that does not say.
+    Other,
+}
+
 /// One network, as omega-list-row's attributes.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ListRow<'a> {
@@ -58,6 +69,9 @@ pub struct ListRow<'a> {
     pub signal: Option<u8>,
     /// A padlock beside the bars, for a network with a password; its room is kept without.
     pub lock: bool,
+    /// A Bluetooth device's kind, its icon drawn where a network's bars go. Not drawn yet: the
+    /// kit's icons for it are still to come.
+    pub device: Option<DeviceKind>,
     /// The row under the cursor, as a `Row`'s.
     pub lit: bool,
     /// A network that cannot be joined, as a `Row`'s.

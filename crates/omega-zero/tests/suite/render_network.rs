@@ -297,6 +297,7 @@ fn flows_networks(joined: bool) -> [ListRow<'static>; 3] {
         value,
         signal: Some(signal),
         lock,
+        device: None,
         lit: false,
         dim: false,
     };
