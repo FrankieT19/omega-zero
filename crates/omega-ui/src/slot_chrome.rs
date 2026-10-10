@@ -25,8 +25,8 @@ const K: f32 = CART_W as f32 / SEATED_W as f32;
 /// The band that holds the slot, standing on the bar across the bottom.
 pub const MOUTH_H: f32 = 80.0;
 
-/// The UI kit's bar across the bottom of the shelf: 21 of its art pixels tall.
-pub const BAR_H: f32 = 21.0 * SPRITE_PX as f32;
+/// The UI kit's bar across the bottom of the shelf: `kit::action::BAR` art pixels tall.
+pub const BAR_H: f32 = (crate::kit::action::BAR * SPRITE_PX) as f32;
 
 /// How far above the bottom of the screen the slot stands: it sits on top of the bar.
 pub const SLOT_RAISE: f32 = BAR_H;

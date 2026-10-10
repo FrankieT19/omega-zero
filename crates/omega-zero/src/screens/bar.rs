@@ -1,6 +1,6 @@
 //! The bar along the bottom of the shelf and of every menu, as flow.html draws it: an action at
 //! each end and the plate between them, with the keys a screen has beyond its two actions shown
-//! on the plate as hints. The shelf's actions are SELECT QUICKMENU and START SETTINGS, a menu's
+//! on the plate as hints. The shelf's actions are SELECT CONTROLS and START SETTINGS, a menu's
 //! B RETURN and A CONFIRM. Setting the clock on first boot has nowhere to go back to, so its
 //! left action is the kit's empty one: the bar keeps its shape and offers only CONFIRM.
 //!
@@ -33,7 +33,7 @@ pub const SWAP: Hint<'static> = Hint {
 /// Which pair of actions the bar shows at its ends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Actions {
-    /// The shelf's: SELECT QUICKMENU on the left, START SETTINGS on the right.
+    /// The shelf's: SELECT CONTROLS on the left, START SETTINGS on the right.
     Shelf,
     /// A menu's: B RETURN and A CONFIRM.
     Menu,
@@ -52,7 +52,7 @@ impl Actions {
     /// The big word and the button in its pill of the action at `side`.
     pub fn action(self, side: Side) -> (&'static str, &'static str) {
         match (self, side) {
-            (Actions::Shelf, Side::Left) => ("QUICKMENU", "SELECT"),
+            (Actions::Shelf, Side::Left) => ("CONTROLS", "SELECT"),
             (Actions::Shelf, Side::Right) => ("SETTINGS", "START"),
             (Actions::Menu, Side::Left) => ("RETURN", "B"),
             (Actions::Menu | Actions::Confirm, Side::Right) => ("CONFIRM", "A"),

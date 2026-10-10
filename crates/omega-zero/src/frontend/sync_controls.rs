@@ -1,4 +1,4 @@
-//! The QUICKMENU panel, baked the first time it opens and again only for a new palette: what it
+//! The CONTROLS panel, baked the first time it opens and again only for a new palette: what it
 //! says never changes.
 
 use omega_gfx::Compositor;

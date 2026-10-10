@@ -1,14 +1,14 @@
 //! Plain lines of Pixel Code for what a panel holds that is not a row, as flow.html sets them:
-//! SSH's "SFTP uses the same login", the Labels note, the Quickmenu's two columns of buttons
+//! SSH's "SFTP uses the same login", the Labels note, the Controls panel's two columns of buttons
 //! and what they do. One face pixel to an art pixel, in the case they are given, each line 10
 //! art pixels below the one before with its capitals on rows 2 to 8, on whole pixels.
 //!
-//! The arrows the Quickmenu names buttons with, ◀ ▶ ▲ ▼, are Pixel Code's own: the full face
+//! The arrows the Controls panel names buttons with, ◀ ▶ ▲ ▼, are Pixel Code's own: the full face
 //! the crate embeds has them, and draws them pixel for pixel as flow/art.js copies them (the
 //! storybook's web font is cut to Latin-1 and has not).
 //!
 //! Where flow.html puts them: a note in a panel's well starts 3 pixels in from the well's
-//! inside (`PanelFace::well`'s x + 3) and 4 below the row over it; the Quickmenu's lines are 11
+//! inside (`PanelFace::well`'s x + 3) and 4 below the row over it; the Controls panel's lines are 11
 //! apart (a line and a pixel), the buttons in the frame's bright colour, what they do in cream,
 //! the column headings in the dim one.
 

@@ -1,5 +1,5 @@
 //! A panel on its own in the middle of the page, with no modal around it, as flow.html's
-//! QUICKMENU, BACKGROUND, DATE & TIME and LABELS are. Each is one face at art resolution, its
+//! CONTROLS, BACKGROUND, DATE & TIME and LABELS are. Each is one face at art resolution, its
 //! chrome and everything it holds baked in, and drawn as one quad; it is baked again only when
 //! what it shows, or the palette, changes.
 

@@ -118,23 +118,28 @@ fn raised_colon(chars: &[char], i: usize) -> bool {
         && side(chars.get(i + 1), chars.get(i + 2))
 }
 
-/// An action's big word as sprite rows, as action-left.js's word(): Pixel Code drawn one face
-/// pixel to a pixel, each letter drawn again a pixel to its right for bold (Pixel Code's own
-/// bold is fattened by part of a pixel, off the grid), so 6 wide and a pixel clear of the next;
-/// every row doubled, so it stands twice as tall; and a shadow one pixel down and right of all
-/// of it. The ink is key 'L', the shadow 'w'. Twice `letters`' rows and one more: 23 tall.
+/// An action's big word as sprite rows, as action-left.js's word(): the capitals of Pixel Code
+/// drawn one face pixel to a pixel, each letter drawn again a pixel to its right for bold (Pixel
+/// Code's own bold is fattened by part of a pixel, off the grid), so 6 wide and a pixel clear of
+/// the next; the rows of the letters' bars, the top, the middle and the bottom (`BAR_ROWS`),
+/// doubled, so the capitals stand 10 tall with their bars two thick like their stems; and a
+/// shadow one pixel down and right of all of it. The ink is key 'L', the shadow 'w'. 11 rows
+/// tall: the capitals and the shadow's row under them.
 pub fn big_word(text: &str) -> Vec<String> {
     let ink = letters(text, ADVANCE + 1);
+    let rows: Vec<usize> = (0..CAP)
+        .flat_map(|i| std::iter::repeat_n(ACCENT + i, if BAR_ROWS.contains(&i) { 2 } else { 1 }))
+        .collect();
     let inked = |x: i32, y: i32| {
         y >= 0
             && x >= 0
-            && ink
-                .get(y as usize >> 1)
-                .is_some_and(|row| row.as_bytes().get(x as usize) == Some(&b'#'))
+            && rows
+                .get(y as usize)
+                .is_some_and(|&r| ink[r].as_bytes().get(x as usize) == Some(&b'#'))
     };
     let at = |x: i32, y: i32| inked(x, y) || inked(x - 1, y);
     let w = ink[0].len() as i32;
-    (0..ink.len() as i32 * 2 + 1)
+    (0..rows.len() as i32 + 1)
         .map(|y| {
             (0..w)
                 .map(|x| {
@@ -150,6 +155,9 @@ pub fn big_word(text: &str) -> Vec<String> {
         })
         .collect()
 }
+
+/// The rows of the capitals `big_word` doubles: where Pixel Code's letters have their bars.
+pub const BAR_ROWS: [usize; 3] = [0, 3, 6];
 
 /// How wide `text` is set in Pixel Code at `LETTER_PX`, in art pixels: what a line of it takes
 /// across, as the browser lays it out.
