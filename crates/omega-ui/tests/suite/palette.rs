@@ -160,6 +160,7 @@ fn every_sprite_key_is_its_colour_and_nothing_else_is_one() {
         ('t', p.tab),
         ('b', p.band),
         ('s', p.stripe),
+        ('d', p.dim),
         ('A', p.frame),
         ('H', p.frame_hi),
         ('L', p.label),
@@ -170,7 +171,7 @@ fn every_sprite_key_is_its_colour_and_nothing_else_is_one() {
     for (k, colour) in keys {
         assert_eq!(p.key(k), Some(colour), "{k}");
     }
-    for k in ['.', ' ', 'd', 'K', 'E', 'a', 'h', 'l', 'C', 'x'] {
+    for k in ['.', ' ', 'D', 'K', 'E', 'a', 'h', 'l', 'C', 'x'] {
         assert_eq!(p.key(k), None, "{k:?}");
     }
 }

@@ -4,12 +4,28 @@
 //! The screenshots are drawn in palette.js's RAMP as written, which `RAMP` below is too, so a
 //! face and its screenshot share their colours whatever the palette makes of a backdrop colour.
 //! Set KIT_OUT to a folder to have each face written there as a PNG beside its reference.
+//!
+//! Text: kit.html turns macOS's font smoothing off (`-webkit-font-smoothing: antialiased`),
+//! which otherwise rings every DOM glyph with a faint halo a canvas word never gets, and every
+//! component draws with `text-rendering: geometricPrecision`, which flow.html's notes and
+//! columns inherit from their panel. So set, Pixel Code at 9 px lands on whole pixels, fully
+//! inked or clear, and Chrome's ink is exactly the full face's as fontdue rasterizes it, a
+//! pixel inked where its coverage is at least half: the web font is the same outlines cut to
+//! Latin-1, so é and × match too. flow.html's ◀ ▶ ▲ ▼, which the cut face has not, are
+//! flow/art.js's sprites, copied from the full face and the same pixels as fontdue's.
 
 use omega_ui::kit::action::{action_face, action_width, Side, BAR, RISE, TALL};
+use omega_ui::kit::bar::{
+    action_swap, bar_layout, cap_width, hint_width, hints_width, plate_face, BarLayout, Hint, Swap,
+    PLATE_H, PLATE_TOP, SINK,
+};
+use omega_ui::kit::list_row::{list_row_face, ListRow};
 use omega_ui::kit::modal::{modal_face, modal_layout};
 use omega_ui::kit::palette::Palette;
-use omega_ui::kit::panel::{panel_face, tab_width, title_face, TAB_W};
+use omega_ui::kit::panel::{panel_face, tab_width, title_face, PanelFace, TAB_W};
 use omega_ui::kit::pixel::{big_word, flip, keyed, letters, mirror, quad, ACCENT, ADVANCE, CAP};
+use omega_ui::kit::row::{panel_height, row_face, row_rect, row_width, Row, ROW_H};
+use omega_ui::kit::text::text_face;
 use omega_ui::{Draw, TexId, UndoFace};
 
 const RAMP: Palette = Palette {
@@ -288,4 +304,400 @@ fn a_face_is_drawn_two_screen_pixels_to_a_texel() {
             alpha: 1.0
         }
     );
+}
+
+/// A row as kit.html builds one from its query: `label`, `value`, and the flags that are set.
+fn row<'a>(label: &'a str, value: Option<&'a str>, flags: &str) -> Row<'a> {
+    let has = |flag| flags.split(' ').any(|f| f == flag);
+    Row {
+        label,
+        value,
+        lit: has("lit"),
+        carets: has("carets"),
+        opens: has("opens"),
+        dim: has("dim"),
+    }
+}
+
+#[test]
+fn rows_are_chromes() {
+    let cases = [
+        ("row-plain", row("FAST FORWARD", Some("6X"), "carets")),
+        (
+            "row-lit-carets",
+            row("FAST FORWARD", Some("6X"), "carets lit"),
+        ),
+        ("row-lit", row("RUMBLE", Some("ON"), "lit")),
+        ("row-opens", row("LABELS", None, "opens")),
+        ("row-opens-lit", row("NETWORK", Some("HOME"), "opens lit")),
+        (
+            "row-carets-opens-lit",
+            row("SHADER", Some("SHARP"), "carets opens lit"),
+        ),
+        ("row-dim", row("WI-FI", Some("OFF"), "carets dim")),
+        ("row-dim-lit", row("WI-FI", Some("OFF"), "carets dim lit")),
+        ("row-dim-opens", row("SSH", None, "opens dim")),
+        ("row-value", row("IP", Some("192.168.1.20"), "")),
+        ("row-case", row("Host", Some("rg35xxsp.local"), "")),
+        ("row-name", row("FETCH LABELS", None, "")),
+    ];
+    for (name, row) in cases {
+        let face = row_face(150, &row, &RAMP);
+        assert_eq!((face.w, face.h), (150, ROW_H));
+        matches(&face, name);
+    }
+}
+
+#[test]
+fn a_row_too_narrow_cuts_its_label_as_chrome_does() {
+    let cut = row("FAST FORWARD SOUND", Some("OFF"), "lit");
+    matches(&row_face(60, &cut, &RAMP), "row-cut");
+    let carets = row("FAST FORWARD", Some("6X"), "carets lit");
+    matches(&row_face(50, &carets, &RAMP), "row-cut-carets");
+    // no room at all: the label is gone and the value runs on past the band's inside
+    let squeezed = row("RUMBLE", Some("OFF"), "");
+    matches(&row_face(30, &squeezed, &RAMP), "row-squeezed");
+}
+
+/// A network's row as kit.html builds one: `label`, `value`, `signal`, and the flags set.
+fn network<'a>(
+    label: &'a str,
+    value: Option<&'a str>,
+    signal: Option<u8>,
+    flags: &str,
+) -> ListRow<'a> {
+    let has = |flag| flags.split(' ').any(|f| f == flag);
+    ListRow {
+        label,
+        value,
+        signal,
+        lock: has("lock"),
+        lit: has("lit"),
+        dim: has("dim"),
+    }
+}
+
+#[test]
+fn network_rows_are_chromes() {
+    let cases = [
+        (
+            "list-home-lit",
+            network("Home", Some("CONNECTED"), Some(3), "lock lit"),
+        ),
+        ("list-cafe", network("Café Wi-Fi", None, Some(2), "")),
+        ("list-cafe-lit", network("Café Wi-Fi", None, Some(2), "lit")),
+        (
+            "list-upstairs",
+            network("Upstairs 5G", None, Some(1), "lock"),
+        ),
+        ("list-attic", network("Attic", None, Some(0), "lock")),
+        (
+            "list-saved",
+            network("Office", Some("SAVED"), Some(1), "lock"),
+        ),
+        ("list-dim", network("Home", None, Some(3), "lock dim")),
+        (
+            "list-dim-lit",
+            network("Home", Some("CONNECTED"), Some(3), "lock dim lit"),
+        ),
+        ("list-bare", network("Hidden", None, None, "")),
+    ];
+    for (name, row) in cases {
+        let face = list_row_face(150, &row, &RAMP);
+        assert_eq!((face.w, face.h), (150, ROW_H));
+        matches(&face, name);
+    }
+    let long = network("A very long network name", None, Some(2), "lock lit");
+    matches(&list_row_face(100, &long, &RAMP), "list-cut");
+}
+
+#[test]
+fn a_signal_past_three_is_three() {
+    let full = network("Home", None, Some(3), "lit");
+    let past = network("Home", None, Some(9), "lit");
+    let face = |row| list_row_face(150, row, &RAMP).rgba;
+    assert!(face(&past) == face(&full));
+}
+
+/// The bar `w` art pixels wide as omega-bar draws it with these actions and hints: the plate,
+/// then the actions over it, on a face `TALL` high whose row `RISE` is the bar's top.
+fn bar(w: u32, left: (&str, &str), right: (&str, &str), hints: &[Hint]) -> UndoFace {
+    let left = action_face(Side::Left, left.0, left.1, &RAMP);
+    let right = action_face(Side::Right, right.0, right.1, &RAMP);
+    let layout = bar_layout(w, &left, &right);
+    let mut face = omega_ui::kit::pixel::blank(w, TALL);
+    let [x, y, pw, _] = layout.plate;
+    over(&mut face, &plate_face(pw, hints, &RAMP), x, y + RISE);
+    for (action, [ax, ay]) in [(&left, layout.left), (&right, layout.right)] {
+        over(
+            &mut face,
+            &action.face,
+            ax as u32,
+            (ay + RISE as i32) as u32,
+        );
+    }
+    face
+}
+
+#[test]
+fn the_bar_is_chromes_at_640_and_720() {
+    let shelf = (("QUICKMENU", "SELECT"), ("SETTINGS", "START"));
+    let menu = (("RETURN", "B"), ("CONFIRM", "A"));
+    let forget = [Hint {
+        key: "Y",
+        word: "FORGET",
+    }];
+    let two = [
+        forget[0],
+        Hint {
+            key: "X",
+            word: "RENAME",
+        },
+    ];
+    for w in [320, 360] {
+        matches(&bar(w, shelf.0, shelf.1, &[]), &format!("bar-shelf-{w}"));
+        matches(&bar(w, menu.0, menu.1, &[]), &format!("bar-menu-{w}"));
+        matches(&bar(w, menu.0, menu.1, &forget), &format!("bar-forget-{w}"));
+        matches(&bar(w, menu.0, menu.1, &two), &format!("bar-two-{w}"));
+    }
+    let fetch = [Hint {
+        key: "START",
+        word: "FETCH",
+    }];
+    matches(&bar(320, menu.0, menu.1, &fetch), "bar-fetch-320");
+}
+
+#[test]
+fn the_plate_runs_between_the_actions_and_under_their_ends() {
+    let action = |side, word, pill| action_face(side, word, pill, &RAMP);
+    let (quickmenu, settings) = (
+        action(Side::Left, "QUICKMENU", "SELECT"),
+        action(Side::Right, "SETTINGS", "START"),
+    );
+    let (back, confirm) = (
+        action(Side::Left, "RETURN", "B"),
+        action(Side::Right, "CONFIRM", "A"),
+    );
+    let shelf = bar_layout(320, &quickmenu, &settings);
+    assert_eq!(shelf.plate, [124, PLATE_TOP, 79, PLATE_H]);
+    assert_eq!((shelf.left, shelf.right), ([0, -6], [196, -6]));
+    assert_eq!(
+        bar_layout(360, &quickmenu, &settings).plate,
+        [124, 3, 119, 18]
+    );
+    let menu = bar_layout(320, &back, &confirm);
+    assert_eq!(menu.plate, [103, 3, 107, 18]);
+    assert_eq!(menu.right, [203, -6]);
+    assert_eq!(bar_layout(360, &back, &confirm).plate, [103, 3, 147, 18]);
+    assert_eq!(PLATE_H + PLATE_TOP, BAR);
+}
+
+#[test]
+fn hints_are_as_wide_as_their_caps_and_words() {
+    let forget = Hint {
+        key: "Y",
+        word: "FORGET",
+    };
+    let rename = Hint {
+        key: "X",
+        word: "RENAME",
+    };
+    assert_eq!(cap_width("Y"), 9);
+    assert_eq!(cap_width("START"), 33);
+    assert_eq!(hint_width(&forget), 9 + 3 + 36);
+    // ink to ink: the last word's blank pixel is not ink, and 8 pixels between two
+    assert_eq!(hints_width(&[forget]), 47);
+    assert_eq!(hints_width(&[forget, rename]), 47 + 8 + 47);
+    assert_eq!(hints_width(&[Hint { key: "Y", word: "" }]), 9);
+    assert_eq!(hints_width(&[]), 0);
+    let plate = plate_face(107, &[forget], &RAMP);
+    assert_eq!((plate.w, plate.h), (107, PLATE_H));
+}
+
+#[test]
+fn the_bar_stands_on_the_screens_bottom_and_its_actions_sink_on_their_own() {
+    let (left, right) = (
+        action_face(Side::Left, "RETURN", "B", &RAMP),
+        action_face(Side::Right, "CONFIRM", "A", &RAMP),
+    );
+    let layout = bar_layout(320, &left, &right);
+    let tex = TexId::from_raw(3);
+    assert_eq!(BarLayout::top(480), 438.0);
+    assert_eq!(
+        layout.plate_quad(tex, 480),
+        quad(tex, 107, 18, 206.0, 444.0)
+    );
+    assert_eq!(
+        layout.action_quad(Side::Left, tex, &left, 480, 0),
+        quad(tex, 110, TALL, 0.0, 426.0)
+    );
+    assert_eq!(
+        layout.action_quad(Side::Right, tex, &right, 720, SINK),
+        quad(tex, 117, TALL, 406.0, 678.0 - 12.0 + 54.0)
+    );
+}
+
+#[test]
+fn a_change_of_actions_sinks_the_old_and_raises_the_new() {
+    let swap = |new, sink| Swap { new, sink };
+    assert_eq!(action_swap(0.0), swap(false, 0));
+    // flow/player.js: even(p / 0.5 * 54) screen pixels, 13.5 art pixels rounding up
+    assert_eq!(action_swap(0.25), swap(false, 14));
+    assert_eq!(action_swap(0.49), swap(false, 26));
+    assert_eq!(action_swap(0.5), swap(true, SINK));
+    assert_eq!(action_swap(0.75), swap(true, 14));
+    assert_eq!(action_swap(1.0), swap(true, 0));
+    assert_eq!(action_swap(2.0), swap(true, 0));
+    assert_eq!(SINK, TALL, "sunk that far an action is out of sight");
+}
+
+#[test]
+fn lines_of_text_are_chromes() {
+    let cases = [
+        ("text-sftp", "SFTP uses the same login", RAMP.dim),
+        ("text-offline", "Join a Wi-Fi network first.", RAMP.dim),
+        (
+            "text-labels",
+            "Sign in with your free ScreenScraper account\nto fetch the real labels of your carts.",
+            RAMP.dim,
+        ),
+        ("text-heading", "IN GAME", RAMP.dim),
+        ("text-menu-twice", "MENU ×2", RAMP.frame_hi),
+        ("text-does", "LOAD/SAVE STATE", RAMP.cream),
+    ];
+    for (name, text, colour) in cases {
+        matches(&text_face(text, colour), name);
+    }
+}
+
+/// flow.html draws the Quickmenu's ◀ ▶ ▲ ▼ as sprites copied from the full Pixel Code, which
+/// the web font it is set in has no letter for; the face the crate embeds has them, pixel for
+/// pixel the same.
+#[test]
+fn the_quickmenus_arrows_are_pixel_codes_own_as_flow_copies_them() {
+    matches(
+        &text_face("SELECT+▲▼", RAMP.frame_hi),
+        "text-select-up-down",
+    );
+    matches(&text_face("◀▶", RAMP.frame_hi), "text-left-right");
+}
+
+/// What a well holds, laid over `panel`: rows from its top, then whatever is drawn after them.
+fn hold(panel: &mut PanelFace, rows: &[Row]) {
+    for (i, row) in rows.iter().enumerate() {
+        let [x, y, w, _] = row_rect(panel.well, i as u32);
+        over(&mut panel.face, &row_face(w, row, &RAMP), x, y);
+    }
+}
+
+/// A note in a well, as flow.css's .note: 3 pixels in, `below` the rows above it.
+fn note(panel: &mut PanelFace, text: &str, below: u32) {
+    let [x, y, _, _] = panel.well;
+    over(
+        &mut panel.face,
+        &text_face(text, RAMP.dim),
+        x + 3,
+        y + below,
+    );
+}
+
+#[test]
+fn ssh_is_flows() {
+    let login = [
+        ("IP", "192.168.1.20"),
+        ("HOST", "rg35xxsp.local"),
+        ("USER", "root"),
+        ("PASSWORD", "root"),
+        ("PORT", "22"),
+    ];
+    let rows: Vec<Row> = login
+        .iter()
+        .map(|&(label, value)| row(label, Some(value), ""))
+        .collect();
+    // the rows, then the note 4 below them on its line and 2 more under it
+    let content = 5 * ROW_H + 4 + 10 + 2;
+    let mut panel = panel_face(200, panel_height(content), "SSH", true, &RAMP);
+    assert_eq!(panel.well[3], content);
+    hold(&mut panel, &rows);
+    note(&mut panel, "SFTP uses the same login", 5 * ROW_H + 4);
+    matches(&panel.face, "flow-ssh");
+
+    // offline, the note alone: 4 above its line and 5 under it
+    let mut panel = panel_face(200, panel_height(4 + 10 + 5), "SSH", true, &RAMP);
+    note(&mut panel, "Join a Wi-Fi network first.", 4);
+    matches(&panel.face, "flow-ssh-offline");
+}
+
+#[test]
+fn labels_is_flows() {
+    let rows = [
+        row("SCREENSCRAPER", Some("SIGN IN"), "lit"),
+        row("FETCH LABELS", None, ""),
+    ];
+    let content = 2 * ROW_H + 4 + 2 * 10 + 2;
+    let mut panel = panel_face(280, panel_height(content), "LABELS", true, &RAMP);
+    hold(&mut panel, &rows);
+    let text =
+        "Sign in with your free ScreenScraper account\nto fetch the real labels of your carts.";
+    note(&mut panel, text, 2 * ROW_H + 4);
+    matches(&panel.face, "flow-labels");
+}
+
+/// The Quickmenu's two columns: a heading, then each button and what it does, a line and a
+/// pixel apart; each column's buttons as many letters wide as `keys`, and 16 pixels between
+/// the two columns.
+#[test]
+fn the_quickmenu_is_flows() {
+    let shelf: [(&str, &str); 8] = [
+        ("A", "PLAY"),
+        ("HOLD A", "CLEAN START"),
+        ("X", "CORE"),
+        ("START", "SETTINGS"),
+        ("SELECT", "QUICKMENU"),
+        ("◀▶", "BROWSE"),
+        ("▲▼", "LETTER"),
+        ("L1 R1", "SHELF"),
+    ];
+    let in_game: [(&str, &str); 11] = [
+        ("L2", "REWIND"),
+        ("R2", "FAST FORWARD"),
+        ("MENU ×2", "SAVE STATES"),
+        ("HOLD MENU", "EJECT"),
+        ("SELECT+MENU", "LINK"),
+        ("SELECT+▲▼", "BRIGHTNESS"),
+        ("SELECT+◀▶", "BLUE LIGHT"),
+        ("SELECT+L1/R1", "LOAD/SAVE STATE"),
+        ("SELECT+Y", "COLOUR"),
+        ("VOL+ VOL-", "MUTE"),
+        ("HOLD POWER", "POWER MENU"),
+    ];
+    // the heading's line and 2 below it, a pixel, then the lines; and a pixel under them all
+    let content = 10 + 2 + 1 + 11 * 11 - 1 + 1;
+    let mut panel = panel_face(304, panel_height(content), "QUICKMENU", true, &RAMP);
+    let [wx, wy, ww, _] = panel.well;
+    assert_eq!(ww, 108 + 16 + 168, "the widest line sets the panel's width");
+    /// A button and what it does.
+    type Line<'a> = (&'a str, &'a str);
+    let columns: [(u32, &str, u32, &[Line]); 2] =
+        [(0, "SHELF", 6, &shelf), (108 + 16, "IN GAME", 12, &in_game)];
+    for (x, heading, keys, lines) in columns {
+        over(&mut panel.face, &text_face(heading, RAMP.dim), wx + x, wy);
+        for (i, (key, does)) in lines.iter().enumerate() {
+            let y = wy + 13 + 11 * i as u32;
+            over(&mut panel.face, &text_face(key, RAMP.frame_hi), wx + x, y);
+            let does_x = wx + x + 6 * keys + 6;
+            over(&mut panel.face, &text_face(does, RAMP.cream), does_x, y);
+        }
+    }
+    matches(&panel.face, "flow-controls");
+}
+
+#[test]
+fn rows_stand_in_a_well_a_pixel_into_its_sides() {
+    let panel = panel_face(160, panel_height(3 * ROW_H), "CONFIGS", true, &RAMP);
+    assert_eq!(panel.well, [6, 18, 148, 39]);
+    assert_eq!(row_width(148), 150);
+    assert_eq!(row_rect(panel.well, 0), [5, 18, 150, ROW_H]);
+    assert_eq!(row_rect(panel.well, 2), [5, 18 + 2 * ROW_H, 150, ROW_H]);
+    assert_eq!(panel_height(0), 23);
 }
