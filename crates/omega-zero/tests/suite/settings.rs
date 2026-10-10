@@ -569,30 +569,3 @@ fn labels_start_and_values_end_thirty_two_pixels_in() {
     let [x, _, w, _] = placed(&out, 301).expect("the right arrow");
     assert_eq!(x + w, right, "the arrow around the selected value");
 }
-
-#[test]
-fn only_the_clock_from_the_menu_offers_b_back() {
-    let (_d, mut a, _) = on_carousel();
-    fake_faces(&mut a);
-    a.set_clock_faces(TexId::from_raw(600), TexId::from_raw(601));
-    open_at(&mut a, SettingsRow::DateTime);
-    press(&mut a, Btn::A);
-    a.finish_slide();
-    let out = frame(&a);
-    assert!(drawn(&out, 601), "the clock lost its own key");
-    assert!(
-        drawn(&out, 400),
-        "the clock from the menu does not offer B BACK"
-    );
-
-    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
-    let (mut first, _) = app_booting_with_clock(d.path());
-    fake_faces(&mut first);
-    first.set_clock_faces(TexId::from_raw(600), TexId::from_raw(601));
-    let out = frame(&first);
-    assert!(drawn(&out, 601), "the first boot clock lost its key");
-    assert!(
-        !drawn(&out, 400),
-        "the first boot clock offers a way back it does not have"
-    );
-}

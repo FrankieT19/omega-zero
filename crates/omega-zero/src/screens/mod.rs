@@ -11,6 +11,7 @@ pub mod clock;
 pub mod controls;
 pub mod keyboard;
 pub mod labels;
+pub mod lone;
 pub mod network;
 pub mod settings;
 pub mod shelf;

@@ -1,12 +1,21 @@
 //! Controls, opened with a SELECT tap on the shelf and titled QUICKMENU: what each button does
 //! on the shelf and in a game, as `App::apply` and the gestures in omega-input do it.
+//!
+//! It is a lone panel, as flow.html's `#screen=controls`: SHELF and IN GAME side by side, each a
+//! heading and then a line a button, the buttons in the frame's bright colour and what they do
+//! in cream, on the grid flow.css's .keymap sets. It is baked once for each palette.
 
-use omega_gfx::{out_w, Draw, TexId};
 use omega_input::{Action, Btn};
-use omega_ui::{centred_hints, stage_y, HINT_H, LEGEND_GAP, MENU_PAD};
+use omega_ui::kit::palette::Palette;
+use omega_ui::kit::panel::panel_face;
+use omega_ui::kit::pixel::ADVANCE;
+use omega_ui::kit::row::panel_height;
+use omega_ui::kit::text::text_face;
+use omega_ui::{Draw, UndoFace};
 
 use crate::app::{App, Phase};
 use crate::nav::Dir;
+use crate::screens::lone::{over, Lone};
 
 /// A group of controls: its name, and each control's keys and what they do.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -15,7 +24,7 @@ pub struct ControlsGroup {
     pub lines: Vec<(&'static str, &'static str)>,
 }
 
-/// What the Controls screen says.
+/// What the Controls screen says, word for word as it is drawn.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ControlsView {
     pub title: &'static str,
@@ -25,38 +34,38 @@ pub struct ControlsView {
 impl ControlsView {
     pub fn new() -> Self {
         ControlsView {
-            title: "Quickmenu",
+            title: "QUICKMENU",
             groups: vec![
                 ControlsGroup {
-                    name: "Shelf",
+                    name: "SHELF",
                     lines: vec![
-                        ("A", "Play"),
-                        ("Hold A", "Clean start"),
-                        ("X", "Core picker (GBA)"),
-                        ("START", "Settings"),
-                        ("SELECT", "Quickmenu"),
-                        ("◀▶", "Browse"),
-                        ("▲▼", "Letter jump"),
-                        ("L1/R1", "Switch shelf"),
+                        ("A", "PLAY"),
+                        ("HOLD A", "CLEAN START"),
+                        ("X", "CORE (GBA)"),
+                        ("START", "SETTINGS"),
+                        ("SELECT", "QUICKMENU"),
+                        ("◀▶", "BROWSE"),
+                        ("▲▼", "LETTER"),
+                        ("L1 R1", "SHELF"),
                     ],
                 },
                 ControlsGroup {
-                    name: "In Game",
+                    name: "IN GAME",
                     lines: vec![
-                        ("L2", "Rewind"),
-                        ("R2", "Fast forward"),
-                        ("R2 ×2", "Latch fast forward"),
-                        ("MENU ×2", "Save states"),
-                        ("Hold MENU", "Eject"),
-                        ("SELECT+MENU", "Link"),
-                        ("SELECT+▲▼", "Brightness"),
-                        ("SELECT+◀▶", "Blue light"),
-                        ("SELECT+L1", "Load state"),
-                        ("SELECT+R1", "Save state"),
-                        ("SELECT+Y", "Colour correction"),
-                        ("VOL+ VOL-", "Mute, together"),
-                        ("Hold POWER", "Power menu"),
-                        ("L1/R1", "Picture size (GB)"),
+                        ("L2", "REWIND"),
+                        ("R2", "FAST FORWARD"),
+                        ("R2 ×2", "LATCH FAST FWD"),
+                        ("MENU ×2", "SAVE STATES"),
+                        ("HOLD MENU", "EJECT"),
+                        ("SELECT+MENU", "LINK"),
+                        ("SELECT+▲▼", "BRIGHTNESS"),
+                        ("SELECT+◀▶", "BLUE LIGHT"),
+                        ("SELECT+L1", "LOAD STATE"),
+                        ("SELECT+R1", "SAVE STATE"),
+                        ("SELECT+Y", "COLOUR"),
+                        ("L1 R1", "GB PICTURE SIZE"),
+                        ("VOL+ VOL-", "MUTE"),
+                        ("HOLD POWER", "POWER MENU"),
                     ],
                 },
             ],
@@ -70,47 +79,79 @@ impl Default for ControlsView {
     }
 }
 
-pub type Face = (TexId, u32, u32);
+/// How wide the panel is, in art pixels: flow.css's .controls-panel.
+pub const WIDTH: u32 = 304;
 
-/// A group's column: where its ink starts across the screen, its name, and its lines.
-pub struct ControlsColumn {
-    pub x: f32,
-    pub heading: Face,
-    pub lines: Vec<Face>,
+/// The room a column gives, in letters, as flow.html's --keys and --does: its buttons, then
+/// what they do, a letter apart.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Column {
+    pub keys: u32,
+    pub does: u32,
 }
 
-/// The Controls screen's faces: its title, a column a group, and B BACK.
-pub struct ControlsFaces {
-    pub title: Face,
-    pub columns: Vec<ControlsColumn>,
-    pub back: (TexId, u32),
-}
+/// SHELF's column, then IN GAME's, `COLUMN_GAP` apart: together the well's whole width.
+pub const COLUMNS: [Column; 2] = [Column { keys: 6, does: 11 }, Column { keys: 12, does: 15 }];
+pub const COLUMN_GAP: u32 = 16;
 
-const TITLE_Y: f32 = 24.0;
-const HEADING_Y: f32 = 68.0;
-const LINES_Y: f32 = 112.0;
-pub const LINE_H: u32 = 22;
-pub const LINE_PX: f32 = 16.0;
-/// Between the ink of one column and the next.
-pub const COLUMN_GAP: f32 = 8.0;
-/// Inside the screen's edges: a little nearer them than the lists', for the longest lines.
-const EDGE: f32 = 24.0;
+/// A heading's line and the 2 under it, then a pixel to the first line; each line after that
+/// a line and a pixel under the one before.
+const FIRST_LINE: u32 = 13;
+pub const PITCH: u32 = 11;
 
-/// Where the first column's ink starts, and the next column's after `ink` of the one before.
-pub fn column_x(before: Option<(f32, f32)>) -> f32 {
-    match before {
-        None => EDGE,
-        Some((x, ink)) => x + ink + COLUMN_GAP,
+impl Column {
+    /// How wide the column is in art pixels.
+    pub fn width(self) -> u32 {
+        letters(self.keys + 1 + self.does)
+    }
+
+    /// Where what a button does starts, from the column's left.
+    pub fn does_x(self) -> u32 {
+        letters(self.keys + 1)
     }
 }
 
-/// How far a column starting at `x` may run before the screen's right margin.
-pub fn column_room(x: f32) -> f32 {
-    out_w() as f32 - EDGE - x
+fn letters(n: u32) -> u32 {
+    n * ADVANCE as u32
 }
 
-fn legend_y() -> f32 {
-    427.0 + stage_y()
+/// Where each column starts across the well.
+pub fn column_xs() -> [u32; 2] {
+    [0, COLUMNS[0].width() + COLUMN_GAP]
+}
+
+/// How tall the panel's well is for `view`: its headings, and as many lines as its longest
+/// column, and a pixel under the last.
+pub fn content_height(view: &ControlsView) -> u32 {
+    let lines = view.groups.iter().map(|g| g.lines.len()).max().unwrap_or(0) as u32;
+    FIRST_LINE + PITCH * lines
+}
+
+/// Where line `i` of a column stands, below the well's top.
+pub fn line_y(i: usize) -> u32 {
+    FIRST_LINE + PITCH * i as u32
+}
+
+/// The QUICKMENU panel as flow.html draws it, in `pal`.
+pub fn controls_face(view: &ControlsView, pal: &Palette) -> UndoFace {
+    let mut panel = panel_face(
+        WIDTH,
+        panel_height(content_height(view)),
+        view.title,
+        true,
+        pal,
+    );
+    let [wx, wy, ..] = panel.well;
+    for ((group, column), x) in view.groups.iter().zip(COLUMNS).zip(column_xs()) {
+        over(&mut panel.face, &text_face(group.name, pal.dim), wx + x, wy);
+        for (i, (keys, does)) in group.lines.iter().enumerate() {
+            let y = wy + line_y(i);
+            over(&mut panel.face, &text_face(keys, pal.frame_hi), wx + x, y);
+            let face = text_face(does, pal.cream);
+            over(&mut panel.face, &face, wx + x + column.does_x(), y);
+        }
+    }
+    panel.face
 }
 
 impl App {
@@ -125,41 +166,13 @@ impl App {
         matches!(self.phase, Phase::Controls).then(ControlsView::new)
     }
 
-    pub fn set_controls_faces(&mut self, faces: ControlsFaces) {
-        self.controls_faces = Some(faces);
-    }
-
-    pub fn controls_faces_ready(&self) -> bool {
-        self.controls_faces.is_some()
+    pub fn set_controls_panel(&mut self, panel: Lone) {
+        self.controls_panel = Some(panel);
     }
 
     pub(crate) fn draw_controls(&self, out: &mut Vec<Draw>) {
-        let Some(faces) = &self.controls_faces else {
-            return;
-        };
-        let title = faces.title;
-        push(out, title, (out_w() as f32 - title.1 as f32) / 2.0, TITLE_Y);
-        for column in &faces.columns {
-            // a face's ink starts MENU_PAD in from its edge
-            let x = column.x - MENU_PAD as f32;
-            push(out, column.heading, x, HEADING_Y);
-            for (row, line) in column.lines.iter().enumerate() {
-                push(out, *line, x, LINES_Y + (LINE_H as usize * row) as f32);
-            }
-        }
-        for (tex, w, x) in centred_hints(&[faces.back], LEGEND_GAP) {
-            push(out, (tex, w, HINT_H), x, legend_y());
+        if let Some(panel) = &self.controls_panel {
+            panel.draw(out);
         }
     }
-}
-
-fn push(out: &mut Vec<Draw>, (tex, w, h): Face, x: f32, y: f32) {
-    out.push(Draw::Tex {
-        x: x.round(),
-        y: y.round(),
-        w: w as f32,
-        h: h as f32,
-        tex,
-        alpha: 1.0,
-    });
 }

@@ -96,42 +96,44 @@ fn a_select_tap_in_a_game_opens_nothing() {
     );
 }
 
+/// What each button does, as `App::apply` and the gestures do it, in the words QUICKMENU draws:
+/// trimmed to flow.html's grid, each column's actions as many letters as it has room for.
 #[test]
 fn controls_says_what_the_shelf_and_a_game_do_with_each_button() {
     let view = ControlsView::new();
-    assert_eq!(view.title, "Quickmenu");
+    assert_eq!(view.title, "QUICKMENU");
     let names: Vec<_> = view.groups.iter().map(|g| g.name).collect();
-    assert_eq!(names, ["Shelf", "In Game"]);
+    assert_eq!(names, ["SHELF", "IN GAME"]);
     assert_eq!(
         view.groups[0].lines,
         [
-            ("A", "Play"),
-            ("Hold A", "Clean start"),
-            ("X", "Core picker (GBA)"),
-            ("START", "Settings"),
-            ("SELECT", "Quickmenu"),
-            ("◀▶", "Browse"),
-            ("▲▼", "Letter jump"),
-            ("L1/R1", "Switch shelf"),
+            ("A", "PLAY"),
+            ("HOLD A", "CLEAN START"),
+            ("X", "CORE (GBA)"),
+            ("START", "SETTINGS"),
+            ("SELECT", "QUICKMENU"),
+            ("◀▶", "BROWSE"),
+            ("▲▼", "LETTER"),
+            ("L1 R1", "SHELF"),
         ]
     );
     assert_eq!(
         view.groups[1].lines,
         [
-            ("L2", "Rewind"),
-            ("R2", "Fast forward"),
-            ("R2 ×2", "Latch fast forward"),
-            ("MENU ×2", "Save states"),
-            ("Hold MENU", "Eject"),
-            ("SELECT+MENU", "Link"),
-            ("SELECT+▲▼", "Brightness"),
-            ("SELECT+◀▶", "Blue light"),
-            ("SELECT+L1", "Load state"),
-            ("SELECT+R1", "Save state"),
-            ("SELECT+Y", "Colour correction"),
-            ("VOL+ VOL-", "Mute, together"),
-            ("Hold POWER", "Power menu"),
-            ("L1/R1", "Picture size (GB)"),
+            ("L2", "REWIND"),
+            ("R2", "FAST FORWARD"),
+            ("R2 ×2", "LATCH FAST FWD"),
+            ("MENU ×2", "SAVE STATES"),
+            ("HOLD MENU", "EJECT"),
+            ("SELECT+MENU", "LINK"),
+            ("SELECT+▲▼", "BRIGHTNESS"),
+            ("SELECT+◀▶", "BLUE LIGHT"),
+            ("SELECT+L1", "LOAD STATE"),
+            ("SELECT+R1", "SAVE STATE"),
+            ("SELECT+Y", "COLOUR"),
+            ("L1 R1", "GB PICTURE SIZE"),
+            ("VOL+ VOL-", "MUTE"),
+            ("HOLD POWER", "POWER MENU"),
         ]
     );
     for (keys, does) in view.groups.iter().flat_map(|g| g.lines.iter()) {

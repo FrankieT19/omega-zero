@@ -1,9 +1,12 @@
-//! The picture of the pattern the shelf is drawn over, and the Background screen's list.
+//! The picture of the pattern the shelf is drawn over, and the BACKGROUND panel.
 
 use omega_gfx::{Compositor, TexId};
 
 use crate::app::App;
-use crate::frontend::faces::{upload, wifi_faces, WifiTexes};
+use crate::frontend::faces::upload;
+use crate::frontend::lone::Baked;
+use crate::list_view::ListView;
+use crate::screens::background::background_face;
 
 /// The picture of the pattern the shelf is drawn over, made again when the style or colour
 /// changes.
@@ -13,11 +16,13 @@ pub(crate) struct BackdropTex {
     built: Option<(omega_store::BackdropStyle, u8)>,
 }
 
+/// The panel is baked again when its rows or the palette change: a new colour re-tints it in
+/// the frame the colour changes in.
 pub(crate) fn sync_background(
     app: &mut App,
     compositor: &mut Compositor,
     pattern: &mut BackdropTex,
-    list: &mut WifiTexes,
+    panel: &mut Baked<(ListView, u8)>,
 ) {
     let want = app.backdrop_pattern();
     if pattern.built != want {
@@ -31,12 +36,11 @@ pub(crate) fn sync_background(
         pattern.built = want;
     }
     let Some(view) = app.background_view() else {
-        list.view = None;
         return;
     };
-    if list.view.as_ref() != Some(&view) {
-        let faces = wifi_faces(&view, compositor, list);
-        app.set_background_faces(faces);
-        list.view = Some(view);
+    let pal = app.palette();
+    let from = (view, app.palette_colour());
+    if let Some(baked) = panel.bake(compositor, from, |(view, _)| background_face(view, pal)) {
+        app.set_background_panel(baked);
     }
 }

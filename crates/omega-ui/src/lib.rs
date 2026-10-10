@@ -54,7 +54,7 @@ pub use cart::{
     GB_CART_H, GB_CART_W, GB_LABEL_H, GB_LABEL_W, GB_LABEL_X, GB_LABEL_Y, LABEL_H, LABEL_W,
     LABEL_X, LABEL_Y,
 };
-pub use clock::{clock_label, date_time_text, hhmm, set_clock_hint_face, ClockPicker, Field};
+pub use clock::{clock_label, date_time_text, hhmm, ClockPicker, Field};
 pub use draw::{out_h, out_w, Draw, TexId};
 pub use footer::Printed;
 pub use hud::{

@@ -1,18 +1,20 @@
 //! The words printed on the shelf, the time, its slot's name and the battery's charge, and
-//! the clock screen's line.
+//! the Date & Time panel.
 
 use omega_gfx::{Compositor, TexId};
-use omega_ui::{hhmm, word_face};
+use omega_ui::{hhmm, word_face, Field};
 
 use crate::app::App;
 use crate::frontend::faces::upload;
+use crate::frontend::lone::Baked;
+use crate::screens::clock::clock_face;
 
 #[derive(Default)]
 pub(crate) struct Clocks {
-    line: Option<TexId>,
-    pub(crate) hint: Option<TexId>,
+    /// The Date & Time panel, baked again when the picker's line, its cursor or the palette
+    /// changes.
+    panel: Baked<(String, Field, u8)>,
     shelf: Option<TexId>,
-    picked: Option<String>,
     shown: String,
     battery: String,
     battery_tex: Option<TexId>,
@@ -21,12 +23,14 @@ pub(crate) struct Clocks {
 }
 
 pub(crate) fn sync_clock(app: &mut App, compositor: &mut Compositor, clocks: &mut Clocks) {
-    let picked = app.picker().map(|p| p.text());
-    if picked != clocks.picked {
-        clocks.picked = picked;
-        if let (Some(face), Some(hint)) = (app.picker().map(|p| p.face()), clocks.hint) {
-            let line = upload(compositor, &mut clocks.line, face);
-            app.set_clock_faces(line, hint);
+    if let Some(picker) = app.picker() {
+        let pal = app.palette();
+        let from = (picker.line(), picker.cursor(), app.palette_colour());
+        let baked = clocks
+            .panel
+            .bake(compositor, from, |_| clock_face(picker, pal));
+        if let Some(panel) = baked {
+            app.set_clock_panel(panel);
         }
     }
     let shown = hhmm(app.wall_secs());

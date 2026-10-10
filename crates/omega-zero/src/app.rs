@@ -32,8 +32,8 @@ use crate::link_start::{link_port, LinkFail, LinkProgress, LinkStarter, LinkStep
 use crate::nav::{offsets, Dir, End, Offsets, Slide};
 use crate::persist::{self, Snapshot};
 use crate::screens::clock::clock_screen;
-use crate::screens::controls::ControlsFaces;
 use crate::screens::keyboard::typing_of;
+use crate::screens::lone::Lone;
 use crate::screens::ssh::SshScreen;
 use crate::screens::{draw_plate, shift_all};
 use crate::video_mode::{self, VideoMode};
@@ -355,7 +355,7 @@ pub struct App {
     pub(crate) pending: Option<(PendingUndo, Millis)>,
     pub(crate) legend_faces: Vec<TexId>,
     pub(crate) undo_face: Option<TexId>,
-    pub(crate) clock_faces: Option<(TexId, TexId)>,
+    pub(crate) clock_panel: Option<Lone>,
     pub(crate) settings_faces: Option<QuickMenuFaces>,
     pub(crate) settings_clock_faces: Option<[(TexId, u32, u32); 2]>,
     pub(crate) sticker_face: Option<TexId>,
@@ -387,7 +387,7 @@ pub struct App {
     pub(crate) wifi: Wifi,
     pub(crate) network_faces: Option<WifiMenuFaces>,
     pub(crate) ssh_faces: Option<WifiMenuFaces>,
-    pub(crate) controls_faces: Option<ControlsFaces>,
+    pub(crate) controls_panel: Option<Lone>,
     pub(crate) keyboard_faces: Option<KeyboardFaces>,
     pub(crate) typing_faces: Option<[(TexId, u32, u32); 2]>,
     pub(crate) settings_network_faces: Option<[(TexId, u32, u32); 2]>,
@@ -395,10 +395,10 @@ pub struct App {
     /// None on a handheld without Bluetooth; otherwise whether it is on.
     pub(crate) bluetooth: Option<bool>,
     pub(crate) labels: Labels,
-    pub(crate) labels_faces: Option<WifiMenuFaces>,
+    pub(crate) labels_panel: Option<Lone>,
     /// Carts whose labels arrived and whose faces are still drawn without them.
     pub(crate) stale_faces: Vec<(Platform, String)>,
-    pub(crate) background_faces: Option<WifiMenuFaces>,
+    pub(crate) background_panel: Option<Lone>,
     /// The pattern the shelf is drawn over, the width of its picture, and what it was drawn
     /// as, so a stale one is not shown while the new one is made.
     pub(crate) backdrop_face: Option<(TexId, u32, BackdropStyle, u8)>,
@@ -433,16 +433,16 @@ impl App {
             wifi: Wifi::new(wifi_jobs()),
             network_faces: None,
             ssh_faces: None,
-            controls_faces: None,
+            controls_panel: None,
             keyboard_faces: None,
             typing_faces: None,
             settings_network_faces: None,
             link_faces: None,
             bluetooth: Some(false),
             labels: Labels::new(Box::new(NoKey::default()), None),
-            labels_faces: None,
+            labels_panel: None,
             stale_faces: Vec::new(),
-            background_faces: None,
+            background_panel: None,
             backdrop_face: None,
             settings_first: 0,
             slide: None,
@@ -498,7 +498,7 @@ impl App {
             pending: None,
             legend_faces: Vec::new(),
             undo_face: None,
-            clock_faces: None,
+            clock_panel: None,
             settings_faces: None,
             settings_clock_faces: None,
             sticker_face: None,
@@ -1894,27 +1894,19 @@ impl App {
         let start = out.len();
         match phase {
             Phase::Shelf => return self.draw_shelf(off, out),
-            Phase::SetClock {
-                picker, from_menu, ..
-            } => {
-                draw_plate(out);
-                self.draw_clock(picker, *from_menu, out);
-            }
+            // the lone panels stand over the backdrop, with nothing between
+            Phase::SetClock { .. } => self.draw_clock(out),
             Phase::Settings { row } => {
                 draw_plate(out);
                 self.draw_settings(*row, out);
             }
-            Phase::Controls => {
-                draw_plate(out);
-                self.draw_controls(out);
-            }
-            // the list stands over the background it is choosing, with nothing between
+            Phase::Controls => self.draw_controls(out),
             Phase::Background(_) => self.draw_background_screen(out),
+            Phase::Labels(_) if typing_of(phase).is_none() => self.draw_labels(out),
             Phase::Network(_) | Phase::Labels(_) => {
                 draw_plate(out);
                 match typing_of(phase) {
                     Some(t) => self.draw_keyboard(&t, out),
-                    None if matches!(phase, Phase::Labels(_)) => self.draw_labels(out),
                     None => self.draw_network(out),
                 }
             }

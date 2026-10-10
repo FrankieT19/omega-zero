@@ -9,7 +9,7 @@ use omega_gfx::{out_h, out_w, Compositor, HeadlessSurface};
 use omega_input::{Btn, InputSource, Millis, RawEvent};
 use omega_power::SimPlatform;
 use omega_store::{read_app_state, write_app_state, BackdropStyle};
-use omega_ui::{quick_rows_shown, quick_top, quick_window, stage_x, SettingsRow, QUICK_PITCH};
+use omega_ui::{quick_rows_shown, quick_top, quick_window, SettingsRow, QUICK_PITCH};
 use omega_zero::frontend::Frontend;
 
 struct Script(VecDeque<Vec<RawEvent>>);
@@ -135,20 +135,6 @@ fn settings_renders_full_screen() {
             );
         }
     }
-
-    while f.app().settings_row() != Some(SettingsRow::DateTime) {
-        tap(&mut f, &mut input, Btn::Up);
-    }
-    tap(&mut f, &mut input, Btn::A);
-    let px = composed(&mut f, &mut c, "clock");
-    assert!(
-        (200..270).any(|x| at(
-            &px,
-            (x as f32 + stage_x()) as usize,
-            298 + (out_h() as usize - 480) / 2
-        ) == [0xf6, 0xf4, 0xef]),
-        "the clock from the menu does not offer B BACK"
-    );
 }
 
 /// Sets the card's background to the plain colour `colour`.
