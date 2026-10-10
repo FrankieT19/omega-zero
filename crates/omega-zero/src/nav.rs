@@ -1,9 +1,10 @@
 //! Moving between screens. Every move slides: going deeper, the screen left behind leaves to
 //! the right as the one it opens comes in from the left; going back, the screen leaves to the
-//! left as the one it came from comes back from the right. The Controls panel stands beside the
-//! shelf rather than under it, and slides the mirror way: the shelf leaves to the left as the
-//! panel comes in from the right, and going back the panel leaves to the right as the shelf
-//! comes back from the left. The backdrop under them never moves.
+//! left as the one it came from comes back from the right. Settings stands beside the shelf
+//! rather than under it, and slides the mirror way: the shelf leaves to the left as Settings
+//! comes in from the right, and going back Settings leaves to the right as the shelf comes back
+//! from the left. Only those two slides go the mirror way: the screens under Settings, and the
+//! Controls panel under the shelf, go deeper and back. The backdrop under them never moves.
 //!
 //! The shelf slides in three layers rather than as one: its carts leave across, the way the
 //! slide goes, its top bar up off the screen and its slot down, and they come back the same
@@ -27,9 +28,9 @@ pub enum Dir {
     Deeper,
     /// Back out to the screen the one shown was opened from.
     Back,
-    /// Out to the Controls panel, beside the shelf: the mirror of going deeper.
+    /// Out from the shelf to Settings, beside it: the mirror of going deeper.
     Aside,
-    /// Back from the Controls panel to the shelf beside it: the mirror of going back.
+    /// Back from Settings to the shelf beside it: the mirror of going back.
     FromAside,
 }
 
@@ -104,8 +105,8 @@ impl Offsets {
 /// How far across a screen is that has to travel `span` to clear a canvas, `p` of the way
 /// through a slide going `dir`, as it leaves or arrives.
 pub fn across(dir: Dir, end: End, p: f32, span: f32) -> f32 {
-    // the way the screen left behind goes: right going deeper or back from Controls, left
-    // going back or out to Controls
+    // the way the screen left behind goes: right going deeper or back from Settings, left
+    // going back or out to Settings
     let rightward = match dir {
         Dir::Deeper | Dir::FromAside => 1.0,
         Dir::Back | Dir::Aside => -1.0,

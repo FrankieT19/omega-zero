@@ -157,7 +157,7 @@ pub fn controls_face(view: &ControlsView, pal: &Palette) -> UndoFace {
 impl App {
     pub(crate) fn controls_input(&mut self, action: Action) {
         if matches!(action, Action::GbaDown(Btn::B) | Action::SelectTap) {
-            self.go(Phase::Shelf, Dir::FromAside);
+            self.go(Phase::Shelf, Dir::Back);
         }
     }
 

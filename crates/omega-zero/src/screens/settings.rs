@@ -79,7 +79,7 @@ impl App {
             Phase::Settings {
                 row: SettingsRow::ALL[0],
             },
-            Dir::Deeper,
+            Dir::Aside,
         );
     }
 
@@ -100,7 +100,7 @@ impl App {
             Action::GbaDown(Btn::Right) => return self.change_setting(row, true),
             Action::GbaDown(Btn::A) => return self.open_settings_row(row),
             Action::GbaDown(Btn::B | Btn::Start) | Action::QuickMenu => {
-                return self.go(Phase::Shelf, Dir::Back);
+                return self.go(Phase::Shelf, Dir::FromAside);
             }
             _ => return,
         };
