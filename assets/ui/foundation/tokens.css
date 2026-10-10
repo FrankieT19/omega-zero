@@ -1,0 +1,27 @@
+/*
+  The sizes every omega-zero UI component draws with, and the shelf's backdrop. The colours (the
+  --oz-* properties) are not here: foundation/palette.js makes them from the backdrop colour the
+  player picks in Settings > Background > Colour, Night unless told otherwise.
+*/
+:root {
+  /* One art pixel. omega-zero draws its pixel art at 2x2 (the boot logo's `pixel` style), and
+     every size in the components is a whole number of these. */
+  --u: 2px;
+  --oz-font: "Pixel Code", ui-monospace, Menlo, monospace;
+}
+
+/* The shelf's Grid backdrop: a 2px line every 40px from the top left, in the backdrop colour
+   lifted 9% toward white (backdrop.rs). data-moving drifts it left 16px a second in whole pixels,
+   as the device does with backdrop_moving on. */
+.omega-backdrop {
+  background-color: var(--oz-bg);
+  background-image:
+    linear-gradient(to right, var(--oz-grid) 2px, transparent 2px),
+    linear-gradient(to bottom, var(--oz-grid) 2px, transparent 2px);
+  background-size: 40px 40px;
+}
+.omega-backdrop[data-moving] { animation: omega-drift 2.5s steps(40) infinite; }
+@keyframes omega-drift { to { background-position: -40px 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .omega-backdrop[data-moving] { animation: none; }
+}

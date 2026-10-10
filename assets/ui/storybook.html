@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>omega-zero UI</title>
+<!--
+  The storybook of omega-zero's UI kit: every component it has, what each does and how to use it,
+  and screens put together from them. Open it straight from disk; it needs no server or build.
+  README.md next to it has the rules for adding to the kit.
+-->
+<link rel="stylesheet" href="foundation/fonts.css">
+<link rel="stylesheet" href="foundation/tokens.css">
+<script src="foundation/pixel.js"></script>
+<script src="foundation/palette.js"></script>
+<script src="components/omega-modal.js"></script>
+<script src="components/omega-panel.js"></script>
+<script src="components/action-left.js"></script>
+<script src="components/action-right.js"></script>
+<style>
+  /* the page around the components: omega-zero's site colours */
+  :root {
+    color-scheme: dark;
+    --ground: #0b0e11;
+    --panel: #15181d;
+    --rule: #262a31;
+    --ink: #f4f5f9;
+    --dim: #9da1ab;
+    --accent: #8f8cf2;
+    --area: #4fd1ff;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.55 var(--body); }
+  /* centred on a whole pixel: half a pixel of free space either side would put every word on the
+     page, and every component's text, between pixels */
+  main {
+    max-width: 1160px; margin: 0 auto 0 max(0px, round(down, (100% - 1160px) / 2, 1px));
+    padding: 40px 16px 72px; display: grid; gap: 56px;
+  }
+  h1, h2, h3 { margin: 0; font-family: var(--mono); letter-spacing: -0.01em; }
+  h1 { font-size: 2rem; line-height: 1.1; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1rem; }
+  p { margin: 0; max-width: 72ch; }
+  a { color: var(--accent); }
+  .dim { color: var(--dim); }
+  code { font: 0.85rem var(--mono); color: var(--dim); }
+  section { display: grid; gap: 18px; }
+  /* one column that never grows past the window; the screen scrolls inside its own box instead */
+  main, section { grid-template-columns: minmax(0, 1fr); }
+  .intro { display: grid; gap: 12px; }
+  .toc { display: flex; flex-wrap: wrap; gap: 6px 16px; font: 0.85rem var(--mono); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 16px; }
+  .card {
+    display: grid; gap: 12px; align-content: start; min-width: 0;
+    background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 16px;
+  }
+  .card.wide { grid-column: 1 / -1; }
+  .card header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+  .preview { display: grid; gap: 20px; padding: 28px 24px; border-radius: 4px; overflow: hidden; }
+  .preview.actions { padding-top: 40px; justify-items: start; }
+  .preview .tag { font: 0.75rem var(--mono); color: var(--dim); margin-bottom: -12px; }
+  /* an action's notch rises 12px over what is above it; keep its tag clear of that */
+  .preview.actions .tag { margin-bottom: 0; }
+  pre {
+    margin: 0; padding: 12px 14px; overflow-x: auto; border-radius: 4px;
+    background: var(--ground); border: 1px solid var(--rule);
+    font: 0.8rem/1.6 var(--mono); color: var(--ink);
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+  th, td { text-align: left; vertical-align: top; padding: 6px 10px 6px 0; border-top: 1px solid var(--rule); }
+  th { font: 600 0.75rem var(--mono); color: var(--dim); border-top: 0; }
+  td:first-child { white-space: nowrap; font-family: var(--mono); font-size: 0.8rem; }
+  .table { overflow-x: auto; }
+
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .swatch-row { display: flex; align-items: center; gap: 8px; min-width: 0; font: 0.75rem var(--mono); }
+  .swatch-row i { flex: none; width: 28px; height: 28px; border-radius: 3px; box-shadow: 0 0 0 1px var(--rule); }
+  .swatch-row span { display: grid; min-width: 0; }
+  .swatch-row b { font-weight: 400; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+  .swatch-row small { color: var(--dim); font-size: 0.7rem; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; }
+  .group { display: flex; align-items: center; gap: 8px; border: 0; margin: 0; padding: 0; min-width: 0; }
+  .group legend { float: left; margin-right: 8px; font: 0.8rem var(--mono); color: var(--dim); }
+  .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+  #colours { flex-wrap: wrap; }
+  .seg label { position: relative; }
+  .seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .seg span { display: block; padding: 6px 10px; font: 0.8rem var(--mono); color: var(--dim); }
+  .seg label + label span { border-left: 1px solid var(--rule); }
+  .seg input:checked + span { background: var(--rule); color: var(--ink); }
+  .seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .check { display: inline-flex; align-items: center; gap: 6px; font: 0.8rem var(--mono); color: var(--dim); cursor: pointer; }
+  .check input { accent-color: var(--accent); margin: 0; }
+  .chip {
+    display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px;
+    border-radius: 2px; box-shadow: inset 0 0 0 3px var(--chip-frame), 0 0 0 1px var(--rule);
+  }
+
+  .screen-row { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+  .screen-scroll { max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
+  .tree { flex: 1 1 320px; min-width: 0; }
+
+  /* ---- a screen: a device panel's pixels, each area its own div ---- */
+  .screen { position: relative; flex: none; overflow: hidden; width: 640px; height: 480px; outline: 6px solid #000; border-radius: 2px; margin: 6px; }
+  .screen[data-size="720x480"] { width: 720px; height: 480px; }
+  .screen[data-size="720x720"] { width: 720px; height: 720px; }
+  .screen .backdrop { position: absolute; inset: 0; }
+  .screen .stage { position: absolute; inset: 0; display: flex; flex-direction: column; }
+
+  .modal-area {
+    flex: 1; min-height: 0; display: flex;
+    padding: calc(14 * var(--u)) calc(16 * var(--u)) calc(5 * var(--u));
+  }
+  .modal-area > omega-modal { flex: 1; min-width: 0; }
+
+  /* the first panel takes 4/7 of the modal, rounded to a whole art pixel, the second the rest */
+  .split > omega-panel:first-child { flex: 0 0 round(down, 57%, var(--u)); }
+
+  .bottom-bar { flex: none; display: flex; height: calc(21 * var(--u)); }
+  .bottom-bar > action-left, .bottom-bar > action-right { position: relative; z-index: 1; flex: none; }
+  /* the plate between the two actions sits a little under the rail and runs on behind both
+     buttons' rounded ends, so the bar's bottom line never breaks */
+  .bar-center {
+    flex: 1; min-width: 0;
+    margin: calc(3 * var(--u)) calc(-7 * var(--u)) 0;
+    background: var(--oz-plate);
+    border-top: var(--u) solid var(--oz-edge);
+    border-bottom: var(--u) solid var(--oz-frame);
+    box-shadow: inset 0 var(--u) 0 var(--oz-band), inset 0 calc(-1 * var(--u)) 0 var(--oz-edge);
+  }
+
+  /* "outline areas": every div outlined, the page's and the components' own (through ::part) */
+  .outlined .modal-area, .outlined .bottom-bar, .outlined .bar-center,
+  .outlined omega-modal::part(frame), .outlined omega-modal::part(content),
+  .outlined omega-panel::part(header), .outlined omega-panel::part(tab), .outlined omega-panel::part(label),
+  .outlined omega-panel::part(slant), .outlined omega-panel::part(strip), .outlined omega-panel::part(body),
+  .outlined action-left::part(icon), .outlined action-left::part(label), .outlined action-left::part(word),
+  .outlined action-left::part(button), .outlined action-left::part(hint),
+  .outlined action-right::part(icon), .outlined action-right::part(label), .outlined action-right::part(word),
+  .outlined action-right::part(button), .outlined action-right::part(hint) {
+    outline: 1px dashed var(--area); outline-offset: -1px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="intro">
+    <h1>omega-zero UI</h1>
+    <p class="dim">The kit omega-zero's menus are drawn from: pixel-art components rebuilt in HTML as
+      the reference for each screen, before and while it is drawn on the device. Every shape is a
+      sprite written pixel by pixel, every word lands on whole pixels, and every colour follows the
+      backdrop colour the player picks in Settings › Background › Colour. The rules for adding to the
+      kit are in <code>assets/ui/README.md</code>.</p>
+    <nav class="toc" aria-label="Contents">
+      <a href="#foundation">Foundation</a>
+      <a href="#components">Components</a>
+      <a href="#screens">Screens</a>
+    </nav>
+    <div class="controls">
+      <fieldset class="group">
+        <legend>Settings › Background › Colour</legend>
+        <div class="seg" id="colours"></div>
+      </fieldset>
+    </div>
+  </div>
+
+  <section id="foundation" aria-labelledby="foundation-title">
+    <h2 id="foundation-title">Foundation</h2>
+    <div class="cards">
+
+      <article class="card">
+        <header><h3>The art pixel</h3><code>foundation/tokens.css</code></header>
+        <p class="dim">One art pixel is <code>--u</code>, 2px: omega-zero draws its pixel art 2×2, so
+          a 640×480 panel is 320×240 art pixels. Every size in every component is a whole number of
+          them, and nothing is ever smoothed: sprites are shown with
+          <code>image-rendering: pixelated</code>.</p>
+      </article>
+
+      <article class="card">
+        <header><h3>Sprites</h3><code>foundation/pixel.js</code></header>
+        <p class="dim">A shape is written in its component as rows of colour keys, one character to
+          an art pixel, and <code>OmegaPixel.sprite()</code> paints it. A shape that must fit any size
+          is a 9-slice: only its top-left quarter is drawn, <code>mirror()</code> makes the rest, and
+          its corners stay as drawn while its edges stretch.</p>
+<pre><code>const CORNER = [       // omega-modal's frame
+  '...kk',             // k dark, H bright, s stripe,
+  '.kkHH',             // A frame colour, . nothing
+  '.kHss',
+  'kHsAA',
+  'kHsAA',
+];</code></pre>
+      </article>
+
+      <article class="card">
+        <header><h3>Type</h3><code>foundation/fonts.css</code></header>
+        <p class="dim">Pixel Code Regular at 18px, one face pixel to an art pixel, on a 20px line so its
+          capitals sit on whole pixels. Pixel Code Bold is fattened off the grid, so it is not used:
+          bold is drawn by setting the word again one pixel to the right. Bigger words (an action's
+          label) are drawn into a sprite with <code>OmegaPixel.letters()</code> and stretched there,
+          never with a CSS transform.</p>
+      </article>
+
+      <article class="card">
+        <header><h3>Backdrop</h3><code>.omega-backdrop</code></header>
+        <p class="dim">The shelf's Grid: a 1 art pixel line every 20, in the backdrop colour lifted 9%
+          toward white, drifting left 16px a second with <code>data-moving</code>, as
+          <code>crates/omega-ui/src/backdrop.rs</code> draws it.</p>
+        <div class="preview omega-backdrop" data-moving style="height: 80px"></div>
+      </article>
+
+      <article class="card wide">
+        <header><h3>Colour</h3><code>foundation/palette.js</code></header>
+        <p class="dim">The palette is made from the backdrop colour. Its ramp is Mega Man Zero's own
+          menu colours, which is what Amber gives; any other colour keeps how light each step is and
+          turns the ramp to its own hue, taking as much colour as it has itself. Night, the default,
+          gives plain greys. <code>OmegaPalette.apply(name)</code> sets these properties and every
+          component draws itself again. The swatches follow the colour picked above.</p>
+        <div class="swatches" id="swatches"></div>
+      </article>
+
+    </div>
+  </section>
+
+  <section id="components" aria-labelledby="components-title">
+    <h2 id="components-title">Components</h2>
+    <div class="cards">
+
+      <article class="card wide">
+        <header><h3>&lt;omega-modal&gt;</h3><code>components/omega-modal.js</code></header>
+        <p class="dim">The menu window and nothing else: a double-lined frame that stacks what it is
+          given top to bottom. It knows nothing of what it holds; usually that is
+          <code>&lt;omega-panel&gt;</code>s, which grow to share its height and share one stripe where
+          they meet. It fills the box the page gives it.</p>
+        <div class="preview omega-backdrop">
+          <omega-modal class="split" style="height: 260px">
+            <omega-panel label="BUTTON SETTING" active></omega-panel>
+            <omega-panel label="ATTACK MODE"></omega-panel>
+          </omega-modal>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>slot</td><td>Anything, stacked top to bottom. Give a child a bigger <code>flex-grow</code> (or a <code>flex-basis</code> in whole art pixels) to make it taller.</td></tr>
+            <tr><td>::part</td><td><code>frame</code>, <code>content</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-modal&gt;
+  &lt;omega-panel label="BUTTON SETTING" active&gt;&lt;/omega-panel&gt;
+  &lt;omega-panel label="ATTACK MODE"&gt;&lt;/omega-panel&gt;
+&lt;/omega-modal&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-panel&gt;</h3><code>components/omega-panel.js</code></header>
+        <p class="dim">A titled section for inside a modal: a dark tab with the title from its left
+          edge and a slanted end, the bright strip beside it, and a well below for the content.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">active</span>
+          <omega-panel label="BUTTON SETTING" active style="height: 110px"></omega-panel>
+          <span class="tag">not active</span>
+          <omega-panel label="ATTACK MODE" style="height: 110px"></omega-panel>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>label</td><td>The title in the tab, from its left edge.</td></tr>
+            <tr><td>active</td><td>Draws the title light, as the section the cursor is in; without it the title is dimmed.</td></tr>
+            <tr><td>slot</td><td>The section's content, in the well.</td></tr>
+            <tr><td>--omega-tab-width</td><td>How wide the tab is: 121 art pixels by default, never narrower than its title.</td></tr>
+            <tr><td>::part</td><td><code>panel</code>, <code>header</code>, <code>tab</code>, <code>label</code>, <code>slant</code>, <code>strip</code>, <code>body</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-panel label="BUTTON SETTING" active&gt;
+  …the section's content…
+&lt;/omega-panel&gt;</code></pre>
+      </article>
+
+      <article class="card">
+        <header><h3>&lt;action-left&gt;</h3><code>components/action-left.js</code></header>
+        <p class="dim">The bottom bar's left action: a return arrow in a notch at the screen's edge, a
+          big label, and a button pill with a hint. 21 art pixels tall; the notch rises 6 above it.
+          Without attributes it is empty, with room kept for its label.</p>
+        <div class="preview actions omega-backdrop">
+          <span class="tag">empty</span>
+          <action-left></action-left>
+          <span class="tag">with text</span>
+          <action-left label="MENU" hint="SELECT"></action-left>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>label</td><td>The big word: a sprite, bold, twice as tall, with a shadow.</td></tr>
+            <tr><td>hint</td><td>The smaller word in the pill.</td></tr>
+            <tr><td>::part</td><td><code>action</code>, <code>icon</code>, <code>label</code>, <code>word</code>, <code>button</code>, <code>hint</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;action-left label="MENU" hint="SELECT"&gt;&lt;/action-left&gt;</code></pre>
+      </article>
+
+      <article class="card">
+        <header><h3>&lt;action-right&gt;</h3><code>components/action-right.js</code></header>
+        <p class="dim"><code>&lt;action-left&gt;</code> mirrored, for the right end of the bar: the
+          button pill, the label, then the arrow in its notch at the screen's edge. Same attributes
+          and parts.</p>
+        <div class="preview actions omega-backdrop" style="justify-items: end">
+          <span class="tag">empty</span>
+          <action-right></action-right>
+          <span class="tag">with text</span>
+          <action-right label="SETTINGS" hint="START"></action-right>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>label</td><td>The big word: a sprite, bold, twice as tall, with a shadow.</td></tr>
+            <tr><td>hint</td><td>The smaller word in the pill.</td></tr>
+            <tr><td>::part</td><td><code>action</code>, <code>button</code>, <code>hint</code>, <code>label</code>, <code>word</code>, <code>icon</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;action-right label="SETTINGS" hint="START"&gt;&lt;/action-right&gt;</code></pre>
+      </article>
+
+    </div>
+  </section>
+
+  <section id="screens" aria-labelledby="screens-title">
+    <h2 id="screens-title">Screens</h2>
+    <p class="dim">Components put together on a device-sized screen, each area its own div. Button
+      Setting rebuilds Mega Man Zero's menu of that name over omega-zero's backdrop.</p>
+
+    <h3>Button Setting</h3>
+    <div class="controls">
+      <fieldset class="group">
+        <legend>panel</legend>
+        <div class="seg">
+          <label><input type="radio" name="size" value="640x480" checked><span>640×480</span></label>
+          <label><input type="radio" name="size" value="720x480"><span>720×480</span></label>
+          <label><input type="radio" name="size" value="720x720"><span>720×720</span></label>
+        </div>
+      </fieldset>
+      <fieldset class="group">
+        <legend>zoom</legend>
+        <div class="seg">
+          <label><input type="radio" name="scale" value="1" checked><span>1×</span></label>
+          <label><input type="radio" name="scale" value="1.5"><span>1.5×</span></label>
+          <label><input type="radio" name="scale" value="2"><span>2×</span></label>
+        </div>
+      </fieldset>
+      <label class="check"><input type="checkbox" id="moving" checked> moving backdrop</label>
+      <label class="check"><input type="checkbox" id="text" checked> text in the actions</label>
+      <label class="check"><input type="checkbox" id="outlined"> outline areas</label>
+    </div>
+
+    <div class="screen-row">
+      <div class="screen-scroll">
+        <div class="screen" data-size="640x480">
+          <div class="backdrop omega-backdrop" data-moving></div>
+          <div class="stage">
+            <div class="modal-area">
+              <omega-modal class="split">
+                <omega-panel label="BUTTON SETTING" active></omega-panel>
+                <omega-panel label="ATTACK MODE"></omega-panel>
+              </omega-modal>
+            </div>
+            <div class="bottom-bar">
+              <action-left label="MENU" hint="SELECT"></action-left>
+              <div class="bar-center"></div>
+              <action-right label="SETTINGS" hint="START"></action-right>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tree">
+<pre><code>.screen
+├─ .backdrop          omega-zero's Grid
+└─ .stage
+   ├─ .modal-area
+   │  └─ &lt;omega-modal&gt;   frame › content
+   │     ├─ &lt;omega-panel&gt;
+   │     │    panel › header (tab › label,
+   │     │    slant, strip) › body
+   │     └─ &lt;omega-panel&gt;
+   └─ .bottom-bar
+      ├─ &lt;action-left&gt;
+      │    action › icon, label › word,
+      │    button › hint
+      ├─ .bar-center
+      └─ &lt;action-right&gt;
+           action › button › hint,
+           label › word, icon</code></pre>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  // Settings › Background › Colour: one choice per backdrop colour, each showing the backdrop and
+  // the frame colour it gives; picking one recolours the whole page
+  const colours = document.getElementById('colours');
+  for (const name of OmegaPalette.COLOURS) {
+    const tones = OmegaPalette.palette(name);
+    const label = document.createElement('label');
+    label.innerHTML = `<input type="radio" name="colour" value="${name}"${name === 'night' ? ' checked' : ''}>` +
+      `<span><i class="chip" style="background: ${tones['--oz-bg']}; --chip-frame: ${tones['--oz-frame']}"></i>` +
+      `${name[0].toUpperCase()}${name.slice(1)}</span>`;
+    label.querySelector('input').addEventListener('change', () => OmegaPalette.apply(name));
+    colours.append(label);
+  }
+
+  // the palette's swatches, again whenever it changes
+  const swatches = document.getElementById('swatches');
+  function drawSwatches() {
+    const name = document.documentElement.dataset.colour;
+    swatches.replaceChildren(...Object.entries(OmegaPalette.palette(name)).map(([token, hex]) => {
+      const row = document.createElement('div');
+      row.className = 'swatch-row';
+      row.innerHTML = `<i style="background: ${hex}"></i><span><b>${token}</b><small>${hex}</small></span>`;
+      return row;
+    }));
+  }
+  drawSwatches();
+  document.addEventListener('omega-palette', drawSwatches);
+
+  // the Button Setting screen's controls
+  const screen = document.querySelector('.screen');
+  const backdrop = screen.querySelector('.backdrop');
+  const TEXT = [
+    [screen.querySelector('action-left'), { label: 'MENU', hint: 'SELECT' }],
+    [screen.querySelector('action-right'), { label: 'SETTINGS', hint: 'START' }],
+  ];
+  document.querySelectorAll('input[name=size]').forEach(input =>
+    input.addEventListener('change', () => { screen.dataset.size = input.value; }));
+  document.querySelectorAll('input[name=scale]').forEach(input =>
+    input.addEventListener('change', () => { screen.style.zoom = input.value; }));
+  document.getElementById('moving').addEventListener('change', e =>
+    backdrop.toggleAttribute('data-moving', e.target.checked));
+  document.getElementById('outlined').addEventListener('change', e =>
+    screen.classList.toggle('outlined', e.target.checked));
+  document.getElementById('text').addEventListener('change', e => {
+    for (const [action, text] of TEXT) {
+      for (const [name, value] of Object.entries(text)) {
+        if (e.target.checked) action.setAttribute(name, value);
+        else action.removeAttribute(name);
+      }
+    }
+  });
+</script>
+</body>
+</html>
