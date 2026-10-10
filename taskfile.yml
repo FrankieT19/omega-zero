@@ -288,7 +288,10 @@ tasks:
       - sh cores/gpsp/test/run.sh vendor/gpsp-src.tar.gz
 
   device:sh:
-    desc: Run CMD on the box the device build wants, fetching one if this is not it
+    desc: >-
+      Run CMD on the box the device build wants, fetching one if this is not it. The container
+      keeps the pinned toolchain and the crates it downloads in two docker volumes, so a build
+      does not fetch them all again
     internal: true
     requires:
       vars: [CMD]
@@ -298,19 +301,26 @@ tasks:
         if [ "$(uname -s)-$(uname -m)" = "Linux-aarch64" ]; then
           sh -c '{{.CMD}}'
         else
-          docker run --rm -e OMEGA_SS_DEVID -e OMEGA_SS_DEVPASSWORD -v "$PWD":/src -w /src rust:1-bullseye sh -c '{{.CMD}}'
+          docker run --rm -e OMEGA_SS_DEVID -e OMEGA_SS_DEVPASSWORD \
+            -v omega-zero-rustup:/usr/local/rustup -v omega-zero-cargo:/usr/local/cargo/registry \
+            -v "$PWD":/src -w /src rust:1-bullseye sh -c '{{.CMD}}'
         fi
 
   build:device:
-    desc: Build for the H700, in an arm64 container unless this is already one
+    desc: >-
+      Build for the H700, in an arm64 container unless this is already one. PROFILE=device-dev
+      skips the release build's whole-program optimisation, for a build in seconds while trying
+      a change on the console
+    vars:
+      PROFILE: '{{.PROFILE | default "device"}}'
     cmds:
       - task: device:sh
         vars:
           CMD: >-
-            cargo build --profile device --target-dir target-device
+            cargo build --profile {{.PROFILE}} --target-dir target-device
             -p omega-zero --no-default-features --features device
-      - file target-device/device/omega-zero | grep -q aarch64
-      - 'echo "built target-device/device/omega-zero"'
+      - file target-device/{{.PROFILE}}/omega-zero | grep -q aarch64
+      - 'echo "built target-device/{{.PROFILE}}/omega-zero"'
 
   bench:device:
     desc: Build core_bench, omega-retro's headless core benchmark, for the H700. It never ships

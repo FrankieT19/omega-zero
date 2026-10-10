@@ -34,3 +34,9 @@ debug = false
 inherits = "release"
 lto = "fat"
 codegen-units = 1
+
+# For trying a change on the console: optimised like a release, built incrementally and without
+# the whole-program pass, so a rebuild takes seconds rather than half a minute.
+[profile.device-dev]
+inherits = "release"
+incremental = true
