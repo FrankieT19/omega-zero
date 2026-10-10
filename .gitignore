@@ -21,3 +21,6 @@
 
 # Parallel implementation worktrees, never content.
 /.worktrees
+
+# The console's root password, for scripts/console.sh.
+/.console-password

@@ -1,6 +1,7 @@
 pub mod app;
 pub mod audio;
 pub mod background_screen;
+pub mod boot_fade;
 pub mod bootlogo;
 pub mod build_info;
 pub mod cable;
@@ -31,6 +32,7 @@ pub mod rewind;
 pub mod root;
 pub mod screens;
 pub mod session;
+pub mod ssh;
 pub mod thumb;
 pub mod video_mode;
 pub mod wallpaper;

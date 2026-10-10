@@ -411,10 +411,12 @@ tasks:
   deploy:wifi:
     desc: >-
       Build omega-zero and copy it onto a console on the home network over SSH, then reboot it
-      into the new build and wait until it starts. CONSOLE defaults to rg35xxsp.local, SD to
-      /mnt/sdcard and CONSOLE_PASSWORD to root. PROFILE defaults to device-dev, quick to
-      build; PROFILE=device copies the shipping build. SCRIPTS=1 copies card/System's scripts
-      too. A game still running loses whatever it has not saved
+      into the new build and wait until it starts. CONSOLE defaults to rg35xxsp.local and SD to
+      /mnt/sdcard. CONSOLE_PASSWORD defaults to the first line of .console-password at the
+      repo's root (git ignores it), else root; the console shows its password under Settings >
+      Network > SSH > INFO. PROFILE defaults to device-dev, quick to build; PROFILE=device
+      copies the shipping build. SCRIPTS=1 copies card/System's scripts too. A game still
+      running loses whatever it has not saved
     vars:
       PROFILE: '{{.PROFILE | default "device-dev"}}'
     env:
@@ -428,7 +430,9 @@ tasks:
       - sh scripts/console.sh deploy target-device/{{.PROFILE}}/omega-zero {{if .SCRIPTS}}card/System/*.sh{{end}}
 
   log:wifi:
-    desc: Read omega-zero's log off a console on the home network, CONSOLE, SD and CONSOLE_PASSWORD as deploy:wifi
+    desc: >-
+      Read omega-zero's log off a console on the home network, CONSOLE, SD and CONSOLE_PASSWORD
+      (or .console-password) as deploy:wifi
     env:
       CONSOLE: '{{.CONSOLE}}'
       SD: '{{.SD}}'

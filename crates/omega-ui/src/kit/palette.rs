@@ -29,7 +29,7 @@ pub struct Palette {
     pub edge: [u8; 3],
     /// --oz-well: a panel's body, a label's shadow.
     pub well: [u8; 3],
-    /// --oz-plate: the bar's middle plate.
+    /// --oz-plate: what is off on a row, the bars a signal does not reach, and in the top bar.
     pub plate: [u8; 3],
     /// --oz-tab: a panel's title tab.
     pub tab: [u8; 3],

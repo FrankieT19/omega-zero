@@ -22,6 +22,7 @@ use omega_ui::{
 
 use crate::audio::Sfx;
 use crate::background_screen::{Backdrop, BackgroundScreen};
+use crate::boot_fade::BootFade;
 use crate::core_picker::{Chip, CorePicker, Outcome, Press};
 use crate::label_screen::{Labels, LabelsScreen};
 use crate::label_sync::{label_jobs, Account, LabelJobs, NoKey, Want};
@@ -36,6 +37,7 @@ use crate::screens::clock::clock_screen;
 use crate::screens::keyboard::typing_of;
 use crate::screens::lone::Lone;
 use crate::screens::ssh::SshScreen;
+use crate::ssh::{ssh_server, Ssh};
 use crate::video_mode::{self, VideoMode};
 use crate::wifi::{wifi_jobs, WifiJobs};
 use crate::wifi_screen::{Summary, Watch, Wifi, WifiScreen};
@@ -390,6 +392,7 @@ pub struct App {
     pub(crate) powering_off: bool,
     pub(crate) radio: Box<dyn RadioJobs>,
     pub(crate) wifi: Wifi,
+    pub(crate) ssh: Ssh,
     pub(crate) network_faces: Option<omega_ui::network::NetworkFaces>,
     pub(crate) ssh_faces: Option<omega_ui::network::SshFaces>,
     pub(crate) controls_panel: Option<Lone>,
@@ -409,8 +412,10 @@ pub struct App {
     pub(crate) slide: Option<Slide>,
     /// The card's Config/theme.txt, which the shelf's chrome is drawn in when there is one.
     pub(crate) theme: Option<Theme>,
-    /// The bar along the bottom: its actions and its plate.
+    /// The bar along the bottom: its actions and the hints between them.
     pub(crate) bar_faces: Option<BarFaces>,
+    /// The boot logo over the shelf while it fades out at boot.
+    pub(crate) boot_fade: Option<BootFade>,
 }
 
 fn shelves_of(carts: Vec<Cart>) -> Vec<(Platform, Shelf)> {
@@ -436,6 +441,7 @@ impl App {
         App {
             radio: radio_jobs(),
             wifi: Wifi::new(wifi_jobs()),
+            ssh: Ssh::new(ssh_server()),
             network_faces: None,
             ssh_faces: None,
             controls_panel: None,
@@ -450,6 +456,7 @@ impl App {
             slide: None,
             theme: None,
             bar_faces: None,
+            boot_fade: None,
             phase: Phase::Shelf,
             shelves,
             shelf_at,
@@ -538,6 +545,7 @@ impl App {
         app.theme = Theme::read_override(root);
         app.state = read_app_state(root);
         app.wifi.start(app.state.wifi);
+        app.ssh.start(app.state.ssh, Some(root));
         app.labels = Labels::new(label_jobs(root), Account::load(root));
         if omega_power::baseos_release().and_then(|r| r.bluetooth) == Some(false) {
             app.bluetooth = None;
@@ -696,14 +704,14 @@ impl App {
         }
     }
 
-    /// What the bar across the top shows the handheld connected to. BaseOS runs SSH and
-    /// SFTP whenever a network is joined.
+    /// What the bar across the top shows the handheld connected to: SSH, with SFTP, while it
+    /// is switched on and a network is joined.
     pub fn links(&self) -> Links {
         let joined = self.wifi.status().joined();
         Links {
             wifi: joined,
             bluetooth: self.bluetooth,
-            ssh: joined,
+            ssh: joined && self.state.ssh && self.ssh.present(),
         }
     }
 
@@ -1130,6 +1138,7 @@ impl App {
     }
 
     pub fn apply(&mut self, action: Action) {
+        self.press_ends_boot_fade(action);
         if self.power_menu.is_some() {
             match action {
                 Action::LidClose => return self.doze(),
@@ -1184,7 +1193,7 @@ impl App {
                 _ if self.core_picker.is_some() => self.core_picker_input(action),
                 // START is the settings button on the shelf; MENU opens nothing here
                 Action::GbaDown(Btn::Start) => self.open_settings(),
-                Action::SelectTap => self.go(Phase::Controls, Dir::Deeper),
+                Action::SelectTap => self.go(Phase::Controls, Dir::Aside),
                 Action::GbaDown(Btn::Up) => self.jump_letter(-1),
                 Action::GbaDown(Btn::Down) => self.jump_letter(1),
                 Action::ShelfLeft | Action::GbaDown(Btn::Left) => self.shelf_mut().hold_left(now),
@@ -1562,6 +1571,7 @@ impl App {
 
     pub fn update(&mut self, dt: f32) {
         self.clock += dt as f64 * 1000.0;
+        self.step_boot_fade(dt);
         if self.name_pending && self.shelf_platform.face.is_some() {
             self.name_pending = false;
             self.shelf_named = Some(self.now());
@@ -1670,6 +1680,7 @@ impl App {
     fn timers(&mut self) {
         let (now, watch) = (self.now(), self.wifi_watch());
         self.wifi.tick(now, watch);
+        self.ssh.tick(now, self.state.ssh);
         self.labels.tick();
         self.take_labels();
         self.play_hold();
@@ -1909,6 +1920,7 @@ impl App {
             self.draw_game_menu(menu, out);
         }
         self.hud.draw(self.now(), out);
+        self.draw_boot_logo(out);
     }
 
     /// Draws `phase`, a screen of a slide or the one shown, moved by `off`. A menu screen

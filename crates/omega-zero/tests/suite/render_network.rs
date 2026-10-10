@@ -90,6 +90,9 @@ impl Rig {
         s.backdrop_colour = colour;
         s.wifi = online != Online::Off;
         write_app_state(d.path(), &s).expect("write omega-zero.state");
+        // root's password as flow.html shows it: six digits, as omega-zero makes one up
+        std::fs::write(d.path().join("baseos.conf"), "ssh_password=482913\n")
+            .expect("write baseos.conf");
         let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
         let radio = Radio::default();
         f.app_mut().set_wifi_jobs(Box::new(radio.clone()));
@@ -160,10 +163,22 @@ impl Rig {
         self.tap(Btn::A);
     }
 
+    /// The SSH screen: down to SSH's row, back round from ON to INFO, then A.
     fn open_ssh(&mut self) {
         self.open_network();
         self.tap(Btn::Down);
         self.tap(Btn::Down);
+        self.tap(Btn::Left);
+        self.tap(Btn::A);
+    }
+
+    /// The SSH screen with SSH switched off: on its row from ON to OFF, on to INFO, then A.
+    fn open_ssh_switched_off(&mut self) {
+        self.open_network();
+        self.tap(Btn::Down);
+        self.tap(Btn::Down);
+        self.tap(Btn::Right);
+        self.tap(Btn::Right);
         self.tap(Btn::A);
     }
 
@@ -235,13 +250,14 @@ fn shows(px: &[u8], art: &UndoFace, [ox, oy]: [u32; 2], name: &str) {
     );
 }
 
-fn setting<'a>(label: &'a str, value: Option<&'a str>, lit: bool) -> Row<'a> {
+/// A row of NETWORK's: each has a value Left and Right change.
+fn setting<'a>(label: &'a str, value: &'a str, lit: bool) -> Row<'a> {
     Row {
         label,
-        value,
+        value: Some(value),
         lit,
-        carets: value.is_some(),
-        opens: value.is_none(),
+        carets: true,
+        opens: false,
         dim: false,
     }
 }
@@ -328,13 +344,41 @@ fn network_joined_draws_flows_modal() {
         let px = r.frame(&mut c, &format!("network-joined-{name}"));
         let pal = palette(colour);
         let settings = [
-            setting("WI-FI", Some("ON"), true),
-            setting("NETWORK TIME", Some("ON"), false),
-            setting("SSH", None, false),
+            setting("WI-FI", "ON", true),
+            setting("NETWORK TIME", "ON", false),
+            setting("SSH", "ON", false),
         ];
         let art = network_art(&settings, &flows_networks(true), &[], pal);
         let [x, y, _, _] = modal_rect();
         shows(&px, &art, [x, y], &format!("network joined, {name}"));
+    }
+}
+
+#[test]
+fn the_ssh_row_steps_through_off_and_info_with_its_carets() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    let mut r = Rig::new(NIGHT, Online::Joined);
+    r.f.upload_faces(&mut c);
+    r.open_network();
+    r.tap(Btn::Down);
+    r.tap(Btn::Down);
+    let pal = palette(NIGHT);
+    let [x, y, _, _] = modal_rect();
+    for value in ["OFF", "INFO"] {
+        r.tap(Btn::Right);
+        let px = r.frame(&mut c, &format!("network-ssh-{}", value.to_lowercase()));
+        let settings = [
+            setting("WI-FI", "ON", false),
+            setting("NETWORK TIME", "ON", false),
+            setting("SSH", value, true),
+        ];
+        let art = network_art(&settings, &flows_networks(true), &[], pal);
+        shows(&px, &art, [x, y], &format!("SSH on {value}"));
     }
 }
 
@@ -353,7 +397,7 @@ fn network_with_wifi_off_holds_only_wifi_and_says_so() {
         let px = r.frame(&mut c, &format!("network-off-{name}"));
         let pal = palette(colour);
         let art = network_art(
-            &[setting("WI-FI", Some("OFF"), true)],
+            &[setting("WI-FI", "OFF", true)],
             &[],
             &["Wi-Fi is off."],
             pal,
@@ -423,9 +467,9 @@ fn the_lit_network_is_banded_and_its_panel_active() {
     assert!(!inked(chrome.titles[0], pal.cream), "NETWORK is still lit");
 
     let settings = [
-        setting("WI-FI", Some("ON"), false),
-        setting("NETWORK TIME", Some("OFF"), false),
-        setting("SSH", None, false),
+        setting("WI-FI", "ON", false),
+        setting("NETWORK TIME", "OFF", false),
+        setting("SSH", "ON", false),
     ];
     let mut networks = flows_networks(false);
     networks[1].lit = true;
@@ -445,7 +489,7 @@ fn the_lit_network_is_banded_and_its_panel_active() {
 }
 
 #[test]
-fn ssh_draws_flows_lone_panel_joined_and_offline() {
+fn ssh_draws_flows_lone_panel_joined_offline_and_switched_off() {
     let Ok(surface) = HeadlessSurface::new() else {
         return;
     };
@@ -456,23 +500,42 @@ fn ssh_draws_flows_lone_panel_joined_and_offline() {
         ("IP", "192.168.1.20"),
         ("HOST", "rg35xxsp.local"),
         ("USER", "root"),
-        ("PASSWORD", "root"),
+        ("PASSWORD", "482913"),
         ("PORT", "22"),
     ];
     for (colour, name) in [(NIGHT, "night"), (AMBER, "amber")] {
         let pal = palette(colour);
-        for (online, lines, note) in [
-            (Online::Joined, &login[..], "SFTP uses the same login"),
-            (Online::Unjoined, &[][..], "Join a Wi-Fi network first."),
+        for (shot, online, on, lines, note) in [
+            (
+                "ssh",
+                Online::Joined,
+                true,
+                &login[..],
+                "SFTP uses the same login",
+            ),
+            (
+                "ssh-off",
+                Online::Unjoined,
+                true,
+                &[][..],
+                "Join a Wi-Fi network first.",
+            ),
+            (
+                "ssh-switched-off",
+                Online::Joined,
+                false,
+                &[][..],
+                "Turn SSH on first.",
+            ),
         ] {
             let mut r = Rig::new(colour, online);
             r.f.upload_faces(&mut c);
-            r.open_ssh();
-            let shot = if online == Online::Joined {
-                "ssh"
+            if on {
+                r.open_ssh();
             } else {
-                "ssh-off"
-            };
+                r.open_ssh_switched_off();
+            }
+            assert_eq!(r.f.app().ssh_on(), on, "{shot}");
             let px = r.frame(&mut c, &format!("{shot}-{name}"));
 
             let panel = ssh_chrome(lines.len(), pal);
@@ -538,9 +601,9 @@ fn a_new_backdrop_colour_re_tints_the_modal() {
         "the modal kept Night's colours"
     );
     let settings = [
-        setting("WI-FI", Some("ON"), true),
-        setting("NETWORK TIME", Some("ON"), false),
-        setting("SSH", None, false),
+        setting("WI-FI", "ON", true),
+        setting("NETWORK TIME", "ON", false),
+        setting("SSH", "ON", false),
     ];
     let art = network_art(&settings, &flows_networks(true), &[], palette(AMBER));
     shows(&px, &art, [mx, my], "re-tinted to Amber");

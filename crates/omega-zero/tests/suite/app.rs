@@ -1363,8 +1363,8 @@ fn the_open_cart_rests_over_the_shelf_with_its_lid_turned() {
     );
     assert!(shadow_i < lid_i, "the lid's shadow is drawn over the lid");
 
-    // B and A are the bar's RETURN and CONFIRM, and its plate shows the swap: the picker
-    // draws no hint of its own
+    // B and A are the bar's RETURN and CONFIRM, and it shows the swap between them: the
+    // picker draws no hint of its own
     assert_eq!(app.bar_hints_shown(), [SWAP], "the swap is not on the bar");
 }
 

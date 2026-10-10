@@ -15,6 +15,7 @@ use omega_zero::label_screen::LabelsScreen;
 use omega_zero::nav::{
     across, even, offsets, progress, widest_cart, Dir, End, Offsets, SLIDE_MS, SLOT_DROP,
 };
+use omega_zero::screens::lone::Lone;
 use omega_zero::wifi::{Seen, WifiJob, WifiJobs, WifiNews};
 use omega_zero::wifi_screen::{Sel, WifiScreen};
 use tempfile::TempDir;
@@ -57,9 +58,29 @@ fn going_back_the_screen_left_goes_left_and_the_one_before_comes_from_the_right(
 }
 
 #[test]
+fn out_to_controls_the_shelf_goes_left_and_the_panel_comes_from_the_right() {
+    let w = 720.0;
+    let leave = |p| across(Dir::Aside, End::Leaving, p, w);
+    let arrive = |p| across(Dir::Aside, End::Arriving, p, w);
+    assert_eq!((leave(0.0), arrive(0.0)), (0.0, 720.0));
+    assert_eq!((leave(0.5), arrive(0.5)), (-360.0, 360.0));
+    assert_eq!((leave(1.0), arrive(1.0)), (-720.0, 0.0));
+}
+
+#[test]
+fn back_from_controls_the_panel_goes_right_and_the_shelf_comes_from_the_left() {
+    let w = 640.0;
+    let leave = |p| across(Dir::FromAside, End::Leaving, p, w);
+    let arrive = |p| across(Dir::FromAside, End::Arriving, p, w);
+    assert_eq!((leave(0.0), arrive(0.0)), (0.0, -640.0));
+    assert_eq!((leave(0.5), arrive(0.5)), (320.0, -320.0));
+    assert_eq!((leave(1.0), arrive(1.0)), (640.0, 0.0));
+}
+
+#[test]
 fn every_offset_is_whole_art_pixels() {
     for w in [640.0, 720.0] {
-        for dir in [Dir::Deeper, Dir::Back] {
+        for dir in [Dir::Deeper, Dir::Back, Dir::Aside, Dir::FromAside] {
             for end in [End::Leaving, End::Arriving] {
                 for step in 0..=SLIDE_MS {
                     let o = offsets(dir, end, progress(0, step), w);
@@ -79,7 +100,7 @@ fn every_offset_is_whole_art_pixels() {
 fn the_shelf_leaves_in_three_layers_and_comes_back_the_same_ways() {
     let w = out_w() as f32;
     let span = w + widest_cart();
-    // leaving for Settings or Controls
+    // leaving for Settings
     let leave = |p| offsets(Dir::Deeper, End::Leaving, p, w);
     assert_eq!(leave(0.0), Offsets::NONE);
     let half = leave(0.5);
@@ -119,6 +140,51 @@ fn the_shelf_leaves_in_three_layers_and_comes_back_the_same_ways() {
     );
     assert_eq!(back(1.0).carts_dx, 0.0);
     assert_eq!((back(1.0).bar_dy, back(1.0).slot_dy), (0.0, 0.0));
+}
+
+#[test]
+fn the_shelf_leaves_for_controls_with_its_carts_the_other_way_and_comes_back_from_the_left() {
+    let w = out_w() as f32;
+    let span = w + widest_cart();
+    // leaving for Controls
+    let leave = |p| offsets(Dir::Aside, End::Leaving, p, w);
+    assert_eq!(leave(0.0), Offsets::NONE);
+    let half = leave(0.5);
+    assert_eq!(half.carts_dx, -even(span / 2.0), "the carts go left");
+    assert_eq!(half.bar_dy, -TOP_BAR_H / 2.0, "the top bar goes up");
+    assert_eq!(half.slot_dy, even(SLOT_DROP / 2.0), "the slot goes down");
+    let gone = leave(1.0);
+    assert_eq!(
+        (gone.carts_dx, gone.bar_dy, gone.slot_dy),
+        (-span, -TOP_BAR_H, SLOT_DROP)
+    );
+    assert!(
+        gone.carts_dx <= -(w + widest_cart()),
+        "the neighbour peeking in at the right edge is still on the screen"
+    );
+    // coming back from it
+    let back = |p| offsets(Dir::FromAside, End::Arriving, p, w);
+    assert_eq!(
+        (back(0.0).carts_dx, back(0.0).bar_dy, back(0.0).slot_dy),
+        (-span, -TOP_BAR_H, SLOT_DROP),
+        "the shelf does not come back from where it went"
+    );
+    assert_eq!(
+        back(0.5).carts_dx,
+        -even(span / 2.0),
+        "the carts come from the left"
+    );
+    assert_eq!(
+        back(0.5).bar_dy,
+        -TOP_BAR_H / 2.0,
+        "the top bar comes from the top"
+    );
+    assert_eq!(
+        back(0.5).slot_dy,
+        even(SLOT_DROP / 2.0),
+        "the slot comes from the bottom"
+    );
+    assert_eq!(back(1.0), Offsets::NONE);
 }
 
 /// A radio that is on, hears one network with a lock, and joins nothing.
@@ -212,12 +278,12 @@ fn every_move_between_screens_slides_the_way_it_goes() {
     let shelf = Phase::Shelf;
 
     a.apply(Action::SelectTap);
-    slid(&a, &Phase::Controls, Dir::Deeper, &shelf);
+    slid(&a, &Phase::Controls, Dir::Aside, &shelf);
     press(&mut a, Btn::B);
-    slid(&a, &shelf, Dir::Back, &Phase::Controls);
+    slid(&a, &shelf, Dir::FromAside, &Phase::Controls);
     a.apply(Action::SelectTap);
     a.apply(Action::SelectTap);
-    slid(&a, &shelf, Dir::Back, &Phase::Controls);
+    slid(&a, &shelf, Dir::FromAside, &Phase::Controls);
 
     for close in [Btn::B, Btn::Start] {
         press(&mut a, Btn::Start);
@@ -279,6 +345,8 @@ fn ssh_and_the_passphrase_slide_in_over_network_and_back() {
     while at(&a) != Sel::Ssh {
         press(&mut a, Btn::Down);
     }
+    // ON, back round to INFO, which A opens
+    press(&mut a, Btn::Left);
     press(&mut a, Btn::A);
     let ssh = moved(&a).0;
     slid(&a, &ssh, Dir::Deeper, &network);
@@ -460,6 +528,79 @@ fn halfway_to_settings_both_screens_are_drawn_where_the_slide_has_them() {
             if x == 0.0 && y == -TOP_BAR_H / 2.0 && bw == w && colour == a.chrome_colours().housing)
     });
     assert!(bar_top, "the top bar is not halfway up off the screen");
+}
+
+/// Whether the top bar is drawn `dy` down from its place, across the whole screen.
+fn top_bar_at(a: &App, out: &[Draw], dy: f32) -> bool {
+    let w = out_w() as f32;
+    out.iter().any(|d| {
+        matches!(*d, Draw::Rect { x, y, w: bw, colour, .. }
+            if x == 0.0 && y == dy && bw == w && colour == a.chrome_colours().housing)
+    })
+}
+
+#[test]
+fn halfway_to_controls_and_back_the_carts_and_the_panel_go_the_other_way_round() {
+    let (_d, mut a) = on_shelf();
+    let carts = [TexId::from_raw(900), TexId::from_raw(901)];
+    a.set_faces(carts.to_vec());
+    let panel = TexId::from_raw(801);
+    a.set_controls_panel(Lone {
+        tex: panel,
+        w: 200,
+        h: 62,
+    });
+    let cart = carts[0];
+    let rest = x_of(&frame(&a), cart).expect("the selected cart is not drawn");
+    let w = out_w() as f32;
+
+    let at: Millis = 10_000;
+    a.apply_at(Action::SelectTap, at);
+    a.finish_slide();
+    let rest_panel = x_of(&frame(&a), panel).expect("the Controls panel is not drawn");
+
+    // B: the panel goes back out to the right, the carts come back from the left
+    a.apply_at(Action::GbaDown(Btn::B), at + 1_000);
+    a.tick_ms(at + 1_000 + SLIDE_MS / 2);
+    let out = frame(&a);
+    let half = offsets(Dir::FromAside, End::Arriving, 0.5, w);
+    assert!(half.carts_dx < 0.0);
+    assert_eq!(
+        x_of(&out, cart),
+        Some(rest + half.carts_dx),
+        "the carts are not halfway back from the left"
+    );
+    assert_eq!(
+        x_of(&out, panel),
+        Some(rest_panel + w / 2.0),
+        "Controls is not halfway off to the right"
+    );
+    assert!(
+        top_bar_at(&a, &out, -TOP_BAR_H / 2.0),
+        "the top bar is not halfway down from the top"
+    );
+
+    // SELECT: the carts go out to the left, the panel comes in from the right
+    a.finish_slide();
+    a.apply_at(Action::SelectTap, at + 2_000);
+    a.tick_ms(at + 2_000 + SLIDE_MS / 2);
+    let out = frame(&a);
+    let half = offsets(Dir::Aside, End::Leaving, 0.5, w);
+    assert!(half.carts_dx < 0.0);
+    assert_eq!(
+        x_of(&out, cart),
+        Some(rest + half.carts_dx),
+        "the carts are not halfway off to the left"
+    );
+    assert_eq!(
+        x_of(&out, panel),
+        Some(rest_panel + w / 2.0),
+        "Controls is not halfway in from the right"
+    );
+    assert!(
+        top_bar_at(&a, &out, -TOP_BAR_H / 2.0),
+        "the top bar is not halfway up off the screen"
+    );
 }
 
 #[test]

@@ -37,8 +37,10 @@
       <a href="storybook.html">storybook.html</a>, and the slides between them as the device draws
       them: 280 ms, smootherstep, every frame on whole art pixels. Walk it with the keys or the
       buttons under the screen. Going deeper slides the screen out to the right and the next in from
-      the left; going back is the mirror. The backdrop behind them never moves with them, and the
-      bottom bar never leaves.</p>
+      the left; going back is the mirror. Controls stands beside the shelf rather than under it, so
+      its slides go the other way round: the shelf out to the left and the panel in from the right,
+      and back again the panel out to the right and the shelf in from the left. The backdrop behind
+      them never moves with them, and the bottom bar never leaves.</p>
   </div>
 
   <div class="layout">
@@ -121,7 +123,7 @@
                 <omega-panel label="NETWORK" class="hug">
                   <omega-row label="WI-FI" value="ON" carets data-values="ON|OFF" data-set="wifi"></omega-row>
                   <omega-row label="NETWORK TIME" value="ON" carets data-values="ON|OFF"></omega-row>
-                  <omega-row label="SSH" opens data-opens="ssh"></omega-row>
+                  <omega-row label="SSH" value="ON" carets data-values="ON|OFF|INFO" data-set="ssh" data-opens="ssh" data-opens-on="INFO"></omega-row>
                 </omega-panel>
                 <omega-panel label="AVAILABLE NETWORKS">
                   <div class="list">
@@ -134,14 +136,15 @@
             </div>
           </section>
 
-          <!-- Settings > Network > SSH: the login, or, without Wi-Fi, what to do first -->
+          <!-- Settings > Network > SSH on INFO: the login, or, with SSH off or no Wi-Fi, what to do
+               first. The password is the six digits omega-zero makes up on a card that sets none. -->
           <section class="part page away" data-screen="ssh">
             <omega-panel label="SSH" active class="lone small ssh">
               <div class="when-online">
                 <omega-row label="IP" value="192.168.1.20"></omega-row>
                 <omega-row label="HOST" value="rg35xxsp.local"></omega-row>
                 <omega-row label="USER" value="root"></omega-row>
-                <omega-row label="PASSWORD" value="root"></omega-row>
+                <omega-row label="PASSWORD" value="482913"></omega-row>
                 <omega-row label="PORT" value="22"></omega-row>
                 <p class="note">SFTP uses the same login</p>
               </div>
@@ -262,13 +265,6 @@
               <label><input type="radio" name="zoom" value="2"><span>2×</span></label>
             </div>
           </fieldset>
-          <fieldset class="group">
-            <legend>bar</legend>
-            <div class="seg">
-              <label><input type="radio" name="bar" value="plate" checked><span>plate</span></label>
-              <label><input type="radio" name="bar" value="floating"><span>floating</span></label>
-            </div>
-          </fieldset>
           <label class="check"><input type="checkbox" id="wifi" checked> Wi-Fi on</label>
         </div>
       </div>
@@ -309,7 +305,6 @@
           <tr><td>style</td><td><code>grid</code> (default), <code>plates</code>, <code>dotted</code>, <code>dither</code>, <code>rivets</code>, <code>bits</code>, <code>solid</code></td></tr>
           <tr><td>moving</td><td><code>1</code> (default) or <code>0</code></td></tr>
           <tr><td>font</td><td><code>bold</code> (default) or <code>thin</code>: the bottom bar's labels, as Theme › Font draws them</td></tr>
-          <tr><td>bar</td><td><code>plate</code> (default) or <code>floating</code></td></tr>
           <tr><td>wifi</td><td><code>on</code> (default) or <code>off</code>: SSH shows its offline variant, the networks dim</td></tr>
           <tr><td>row</td><td>The cursor's row on <code>screen</code>, from 0 (the key, for the keyboard; the field, for Date &amp; Time)</td></tr>
           <tr><td>slow</td><td><code>1</code>: slides at a fifth of their speed</td></tr>

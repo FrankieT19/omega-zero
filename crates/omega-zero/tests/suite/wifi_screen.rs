@@ -8,7 +8,9 @@ use omega_store::{read_app_state, write_app_state, AppState};
 use omega_ui::network::networks_shown;
 use omega_ui::SettingsRow;
 use omega_zero::app::{App, Phase};
-use omega_zero::wifi::{Saved, Seen, Status, WifiJob, WifiJobs, WifiNews, JOIN_TIMEOUT_MS};
+use omega_zero::wifi::{
+    Saved, Seen, Status, WifiJob, WifiJobs, WifiNews, GLANCE_MS, JOIN_TIMEOUT_MS,
+};
 use omega_zero::wifi_screen::{Lit, NetworkLine, NetworkView, Sel, SettingLine, Summary};
 use tempfile::TempDir;
 
@@ -285,7 +287,12 @@ fn the_screen_looks_for_networks_and_the_menu_only_asks_how_it_is_joined() {
     );
     r.radio.forget_asked();
     r.tick(5_000);
-    assert_eq!(r.radio.asked(), [], "the shelf kept the radio busy");
+    assert_eq!(
+        r.radio.asked(),
+        [WifiJob::Glance],
+        "the shelf asked for more than a glance at the link"
+    );
+    r.radio.forget_asked();
     r.open_menu_at(SettingsRow::Network);
     r.tick(16);
     assert_eq!(r.radio.asked(), [WifiJob::Refresh]);
@@ -478,8 +485,8 @@ fn network_holds_wifi_and_only_with_it_on_network_time_and_ssh() {
     let ntp = if r.a.wifi().ntp() { "ON" } else { "OFF" };
     assert_eq!(view.settings[1].value, Some(ntp), "{:?}", view.settings[1]);
     assert!(view.settings[1].carets && !view.settings[1].opens);
-    assert_eq!(view.settings[2].value, None);
-    assert!(view.settings[2].opens && !view.settings[2].carets);
+    assert_eq!(view.settings[2].value, Some("ON"), "SSH is not on");
+    assert!(view.settings[2].carets && !view.settings[2].opens);
 
     r.press(Btn::Down);
     r.press(Btn::Down);
@@ -758,7 +765,7 @@ fn a_radio_that_never_appears_says_so() {
 }
 
 #[test]
-fn the_shelf_asks_after_the_network_only_now_and_then_for_its_top_bar() {
+fn the_shelf_glances_at_the_link_and_asks_its_status_only_when_a_glance_disagrees() {
     let mut r = Rig::with(
         AppState {
             wifi: true,
@@ -768,13 +775,50 @@ fn the_shelf_asks_after_the_network_only_now_and_then_for_its_top_bar() {
     );
     assert!(matches!(r.a.phase(), Phase::Shelf), "{:?}", r.a.phase());
     r.radio.say(joined("Home", Some("192.168.1.20")));
+    r.radio.say(WifiNews::Saved(Vec::new()));
     r.tick(16);
+    assert_eq!(r.radio.asked(), [WifiJob::Up, WifiJob::Glance]);
     r.radio.forget_asked();
-    r.tick(omega_zero::wifi::REFRESH_MS + 500);
-    assert!(
-        r.radio.asked().is_empty(),
-        "the shelf asked as often as the menu that names the network"
+    // a minute of glances that find the link as the status says
+    for _ in 0..60 {
+        r.radio.say(WifiNews::Glanced(true));
+        r.tick(16);
+        r.tick(GLANCE_MS);
+    }
+    let asked = r.radio.asked();
+    assert_eq!(
+        asked,
+        vec![WifiJob::Glance; 60],
+        "the shelf asked for more than a glance a second"
     );
-    r.tick(omega_zero::wifi::GLANCE_MS);
-    assert_eq!(r.radio.asked(), [WifiJob::Refresh]);
+    r.radio.forget_asked();
+    r.radio.say(WifiNews::Glanced(false));
+    r.tick(16);
+    assert_eq!(
+        r.radio.asked(),
+        [WifiJob::Refresh],
+        "a glance that found the link down did not ask for the status"
+    );
+    // a status that goes on saying joined is asked no more often than the menus ask it
+    let mut refreshes = 0;
+    for _ in 0..10 {
+        for job in r.radio.asked() {
+            match job {
+                WifiJob::Glance => r.radio.say(WifiNews::Glanced(false)),
+                WifiJob::Refresh => {
+                    refreshes += 1;
+                    r.radio.say(joined("Home", Some("192.168.1.20")));
+                    r.radio.say(WifiNews::Saved(Vec::new()));
+                }
+                other => panic!("the shelf asked for {other:?}"),
+            }
+        }
+        r.radio.forget_asked();
+        r.tick(16);
+        r.tick(GLANCE_MS);
+    }
+    assert!(
+        (3..=6).contains(&refreshes),
+        "{refreshes} statuses in ten seconds of glances that disagree"
+    );
 }

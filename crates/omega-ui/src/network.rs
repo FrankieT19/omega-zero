@@ -195,7 +195,7 @@ pub struct SshFaces {
     pub at: [u32; 4],
     /// Its well, `[x, y, w, h]` in the panel's art pixels.
     pub well: [u32; 4],
-    /// IP, HOST, USER, PASSWORD and PORT, top first; none without a network.
+    /// IP, HOST, USER, PASSWORD and PORT, top first; none with SSH off or without a network.
     pub lines: Vec<Face>,
     pub note: Option<Face>,
 }

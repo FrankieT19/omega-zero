@@ -6,6 +6,9 @@
   right. The slot sits a bar higher to make room for it.
 - Game Boy carts stand at 80% of their size on the shelf and grow to full size as they go into
   the slot.
+- The boot logo fades into the shelf. The shelf's first frames show the same logo, where the
+  handheld drew it, and it fades out over half a second to the shelf already moving under it.
+  Any button ends the fade at once. A boot back into a game, or to the clock, cuts as before.
 - START on the shelf opens Settings, a window in the style of Mega Man Zero's menus, in place of
   the old quick menu. CONFIGS holds Fast Forward (2X, 3X, 4X or 6X), Fast Forward Sound, Colour
   Correction, Rumble and Labels; GENERAL holds Date & Time, Network, Theme and About.
@@ -13,24 +16,33 @@
   in ›.
 - A tap of SELECT on the shelf opens CONTROLS: what every button does, on the shelf and in a
   game, on one panel. SELECT held with another button works as before.
-- The Wi-Fi screen is now Network, under Settings. Its NETWORK panel switches Wi-Fi and Network
-  Time and opens SSH. AVAILABLE NETWORKS shows each network's signal, a padlock on those with a
+- The Wi-Fi screen is now Network, under Settings. Its NETWORK panel switches Wi-Fi, Network
+  Time and SSH. AVAILABLE NETWORKS shows each network's signal, a padlock on those with a
   passphrase, and CONNECTED, JOINING or SAVED. Y forgets a saved network.
-- SSH shows how to log in from a computer: the address, `<name>.local`, user `root`, the
-  password and port 22. SFTP uses the same login. The password is BaseOS's: `root`, or what
-  `ssh_password=` says in `baseos.conf` on the card.
+- SSH steps through ON, OFF and INFO. ON starts the SSH server and OFF stops it, leaving a
+  login already made to carry on; the card remembers which. A on INFO shows how to log in from a
+  computer: the address, `<name>.local`, user `root`, the password and port 22. SFTP uses the
+  same login.
+- The first time omega-zero runs on a card whose `baseos.conf` sets no `ssh_password`, it gives
+  root a password of six random digits, at once and in `baseos.conf`, so BaseOS keeps it. A
+  password you set there yourself is kept.
 - Cart Labels is no longer on the Wi-Fi screen: it is Labels, in Settings.
 - Theme, Date & Time and Labels are panels over the background, and the passphrase
   keyboard is a window. About is the same sticker as before.
 - In the menus the bottom bar says B RETURN and A CONFIRM. A screen's own keys sit in the middle
-  of it: Y FORGET on Network, START FETCH and Y SIGN OUT on Labels.
+  of it: Y FORGET on Network, START FETCH and Y SIGN OUT on Labels. Between its two ends there is
+  nothing but those keys, over the background.
 - Every move between screens slides, over a background that keeps moving. Going into a screen,
   the one you leave goes out to the right and the new one comes in from the left; coming back is
   the mirror. Leaving the shelf, the top bar goes up, the carts right and the slot down.
+  CONTROLS slides the other way round: the carts go out to the left as it comes in from the
+  right, and it goes back out to the right.
 - The menus, both bars and the slot take their colours from Settings > Theme > Colour.
   Night is grey; Amber is Mega Man Zero's own colours.
 - Theme is what Background was: the background's pattern, its motion and its colour. It also
   picks the font of the bottom bar's big words, Bold or Thin.
+- The top bar lights Wi-Fi and ssh within a second of a network being joined, and puts them out
+  as quickly when it is lost. After boot they stayed dark until a menu was opened.
 
 ### For developers
 
@@ -44,6 +56,9 @@
   HTML kit pixel for pixel; `make-refs.sh` takes them again.
 - Each menu screen's input and drawing is a file of its own in `crates/omega-zero/src/screens/`,
   its faces are made in `frontend/sync_*.rs`, and `nav.rs` slides between them.
+- Now that root's password is random, `task deploy:wifi` and `task log:wifi` log in with
+  `CONSOLE_PASSWORD` or, without it, the first line of a git-ignored `.console-password` at the
+  top of the repo.
 
 ## omega-zero 0.0.2
 

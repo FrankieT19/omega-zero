@@ -18,8 +18,8 @@ use omega_ui::kit::action::{
     action_face, action_pair, action_width, ActionFace, Font, Side, BAR, RISE, TALL,
 };
 use omega_ui::kit::bar::{
-    action_swap, bar_layout, cap_width, hint_width, hints_width, plate_face, BarLayout, Hint, Swap,
-    PLATE_H, PLATE_TOP, SINK,
+    action_swap, bar_layout, cap_width, hint_width, hints_face, hints_width, BarLayout, Hint, Swap,
+    KEY_H, SINK,
 };
 use omega_ui::kit::list_row::{list_row_face, ListRow};
 use omega_ui::kit::modal::{modal_face, modal_layout};
@@ -526,7 +526,8 @@ fn a_signal_past_three_is_three() {
 }
 
 /// The bar `w` art pixels wide as omega-bar draws it with these actions, one width, and hints:
-/// the plate, then the actions over it, on a face `TALL` high whose row `RISE` is the bar's top.
+/// the hints between the actions and the actions at the ends, on a face `TALL` high whose row
+/// `RISE` is the bar's top, clear everywhere else.
 fn bar(w: u32, left: (&str, &str), right: (&str, &str), hints: &[Hint]) -> UndoFace {
     bar_in(Font::Bold, w, left, right, hints)
 }
@@ -536,8 +537,8 @@ fn bar_in(font: Font, w: u32, left: (&str, &str), right: (&str, &str), hints: &[
     let [left, right] = action_pair(left, right, font, &RAMP);
     let layout = bar_layout(w, &left, &right);
     let mut face = omega_ui::kit::pixel::blank(w, TALL);
-    let [x, y, pw, _] = layout.plate;
-    over(&mut face, &plate_face(pw, hints, &RAMP), x, y + RISE);
+    let [x, y, hw, _] = layout.hints;
+    over(&mut face, &hints_face(hw, hints, &RAMP), x, y + RISE);
     for (action, [ax, ay]) in [(&left, layout.left), (&right, layout.right)] {
         over(
             &mut face,
@@ -593,21 +594,70 @@ fn the_thin_bar_is_chromes() {
 }
 
 #[test]
-fn the_plate_runs_between_the_actions_and_under_their_ends() {
+fn the_hints_take_the_room_between_the_actions() {
     let [controls, settings] = pair(("CONTROLS", "SELECT"), ("SETTINGS", "START"));
     let [back, confirm] = pair(("RETURN", "B"), ("CONFIRM", "A"));
     let shelf = bar_layout(320, &controls, &settings);
-    assert_eq!(shelf.plate, [110, PLATE_TOP, 100, PLATE_H]);
+    assert_eq!(shelf.hints, [115, 0, 90, BAR]);
     assert_eq!((shelf.left, shelf.right), ([0, -4], [205, -4]));
     assert_eq!(
-        bar_layout(360, &controls, &settings).plate,
-        [110, 2, 140, 13]
+        bar_layout(360, &controls, &settings).hints,
+        [115, 0, 130, 15]
     );
     let menu = bar_layout(320, &back, &confirm);
-    assert_eq!(menu.plate, [92, 2, 136, 13]);
+    assert_eq!(menu.hints, [97, 0, 126, 15]);
     assert_eq!(menu.right, [223, -4]);
-    assert_eq!(bar_layout(360, &back, &confirm).plate, [92, 2, 176, 13]);
-    assert_eq!(PLATE_H + PLATE_TOP, BAR);
+    assert_eq!(bar_layout(360, &back, &confirm).hints, [97, 0, 166, 15]);
+}
+
+/// Between the bar's two actions there is nothing but the hints, whatever is behind the bar
+/// showing through: with none every pixel there is clear, and with Y FORGET and X RENAME the
+/// only ones drawn are their caps' dark and their letters' cream, on the caps' rows and across
+/// the span the hints are centred by.
+#[test]
+fn nothing_is_drawn_between_the_actions_but_the_hints() {
+    let menu = (("RETURN", "B"), ("CONFIRM", "A"));
+    let [left, right] = pair(menu.0, menu.1);
+    let two = [
+        Hint {
+            key: "Y",
+            word: "FORGET",
+        },
+        Hint {
+            key: "X",
+            word: "RENAME",
+        },
+    ];
+    // the caps start a row above the capitals, which are on the bar's rows 5 to 11
+    let caps = RISE + 4..RISE + 4 + KEY_H;
+    for w in [320, 360] {
+        let [x0, _, room, _] = bar_layout(w, &left, &right).hints;
+        for hints in [&[][..], &two[..]] {
+            let face = bar(w, menu.0, menu.1, hints);
+            let from = x0 + (room - hints_width(hints)) / 2;
+            let span = from..from + hints_width(hints);
+            let mut drawn = 0;
+            for y in 0..TALL {
+                for x in x0..x0 + room {
+                    let i = ((y * w + x) * 4) as usize;
+                    let px = &face.rgba[i..i + 4];
+                    if px[3] == 0 {
+                        continue;
+                    }
+                    drawn += 1;
+                    assert!(
+                        span.contains(&x) && caps.contains(&y),
+                        "{w}, {hints:?}: ({x}, {y}) is drawn, off the hints"
+                    );
+                    assert!(
+                        [RAMP.dark, RAMP.cream].contains(&[px[0], px[1], px[2]]),
+                        "{w}, {hints:?}: ({x}, {y}) is {px:?}, not a cap's or a letter's"
+                    );
+                }
+            }
+            assert_eq!(drawn > 0, !hints.is_empty(), "{w}, {hints:?}");
+        }
+    }
 }
 
 #[test]
@@ -628,8 +678,8 @@ fn hints_are_as_wide_as_their_caps_and_words() {
     assert_eq!(hints_width(&[forget, rename]), 47 + 8 + 47);
     assert_eq!(hints_width(&[Hint { key: "Y", word: "" }]), 9);
     assert_eq!(hints_width(&[]), 0);
-    let plate = plate_face(136, &[forget], &RAMP);
-    assert_eq!((plate.w, plate.h), (136, PLATE_H));
+    let face = hints_face(126, &[forget], &RAMP);
+    assert_eq!((face.w, face.h), (126, BAR));
 }
 
 #[test]
@@ -639,8 +689,8 @@ fn the_bar_stands_on_the_screens_bottom_and_its_actions_sink_on_their_own() {
     let tex = TexId::from_raw(3);
     assert_eq!(BarLayout::top(480), 450.0);
     assert_eq!(
-        layout.plate_quad(tex, 480),
-        quad(tex, 136, 13, 184.0, 454.0)
+        layout.hints_quad(tex, 480),
+        quad(tex, 126, BAR, 194.0, 450.0)
     );
     assert_eq!(
         layout.action_quad(Side::Left, tex, &left, 480, 0),
@@ -722,7 +772,7 @@ fn ssh_is_flows() {
         ("IP", "192.168.1.20"),
         ("HOST", "rg35xxsp.local"),
         ("USER", "root"),
-        ("PASSWORD", "root"),
+        ("PASSWORD", "482913"),
         ("PORT", "22"),
     ];
     let rows: Vec<Row> = login
@@ -737,10 +787,15 @@ fn ssh_is_flows() {
     note(&mut panel, "SFTP uses the same login", 5 * ROW_H + 4);
     matches(&panel.face, "flow-ssh");
 
-    // offline, the note alone: 4 above its line and 5 under it
-    let mut panel = panel_face(200, panel_height(4 + 10 + 5), "SSH", true, &RAMP);
-    note(&mut panel, "Join a Wi-Fi network first.", 4);
-    matches(&panel.face, "flow-ssh-offline");
+    // offline, or with SSH switched off, the note alone: 4 above its line and 5 under it
+    for (text, name) in [
+        ("Join a Wi-Fi network first.", "flow-ssh-offline"),
+        ("Turn SSH on first.", "flow-ssh-switched-off"),
+    ] {
+        let mut panel = panel_face(200, panel_height(4 + 10 + 5), "SSH", true, &RAMP);
+        note(&mut panel, text, 4);
+        matches(&panel.face, name);
+    }
 }
 
 #[test]
