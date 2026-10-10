@@ -7,18 +7,21 @@ to use it, and screens put together from them.
 
 ```
 assets/ui/
-├── storybook.html       every component and screen, live
-├── foundation/          what every component draws with
-│   ├── fonts.css        Pixel Code Regular, cut to Latin-1 and inlined
-│   ├── tokens.css       the art pixel (--u) and the shelf's backdrop
-│   ├── pixel.js         OmegaPixel: sprites, 9-slices, letters, the base element
-│   ├── backdrop.js      OmegaBackdrop: the patterns in Settings > Background > Style
-│   └── palette.js       OmegaPalette: colours from Settings > Background > Colour
+├── storybook.html         every component and screen, live
+├── foundation/            what every component draws with
+│   ├── fonts.css          Pixel Code Regular, cut to Latin-1 and inlined
+│   ├── tokens.css         the art pixel (--u) and the shelf's backdrop
+│   ├── pixel.js           OmegaPixel: sprites, 9-slices, letters, the base element
+│   ├── backdrop.js        OmegaBackdrop: the patterns in Settings > Background > Style
+│   └── palette.js         OmegaPalette: colours from Settings > Background > Colour
 └── components/
-    ├── omega-modal.js   <omega-modal>   the menu window, a frame that stacks its content
-    ├── omega-panel.js   <omega-panel>   a titled section for inside it
-    ├── action-left.js   <action-left>   the bottom bar's left action
-    └── action-right.js  <action-right>  the same, mirrored
+    ├── omega-modal.js     <omega-modal>     the menu window, a frame that stacks its content
+    ├── omega-panel.js     <omega-panel>     a titled section for inside it
+    ├── omega-row.js       <omega-row>       one setting in a panel, lit under the cursor
+    ├── omega-list-row.js  <omega-list-row>  a Wi-Fi network in a list, built on omega-row
+    ├── omega-bar.js       <omega-bar>       the bottom bar: two actions, the plate, key hints
+    ├── action-left.js     <action-left>     the bottom bar's left action
+    └── action-right.js    <action-right>    the same, mirrored
 ```
 
 ## Using it
@@ -33,12 +36,23 @@ classic scripts, no build step, so it works from `file://`.
 <script src="foundation/backdrop.js"></script>
 <script src="foundation/palette.js"></script>
 <script src="components/omega-modal.js"></script>
+<script src="components/omega-panel.js"></script>
+<script src="components/omega-row.js"></script>   <!-- omega-list-row.js needs it first -->
+<script src="components/action-left.js"></script>
+<script src="components/action-right.js"></script>
+<script src="components/omega-bar.js"></script>
 
 <div class="omega-backdrop" data-style="plates" data-moving></div>  <!-- Grid without data-style -->
 
 <omega-modal>
-  <omega-panel label="BUTTON SETTING" active></omega-panel>
+  <omega-panel label="BUTTON SETTING" active>
+    <omega-row label="JUMP" value="A" lit carets></omega-row>
+  </omega-panel>
 </omega-modal>
+<omega-bar hint="Y RESET">
+  <action-left slot="left" label="MENU" hint="SELECT"></action-left>
+  <action-right slot="right" label="SETTINGS" hint="START"></action-right>
+</omega-bar>
 
 <script>OmegaPalette.apply('teal')</script>  <!-- Night unless told otherwise -->
 ```
@@ -57,7 +71,9 @@ These are what make it look like one thing. Keep to them when changing or adding
   it on a 20px line so its capitals land on rows 2 to 8. Pixel Code Bold is fattened off the grid:
   draw bold instead, the word again one pixel to the right. A word drawn bigger or stretched goes
   into a sprite through `OmegaPixel.letters()`, never through a CSS transform (a transformed line's
-  baseline falls between pixels).
+  baseline falls between pixels). Every component sets `text-rendering: geometricPrecision` on its
+  host: Chrome's default hinting smears Pixel Code's edges by part of a pixel even where it sits on
+  whole pixels, at 1× and on a 2× display alike.
 - **Colours come from the backdrop colour.** Use only the `--oz-*` properties `palette.js` sets.
   Night (the default) gives plain greys, Amber gives Mega Man Zero's own colours, the rest turn
   that ramp to their hue. A component that paints sprites extends `OmegaPixel.Element` and draws in

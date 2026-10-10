@@ -18,6 +18,9 @@
 <script src="components/omega-panel.js"></script>
 <script src="components/action-left.js"></script>
 <script src="components/action-right.js"></script>
+<script src="components/omega-row.js"></script>
+<script src="components/omega-list-row.js"></script>
+<script src="components/omega-bar.js"></script>
 <style>
   /* the page around the components: omega-zero's site colours */
   :root {
@@ -66,6 +69,12 @@
   .preview .tag { font: 0.75rem var(--mono); color: var(--dim); margin-bottom: -12px; }
   /* an action's notch rises 12px over what is above it; keep its tag clear of that */
   .preview.actions .tag { margin-bottom: 0; }
+  /* examples side by side, each a whole number of art pixels wide so their edges stay on the grid */
+  .side { display: grid; grid-template-columns: repeat(auto-fill, calc(240 * var(--u))); gap: 20px; }
+  .side figure { margin: 0; display: grid; gap: 8px; align-content: start; min-width: 0; }
+  .side .tag { margin-bottom: 0; }
+  /* a bar as wide as a 640×480 screen */
+  .bar-box { width: calc(320 * var(--u)); max-width: 100%; }
   pre {
     margin: 0; padding: 12px 14px; overflow-x: auto; border-radius: 4px;
     background: var(--ground); border: 1px solid var(--rule);
@@ -127,28 +136,19 @@
   /* the first panel takes 4/7 of the modal, rounded to a whole art pixel, the second the rest */
   .split > omega-panel:first-child { flex: 0 0 round(down, 57%, var(--u)); }
 
-  .bottom-bar { flex: none; display: flex; height: calc(21 * var(--u)); }
-  .bottom-bar > action-left, .bottom-bar > action-right { position: relative; z-index: 1; flex: none; }
-  /* the plate between the two actions sits a little under the rail and runs on behind both
-     buttons' rounded ends, so the bar's bottom line never breaks */
-  .bar-center {
-    flex: 1; min-width: 0;
-    margin: calc(3 * var(--u)) calc(-7 * var(--u)) 0;
-    background: var(--oz-plate);
-    border-top: var(--u) solid var(--oz-edge);
-    border-bottom: var(--u) solid var(--oz-frame);
-    box-shadow: inset 0 var(--u) 0 var(--oz-band), inset 0 calc(-1 * var(--u)) 0 var(--oz-edge);
-  }
-
   /* "outline areas": every div outlined, the page's and the components' own (through ::part) */
-  .outlined .modal-area, .outlined .bottom-bar, .outlined .bar-center,
+  .outlined .modal-area,
   .outlined omega-modal::part(frame), .outlined omega-modal::part(content),
   .outlined omega-panel::part(header), .outlined omega-panel::part(tab), .outlined omega-panel::part(label),
   .outlined omega-panel::part(slant), .outlined omega-panel::part(strip), .outlined omega-panel::part(body),
   .outlined action-left::part(icon), .outlined action-left::part(label), .outlined action-left::part(word),
   .outlined action-left::part(button), .outlined action-left::part(hint),
   .outlined action-right::part(icon), .outlined action-right::part(label), .outlined action-right::part(word),
-  .outlined action-right::part(button), .outlined action-right::part(hint) {
+  .outlined action-right::part(button), .outlined action-right::part(hint),
+  .outlined omega-row::part(row), .outlined omega-row::part(label), .outlined omega-row::part(caret-left),
+  .outlined omega-row::part(value), .outlined omega-row::part(caret-right), .outlined omega-row::part(opens),
+  .outlined omega-bar::part(bar), .outlined omega-bar::part(plate), .outlined omega-bar::part(hints),
+  .outlined omega-bar::part(key), .outlined omega-bar::part(word) {
     outline: 1px dashed var(--area); outline-offset: -1px;
   }
 </style>
@@ -212,7 +212,9 @@
           capitals sit on whole pixels. Pixel Code Bold is fattened off the grid, so it is not used:
           bold is drawn by setting the word again one pixel to the right. Bigger words (an action's
           label) are drawn into a sprite with <code>OmegaPixel.letters()</code> and stretched there,
-          never with a CSS transform.</p>
+          never with a CSS transform. Components draw it with
+          <code>text-rendering: geometricPrecision</code>: the browser's default hinting smears its
+          edges by part of a pixel.</p>
       </article>
 
       <article class="card wide">
@@ -345,6 +347,173 @@
 <pre><code>&lt;action-right label="SETTINGS" hint="START"&gt;&lt;/action-right&gt;</code></pre>
       </article>
 
+      <article class="card wide">
+        <header><h3>&lt;omega-row&gt;</h3><code>components/omega-row.js</code></header>
+        <p class="dim">One setting in a panel's well: its name on the left, its value on the right,
+          13 art pixels tall, as tall as a panel's header. The row under the cursor is lit the way a
+          title tab is drawn, a band in the tab colour inside a frame line with its corner pixels left
+          out, its name cream and its value bright. A value Left and Right change gets a ◀ and a ▶
+          while lit, a row that opens another screen a › at its end. Without any of that it is a plain
+          name and value line. Five rows and four fit, with their two headers, in the modal of a
+          640×480 screen.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">in a modal as big as a 640×480 screen's</span>
+          <omega-modal style="width: calc(288 * var(--u)); height: calc(200 * var(--u)); max-width: 100%">
+            <omega-panel label="CONFIGS" active style="flex: 0 0 calc(104 * var(--u))">
+              <omega-row label="FAST FORWARD" value="6X" lit carets></omega-row>
+              <omega-row label="REWIND" value="ON" carets></omega-row>
+              <omega-row label="SHADER" value="LCD GRID" carets></omega-row>
+              <omega-row label="SAVE SLOT" value="AUTO" carets dim></omega-row>
+              <omega-row label="CONTROLS" opens></omega-row>
+            </omega-panel>
+            <omega-panel label="GENERAL">
+              <omega-row label="LANGUAGE" value="ENGLISH" carets></omega-row>
+              <omega-row label="SLEEP AFTER" value="5 MIN" carets></omega-row>
+              <omega-row label="WI-FI" value="Home" opens></omega-row>
+              <omega-row label="ABOUT" opens></omega-row>
+            </omega-panel>
+          </omega-modal>
+          <div class="side">
+            <figure>
+              <span class="tag">unlit: plain, carets, opens, dim, empty</span>
+              <omega-panel label="UNLIT" style="height: calc(88 * var(--u))">
+                <omega-row label="IP" value="192.168.1.20"></omega-row>
+                <omega-row label="FAST FORWARD" value="6X" carets></omega-row>
+                <omega-row label="CONTROLS" opens></omega-row>
+                <omega-row label="SAVE SLOT" value="AUTO" carets dim></omega-row>
+                <omega-row></omega-row>
+              </omega-panel>
+            </figure>
+            <figure>
+              <span class="tag">the same, lit</span>
+              <omega-panel label="LIT" active style="height: calc(88 * var(--u))">
+                <omega-row label="IP" value="192.168.1.20" lit></omega-row>
+                <omega-row label="FAST FORWARD" value="6X" carets lit></omega-row>
+                <omega-row label="CONTROLS" opens lit></omega-row>
+                <omega-row label="SAVE SLOT" value="AUTO" carets dim lit></omega-row>
+                <omega-row lit></omega-row>
+              </omega-panel>
+            </figure>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>label</td><td>The setting's name, from the left, in capitals whatever case it is given in; cut off when it runs into the value.</td></tr>
+            <tr><td>value</td><td>What it is set to, from the right, as given. Optional.</td></tr>
+            <tr><td>lit</td><td>The row under the cursor: the band, the name in <code>--oz-cream</code>, the value and arrows in <code>--oz-frame-hi</code>. Unlit, the name is <code>--oz-label</code> and the value <code>--oz-dim</code>.</td></tr>
+            <tr><td>carets</td><td>A ◀ and ▶ either side of the value while lit, for a value Left and Right change. Their room is kept unlit too, so the value never moves.</td></tr>
+            <tr><td>opens</td><td>A › at the end, lit or not, for a row that opens another screen.</td></tr>
+            <tr><td>dim</td><td>Not available: everything drawn in <code>--oz-band</code>, <code>--oz-dim</code> when lit, and no carets.</td></tr>
+            <tr><td>::part</td><td><code>row</code>, <code>label</code>, <code>caret-left</code>, <code>value</code>, <code>caret-right</code>, <code>opens</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-panel label="CONFIGS" active&gt;
+  &lt;omega-row label="FAST FORWARD" value="6X" lit carets&gt;&lt;/omega-row&gt;
+  &lt;omega-row label="CONTROLS" opens&gt;&lt;/omega-row&gt;
+  &lt;omega-row label="SAVE SLOT" value="AUTO" carets dim&gt;&lt;/omega-row&gt;
+&lt;/omega-panel&gt;
+
+&lt;omega-row label="IP" value="192.168.1.20"&gt;&lt;/omega-row&gt;   &lt;!-- a plain line --&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-list-row&gt;</h3><code>components/omega-list-row.js</code></header>
+        <p class="dim">A Wi-Fi network in a list: an <code>&lt;omega-row&gt;</code> whose name keeps its
+          own case, with what the network is to the handheld on the right, then a padlock if it needs
+          a password and the top bar's Wi-Fi icon, as many of its three parts lit as the signal is
+          strong. Room is kept for the padlock and the bars on every row, so they line up down the
+          list. Lit and dim as <code>&lt;omega-row&gt;</code>.</p>
+        <div class="preview omega-backdrop">
+          <div class="side">
+            <figure>
+              <span class="tag">a list</span>
+              <omega-panel label="NETWORKS" active style="height: calc(88 * var(--u))">
+                <omega-list-row label="Home" value="CONNECTED" signal="3" lock lit></omega-list-row>
+                <omega-list-row label="Pixel Lab" value="JOINING" signal="2" lock></omega-list-row>
+                <omega-list-row label="Office" value="SAVED" signal="1" lock></omega-list-row>
+                <omega-list-row label="Café Guest" signal="2"></omega-list-row>
+                <omega-list-row label="Neighbour_5G" signal="0" lock dim></omega-list-row>
+              </omega-panel>
+            </figure>
+            <figure>
+              <span class="tag">signal 3 to 0, unlit and lit</span>
+              <omega-panel label="SIGNAL" style="height: calc(127 * var(--u))">
+                <omega-list-row label="signal 3, lock" signal="3" lock></omega-list-row>
+                <omega-list-row label="signal 2" signal="2"></omega-list-row>
+                <omega-list-row label="signal 1, lock" signal="1" lock></omega-list-row>
+                <omega-list-row label="signal 0" signal="0"></omega-list-row>
+                <omega-list-row label="signal 3, lock" signal="3" lock lit></omega-list-row>
+                <omega-list-row label="signal 2" signal="2" lit></omega-list-row>
+                <omega-list-row label="signal 1, lock" signal="1" lock lit></omega-list-row>
+                <omega-list-row label="signal 0" signal="0" lit></omega-list-row>
+              </omega-panel>
+            </figure>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>label</td><td>The network's name, from the left, in its own case.</td></tr>
+            <tr><td>value</td><td>What it is to the handheld, right-aligned before the icons: <code>CONNECTED</code>, <code>JOINING</code>, <code>SAVED</code>. Optional.</td></tr>
+            <tr><td>signal</td><td><code>0</code> to <code>3</code>: the Wi-Fi bars, that many of their three parts lit (dot, small arc, big arc), the rest faint. No bars without it.</td></tr>
+            <tr><td>lock</td><td>A padlock beside the bars, for a network with a password.</td></tr>
+            <tr><td>lit, dim</td><td>As <code>&lt;omega-row&gt;</code>'s. The icons are drawn in the name's colour.</td></tr>
+            <tr><td>::part</td><td><code>row</code>, <code>label</code>, <code>value</code>, <code>lock</code>, <code>signal</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-list-row label="Home" value="CONNECTED" signal="3" lock lit&gt;&lt;/omega-list-row&gt;
+&lt;omega-list-row label="Café Guest" signal="2"&gt;&lt;/omega-list-row&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-bar&gt;</h3><code>components/omega-bar.js</code></header>
+        <p class="dim">The bar along the bottom of a screen, as wide as what holds it and 21 art pixels
+          tall: an <code>&lt;action-left&gt;</code> and an <code>&lt;action-right&gt;</code> at its ends
+          and, between them, a plate that sits a little under their rails and runs on behind both
+          buttons' rounded ends, so the bar's bottom line never breaks. The keys a screen has beyond
+          the two actions go on the plate as hints, each its key in a small dark cap and then the
+          word, centred on the plate and on the same rows as the words in the buttons.
+          <code>floating</code> leaves only the two actions, at the corners.</p>
+        <div class="preview actions omega-backdrop">
+          <span class="tag">empty</span>
+          <omega-bar class="bar-box">
+            <action-left slot="left"></action-left>
+            <action-right slot="right"></action-right>
+          </omega-bar>
+          <span class="tag">with a hint</span>
+          <omega-bar class="bar-box" hint="START FETCH">
+            <action-left slot="left" label="BACK" hint="B"></action-left>
+            <action-right slot="right" label="SAVE" hint="A"></action-right>
+          </omega-bar>
+          <span class="tag">with two</span>
+          <omega-bar class="bar-box" hint="Y FORGET | X EDIT">
+            <action-left slot="left" label="BACK" hint="B"></action-left>
+            <action-right slot="right" label="JOIN" hint="A"></action-right>
+          </omega-bar>
+          <span class="tag">floating</span>
+          <omega-bar class="bar-box" floating>
+            <action-left slot="left" label="MENU" hint="SELECT"></action-left>
+            <action-right slot="right" label="SETTINGS" hint="START"></action-right>
+          </omega-bar>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>hint</td><td>A key and what it does, the first word the key: <code>Y FORGET</code>, <code>START FETCH</code>. Two with a <code>|</code> between: <code>Y FORGET | X EDIT</code>.</td></tr>
+            <tr><td>floating</td><td>Only the two actions, at the bottom corners: no plate, so no hints.</td></tr>
+            <tr><td>slot</td><td><code>left</code> for the <code>&lt;action-left&gt;</code>, <code>right</code> for the <code>&lt;action-right&gt;</code>.</td></tr>
+            <tr><td>::part</td><td><code>bar</code>, <code>plate</code>, <code>hints</code>, <code>hint</code>, <code>key</code>, <code>word</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-bar hint="Y FORGET | X EDIT"&gt;
+  &lt;action-left slot="left" label="BACK" hint="B"&gt;&lt;/action-left&gt;
+  &lt;action-right slot="right" label="JOIN" hint="A"&gt;&lt;/action-right&gt;
+&lt;/omega-bar&gt;
+
+&lt;omega-bar floating&gt;…&lt;/omega-bar&gt;</code></pre>
+      </article>
+
     </div>
   </section>
 
@@ -372,7 +541,7 @@
         </div>
       </fieldset>
       <label class="check"><input type="checkbox" id="moving" checked> moving backdrop</label>
-      <label class="check"><input type="checkbox" id="text" checked> text in the actions</label>
+      <label class="check"><input type="checkbox" id="text" checked> text in the bar</label>
       <label class="check"><input type="checkbox" id="outlined"> outline areas</label>
     </div>
 
@@ -383,15 +552,22 @@
           <div class="stage">
             <div class="modal-area">
               <omega-modal class="split">
-                <omega-panel label="BUTTON SETTING" active></omega-panel>
-                <omega-panel label="ATTACK MODE"></omega-panel>
+                <omega-panel label="BUTTON SETTING" active>
+                  <omega-row label="MAIN WEAPON" value="B" lit carets></omega-row>
+                  <omega-row label="SUB WEAPON" value="Y" carets></omega-row>
+                  <omega-row label="JUMP" value="A" carets></omega-row>
+                  <omega-row label="DASH" value="R1" carets></omega-row>
+                </omega-panel>
+                <omega-panel label="ATTACK MODE">
+                  <omega-row label="TYPE" value="A" carets></omega-row>
+                  <omega-row label="MOVE LIST" opens></omega-row>
+                </omega-panel>
               </omega-modal>
             </div>
-            <div class="bottom-bar">
-              <action-left label="MENU" hint="SELECT"></action-left>
-              <div class="bar-center"></div>
-              <action-right label="SETTINGS" hint="START"></action-right>
-            </div>
+            <omega-bar hint="Y RESET">
+              <action-left slot="left" label="MENU" hint="SELECT"></action-left>
+              <action-right slot="right" label="SETTINGS" hint="START"></action-right>
+            </omega-bar>
           </div>
         </div>
       </div>
@@ -403,14 +579,18 @@
    ├─ .modal-area
    │  └─ &lt;omega-modal&gt;   frame › content
    │     ├─ &lt;omega-panel&gt;
-   │     │    panel › header (tab › label,
-   │     │    slant, strip) › body
+   │     │  │ panel › header (tab › label,
+   │     │  │ slant, strip) › body
+   │     │  └─ &lt;omega-row&gt; ×4
+   │     │       row › label, caret-left,
+   │     │       value, caret-right, opens
    │     └─ &lt;omega-panel&gt;
-   └─ .bottom-bar
+   │        └─ &lt;omega-row&gt; ×2
+   └─ &lt;omega-bar&gt;
+      │ bar › plate › hints › hint › key, word
       ├─ &lt;action-left&gt;
       │    action › icon, label › word,
       │    button › hint
-      ├─ .bar-center
       └─ &lt;action-right&gt;
            action › button › hint,
            label › word, icon</code></pre>
@@ -477,6 +657,7 @@
   const TEXT = [
     [screen.querySelector('action-left'), { label: 'MENU', hint: 'SELECT' }],
     [screen.querySelector('action-right'), { label: 'SETTINGS', hint: 'START' }],
+    [screen.querySelector('omega-bar'), { hint: 'Y RESET' }],
   ];
   document.querySelectorAll('input[name=size]').forEach(input =>
     input.addEventListener('change', () => { screen.dataset.size = input.value; }));
