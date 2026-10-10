@@ -44,4 +44,6 @@ The first release, for the RG35XX SP and the other H700 handhelds BaseOS runs on
   colour, drifting or still, in eight colours. A wallpaper on the card still works.
 - The slot below the shelf is bigger: a cart slides into it at full size instead of shrinking.
 - The quick menu scrolls when its rows outgrow the screen.
-- The boot logo says omega-zero.
+- The boot logo is the OMEGA ZERO title in pixel art, edged in white, over the shelf's grid.
+  Its source is `assets/logo/omega-zero-logo.html`; `task bootlogos` renders it for every
+  panel, and `STYLE=smooth` renders the drawn-straight version instead.

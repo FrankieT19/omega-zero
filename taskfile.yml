@@ -167,6 +167,21 @@ tasks:
         mv "$tmp/LICENSE" "{{.ASSETS}}/{{.TTF}}.LICENSE.txt"
         echo "fetched {{.ASSETS}}/{{.TTF}}"
 
+  bootlogos:
+    desc: >-
+      Render the boot logos in card/System from assets/logo/omega-zero-logo.html, one per panel
+      so the grid behind the logo stays whole. STYLE=smooth for the drawn-straight version
+      instead of pixel art (needs Google Chrome and ImageMagick)
+    vars:
+      STYLE: '{{.STYLE | default "pixel"}}'
+      LOGO_WIDTH: 414
+    cmds:
+      - |
+        set -euo pipefail
+        for size in 640x480 720x480 720x720; do
+          assets/logo/bootlogo.sh {{.STYLE}} "${size%x*}" "${size#*x}" "card/System/bootlogo-$size.bmp" {{.LOGO_WIDTH}}
+        done
+
   sdcard:
     desc: Create an empty content root, ROOT defaults to ./sdcard
     deps: [build]
