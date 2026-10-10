@@ -2,7 +2,9 @@
 //! time in the middle and the battery on the right.
 //!
 //! Everything on it stands in one band, a sprite cell tall: the icons are drawn on the text's
-//! own pixel grid, and the words hang so their capitals fill the same band.
+//! own pixel grid, and the words hang so their capitals fill the same band. All of it is
+//! printed in the ink its [`ChromeColours`] give, the palette's cream or a theme's white, so
+//! the faces are baked in that ink and baked again when it changes.
 
 use omega_gfx::{out_w, Draw, TexId};
 use omega_power::Battery;
@@ -21,7 +23,8 @@ const GAP: f32 = 4.0 * SPRITE_PX as f32;
 const SSH_PX: f32 = 18.0;
 const RULE_H: f32 = 2.0;
 
-/// What an item is drawn in while it is on, and while it is off.
+/// What an item is drawn in while it is on, and while it is off, on a card whose theme.txt sets
+/// the chrome: the white and grey the bar was printed in before it took the palette.
 pub const LINK_ON: [u8; 3] = HUD_INK;
 pub const LINK_OFF: [u8; 3] = [0x5e, 0x5d, 0x66];
 
@@ -78,9 +81,10 @@ pub struct Links {
     pub ssh: bool,
 }
 
-/// One item's face: an icon one cell square, or "ssh" in bold cut to its ink.
-pub fn link_face(link: Link, on: bool) -> UndoFace {
-    let ink = if on { LINK_ON } else { LINK_OFF };
+/// One item's face, on or off in the ink of `colours`: an icon one cell square, or "ssh" in
+/// bold cut to its ink.
+pub fn link_face(link: Link, on: bool, colours: &ChromeColours) -> UndoFace {
+    let ink = colours.link_ink(on);
     match link.sprite() {
         Some(rows) => sprite_face(rows, ink),
         None => ssh_face(ink),
@@ -142,7 +146,8 @@ impl LinkFaces {
 }
 
 pub struct TopBar<'a> {
-    /// What the bar and its rule are drawn in: the housing and the edge.
+    /// What the bar and its rule are drawn in, the housing and the edge, and the ink the
+    /// battery's capsule is drawn in. The faces handed in below are baked in the same ink.
     pub colours: ChromeColours,
     pub links: Links,
     pub faces: Option<&'a LinkFaces>,
@@ -195,7 +200,8 @@ impl TopBar<'_> {
         }
         // the figure's ink, not its face, ends at the margin, as the Wi-Fi icon's starts at it
         let x = w - MARGIN - gauge_width(self.percent) + word_tail();
-        draw_gauge(x, band(), self.battery, self.percent, self.bolt, out);
+        let ink = self.colours.ink;
+        draw_gauge(x, band(), self.battery, self.percent, self.bolt, ink, out);
     }
 
     /// The items along the left, in order, each with whether it is on.

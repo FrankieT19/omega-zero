@@ -41,15 +41,17 @@ impl App {
         shift(&mut out[bar..], 0.0, off.bar_dy);
     }
 
+    /// The bar across the top, in the chrome's colours, its faces baked in its ink.
     pub(crate) fn draw_top_bar(&self, out: &mut Vec<Draw>) {
+        let r = self.top_readouts;
         TopBar {
             colours: self.chrome_colours(),
             links: self.links(),
             faces: self.link_faces.as_ref(),
-            clock: self.shelf_clock,
+            clock: r.clock,
             battery: self.battery,
-            percent: self.battery_percent,
-            bolt: self.bolt,
+            percent: r.percent,
+            bolt: r.bolt,
         }
         .draw(out);
     }

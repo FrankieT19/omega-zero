@@ -1,7 +1,7 @@
 #![cfg(target_os = "macos")]
 //! The bar along the bottom as the panel shows it: every pixel of its plate and its actions,
-//! notches and all, is the kit's face drawn at twice its size on whole pixels, on the shelf and
-//! in Settings, in Night and in Amber.
+//! notches and all, is the kit's face drawn at twice its size on whole pixels, on the shelf, in
+//! Settings and under the core picker with ◀▶ SWAP on its plate, in Night and in Amber.
 
 use crate::common;
 
@@ -13,11 +13,11 @@ use omega_input::{Btn, InputSource, Millis, RawEvent};
 use omega_power::SimPlatform;
 use omega_store::{read_app_state, write_app_state};
 use omega_ui::kit::action::{action_face, Side, RISE, TALL};
-use omega_ui::kit::bar::{bar_layout, plate_face};
+use omega_ui::kit::bar::{bar_layout, plate_face, Hint};
 use omega_ui::kit::palette::Palette;
 use omega_ui::{UndoFace, SPRITE_PX};
 use omega_zero::frontend::Frontend;
-use omega_zero::screens::bar::Actions;
+use omega_zero::screens::bar::{Actions, SWAP};
 
 struct Script(VecDeque<Vec<RawEvent>>);
 
@@ -34,10 +34,10 @@ fn tap(f: &mut Frontend, input: &mut Script, btn: Btn) {
     f.advance(input);
 }
 
-/// The bar the screen's width with `actions` at its ends and no hints, at one texel to an art
-/// pixel: the plate, then the actions over it, on a face `TALL` high whose row `RISE` is the
-/// bar's top.
-fn kit_bar(actions: Actions, pal: &Palette) -> UndoFace {
+/// The bar the screen's width with `actions` at its ends and `hints` on its plate, at one
+/// texel to an art pixel: the plate, then the actions over it, on a face `TALL` high whose row
+/// `RISE` is the bar's top.
+fn kit_bar(actions: Actions, hints: &[Hint], pal: &Palette) -> UndoFace {
     let width = out_w() / SPRITE_PX;
     let [left, right] = [Side::Left, Side::Right].map(|side| {
         let (word, pill) = actions.action(side);
@@ -50,7 +50,7 @@ fn kit_bar(actions: Actions, pal: &Palette) -> UndoFace {
         h: TALL,
     };
     let [px, py, pw, _] = layout.plate;
-    let plate = plate_face(pw, &[], pal);
+    let plate = plate_face(pw, hints, pal);
     over(&mut bar, &plate, px as i32, (py + RISE) as i32);
     for (face, [x, y]) in [(&left.face, layout.left), (&right.face, layout.right)] {
         over(&mut bar, face, x, y + RISE as i32);
@@ -139,7 +139,7 @@ fn the_bar_is_the_kits_pixel_for_pixel_on_the_shelf_and_in_settings() {
         let pal = f.app().palette();
 
         let shelf = composed(&mut f, &mut c, &format!("shelf-{colour}"));
-        let off = misses(&shelf, &kit_bar(Actions::Shelf, pal));
+        let off = misses(&shelf, &kit_bar(Actions::Shelf, &[], pal));
         assert!(
             off.is_empty(),
             "{colour}: the shelf's bar is off the kit's at {} pixels, first {:?}",
@@ -150,12 +150,54 @@ fn the_bar_is_the_kits_pixel_for_pixel_on_the_shelf_and_in_settings() {
         let mut input = Script(VecDeque::new());
         tap(&mut f, &mut input, Btn::Start);
         let settings = composed(&mut f, &mut c, &format!("settings-{colour}"));
-        let off = misses(&settings, &kit_bar(Actions::Menu, pal));
+        let off = misses(&settings, &kit_bar(Actions::Menu, &[], pal));
         assert!(
             off.is_empty(),
             "{colour}: Settings' bar is off the kit's at {} pixels, first {:?}",
             off.len(),
             &off[..off.len().min(4)]
         );
+    }
+}
+
+#[test]
+fn the_core_pickers_bar_has_the_swap_on_its_plate_pixel_for_pixel() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    for colour in ["night", "amber"] {
+        let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+        clocked(d.path());
+        let mut state = read_app_state(d.path());
+        state.backdrop_colour = omega_store::colour_index(colour).expect("a backdrop colour");
+        write_app_state(d.path(), &state).unwrap();
+        let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
+        f.upload_faces(&mut c);
+        f.compose(&mut c);
+        let pal = f.app().palette();
+
+        let mut input = Script(VecDeque::new());
+        tap(&mut f, &mut input, Btn::X);
+        assert!(
+            f.app().core_picker().is_some(),
+            "{colour}: X opened no picker"
+        );
+        // past the wait for the board's faces, then all the way open
+        f.app_mut().update(2.0);
+        f.app_mut().update(1.0);
+        assert_eq!(f.app().bar_hints_shown(), [SWAP], "{colour}");
+        let picker = composed(&mut f, &mut c, &format!("core-picker-{colour}"));
+        let off = misses(&picker, &kit_bar(Actions::Menu, &[SWAP], pal));
+        assert!(
+            off.is_empty(),
+            "{colour}: the picker's bar is off the kit's at {} pixels, first {:?}",
+            off.len(),
+            &off[..off.len().min(4)]
+        );
+        // and the swap really is there: the plate without it is not what shows
+        assert!(!misses(&picker, &kit_bar(Actions::Menu, &[], pal)).is_empty());
     }
 }

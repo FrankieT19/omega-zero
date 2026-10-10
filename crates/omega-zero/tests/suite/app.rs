@@ -10,13 +10,14 @@ use omega_retro::ButtonMask;
 use omega_store::{write_app_state, AppState, Cart, Core, Platform};
 use omega_ui::{
     board_at, grown, lid_at, lid_from, on_board, opening, shelf_cart_at, Draw, Icon, Placed, TexId,
-    BOARD_W, CART_H, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, HINT_EDGE, LID_TURN, SLIDE_UP,
-    SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
+    BOARD_W, CART_H, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, LID_TURN, SLIDE_UP, SOCKET_H,
+    SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
 };
-use omega_ui::{slot_top, stage_x, stage_y};
+use omega_ui::{stage_x, stage_y};
 use omega_zero::app::{App, Phase, EJECT_S, INSERT_S, SEATED_AT};
 use omega_zero::audio::Sfx;
 use omega_zero::emu::{EmuHandle, Speed};
+use omega_zero::screens::bar::SWAP;
 use omega_zero::session::Session;
 use omega_zero::video_mode::{video_mode_for, VideoMode, VIDEO_MODE_FILE};
 
@@ -1088,7 +1089,6 @@ struct PickerFaces {
     chips: [TexId; 2],
     blank: TexId,
     shadow: TexId,
-    swap: (TexId, u32),
 }
 
 fn fake_boot_faces(app: &mut App) -> PickerFaces {
@@ -1100,10 +1100,8 @@ fn fake_boot_faces(app: &mut App) -> PickerFaces {
         chips: [id(904), id(905)],
         blank: id(906),
         shadow: id(907),
-        swap: (id(909), 90),
     };
     app.set_core_part_faces(f.sockets.to_vec(), f.chips.to_vec(), f.blank, f.shadow);
-    app.set_core_swap_face(f.swap);
     f
 }
 
@@ -1264,7 +1262,6 @@ fn assert_plain_shelf(out: &[Draw], f: &PickerFaces, when: &str) {
         f.chips[1],
         f.blank,
         f.shadow,
-        f.swap.0,
     ];
     let drawn: Vec<TexId> = out
         .iter()
@@ -1366,19 +1363,9 @@ fn the_open_cart_rests_over_the_shelf_with_its_lid_turned() {
     );
     assert!(shadow_i < lid_i, "the lid's shadow is drawn over the lid");
 
-    // B and A are the bar's RETURN and CONFIRM: the picker keeps only its swap, on the slot
-    let swap = tex_at(&out, f.swap.0).expect("the swap hint is missing").1;
-    let seen = (f.swap.1 - HINT_EDGE) as f32;
-    assert_eq!(
-        swap[0] + seen / 2.0,
-        360.0 + sx,
-        "Swap is off the panel's centre"
-    );
-    assert_eq!(
-        swap[1] + swap[3],
-        slot_top(),
-        "Swap does not stand on the slot"
-    );
+    // B and A are the bar's RETURN and CONFIRM, and its plate shows the swap: the picker
+    // draws no hint of its own
+    assert_eq!(app.bar_hints_shown(), [SWAP], "the swap is not on the bar");
 }
 
 #[test]

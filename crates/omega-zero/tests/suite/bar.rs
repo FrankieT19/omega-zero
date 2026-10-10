@@ -14,10 +14,11 @@ use omega_ui::kit::bar::{bar_layout, BarLayout, Hint, SINK};
 use omega_ui::kit::palette::palette;
 use omega_ui::{out_h, out_w, ChromeColours, Draw, SettingsRow, TexId, SPRITE_PX, TOP_BAR_H};
 use omega_zero::app::{App, Phase, SEATED_AT};
+use omega_zero::core_picker::OPEN_MS;
 use omega_zero::label_screen::LabelsScreen;
 use omega_zero::label_sync::Account;
 use omega_zero::nav::SLIDE_MS;
-use omega_zero::screens::bar::{Actions, BarSet};
+use omega_zero::screens::bar::{Actions, BarSet, SWAP};
 use omega_zero::wifi::{Saved, Seen, WifiJob, WifiJobs, WifiNews};
 use omega_zero::wifi_screen::{Sel, WifiScreen};
 use tempfile::TempDir;
@@ -379,7 +380,6 @@ fn the_core_pickers_cancel_and_choose_are_the_bars_return_and_confirm() {
         id(906),
         id(907),
     );
-    a.set_core_swap_face((id(909), 90));
     a.set_core_board_faces(id(900), id(901));
     a.apply(Action::GbaDown(Btn::X));
     a.update(0.0);
@@ -399,7 +399,11 @@ fn the_core_pickers_cancel_and_choose_are_the_bars_return_and_confirm() {
         [(MENU_LEFT, 0.0), (MENU_RIGHT, 0.0)],
         "the open picker's B and A are not RETURN and CONFIRM"
     );
-    assert!(at(&out, 909).is_some(), "the picker lost its swap hint");
+    assert!(
+        at(&out, MENU_PLATE).is_some(),
+        "the open picker has no plate"
+    );
+    assert_eq!(a.bar_hints_shown(), [SWAP], "the swap is not on the plate");
 
     press(&mut a, Btn::B);
     a.update(1.0);
@@ -588,4 +592,95 @@ fn the_first_boot_clock_offers_only_confirm() {
     assert!(at(&out, CONFIRM_PLATE).is_some());
     assert_eq!(Actions::Confirm.action(Side::Left), ("", ""));
     assert_eq!(Actions::Confirm.action(Side::Right), ("CONFIRM", "A"));
+}
+
+fn picker_faces(a: &mut App) {
+    let id = TexId::from_raw;
+    a.set_core_part_faces(
+        vec![id(902), id(903)],
+        vec![id(904), id(905)],
+        id(906),
+        id(907),
+    );
+    a.set_core_board_faces(id(900), id(901));
+}
+
+/// ◀▶ SWAP is the picker's one key beyond the bar's actions: it comes onto the plate with
+/// RETURN and CONFIRM, halfway through their swap as the picker opens, and goes with them
+/// halfway through as it closes. The shelf's own plate never has it.
+#[test]
+fn the_swap_is_on_the_plate_only_while_the_picker_has_the_bar() {
+    let (_d, mut a) = on_shelf();
+    picker_faces(&mut a);
+    assert_eq!(a.bar_hints_shown(), [], "the shelf has a hint");
+    assert_eq!(a.bar_hints(&Phase::Shelf), []);
+
+    let start: Millis = 10_000;
+    a.apply_at(Action::GbaDown(Btn::X), start);
+    a.apply_at(Action::GbaUp(Btn::X), start);
+    assert!(a.core_picker().is_some(), "X opened no picker");
+    let mut came = None;
+    for t in (0..=OPEN_MS).step_by(10) {
+        a.tick_ms(start + t);
+        let menu = a.bar_place().map(|p| p.actions) == Some(Actions::Menu);
+        let hints = a.bar_hints_shown();
+        assert_eq!(
+            hints,
+            if menu { vec![SWAP] } else { vec![] },
+            "at {t} ms the swap is not with the picker's actions"
+        );
+        if menu {
+            came.get_or_insert(t);
+        }
+    }
+    let came = came.expect("the picker never took the bar");
+    assert!(
+        came > 0 && came < OPEN_MS,
+        "the swap came at {came} ms, not partway through the opening"
+    );
+    assert_eq!(a.bar_hints(&Phase::Shelf), [SWAP]);
+
+    let shut: Millis = start + 2 * OPEN_MS;
+    a.tick_ms(shut);
+    a.apply_at(Action::GbaDown(Btn::B), shut);
+    a.apply_at(Action::GbaUp(Btn::B), shut);
+    let mut left = None;
+    for t in (0..=OPEN_MS).step_by(10) {
+        a.tick_ms(shut + t);
+        let menu = a.bar_place().map(|p| p.actions) == Some(Actions::Menu);
+        assert_eq!(
+            a.bar_hints_shown(),
+            if menu { vec![SWAP] } else { vec![] },
+            "at {t} ms into closing the swap is not with the picker's actions"
+        );
+        if !menu {
+            left.get_or_insert(t);
+        }
+    }
+    assert!(
+        left.is_some_and(|t| t > 0),
+        "the swap left with the picker still open"
+    );
+    a.update(1.0);
+    assert_eq!(a.core_picker(), None, "B did not close the picker");
+    assert_eq!(a.bar_hints_shown(), [], "the shelf kept the picker's swap");
+}
+
+/// The swap fits the plate between RETURN and CONFIRM with room to spare, at 640 as at 720.
+#[test]
+fn the_swap_fits_the_menu_plate() {
+    let (_d, a) = on_shelf();
+    let plate = a.bar_faces().unwrap().sets[Actions::Menu.index()]
+        .layout
+        .plate[2];
+    let wide = omega_ui::kit::bar::hints_width(&[SWAP]);
+    assert_eq!(
+        plate,
+        if out_w() == 640 { 107 } else { 147 },
+        "the plate's width"
+    );
+    assert!(
+        wide + 8 <= plate,
+        "the swap is {wide} wide on a {plate} plate"
+    );
 }

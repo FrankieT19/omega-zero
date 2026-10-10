@@ -5,7 +5,7 @@ use omega_store::{parse_stamp, StateEntry};
 use crate::art;
 use crate::battery::{draw_gauge, GAUGE_H};
 use crate::footer::{draw_printed, Printed};
-use crate::hud::{PLATE, PLATE_H};
+use crate::hud::{HUD_INK, PLATE, PLATE_H};
 use crate::plate::{
     hint_quad, hint_row, hint_width, word_cap_top, Hint, HINT_GAP, HINT_H, TITLE_H, TITLE_W,
 };
@@ -133,6 +133,8 @@ impl Polaroids {
         self.index = (self.index + 1).min(self.entries.len().saturating_sub(1));
     }
 
+    /// The switcher over the game. Its bar keeps the white it always had, whatever the
+    /// palette: the figure, the bolt and the clock handed in are baked in [`HUD_INK`].
     pub fn draw(
         &self,
         battery: Option<Battery>,
@@ -186,7 +188,7 @@ impl Polaroids {
         }
 
         let band = ((PLATE_H - GAUGE_H) / 2.0).round();
-        draw_gauge(MARGIN, band, battery, battery_percent, bolt, out);
+        draw_gauge(MARGIN, band, battery, battery_percent, bolt, HUD_INK, out);
         if clock.w > 0 {
             let x = out_w() as f32 - MARGIN - clock.w as f32;
             draw_printed(x, band - word_cap_top(), clock, out);

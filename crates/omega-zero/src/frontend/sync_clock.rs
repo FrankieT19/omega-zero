@@ -1,11 +1,12 @@
-//! The words printed on the shelf, the time, its slot's name and the battery's charge, and
-//! the Date & Time panel.
+//! The words printed on the shelf's slot and the switcher's bar, the time, its slot's name and
+//! the battery's charge, and the Date & Time panel. The switcher keeps its white over the game;
+//! the top bar prints its own in its ink (sync_top_bar.rs).
 
 use omega_gfx::{Compositor, TexId};
-use omega_ui::{hhmm, word_face, Field};
+use omega_ui::{bolt_face, hhmm, word_face, Field, HUD_INK};
 
 use crate::app::App;
-use crate::frontend::faces::upload;
+use crate::frontend::faces::{upload, Printing};
 use crate::frontend::lone::Baked;
 use crate::screens::clock::clock_face;
 
@@ -14,10 +15,11 @@ pub(crate) struct Clocks {
     /// The Date & Time panel, baked again when the picker's line, its cursor or the palette
     /// changes.
     panel: Baked<(String, Field, u8)>,
-    shelf: Option<TexId>,
-    shown: String,
-    battery: String,
-    battery_tex: Option<TexId>,
+    /// The switcher's clock and figure, and what each says.
+    clock: Printing<String>,
+    percent: Printing<String>,
+    /// What the switcher was last handed, its bolt among them.
+    switcher: crate::app::Readouts,
     platform: String,
     platform_tex: Option<TexId>,
 }
@@ -33,13 +35,10 @@ pub(crate) fn sync_clock(app: &mut App, compositor: &mut Compositor, clocks: &mu
             app.set_clock_panel(panel);
         }
     }
-    let shown = hhmm(app.wall_secs());
-    if shown != clocks.shown {
-        let face = word_face(&shown);
-        clocks.shown = shown;
-        let w = face.w;
-        let id = upload(compositor, &mut clocks.shelf, face);
-        app.set_shelf_clock_face(id, w);
+    let mut switcher = clocks.switcher;
+    let word = |text: &String| word_face(text);
+    if let Some(clock) = clocks.clock.print(compositor, hhmm(app.wall_secs()), word) {
+        switcher.clock = clock;
     }
     let platform_shown = app.slot_text().unwrap_or_default();
     if platform_shown != clocks.platform {
@@ -53,17 +52,17 @@ pub(crate) fn sync_clock(app: &mut App, compositor: &mut Compositor, clocks: &mu
             app.set_shelf_platform_face(id, w);
         }
     }
-    let battery_shown = app
-        .battery()
-        .map(|b| format!("{}%", b.percent))
-        .unwrap_or_default();
-    if battery_shown != clocks.battery {
-        clocks.battery = battery_shown.clone();
-        if !battery_shown.is_empty() {
-            let face = word_face(&battery_shown);
-            let w = face.w;
-            let id = upload(compositor, &mut clocks.battery_tex, face);
-            app.set_battery_percent_face(id, w);
+    if let Some(battery) = app.battery() {
+        let figure = format!("{}%", battery.percent);
+        if let Some(percent) = clocks.percent.print(compositor, figure, word) {
+            switcher.percent = percent;
         }
+    }
+    if switcher.bolt.is_none() {
+        upload(compositor, &mut switcher.bolt, bolt_face(HUD_INK));
+    }
+    if switcher != clocks.switcher {
+        app.set_switcher_readouts(switcher);
+        clocks.switcher = switcher;
     }
 }

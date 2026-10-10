@@ -67,6 +67,7 @@ mod render_power_wake;
 mod render_settings;
 mod render_shelf;
 mod render_shelves;
+mod render_top_bar;
 mod resample;
 mod resume;
 mod rewind;
