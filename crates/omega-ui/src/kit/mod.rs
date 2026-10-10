@@ -1,6 +1,7 @@
 //! The pixel-art kit of assets/ui, drawn in Rust: the pieces the menus are built from.
 
 pub mod action;
+pub mod layout;
 pub mod modal;
 pub mod palette;
 pub mod panel;
