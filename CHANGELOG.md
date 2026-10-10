@@ -1,5 +1,17 @@
 # Changelog
 
+## omega-zero 0.0.2
+
+- A cart leaning half off the screen is drawn whole on every GPU: some drivers dropped it for a
+  frame. Turning carts go through a shader of their own and everything else through the one it
+  always had, so the shelf costs no more to draw than before carts turned.
+
+### For developers
+
+- `task deploy:wifi` builds omega-zero, copies it onto a console on the home network over SSH
+  and reboots into it; `task log:wifi` prints its log. `PROFILE=device-dev` builds in seconds.
+- Each crate's tests build as one binary, and the suite runs in about 42 s instead of 130 s.
+
 ## omega-zero 0.0.1
 
 The first release, for the RG35XX SP and the other H700 handhelds BaseOS runs on.
