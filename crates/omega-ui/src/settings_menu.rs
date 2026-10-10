@@ -60,6 +60,7 @@ pub enum SettingsRow {
     Labels,
     DateTime,
     Network,
+    Bluetooth,
     /// THEME on the screen: the background, its motion and the colour everything takes, and the
     /// bar's font.
     Background,
@@ -67,7 +68,7 @@ pub enum SettingsRow {
 }
 
 impl SettingsRow {
-    pub const ALL: [SettingsRow; 9] = [
+    pub const ALL: [SettingsRow; 10] = [
         SettingsRow::FastForward,
         SettingsRow::FastForwardSound,
         SettingsRow::ColourCorrection,
@@ -75,6 +76,7 @@ impl SettingsRow {
         SettingsRow::Labels,
         SettingsRow::DateTime,
         SettingsRow::Network,
+        SettingsRow::Bluetooth,
         SettingsRow::Background,
         SettingsRow::About,
     ];
@@ -92,6 +94,7 @@ impl SettingsRow {
             SettingsRow::Labels => "Labels",
             SettingsRow::DateTime => "Date & Time",
             SettingsRow::Network => "Network",
+            SettingsRow::Bluetooth => "Bluetooth",
             SettingsRow::Background => "Theme",
             SettingsRow::About => "About",
         }
@@ -106,6 +109,7 @@ impl SettingsRow {
             | SettingsRow::Labels => SettingsGroup::Configs,
             SettingsRow::DateTime
             | SettingsRow::Network
+            | SettingsRow::Bluetooth
             | SettingsRow::Background
             | SettingsRow::About => SettingsGroup::General,
         }
@@ -119,6 +123,7 @@ impl SettingsRow {
             SettingsRow::Labels
                 | SettingsRow::DateTime
                 | SettingsRow::Network
+                | SettingsRow::Bluetooth
                 | SettingsRow::Background
                 | SettingsRow::About
         )

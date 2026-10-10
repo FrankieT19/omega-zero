@@ -44,6 +44,7 @@ fn flow_rows(lit: SettingsRow) -> Vec<RowShown> {
         SettingsRow::Rumble => Some("ON"),
         SettingsRow::DateTime => Some("OCT 10 16:00"),
         SettingsRow::Network => Some("HOME"),
+        SettingsRow::Bluetooth => Some("8BITDO SN30 PRO"),
         _ => None,
     };
     SettingsRow::ALL
@@ -187,8 +188,12 @@ fn without_a_radio_the_rows_after_network_close_up_and_the_panels_stay() {
     assert_eq!(frame.wells, all.wells, "hiding Network moved a panel");
     let rects = settings_row_rects(&rows, frame.wells);
     let y = |row: SettingsRow| rects.iter().find(|(r, _)| *r == row).unwrap().1[1];
-    assert_eq!(y(SettingsRow::Background), y(SettingsRow::DateTime) + ROW_H);
-    assert_eq!(y(SettingsRow::About), y(SettingsRow::DateTime) + 2 * ROW_H);
+    assert_eq!(y(SettingsRow::Bluetooth), y(SettingsRow::DateTime) + ROW_H);
+    assert_eq!(
+        y(SettingsRow::Background),
+        y(SettingsRow::DateTime) + 2 * ROW_H
+    );
+    assert_eq!(y(SettingsRow::About), y(SettingsRow::DateTime) + 3 * ROW_H);
     assert!(rects.iter().all(|(r, _)| *r != SettingsRow::Network));
 }
 
@@ -497,6 +502,7 @@ fn the_rows_run_in_the_order_the_user_chose() {
             "Labels",
             "Date & Time",
             "Network",
+            "Bluetooth",
             "Theme",
             "About"
         ]
@@ -508,6 +514,7 @@ fn the_rows_run_in_the_order_the_user_chose() {
             SettingsRow::Labels,
             SettingsRow::DateTime,
             SettingsRow::Network,
+            SettingsRow::Bluetooth,
             SettingsRow::Background,
             SettingsRow::About
         ]
@@ -545,11 +552,8 @@ fn a_hidden_row_is_stepped_over_both_ways() {
         .into_iter()
         .filter(|r| *r != SettingsRow::Network)
         .collect();
-    assert_eq!(
-        SettingsRow::DateTime.down_in(&rows),
-        SettingsRow::Background
-    );
-    assert_eq!(SettingsRow::Background.up_in(&rows), SettingsRow::DateTime);
+    assert_eq!(SettingsRow::DateTime.down_in(&rows), SettingsRow::Bluetooth);
+    assert_eq!(SettingsRow::Bluetooth.up_in(&rows), SettingsRow::DateTime);
     assert_eq!(SettingsRow::About.down_in(&rows), SettingsRow::FastForward);
     assert_eq!(SettingsRow::DateTime.down(), SettingsRow::Network);
 }
