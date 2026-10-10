@@ -31,6 +31,8 @@
   Night is grey; Amber is Mega Man Zero's own colours.
 - Theme is what Background was: the background's pattern, its motion and its colour. It also
   picks the font of the bottom bar's big words, Bold or Thin.
+- The top bar lights Wi-Fi and ssh within a second of a network being joined, and puts them out
+  as quickly when it is lost. After boot they stayed dark until a menu was opened.
 
 ### For developers
 
