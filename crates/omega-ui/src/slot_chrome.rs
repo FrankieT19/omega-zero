@@ -31,12 +31,7 @@ pub const SLOT_RAISE: f32 = BAR_H;
 
 /// The top of the slot's bar, where a cart going in lands on the lip.
 pub fn slot_top() -> f32 {
-    slot_top_at(SLOT_RAISE)
-}
-
-/// Where the top of the slot's bar would be with the slot `raise` above the bottom.
-pub fn slot_top_at(raise: f32) -> f32 {
-    out_h() as f32 - raise - MOUTH_H
+    out_h() as f32 - SLOT_RAISE - MOUTH_H
 }
 
 fn band_y() -> f32 {
