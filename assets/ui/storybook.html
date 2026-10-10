@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="foundation/fonts.css">
 <link rel="stylesheet" href="foundation/tokens.css">
 <script src="foundation/pixel.js"></script>
+<script src="foundation/backdrop.js"></script>
 <script src="foundation/palette.js"></script>
 <script src="components/omega-modal.js"></script>
 <script src="components/omega-panel.js"></script>
@@ -76,6 +77,11 @@
   td:first-child { white-space: nowrap; font-family: var(--mono); font-size: 0.8rem; }
   .table { overflow-x: auto; }
 
+  .patterns { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+  .patterns figure { margin: 0; display: grid; gap: 6px; min-width: 0; }
+  .patterns .omega-backdrop { height: 80px; border-radius: 4px; }
+  .patterns figcaption { font: 0.75rem var(--mono); color: var(--dim); }
+
   .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
   .swatch-row { display: flex; align-items: center; gap: 8px; min-width: 0; font: 0.75rem var(--mono); }
   .swatch-row i { flex: none; width: 28px; height: 28px; border-radius: 3px; box-shadow: 0 0 0 1px var(--rule); }
@@ -87,7 +93,7 @@
   .group { display: flex; align-items: center; gap: 8px; border: 0; margin: 0; padding: 0; min-width: 0; }
   .group legend { float: left; margin-right: 8px; font: 0.8rem var(--mono); color: var(--dim); }
   .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
-  #colours { flex-wrap: wrap; }
+  #styles, #colours { flex-wrap: wrap; }
   .seg label { position: relative; }
   .seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
   .seg span { display: block; padding: 6px 10px; font: 0.8rem var(--mono); color: var(--dim); }
@@ -154,8 +160,8 @@
     <p class="dim">The kit omega-zero's menus are drawn from: pixel-art components rebuilt in HTML as
       the reference for each screen, before and while it is drawn on the device. Every shape is a
       sprite written pixel by pixel, every word lands on whole pixels, and every colour follows the
-      backdrop colour the player picks in Settings › Background › Colour. The rules for adding to the
-      kit are in <code>assets/ui/README.md</code>.</p>
+      backdrop colour the player picks in Settings › Background › Colour, over the pattern picked in
+      Style. The rules for adding to the kit are in <code>assets/ui/README.md</code>.</p>
     <nav class="toc" aria-label="Contents">
       <a href="#foundation">Foundation</a>
       <a href="#components">Components</a>
@@ -163,7 +169,11 @@
     </nav>
     <div class="controls">
       <fieldset class="group">
-        <legend>Settings › Background › Colour</legend>
+        <legend>Settings › Background › Style</legend>
+        <div class="seg" id="styles"></div>
+      </fieldset>
+      <fieldset class="group">
+        <legend>Colour</legend>
         <div class="seg" id="colours"></div>
       </fieldset>
     </div>
@@ -205,12 +215,23 @@
           never with a CSS transform.</p>
       </article>
 
-      <article class="card">
-        <header><h3>Backdrop</h3><code>.omega-backdrop</code></header>
-        <p class="dim">The shelf's Grid: a 1 art pixel line every 20, in the backdrop colour lifted 9%
-          toward white, drifting left 16px a second with <code>data-moving</code>, as
-          <code>crates/omega-ui/src/backdrop.rs</code> draws it.</p>
-        <div class="preview omega-backdrop" data-moving style="height: 80px"></div>
+      <article class="card wide">
+        <header><h3>Backdrop</h3><code>foundation/backdrop.js</code></header>
+        <p class="dim">The shelf's backdrop: the backdrop colour under one of the patterns in
+          Settings › Background › Style, each a tile drawn in whole art pixels and drifting left with
+          <code>data-moving</code> (16px a second, Bits 10), as
+          <code>crates/omega-ui/src/backdrop.rs</code> draws them. The Style picked above puts the
+          same pattern behind every example on this page.</p>
+        <div class="patterns" id="patterns"></div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>.omega-backdrop</td><td>Draws the backdrop over the element, in the colour <code>palette.js</code> set.</td></tr>
+            <tr><td>data-style</td><td><code>grid</code> (without one), <code>plates</code>, <code>dotted</code>, <code>dither</code>, <code>rivets</code>, <code>bits</code> or <code>solid</code>.</td></tr>
+            <tr><td>data-moving</td><td>Drifts the pattern left, as the device does with Motion on Moving.</td></tr>
+          </table>
+        </div>
+<pre><code>&lt;div class="omega-backdrop" data-style="rivets" data-moving&gt;&lt;/div&gt;</code></pre>
       </article>
 
       <article class="card wide">
@@ -377,7 +398,7 @@
 
       <div class="tree">
 <pre><code>.screen
-├─ .backdrop          omega-zero's Grid
+├─ .backdrop          omega-zero's backdrop
 └─ .stage
    ├─ .modal-area
    │  └─ &lt;omega-modal&gt;   frame › content
@@ -399,6 +420,30 @@
 </main>
 
 <script>
+  // Settings › Background › Style: one choice per pattern; picking one puts it behind every example
+  // but the Backdrop card's own
+  const STYLE_NAMES = {
+    grid: 'Grid', plates: 'Plates', dotted: 'Dotted', dither: 'Dither', rivets: 'Rivets', bits: 'Bits',
+    solid: 'Solid',
+  };
+  const styles = document.getElementById('styles');
+  for (const style of OmegaBackdrop.STYLES) {
+    const label = document.createElement('label');
+    label.innerHTML = `<input type="radio" name="style" value="${style}"${style === 'grid' ? ' checked' : ''}>` +
+      `<span>${STYLE_NAMES[style]}</span>`;
+    label.querySelector('input').addEventListener('change', () =>
+      document.querySelectorAll('.omega-backdrop:not(.pattern)').forEach(el => { el.dataset.style = style; }));
+    styles.append(label);
+  }
+
+  // the Backdrop card: every pattern at once, drifting
+  document.getElementById('patterns').replaceChildren(...OmegaBackdrop.STYLES.map(style => {
+    const figure = document.createElement('figure');
+    figure.innerHTML = `<div class="omega-backdrop pattern" data-style="${style}" data-moving></div>` +
+      `<figcaption>${STYLE_NAMES[style]}</figcaption>`;
+    return figure;
+  }));
+
   // Settings › Background › Colour: one choice per backdrop colour, each showing the backdrop and
   // the frame colour it gives; picking one recolours the whole page
   const colours = document.getElementById('colours');

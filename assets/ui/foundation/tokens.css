@@ -10,18 +10,28 @@
   --oz-font: "Pixel Code", ui-monospace, Menlo, monospace;
 }
 
-/* The shelf's Grid backdrop: a 2px line every 40px from the top left, in the backdrop colour
-   lifted 9% toward white (backdrop.rs). data-moving drifts it left 16px a second in whole pixels,
-   as the device does with backdrop_moving on. */
+/* The shelf's backdrop (backdrop.rs): the backdrop colour under the pattern data-style picks from
+   Settings > Background > Style, Grid without one. foundation/backdrop.js paints each pattern as a
+   tile from the top left, one period across (40px, Bits 80px), shown a pixel to an art pixel.
+   data-moving drifts it left in whole pixels as the device does with backdrop_moving on: 16px a
+   second, Bits 10. */
 .omega-backdrop {
+  --oz-pattern: var(--oz-pattern-grid);
   background-color: var(--oz-bg);
-  background-image:
-    linear-gradient(to right, var(--oz-grid) 2px, transparent 2px),
-    linear-gradient(to bottom, var(--oz-grid) 2px, transparent 2px);
+  background-image: var(--oz-pattern);
   background-size: 40px 40px;
+  image-rendering: pixelated;
 }
+.omega-backdrop[data-style="plates"] { --oz-pattern: var(--oz-pattern-plates); }
+.omega-backdrop[data-style="dotted"] { --oz-pattern: var(--oz-pattern-dotted); }
+.omega-backdrop[data-style="dither"] { --oz-pattern: var(--oz-pattern-dither); }
+.omega-backdrop[data-style="rivets"] { --oz-pattern: var(--oz-pattern-rivets); }
+.omega-backdrop[data-style="bits"] { --oz-pattern: var(--oz-pattern-bits); background-size: 80px 80px; }
+.omega-backdrop[data-style="solid"] { --oz-pattern: none; }
 .omega-backdrop[data-moving] { animation: omega-drift 2.5s steps(40) infinite; }
+.omega-backdrop[data-style="bits"][data-moving] { animation: omega-drift-bits 8s steps(80) infinite; }
 @keyframes omega-drift { to { background-position: -40px 0; } }
+@keyframes omega-drift-bits { to { background-position: -80px 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .omega-backdrop[data-moving] { animation: none; }
+  .omega-backdrop[data-moving], .omega-backdrop[data-style][data-moving] { animation: none; }
 }

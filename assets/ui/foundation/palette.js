@@ -10,11 +10,11 @@
     OmegaPalette.apply('teal');            // the whole page
     OmegaPalette.apply('plum', someDiv);   // only what is inside someDiv
 
-  apply() sets the --oz-* properties (and the backdrop's --oz-bg and --oz-grid) on the element and
-  tells the components under it to draw their sprites again. Night is applied to the page as soon
-  as this file loads.
+  apply() sets the --oz-* properties (and the backdrop's --oz-bg) on the element, has backdrop.js
+  paint the backdrop's patterns in the colour there, and tells the components under it to draw
+  their sprites again. Night is applied to the page as soon as this file loads.
 
-  Load it after pixel.js and before the components.
+  Load it after pixel.js and backdrop.js, and before the components.
 */
 window.OmegaPalette = (() => {
   // The backdrop colours omega-zero offers, as crates/omega-ui/src/backdrop.rs draws them.
@@ -92,17 +92,13 @@ window.OmegaPalette = (() => {
     return toHex(linear(L, lo, H).map(v => toSrgb(Math.min(1, Math.max(0, v))) * 255));
   }
 
-  // A colour lifted `t` of the way toward white, rounded, as the grid's lines are (tint in
-  // backdrop.rs).
-  const lifted = (hex, t) => toHex(channels(hex).map(c => Math.round(c + (255 - c) * t)));
-
   // Every --oz-* property for the backdrop colour `name` (Night when it is not one).
   function palette(name) {
     const base = BACKDROPS[name] ?? BACKDROPS.night;
     const [, chroma, hue] = oklch(base);
     const [, rampChroma, rampHue] = oklch(BACKDROPS.amber);
     const take = Math.min(1, Math.max(0, (chroma - GREY) / (rampChroma - GREY)));
-    const out = { '--oz-bg': base, '--oz-grid': lifted(base, 0.09) };
+    const out = { '--oz-bg': base };
     for (const [token, colour] of Object.entries(RAMP)) {
       const [L, C, H] = oklch(colour);
       const lean = Math.max(-LEAN, Math.min(LEAN, ((H - rampHue + 540) % 360) - 180));
@@ -112,7 +108,9 @@ window.OmegaPalette = (() => {
   }
 
   function apply(name, root = document.documentElement) {
-    for (const [token, value] of Object.entries(palette(name))) root.style.setProperty(token, value);
+    const tokens = palette(name);
+    for (const [token, value] of Object.entries(tokens)) root.style.setProperty(token, value);
+    OmegaBackdrop.paint(root, tokens['--oz-bg']);
     root.dataset.colour = name in BACKDROPS ? name : 'night';
     document.dispatchEvent(new CustomEvent('omega-palette', { detail: { root } }));
   }

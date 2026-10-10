@@ -12,6 +12,7 @@ assets/ui/
 │   ├── fonts.css        Pixel Code Regular, cut to Latin-1 and inlined
 │   ├── tokens.css       the art pixel (--u) and the shelf's backdrop
 │   ├── pixel.js         OmegaPixel: sprites, 9-slices, letters, the base element
+│   ├── backdrop.js      OmegaBackdrop: the patterns in Settings > Background > Style
 │   └── palette.js       OmegaPalette: colours from Settings > Background > Colour
 └── components/
     ├── omega-modal.js   <omega-modal>   the menu window, a frame that stacks its content
@@ -29,8 +30,11 @@ classic scripts, no build step, so it works from `file://`.
 <link rel="stylesheet" href="foundation/fonts.css">
 <link rel="stylesheet" href="foundation/tokens.css">
 <script src="foundation/pixel.js"></script>
+<script src="foundation/backdrop.js"></script>
 <script src="foundation/palette.js"></script>
 <script src="components/omega-modal.js"></script>
+
+<div class="omega-backdrop" data-style="plates" data-moving></div>  <!-- Grid without data-style -->
 
 <omega-modal>
   <omega-panel label="BUTTON SETTING" active></omega-panel>
