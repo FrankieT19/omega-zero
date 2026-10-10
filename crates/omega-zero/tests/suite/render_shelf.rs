@@ -130,6 +130,20 @@ fn let_it_hop(app: &mut App) {
     app.update(0.25);
 }
 
+/// How many pixels of two shots differ by more than a GPU's noise. The selected cart sways, and
+/// the GL on CI does not draw a turning face the same way twice, so two shots of the same shelf
+/// need not match to the byte; anything drawn over them changes far more.
+fn changed(a: &[u8], b: &[u8]) -> usize {
+    a.chunks_exact(4)
+        .zip(b.chunks_exact(4))
+        .filter(|(p, q)| p.iter().zip(q.iter()).any(|(x, y)| x.abs_diff(*y) > 32))
+        .count()
+}
+
+fn screen_px() -> usize {
+    (out_w() * out_h()) as usize
+}
+
 #[test]
 fn x_draws_the_plain_shelf_on_a_game_boy_cart() {
     let Some((_g, _s, mut c)) = compositor() else {
@@ -151,9 +165,10 @@ fn x_draws_the_plain_shelf_on_a_game_boy_cart() {
         None,
         "a Game Boy cart opened the GBA picker"
     );
+    let n = changed(&after, &plain);
     assert!(
-        after == plain,
-        "X put something on screen over a Game Boy cart"
+        n < screen_px() / 1000,
+        "X put something on screen over a Game Boy cart: {n} pixels changed"
     );
 
     let d = common::tmp_root_with_carts(&["Emerald", "Zzz"]);
@@ -170,9 +185,10 @@ fn x_draws_the_plain_shelf_on_a_game_boy_cart() {
         Some(Core::Mgba),
         "X stopped opening the picker"
     );
+    let n = changed(&after, &plain);
     assert!(
-        after != plain,
-        "the picker opened and the panel showed the same shelf"
+        n > screen_px() / 100,
+        "the picker opened and the panel showed the same shelf: {n} pixels changed"
     );
 }
 
