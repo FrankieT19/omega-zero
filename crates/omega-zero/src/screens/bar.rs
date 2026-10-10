@@ -1,14 +1,14 @@
 //! The bar along the bottom of the shelf and of every menu, as flow.html draws it: an action at
-//! each end and the plate between them, with the keys a screen has beyond its two actions shown
-//! on the plate as hints. The shelf's actions are SELECT CONTROLS and START SETTINGS, a menu's
-//! B RETURN and A CONFIRM. Setting the clock on first boot has nowhere to go back to, so its
-//! left action is the kit's empty one: the bar keeps its shape and offers only CONFIRM.
+//! each end and, between them over whatever is behind the bar, the keys a screen has beyond its
+//! two actions shown as hints. The shelf's actions are SELECT CONTROLS and START SETTINGS, a
+//! menu's B RETURN and A CONFIRM. Setting the clock on first boot has nowhere to go back to, so
+//! its left action is the kit's empty one: the bar keeps its shape and offers only CONFIRM.
 //!
-//! The plate never moves with the screens. When a slide's two ends have different actions, the
+//! The hints never move with the screens. When a slide's two ends have different actions, the
 //! old ones sink out of the screen over its first half and the new ones rise into place over
 //! the second, as flow/player.js does; between two menus they stay put, and the hints change at
 //! halfway. The core picker swaps them the same way as it opens and closes, its ◀▶ SWAP coming
-//! onto the plate with RETURN and CONFIRM and leaving with them.
+//! in between RETURN and CONFIRM with them and leaving with them.
 //!
 //! A cart going in takes the whole bar down out of the screen with it, by the time it starts
 //! down into the slot; the bar stays away while the game is on and rises back as the cart comes
@@ -72,7 +72,7 @@ pub struct BarPlace {
 }
 
 /// One pair of actions uploaded, each face with its size in art pixels, and where they and the
-/// plate between them go.
+/// hints between them go.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BarSet {
     pub layout: BarLayout,
@@ -80,12 +80,12 @@ pub struct BarSet {
     pub right: (TexId, u32, u32),
 }
 
-/// The bar's faces: each pair of actions, and the plate laid out between each, in
-/// `Actions::ALL`'s order. A plate is made with the hints of the screen it is shown on.
+/// The bar's faces: each pair of actions, and the hints laid out between each, in
+/// `Actions::ALL`'s order. The hints are those of the screen they are shown on.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BarFaces {
     pub sets: [BarSet; 3],
-    pub plates: [Option<TexId>; 3],
+    pub hints: [Option<TexId>; 3],
 }
 
 /// The actions the bar shows on `phase` at rest, or None where there is no bar: in a game, its
@@ -129,7 +129,7 @@ fn swapped(from: Option<Actions>, to: Option<Actions>, p: f32) -> Option<(Action
     let swap = action_swap(p);
     match (swap.new, from, to) {
         (false, Some(a), _) | (true, _, Some(a)) => Some((a, swap.sink)),
-        // one end has no bar: the plate stays and the other end's actions keep out of sight
+        // one end has no bar: the hints stay and the other end's actions keep out of sight
         (_, Some(a), None) | (_, None, Some(a)) => Some((a, SINK)),
         (_, None, None) => None,
     }
@@ -164,7 +164,7 @@ impl App {
         })
     }
 
-    /// The keys `phase` has beyond its two actions, for its plate: Y FORGET on a saved network
+    /// The keys `phase` has beyond its two actions, for between them: Y FORGET on a saved network
     /// (`network_forgets`' rule), on Labels START FETCH or START STOP and Y SIGN OUT
     /// (`labels_bar_hints`'), and on the shelf, while the core picker over it shows RETURN and
     /// CONFIRM, ◀▶ SWAP. They are asked of `phase` rather than the screen on show so a slide
@@ -187,13 +187,13 @@ impl App {
     }
 
     /// Whether the core picker is open far enough to have the bar: past halfway through the
-    /// swap to its actions, where they and their plate come in.
+    /// swap to its actions, where they and its hint come in.
     fn picker_has_bar(&self) -> bool {
         self.core_picker_shown()
             .is_some_and(|picker| action_swap(picker_swap(&picker, self.now())).new)
     }
 
-    /// The hints the plate shows now: the screen's on show, and through a slide the leaving
+    /// The hints the bar shows now: the screen's on show, and through a slide the leaving
     /// screen's until halfway, the arriving one's after.
     pub fn bar_hints_shown(&self) -> Vec<Hint<'static>> {
         match &self.slide {
@@ -202,11 +202,12 @@ impl App {
         }
     }
 
-    /// Each pair of actions, uploaded: what the bar's plates are laid out from.
+    /// Each pair of actions, uploaded: what the room for the hints between them is laid out
+    /// from.
     pub fn set_bar_sets(&mut self, sets: [BarSet; 3]) {
         self.bar_faces = Some(BarFaces {
             sets,
-            plates: [None; 3],
+            hints: [None; 3],
         });
     }
 
@@ -215,24 +216,25 @@ impl App {
         self.bar_faces.as_ref()
     }
 
-    /// The plate laid out between `actions`, with the hints of the screen it is shown on.
-    pub fn set_bar_plate(&mut self, actions: Actions, tex: TexId) {
+    /// The face of the hints laid out between `actions`, those of the screen they are shown on.
+    pub fn set_bar_hints_face(&mut self, actions: Actions, tex: TexId) {
         if let Some(faces) = &mut self.bar_faces {
-            faces.plates[actions.index()] = Some(tex);
+            faces.hints[actions.index()] = Some(tex);
         }
     }
 
-    /// The bar, over whatever screen is shown or sliding and still as they slide.
+    /// The bar, over whatever screen is shown or sliding and still as they slide: the hints,
+    /// then the two actions. Nothing else is drawn between them.
     pub(crate) fn draw_bar(&self, out: &mut Vec<Draw>) {
         let (Some(place), Some(faces)) = (self.bar_place(), &self.bar_faces) else {
             return;
         };
         let set = &faces.sets[place.actions.index()];
         let (h, px) = (out_h(), |art: i32| (art * SPRITE_PX as i32) as f32);
-        if let Some(tex) = faces.plates[place.actions.index()] {
+        if let Some(tex) = faces.hints[place.actions.index()] {
             out.push(
                 set.layout
-                    .plate_quad(tex, h)
+                    .hints_quad(tex, h)
                     .shifted(0.0, px(place.drop as i32)),
             );
         }

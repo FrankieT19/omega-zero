@@ -409,7 +409,7 @@ pub struct App {
     pub(crate) slide: Option<Slide>,
     /// The card's Config/theme.txt, which the shelf's chrome is drawn in when there is one.
     pub(crate) theme: Option<Theme>,
-    /// The bar along the bottom: its actions and its plate.
+    /// The bar along the bottom: its actions and the hints between them.
     pub(crate) bar_faces: Option<BarFaces>,
 }
 

@@ -1,38 +1,30 @@
 //! The bar along the bottom of a screen, as assets/ui/components/omega-bar.js: an action at
-//! each end (action.rs) and, between them, the game's plate, which sits a little under the
-//! actions' top rails and runs on behind both buttons' rounded ends, so the bar's bottom line
-//! never breaks. The keys a screen has beyond the two actions are shown on the plate as hints:
-//! each its key in a small dark cap, then the word, centred on the plate.
+//! each end (action.rs) and, between them, nothing but the keys a screen has beyond the two
+//! actions, shown as hints: each its key in a small dark cap, then the word, centred between
+//! the actions on the rows of the words in their pills. Whatever is behind the bar shows
+//! through the rest.
 //!
 //! The bar fills the screen's width, 320 art pixels at 640 and 360 at 720, and is `BAR` tall,
 //! the actions' height; their notches rise `RISE` above it, over whatever is there. It is three
-//! faces: the plate ([`plate_face`]) and the two actions (`action_face`), which [`bar_layout`]
-//! places. Draw the plate, then the actions over it ([`BarLayout::plate_quad`],
-//! [`BarLayout::action_quad`]); each action moves on its own, which is how a change of actions
-//! sinks the old ones and raises the new ([`action_swap`]).
+//! faces: the hints ([`hints_face`]) and the two actions (`action_face`), which [`bar_layout`]
+//! places ([`BarLayout::hints_quad`], [`BarLayout::action_quad`]); each action moves on its
+//! own, which is how a change of actions sinks the old ones and raises the new
+//! ([`action_swap`]).
 
 use omega_gfx::{Draw, TexId};
 
 use super::action::{ActionFace, Side, BAR, TALL};
 use super::palette::Palette;
-use super::pixel::{blank, fill, ink, letters, nine_slice, quad, text_width, ACCENT, ADVANCE, CAP};
+use super::pixel::{blank, ink, letters, nine_slice, quad, text_width, ACCENT, ADVANCE, CAP};
 use crate::plate::UndoFace;
 use crate::sprite::SPRITE_PX;
 
-/// How far down the bar the plate starts, under the actions' top rails, and how far it runs on
-/// behind each button's rounded end.
-pub const PLATE_TOP: u32 = 2;
-pub const UNDER: u32 = 5;
-/// The plate's height: down to the bar's bottom line, which is its own last row.
-pub const PLATE_H: u32 = BAR - PLATE_TOP;
-
 /// How tall a key's cap is: a dark row above and below its letters' capitals.
 pub const KEY_H: u32 = 9;
-/// How far into the plate, under its top line, the hints' line starts: the top line is the bar's
-/// row 2, so their line starts on row 3 and their capitals, two rows down it, are on rows 5 to
-/// 11, the rows of the words in the actions' buttons. Each key's cap starts a row above its
-/// capitals.
-const HINTS_TOP: u32 = 0;
+/// How far down the bar the hints' line starts: row 3, as the pills' words' does, so their
+/// capitals, two rows down it, are on rows 5 to 11 with the words in the actions' buttons.
+/// Each key's cap starts a row above its capitals.
+const HINTS_TOP: u32 = 3;
 /// The gap between a key's cap and its word, and between two hints, in pixels of ink to ink.
 const GAP: u32 = 3;
 const BETWEEN: u32 = 8;
@@ -52,7 +44,8 @@ const KEY: [&str; KEY_H as usize] = [
     ".k.",
 ];
 
-/// A key and what it does, shown on the plate: "Y" "FORGET". The word may be empty.
+/// A key and what it does, shown between the bar's actions: "Y" "FORGET". The word may be
+/// empty.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Hint<'a> {
     pub key: &'a str,
@@ -75,7 +68,7 @@ pub fn hint_width(hint: &Hint) -> u32 {
 }
 
 /// How wide `hints` are together from their first ink to their last, what they are centred
-/// on the plate by: each hint, `BETWEEN` pixels of ink to ink between them, and the last
+/// between the actions by: each hint, `BETWEEN` pixels of ink to ink between them, and the last
 /// word's blank pixel left off.
 pub fn hints_width(hints: &[Hint]) -> u32 {
     let boxes: u32 = hints.iter().map(hint_width).sum();
@@ -87,21 +80,14 @@ pub fn hints_width(hints: &[Hint]) -> u32 {
     boxes + between - blank
 }
 
-/// The plate `w` art pixels wide and `PLATE_H` tall, with `hints` on it: its top line, a lit
-/// row, the plate colour, a shadow row, and the bar's bottom line in the frame colour, level
-/// with the actions' own. The hints are centred on it, rounded down to a whole pixel, and start
-/// at its left when they are wider than it.
-pub fn plate_face(w: u32, hints: &[Hint], pal: &Palette) -> UndoFace {
-    let mut face = blank(w, PLATE_H);
-    let (wi, h) = (w as i32, PLATE_H as i32);
-    fill(&mut face, [0, 0, wi, h], pal.plate);
-    fill(&mut face, [0, 0, wi, 1], pal.edge);
-    fill(&mut face, [0, 1, wi, 1], pal.band);
-    fill(&mut face, [0, h - 2, wi, 1], pal.edge);
-    fill(&mut face, [0, h - 1, wi, 1], pal.frame);
-
-    let y = (1 + HINTS_TOP) as i32;
-    let mut x = ((wi - hints_width(hints) as i32) / 2).max(0);
+/// The hints `w` art pixels wide and the bar's height, for the room between its actions: clear
+/// but for each key's dark cap and its letters and word in cream, so whatever is behind the bar
+/// shows through. They are centred across it, rounded down to a whole pixel, and start at its
+/// left when they are wider than it.
+pub fn hints_face(w: u32, hints: &[Hint], pal: &Palette) -> UndoFace {
+    let mut face = blank(w, BAR);
+    let y = HINTS_TOP as i32;
+    let mut x = ((w as i32 - hints_width(hints) as i32) / 2).max(0);
     for (i, hint) in hints.iter().enumerate() {
         if i > 0 {
             x += (BETWEEN - 1) as i32;
@@ -128,23 +114,22 @@ pub fn plate_face(w: u32, hints: &[Hint], pal: &Palette) -> UndoFace {
 pub struct BarLayout {
     /// The bar's width: the screen's, in art pixels.
     pub width: u32,
-    /// The plate's `[x, y, w, h]`: from `UNDER` inside the left action to `UNDER` inside the
-    /// right one, `PLATE_TOP` down. Its face is `plate_face(plate[2], ..)`.
-    pub plate: [u32; 4],
+    /// The hints' `[x, y, w, h]`: the room between the two actions, from the left one's end to
+    /// the right one's, the bar's height. Their face is `hints_face(hints[2], ..)`.
+    pub hints: [u32; 4],
     /// Where each action's face goes, its top left: at the bar's ends, its notch rising
     /// above the bar (y is minus the action's `rise`).
     pub left: [i32; 2],
     pub right: [i32; 2],
 }
 
-/// The bar `width_u` art pixels wide with `left` and `right` at its ends: the plate takes what
-/// is left between them and `UNDER` more under each.
+/// The bar `width_u` art pixels wide with `left` and `right` at its ends: the hints take what
+/// is left between them.
 pub fn bar_layout(width_u: u32, left: &ActionFace, right: &ActionFace) -> BarLayout {
     let (lw, rw) = (left.face.w, right.face.w);
-    let plate_w = (width_u + 2 * UNDER).saturating_sub(lw + rw);
     BarLayout {
         width: width_u,
-        plate: [lw.saturating_sub(UNDER), PLATE_TOP, plate_w, PLATE_H],
+        hints: [lw, 0, width_u.saturating_sub(lw + rw), BAR],
         left: [0, -(left.rise as i32)],
         right: [width_u as i32 - rw as i32, -(right.rise as i32)],
     }
@@ -156,9 +141,9 @@ impl BarLayout {
         screen_h.saturating_sub(BAR * SPRITE_PX) as f32
     }
 
-    /// The plate, its face uploaded as `tex`, on a screen `screen_h` pixels tall.
-    pub fn plate_quad(&self, tex: TexId, screen_h: u32) -> Draw {
-        let [x, y, w, h] = self.plate;
+    /// The hints, their face uploaded as `tex`, on a screen `screen_h` pixels tall.
+    pub fn hints_quad(&self, tex: TexId, screen_h: u32) -> Draw {
+        let [x, y, w, h] = self.hints;
         let px = |art: u32| (art * SPRITE_PX) as f32;
         quad(tex, w, h, px(x), Self::top(screen_h) + px(y))
     }
@@ -189,7 +174,7 @@ pub const SINK: u32 = TALL;
 /// What a bar shows partway through a change of actions (the shelf's to a menu's, or back).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Swap {
-    /// Whether it is the new actions, and the plate and hints laid out for them, that show.
+    /// Whether it is the new actions, and the hints laid out between them, that show.
     pub new: bool,
     /// How far down they are sunk from their place, in art pixels.
     pub sink: u32,
