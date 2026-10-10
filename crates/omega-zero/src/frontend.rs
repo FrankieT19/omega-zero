@@ -13,6 +13,7 @@ use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
 use crate::app::LinkRow;
 use crate::face_builder::FaceBuilder;
+use crate::frontend::faces::upload_nearest;
 use crate::link_art_builder::LinkArtBuilder;
 use crate::link_screen::{LinkSprites, Sprite};
 use crate::link_start::{LinkFail, LinkStep};
@@ -87,6 +88,8 @@ pub struct Frontend {
     background: Baked<(ListView, u8)>,
     backdrop: BackdropTex,
     bar: BarTexes,
+    /// The boot logo's texture while it fades over the shelf.
+    boot_logo: Option<TexId>,
 }
 
 /// A card's own overlay for one system, read once and checked against each layout it is
@@ -144,6 +147,29 @@ impl Frontend {
             background: Baked::default(),
             backdrop: BackdropTex::default(),
             bar: BarTexes::default(),
+            boot_logo: None,
+        }
+    }
+
+    /// Puts `logo`, the logo the bootloader left lit, over the shelf's first frames to fade
+    /// into it, when the boot has landed on the shelf. It is uploaded at its own size with
+    /// NEAREST filtering, as the kit's faces are, so it shows what the bootloader drew pixel for
+    /// pixel.
+    pub fn show_boot_logo(&mut self, compositor: &mut Compositor, logo: &UndoFace) {
+        if !self.session.app().boot_fades() {
+            return;
+        }
+        let tex = upload_nearest(compositor, &mut self.boot_logo, logo);
+        self.session.app_mut().set_boot_logo(tex, logo.w, logo.h);
+    }
+
+    /// Once the boot logo has faded, its texture shrinks to a pixel and gives its memory back.
+    fn drop_boot_logo(&mut self, compositor: &mut Compositor) {
+        if self.session.app().boot_logo_alpha().is_some() {
+            return;
+        }
+        if let Some(tex) = self.boot_logo.take() {
+            compositor.update_texture(tex, 1, 1, &[0; 4]);
         }
     }
 
@@ -366,6 +392,7 @@ impl Frontend {
             },
             &mut self.switcher,
         );
+        self.drop_boot_logo(compositor);
         self.draws.clear();
         self.session.app().draw(&mut self.draws);
         compositor.draw_list(&self.draws);

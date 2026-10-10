@@ -1,10 +1,11 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use omega_gfx::{
     canvas, set_canvas, Canvas, Compositor, FbdevSurface, Rotation, Surface, CANVAS_ENV,
 };
 use omega_power::{baseos_release, trace_first_frame, DevicePlatform};
+use omega_ui::UndoFace;
 use omega_zero::frontend::Frontend;
 use omega_zero::input::DeviceInput;
 
@@ -96,6 +97,24 @@ fn choose_canvas(panel: (u32, u32)) -> Rotation {
     rotation
 }
 
+/// The boot logo being read off the card.
+type Reading = std::thread::JoinHandle<Option<UndoFace>>;
+
+/// Reads the logo the bootloader left lit on the panel, on a thread of its own while the shelf
+/// is made, when the canvas is the panel the right way up: drawn over the first frames, it is
+/// then where and as big as the bootloader drew it. Turned or scaled, it could not be.
+fn read_boot_logo(root: &Path, panel: (u32, u32), rotation: Rotation) -> Option<Reading> {
+    let c = canvas();
+    if rotation != Rotation::R0 || (c.w, c.h) != panel {
+        return None;
+    }
+    let system = root.join("System");
+    std::thread::Builder::new()
+        .name("omega-logo".into())
+        .spawn(move || omega_zero::bootlogo::shown(&system, panel))
+        .ok()
+}
+
 pub fn run() {
     let root = std::env::var_os("OMEGA_ROOT")
         .map(PathBuf::from)
@@ -108,6 +127,7 @@ pub fn run() {
         }
     };
     let rotation = choose_canvas(surface.window_size());
+    let logo = read_boot_logo(&root, surface.window_size(), rotation);
     let mut compositor = match Compositor::new(&surface) {
         Ok(c) => c,
         Err(e) => {
@@ -123,6 +143,9 @@ pub fn run() {
     platform.trace_boot();
     let mut frontend = Frontend::boot(Box::new(platform));
     frontend.upload_faces(&mut compositor);
+    if let Some(logo) = logo.and_then(|reading| reading.join().ok()).flatten() {
+        frontend.show_boot_logo(&mut compositor, &logo);
+    }
     let mut input = DeviceInput::open(&root);
     let card = root.clone();
     let _ = std::thread::Builder::new()

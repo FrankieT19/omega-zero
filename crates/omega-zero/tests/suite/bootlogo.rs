@@ -1,4 +1,4 @@
-use omega_zero::bootlogo::{choose, dims, install, panel_size, valid, Outcome};
+use omega_zero::bootlogo::{choose, dims, face, install, panel_size, shown, valid, Outcome};
 
 fn bmp(w: u32, h: u32, fill: u8) -> Vec<u8> {
     let stride = (w as usize * 3).next_multiple_of(4);
@@ -150,4 +150,46 @@ fn the_unsized_logo_from_before_is_used_only_where_it_fits() {
 
     assert_eq!(choose(s, (720, 480)), Some(s.join("bootlogo.bmp")));
     assert_eq!(choose(s, (640, 480)), None);
+}
+
+#[test]
+fn a_logo_reads_top_row_first_as_opaque_rgba_without_its_row_padding() {
+    // three pixels of three bytes pad each row to 12; the file holds the bottom row first, and
+    // each pixel blue first
+    let mut b = bmp(3, 2, 0);
+    let bottom = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+    let top = [[10, 11, 12], [13, 14, 15], [16, 17, 18]];
+    for (row, px) in [(0, bottom), (1, top)] {
+        for (x, bgr) in px.iter().enumerate() {
+            let at = 54 + row * 12 + x * 3;
+            b[at..at + 3].copy_from_slice(bgr);
+        }
+    }
+    let f = face(&b).expect("a well-formed bmp");
+    assert_eq!((f.w, f.h), (3, 2));
+    assert_eq!(
+        f.rgba,
+        [
+            12, 11, 10, 255, 15, 14, 13, 255, 18, 17, 16, 255, //
+            3, 2, 1, 255, 6, 5, 4, 255, 9, 8, 7, 255,
+        ]
+    );
+    assert!(face(&b[..60]).is_none());
+}
+
+#[test]
+fn the_logo_shown_is_the_cards_for_the_panel_at_its_size() {
+    let system = tempfile::tempdir().unwrap();
+    let s = system.path();
+    std::fs::write(s.join("bootlogo-640x480.bmp"), bmp(640, 480, 7)).unwrap();
+    std::fs::write(s.join("bootlogo-720x720.bmp"), wide(7)).unwrap();
+
+    let logo = shown(s, (640, 480)).expect("the 640x480 logo");
+    assert_eq!((logo.w, logo.h), (640, 480));
+    assert!(logo.rgba.chunks_exact(4).all(|p| p == [7, 7, 7, 255]));
+    assert!(
+        shown(s, (720, 720)).is_none(),
+        "a logo named for a panel it is not the size of is shown"
+    );
+    assert!(shown(s, (720, 480)).is_none());
 }

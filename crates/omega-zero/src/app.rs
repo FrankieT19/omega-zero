@@ -22,6 +22,7 @@ use omega_ui::{
 
 use crate::audio::Sfx;
 use crate::background_screen::{Backdrop, BackgroundScreen};
+use crate::boot_fade::BootFade;
 use crate::core_picker::{Chip, CorePicker, Outcome, Press};
 use crate::label_screen::{Labels, LabelsScreen};
 use crate::label_sync::{label_jobs, Account, LabelJobs, NoKey, Want};
@@ -411,6 +412,8 @@ pub struct App {
     pub(crate) theme: Option<Theme>,
     /// The bar along the bottom: its actions and the hints between them.
     pub(crate) bar_faces: Option<BarFaces>,
+    /// The boot logo over the shelf while it fades out at boot.
+    pub(crate) boot_fade: Option<BootFade>,
 }
 
 fn shelves_of(carts: Vec<Cart>) -> Vec<(Platform, Shelf)> {
@@ -450,6 +453,7 @@ impl App {
             slide: None,
             theme: None,
             bar_faces: None,
+            boot_fade: None,
             phase: Phase::Shelf,
             shelves,
             shelf_at,
@@ -1130,6 +1134,7 @@ impl App {
     }
 
     pub fn apply(&mut self, action: Action) {
+        self.press_ends_boot_fade(action);
         if self.power_menu.is_some() {
             match action {
                 Action::LidClose => return self.doze(),
@@ -1562,6 +1567,7 @@ impl App {
 
     pub fn update(&mut self, dt: f32) {
         self.clock += dt as f64 * 1000.0;
+        self.step_boot_fade(dt);
         if self.name_pending && self.shelf_platform.face.is_some() {
             self.name_pending = false;
             self.shelf_named = Some(self.now());
@@ -1909,6 +1915,7 @@ impl App {
             self.draw_game_menu(menu, out);
         }
         self.hud.draw(self.now(), out);
+        self.draw_boot_logo(out);
     }
 
     /// Draws `phase`, a screen of a slide or the one shown, moved by `off`. A menu screen
