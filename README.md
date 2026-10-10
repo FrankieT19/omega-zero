@@ -36,8 +36,12 @@ is the most useful thing you can send.
 - Two GBA cores, mGBA and gpSP, chosen per cart. GBA fills a 640x480 screen; Game Boy stays at 3x.
 - Resume on boot, save states with a switcher, rewind, fast-forward, turbo buttons.
 - Link play between two handhelds over Wi-Fi, for Pokémon trades, Advance Wars, Mario Kart and Tetris.
-- Home Wi-Fi with SSH and SFTP, network time, and cart labels fetched from ScreenScraper.
-- A pixel font, a top bar with the radios, clock and battery, and a background you choose.
+- Settings on START, in windows in the style of Mega Man Zero's menus that slide from screen to
+  screen. A tap of SELECT lists what every button does.
+- Home Wi-Fi with SSH and SFTP (the login is shown on screen), network time, and cart labels
+  fetched from ScreenScraper.
+- A pixel font, a top bar with the radios, clock and battery, a bottom bar with the buttons, and
+  a background you choose, whose colour the menus take.
 
 ## Quick start
 
@@ -46,7 +50,7 @@ is the most useful thing you can send.
 2. Copy the contents of the [latest release](https://github.com/oauramos/omega-zero/releases/latest)
    to the root of that card.
 3. Put your games in `Games/GBA`, `Games/GB` and `Games/GBC`.
-4. Boot.
+4. Boot. On the shelf, START opens Settings and a tap of SELECT shows every button.
 
 Two cards, updating, controls and everything else are in the
 [wiki](https://github.com/oauramos/omega-zero/wiki).
