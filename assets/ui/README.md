@@ -3,11 +3,19 @@
 The kit omega-zero's menus are drawn from: pixel-art components rebuilt in HTML, the reference for
 how each screen looks before and while it is drawn on the device. Open
 [`storybook.html`](storybook.html) straight from disk to see every component, what it does and how
-to use it, and screens put together from them.
+to use it, and screens put together from them. [`flow.html`](flow.html) walks every menu screen
+and the slides between them.
 
 ```
 assets/ui/
 ├── storybook.html         every component and screen, live
+├── flow.html              every menu screen, and the slides between them
+├── flow/                  what flow.html is drawn and driven with
+│   ├── flow.css           the page, and the screen in art pixels
+│   ├── screens.js         FlowScreens: what each screen does with a button
+│   ├── player.js          the slides, the keys and the URL's hash
+│   ├── art.js             FlowArt: placeholders for what Rust draws, and the arrows
+│   └── stubs.js           stand-ins for omega-row, omega-list-row and omega-bar, if missing
 ├── foundation/            what every component draws with
 │   ├── fonts.css          Pixel Code Regular, cut to Latin-1 and inlined
 │   ├── tokens.css         the art pixel (--u) and the shelf's backdrop
@@ -50,12 +58,58 @@ classic scripts, no build step, so it works from `file://`.
   </omega-panel>
 </omega-modal>
 <omega-bar hint="Y RESET">
-  <action-left slot="left" label="MENU" hint="SELECT"></action-left>
+  <action-left slot="left" label="QUICKMENU" hint="SELECT"></action-left>
   <action-right slot="right" label="SETTINGS" hint="START"></action-right>
 </omega-bar>
 
 <script>OmegaPalette.apply('teal')</script>  <!-- Night unless told otherwise -->
 ```
+
+## Screens and slides
+
+`flow.html` puts every menu screen together from the kit (the shelf, Settings and everything
+under it, QUICKMENU) and moves between them with the slides the device draws: 280 ms,
+smootherstep, every frame on whole art pixels. It is the approved reference for the Rust screens.
+Open it from disk like the storybook. What Rust draws itself (the carts, the slot, the top bar,
+the About sticker) is a flat placeholder.
+
+Walk it with the keyboard or the buttons under the screen:
+
+| Button | Keys |
+|---|---|
+| D-pad | arrows |
+| A | `X` or `A` |
+| B | `Z`, `B` or `Esc` |
+| START | `Enter` |
+| SELECT | `Space` or right `Shift` |
+
+The sidebar jumps straight to a screen, sets Settings > Background and the panel size, and has
+**slow motion ×5** and **step one frame**, which holds a slide and moves it a frame at a time.
+A key pressed during a slide finishes it, then does what it does.
+
+The URL's hash says what is shown, and the page keeps it up to date as you walk, so a link or a
+headless Chrome screenshot lands on the same frame:
+
+| Key | Values |
+|---|---|
+| `screen` | `shelf`, `settings`, `controls` (QUICKMENU), `network`, `ssh`, `keyboard`, `labels`, `datetime`, `background`, `about` |
+| `from` | slide into `screen` from this one, deeper or back as the tree has it; `dir=in` or `dir=out` forces the way |
+| `t` | with `from`: hold the slide at this time, 0 to 1 |
+| `size` | `640x480` (default), `720x480`, `720x720` |
+| `colour` | `night` (default), `slate`, `navy`, `teal`, `green`, `plum`, `crimson`, `amber` |
+| `style`, `moving` | the backdrop, as Settings > Background sets it: `style=plates`, `moving=0` |
+| `bar` | `floating` instead of the plate |
+| `wifi` | `off`: SSH shows what it says offline, and the networks dim |
+| `row` | the cursor's row on `screen`, from 0 |
+| `slow` | `1`: slides at a fifth of their speed |
+| `shot` | `1`: the screen alone at the window's top left, for screenshots |
+
+```
+flow.html#screen=network&from=settings&t=0.5&colour=amber&shot=1
+```
+
+is Settings halfway through sliding out to the right for Network, in Amber, ready for a
+screenshot the size of the panel.
 
 ## The rules
 
