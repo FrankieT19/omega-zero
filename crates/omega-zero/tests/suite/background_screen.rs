@@ -74,6 +74,7 @@ impl Rig {
             .expect("the list is showing")
             .rows
             .into_iter()
+            .filter(|r| !r.dim)
             .map(|r| (r.label, r.value))
             .collect()
     }
@@ -297,5 +298,21 @@ fn the_background_screen_shows_the_background_it_is_choosing_behind_its_list() {
     assert!(
         !veiled,
         "something was laid over the background it is choosing"
+    );
+}
+
+#[test]
+fn a_row_a_style_has_no_use_for_stays_faint_so_the_panel_keeps_its_size() {
+    let mut r = Rig::new();
+    r.open();
+    while r.a.backdrop().style != BackdropStyle::Solid {
+        r.press(Btn::Right);
+    }
+    let view = r.a.background_view().expect("the list is showing");
+    let dim: Vec<bool> = view.rows.iter().map(|row| row.dim).collect();
+    assert_eq!(
+        dim,
+        [false, true, false],
+        "Solid's Motion is faint, not gone"
     );
 }

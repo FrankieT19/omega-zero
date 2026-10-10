@@ -65,6 +65,7 @@ pub struct Words {
     pub label: String,
     pub value: Option<String>,
     pub carets: bool,
+    pub dim: bool,
 }
 
 impl Words {
@@ -84,6 +85,7 @@ impl Words {
             label,
             value,
             carets,
+            dim: row.dim,
         }
     }
 
@@ -94,6 +96,7 @@ impl Words {
             value: self.value.as_deref(),
             lit,
             carets: self.carets,
+            dim: self.dim,
             ..Row::default()
         }
     }

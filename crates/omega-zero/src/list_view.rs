@@ -56,8 +56,8 @@ pub enum RowValue {
 pub struct ViewRow {
     pub label: RowLabel,
     pub value: Option<RowValue>,
-    /// Bars out of four, and whether it needs a passphrase.
-    pub signal: Option<(u8, bool)>,
+    /// A row with nothing to change here, drawn faint and passed over by the cursor.
+    pub dim: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

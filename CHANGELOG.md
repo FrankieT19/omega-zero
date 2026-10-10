@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased
+
+- A bar along the bottom of the shelf: SELECT QUICKMENU on the left, START SETTINGS on the
+  right. The slot sits a bar higher to make room for it.
+- Game Boy carts stand at 80% of their size on the shelf and grow to full size as they go into
+  the slot.
+- START on the shelf opens Settings, a window in the style of Mega Man Zero's menus, in place of
+  the old quick menu. CONFIGS holds Fast Forward (2X, 3X, 4X or 6X), Fast Forward Sound, Colour
+  Correction, Rumble and Labels; GENERAL holds Date & Time, Network, Background and About.
+- A row that Left and Right change shows ◀ ▶ while it is lit. A row that opens a screen ends
+  in ›.
+- A tap of SELECT on the shelf opens QUICKMENU: what every button does, on the shelf and in a
+  game, on one panel. SELECT held with another button works as before.
+- The Wi-Fi screen is now Network, under Settings. Its NETWORK panel switches Wi-Fi and Network
+  Time and opens SSH. AVAILABLE NETWORKS shows each network's signal, a padlock on those with a
+  passphrase, and CONNECTED, JOINING or SAVED. Y forgets a saved network.
+- SSH shows how to log in from a computer: the address, `<name>.local`, user `root`, the
+  password and port 22. SFTP uses the same login. The password is BaseOS's: `root`, or what
+  `ssh_password=` says in `baseos.conf` on the card.
+- Cart Labels is no longer on the Wi-Fi screen: it is Labels, in Settings.
+- Background, Date & Time and Labels are panels over the background, and the passphrase
+  keyboard is a window. About is the same sticker as before.
+- In the menus the bottom bar says B RETURN and A CONFIRM. A screen's own keys sit in the middle
+  of it: Y FORGET on Network, START FETCH and Y SIGN OUT on Labels.
+- Every move between screens slides, over a background that keeps moving. Going into a screen,
+  the one you leave goes out to the right and the new one comes in from the left; coming back is
+  the mirror. Leaving the shelf, the top bar goes up, the carts right and the slot down.
+- The menus, both bars and the slot take their colours from Settings > Background > Colour.
+  Night is grey; Amber is Mega Man Zero's own colours.
+
+### For developers
+
+- `assets/ui/flow.html` walks every new screen with the slides the device draws, and is the
+  reference they are built to. Keys stand in for the buttons, slow motion runs the slides five
+  times slower, and the URL's hash picks the screen, colour, panel size and any moment of a
+  slide: `flow.html#screen=network&from=settings&t=0.5&colour=amber&shot=1`.
+- The storybook has three new components: `<omega-row>`, `<omega-list-row>` and `<omega-bar>`.
+- The kit is in Rust too, in `crates/omega-ui/src/kit/` (palette, pixel, modal, panel, action,
+  row, list_row, bar, text, layout). `tests/suite/kit/` holds it to Chrome's screenshots of the
+  HTML kit pixel for pixel; `make-refs.sh` takes them again.
+- Each menu screen's input and drawing is a file of its own in `crates/omega-zero/src/screens/`,
+  its faces are made in `frontend/sync_*.rs`, and `nav.rs` slides between them.
+
 ## omega-zero 0.0.2
 
 - A cart leaning half off the screen is drawn whole on every GPU: some drivers dropped it for a

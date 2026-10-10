@@ -375,12 +375,12 @@ impl LabelsScreen {
                     Some(user) => RowValue::Name(user),
                     None => RowValue::Said("Sign in"),
                 }),
-                signal: None,
+                dim: false,
             },
             ViewRow {
                 label: RowLabel::Setting("Fetch Labels"),
                 value: progress,
-                signal: None,
+                dim: false,
             },
         ];
         let mut legend = vec![LegendHint::Back];
