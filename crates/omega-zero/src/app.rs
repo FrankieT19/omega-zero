@@ -29,10 +29,13 @@ use crate::link_kind::{link_carried, link_kind, serial_option, LinkKind};
 use crate::link_radio::{radio_jobs, LinkRole, RadioJob, RadioJobs};
 use crate::link_screen::LinkSprites;
 use crate::link_start::{link_port, LinkFail, LinkProgress, LinkStarter, LinkStep};
+use crate::nav::{offsets, Dir, End, Offsets, Slide};
 use crate::persist::{self, Snapshot};
 use crate::screens::clock::clock_screen;
 use crate::screens::controls::ControlsFaces;
+use crate::screens::keyboard::typing_of;
 use crate::screens::ssh::SshScreen;
+use crate::screens::{draw_plate, shift_all};
 use crate::video_mode::{self, VideoMode};
 use crate::wifi::{wifi_jobs, WifiJobs};
 use crate::wifi_screen::{Summary, Watch, Wifi, WifiScreen};
@@ -401,6 +404,8 @@ pub struct App {
     pub(crate) backdrop_face: Option<(TexId, u32, BackdropStyle, u8)>,
     /// The first Settings row in view, on a canvas too short for them all.
     pub(crate) settings_first: usize,
+    /// The move between screens under way, while it slides.
+    pub(crate) slide: Option<Slide>,
 }
 
 fn shelves_of(carts: Vec<Cart>) -> Vec<(Platform, Shelf)> {
@@ -440,6 +445,7 @@ impl App {
             background_faces: None,
             backdrop_face: None,
             settings_first: 0,
+            slide: None,
             phase: Phase::Shelf,
             shelves,
             shelf_at,
@@ -731,6 +737,32 @@ impl App {
         self.shelf_clock = omega_ui::Printed::new(face, w);
     }
 
+    /// Moves to the screen `to`, the one shown now sliding away as it comes in.
+    pub fn go(&mut self, to: Phase, dir: Dir) {
+        let from = std::mem::replace(&mut self.phase, to);
+        self.slide_from(from, dir);
+    }
+
+    /// Slides from `from` to the phase there is now, when a screen changed in place into
+    /// another, as the Network screen does putting its keyboard up.
+    pub(crate) fn slide_from(&mut self, from: Phase, dir: Dir) {
+        self.slide = Some(Slide {
+            from,
+            dir,
+            started: self.now(),
+        });
+    }
+
+    /// Ends the slide under way, if there is one, as though its time were up.
+    pub fn finish_slide(&mut self) {
+        self.slide = None;
+    }
+
+    /// The move between screens under way.
+    pub fn slide(&self) -> Option<&Slide> {
+        self.slide.as_ref()
+    }
+
     pub fn phase(&self) -> &Phase {
         &self.phase
     }
@@ -945,6 +977,7 @@ impl App {
         let secs = power.now();
         if matches!(self.phase, Phase::SetClock { .. }) || secs < CLOCK_FLOOR {
             self.phase = clock_screen(secs, 0, false);
+            self.slide = None;
         }
         self.power = Some(power);
         self.battery_at = self.now();
@@ -1123,11 +1156,18 @@ impl App {
             Action::PowerOff => return,
             _ => {}
         }
-        if matches!(self.phase, Phase::SetClock { .. }) {
-            return self.clock_input(action);
-        }
-        if self.adjust(action) {
+        let clock = matches!(self.phase, Phase::SetClock { .. });
+        if !clock && self.adjust(action) {
             return;
+        }
+        // A press during a slide ends it, then acts on the screen it arrived at. A release
+        // does not: a tap's own release, or the one SELECT hands the game after its tap,
+        // would end the slide its press began.
+        if !matches!(action, Action::GbaUp(_)) {
+            self.finish_slide();
+        }
+        if clock {
+            return self.clock_input(action);
         }
         match action {
             Action::GbaUp(Btn::Left) => self.shelf_mut().release_left(),
@@ -1144,7 +1184,7 @@ impl App {
                 _ if self.core_picker.is_some() => self.core_picker_input(action),
                 // START is the settings button on the shelf; MENU opens nothing here
                 Action::GbaDown(Btn::Start) => self.open_settings(),
-                Action::SelectTap => self.phase = Phase::Controls,
+                Action::SelectTap => self.go(Phase::Controls, Dir::Deeper),
                 Action::GbaDown(Btn::Up) => self.jump_letter(-1),
                 Action::GbaDown(Btn::Down) => self.jump_letter(1),
                 Action::ShelfLeft | Action::GbaDown(Btn::Left) => self.shelf_mut().hold_left(now),
@@ -1507,17 +1547,19 @@ impl App {
         if !self.on_shelf() {
             self.shelf_mut().release_hold();
         }
+        // the shelf keeps swaying while it slides away or back
+        if self.shelf_shown() {
+            let picking = self.core_picker.is_some();
+            let shelf = self.shelf_mut();
+            shelf.tick(now);
+            shelf.hold_still(picking);
+            shelf.update(dt);
+        }
+        if self.slide.as_ref().is_some_and(|s| s.over(now)) {
+            self.slide = None;
+        }
         let mut touched = false;
-        let at = self.shelf_at;
-        let picking = self.core_picker.is_some();
         let next = match &mut self.phase {
-            Phase::Shelf => {
-                let shelf = &mut self.shelves[at].1;
-                shelf.tick(now);
-                shelf.hold_still(picking);
-                shelf.update(dt);
-                None
-            }
             Phase::Inserting {
                 cart,
                 t,
@@ -1807,35 +1849,71 @@ impl App {
             }
             return;
         }
-        match &self.phase {
+        // the backdrop never moves: the screens slide over it
+        if backdrop_under(&self.phase) {
+            self.draw_background(out);
+        }
+        match &self.slide {
+            Some(slide) => {
+                let (p, w) = (slide.progress(self.now()), out_w() as f32);
+                self.draw_screen(&slide.from, offsets(slide.dir, End::Leaving, p, w), out);
+                self.draw_screen(&self.phase, offsets(slide.dir, End::Arriving, p, w), out);
+            }
+            None => self.draw_screen(&self.phase, Offsets::NONE, out),
+        }
+        self.draw_bar(out);
+        if matches!(
+            self.phase,
+            Phase::SetClock { .. } | Phase::About | Phase::Doze { .. }
+        ) {
+            return;
+        }
+        if let Some(picker) = self.core_picker_shown() {
+            self.draw_core_picker(&picker, out);
+        }
+        if let Some(menu) = self.game_menu {
+            self.draw_game_menu(menu, out);
+        }
+        self.hud.draw(self.now(), out);
+    }
+
+    /// Draws `phase`, a screen of a slide or the one shown, moved by `off`. A menu screen
+    /// moves as one; the shelf moves its carts, its top bar and its slot each their own way.
+    fn draw_screen(&self, phase: &Phase, off: Offsets, out: &mut Vec<Draw>) {
+        let start = out.len();
+        match phase {
+            Phase::Shelf => return self.draw_shelf(off, out),
             Phase::SetClock {
                 picker, from_menu, ..
             } => {
+                draw_plate(out);
                 self.draw_clock(picker, *from_menu, out);
-                return;
             }
-            Phase::Settings { row } => self.draw_settings(*row, out),
+            Phase::Settings { row } => {
+                draw_plate(out);
+                self.draw_settings(*row, out);
+            }
             Phase::Controls => {
-                self.draw_background(out);
+                draw_plate(out);
                 self.draw_controls(out);
             }
+            // the list stands over the background it is choosing, with nothing between
             Phase::Background(_) => self.draw_background_screen(out),
-            Phase::Network(_) | Phase::Labels(_) => match self.typing() {
-                Some(t) => self.draw_keyboard(&t, out),
-                None => match self.phase {
-                    Phase::Labels(_) => self.draw_labels(out),
-                    _ => self.draw_network(out),
-                },
-            },
-            Phase::Ssh(_) => self.draw_ssh(out),
-            Phase::Shelf => self.draw_shelf(out),
-            Phase::About => {
-                self.draw_about(out);
-                return;
+            Phase::Network(_) | Phase::Labels(_) => {
+                draw_plate(out);
+                match typing_of(phase) {
+                    Some(t) => self.draw_keyboard(&t, out),
+                    None if matches!(phase, Phase::Labels(_)) => self.draw_labels(out),
+                    None => self.draw_network(out),
+                }
             }
+            Phase::Ssh(_) => {
+                draw_plate(out);
+                self.draw_ssh(out);
+            }
+            Phase::About => self.draw_about(out),
             Phase::Inserting { cart, resumed, .. } => {
                 if !resumed {
-                    self.draw_background(out);
                     self.shelf()
                         .draw_row(Some(cart), 0.0, self.seat(), 1.0, out);
                     self.draw_top_bar(out);
@@ -1843,7 +1921,6 @@ impl App {
                 self.chrome(cart, self.seat(), out);
             }
             Phase::Ejecting { cart, .. } => {
-                self.draw_background(out);
                 self.shelf()
                     .draw_row(Some(cart), 0.0, self.seat(), 1.0, out);
                 self.draw_top_bar(out);
@@ -1863,25 +1940,20 @@ impl App {
                     );
                 }
             }
-            Phase::Doze { .. } => {
-                out.push(Draw::Rect {
-                    x: 0.0,
-                    y: 0.0,
-                    w: out_w() as f32,
-                    h: out_h() as f32,
-                    colour: [0.0, 0.0, 0.0, 1.0],
-                });
-                return;
-            }
+            Phase::Doze { .. } => out.push(Draw::Rect {
+                x: 0.0,
+                y: 0.0,
+                w: out_w() as f32,
+                h: out_h() as f32,
+                colour: [0.0, 0.0, 0.0, 1.0],
+            }),
         }
-        if let Some(picker) = self.core_picker_shown() {
-            self.draw_core_picker(&picker, out);
-        }
-        if let Some(menu) = self.game_menu {
-            self.draw_game_menu(menu, out);
-        }
-        self.hud.draw(self.now(), out);
+        shift_all(&mut out[start..], off.dx, 0.0);
     }
+
+    /// Where the bar across the bottom of the menus will be drawn, over every screen and
+    /// still while they slide. The bar itself comes next.
+    fn draw_bar(&self, _out: &mut Vec<Draw>) {}
 
     pub fn screen_shake(&self) -> f32 {
         self.shake_at(self.now())
@@ -2239,6 +2311,15 @@ impl App {
         matches!(self.phase, Phase::Shelf)
     }
 
+    /// The shelf is on the screen: shown, or sliding away or back.
+    fn shelf_shown(&self) -> bool {
+        self.on_shelf()
+            || self
+                .slide
+                .as_ref()
+                .is_some_and(|s| matches!(s.from, Phase::Shelf))
+    }
+
     fn insert(&mut self, clean: bool) {
         if !self.on_shelf() {
             return;
@@ -2332,6 +2413,7 @@ impl App {
         }
         self.close_game_menu();
         self.core_picker = None;
+        self.slide = None;
         if matches!(self.phase, Phase::Doze { .. }) {
             return;
         }
@@ -3161,6 +3243,18 @@ fn trusted_write(
 
 fn up(level: u8, step: u8, max: u8) -> u8 {
     level.saturating_add(step).min(max)
+}
+
+/// Whether the backdrop is drawn under `phase`: under the shelf and every menu, and under a
+/// cart going in or coming out, but not under a game, nor a cart resumed at boot.
+fn backdrop_under(phase: &Phase) -> bool {
+    !matches!(
+        phase,
+        Phase::Playing { .. }
+            | Phase::Polaroids { .. }
+            | Phase::Doze { .. }
+            | Phase::Inserting { resumed: true, .. }
+    )
 }
 
 fn system_secs() -> i64 {

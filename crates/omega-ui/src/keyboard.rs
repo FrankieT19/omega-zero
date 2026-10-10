@@ -5,7 +5,7 @@
 use crate::draw::{out_w, Draw, TexId};
 use crate::plate::{centred_hints, UndoFace, HINT_H, LEGEND_GAP};
 use crate::power_menu::MENU_INK;
-use crate::slot_chrome::{edge, housing, opening, recess};
+use crate::slot_chrome::{edge, housing, recess};
 use crate::stage::stage_y;
 use crate::text;
 
@@ -358,14 +358,8 @@ pub struct KeyboardScreen<'a> {
 }
 
 impl KeyboardScreen<'_> {
+    /// The keyboard over whatever is already drawn: the backdrop, under every menu.
     pub fn draw(&self, out: &mut Vec<Draw>) {
-        out.push(Draw::Rect {
-            x: 0.0,
-            y: 0.0,
-            w: out_w() as f32,
-            h: crate::draw::out_h() as f32,
-            colour: opening(),
-        });
         if let Some(prompt) = self.prompt {
             push(out, prompt, keys_x(), prompt_y());
         }

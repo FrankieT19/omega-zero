@@ -6,6 +6,7 @@ use omega_input::{Action, Btn};
 use omega_ui::{centred_hints, stage_y, HINT_H, LEGEND_GAP, MENU_PAD};
 
 use crate::app::{App, Phase};
+use crate::nav::Dir;
 
 /// A group of controls: its name, and each control's keys and what they do.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -115,7 +116,7 @@ fn legend_y() -> f32 {
 impl App {
     pub(crate) fn controls_input(&mut self, action: Action) {
         if matches!(action, Action::GbaDown(Btn::B) | Action::SelectTap) {
-            self.phase = Phase::Shelf;
+            self.go(Phase::Shelf, Dir::Back);
         }
     }
 

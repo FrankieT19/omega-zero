@@ -77,7 +77,7 @@ fn the_rows_status_and_legend_are_drawn_in_order_down_the_screen() {
         carets: [face(90, 10), face(91, 10)],
     };
     let mut out = Vec::new();
-    faces.draw(&mut out);
+    faces.draw_over(&mut out);
     let at = |id: usize| {
         out.iter()
             .find_map(|d| match *d {

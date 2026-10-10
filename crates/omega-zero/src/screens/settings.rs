@@ -10,6 +10,7 @@ pub use omega_ui::{SettingsGroup, SettingsRow};
 use crate::app::{App, Phase};
 use crate::background_screen::BackgroundScreen;
 use crate::label_screen::LabelsScreen;
+use crate::nav::Dir;
 use crate::screens::clock::clock_screen;
 use crate::wifi_screen::WifiScreen;
 
@@ -51,9 +52,12 @@ impl App {
 
     pub(crate) fn open_settings(&mut self) {
         self.settings_first = 0;
-        self.phase = Phase::Settings {
-            row: SettingsRow::ALL[0],
-        };
+        self.go(
+            Phase::Settings {
+                row: SettingsRow::ALL[0],
+            },
+            Dir::Deeper,
+        );
     }
 
     /// The rows Settings lists on this handheld: Network only where there is a radio.
@@ -73,8 +77,7 @@ impl App {
             Action::GbaDown(Btn::Right) => return self.change_setting(row, true),
             Action::GbaDown(Btn::A) => return self.open_settings_row(row),
             Action::GbaDown(Btn::B | Btn::Start) | Action::QuickMenu => {
-                self.phase = Phase::Shelf;
-                return;
+                return self.go(Phase::Shelf, Dir::Back);
             }
             _ => return,
         };
@@ -101,7 +104,7 @@ impl App {
             | SettingsRow::ColourCorrection
             | SettingsRow::Rumble => return,
         };
-        self.phase = to;
+        self.go(to, Dir::Deeper);
     }
 
     pub(crate) fn change_setting(&mut self, row: SettingsRow, right: bool) {

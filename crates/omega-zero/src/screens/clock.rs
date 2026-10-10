@@ -4,6 +4,7 @@ use omega_input::{Action, Btn};
 use omega_ui::{ClockPicker, Draw, SettingsRow, TexId};
 
 use crate::app::{App, Phase};
+use crate::nav::Dir;
 
 impl App {
     pub(crate) fn clock_input(&mut self, action: Action) {
@@ -19,11 +20,12 @@ impl App {
             Action::GbaDown(Btn::Up) => picker.up(),
             Action::GbaDown(Btn::Down) => picker.down(),
             Action::GbaDown(Btn::A) | Action::Insert => self.confirm_clock(),
-            Action::GbaDown(Btn::B) if *from_menu => {
-                self.phase = Phase::Settings {
+            Action::GbaDown(Btn::B) if *from_menu => self.go(
+                Phase::Settings {
                     row: SettingsRow::DateTime,
-                }
-            }
+                },
+                Dir::Back,
+            ),
             _ => {}
         }
     }
@@ -46,9 +48,12 @@ impl App {
         self.state.clock_set = true;
         self.persist();
         if from_menu {
-            self.phase = Phase::Settings {
-                row: SettingsRow::DateTime,
-            };
+            self.go(
+                Phase::Settings {
+                    row: SettingsRow::DateTime,
+                },
+                Dir::Back,
+            );
         } else {
             self.start();
         }

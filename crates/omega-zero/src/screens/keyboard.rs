@@ -10,23 +10,7 @@ use crate::wifi::shown;
 impl App {
     /// The keyboard in use, and what it is asking for.
     pub fn typing(&self) -> Option<TypingView<'_>> {
-        match &self.phase {
-            Phase::Network(screen) => screen.typing.as_ref().map(|t| TypingView {
-                prompt: if t.refused {
-                    "A passphrase has 8 to 63 characters".to_string()
-                } else {
-                    format!("Passphrase for {}", shown(&t.ssid))
-                },
-                keys: &t.keys,
-                refused: t.refused,
-            }),
-            Phase::Labels(screen) => screen.typing.as_ref().map(|t| TypingView {
-                prompt: t.prompt(),
-                keys: &t.keys,
-                refused: false,
-            }),
-            _ => None,
-        }
+        typing_of(&self.phase)
     }
 
     pub fn set_keyboard_faces(&mut self, faces: KeyboardFaces) {
@@ -50,5 +34,26 @@ impl App {
             refused: t.refused,
         }
         .draw(out)
+    }
+}
+
+/// The keyboard `phase` has up, and what it is asking for.
+pub(crate) fn typing_of(phase: &Phase) -> Option<TypingView<'_>> {
+    match phase {
+        Phase::Network(screen) => screen.typing.as_ref().map(|t| TypingView {
+            prompt: if t.refused {
+                "A passphrase has 8 to 63 characters".to_string()
+            } else {
+                format!("Passphrase for {}", shown(&t.ssid))
+            },
+            keys: &t.keys,
+            refused: t.refused,
+        }),
+        Phase::Labels(screen) => screen.typing.as_ref().map(|t| TypingView {
+            prompt: t.prompt(),
+            keys: &t.keys,
+            refused: false,
+        }),
+        _ => None,
     }
 }

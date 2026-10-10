@@ -1,7 +1,7 @@
 use crate::draw::{out_h, out_w, Draw, TexId};
 use crate::plate::{arrows_hint_face, centred_hints, hint_face, UndoFace, HINT_H, LEGEND_GAP};
 use crate::power_menu::{MENU_H, MENU_INK, MENU_PAD, MENU_PX};
-use crate::slot_chrome::{edge, opening};
+use crate::slot_chrome::edge;
 use crate::stage::stage_y;
 use crate::text;
 
@@ -305,14 +305,8 @@ pub struct QuickMenu<'a> {
 }
 
 impl QuickMenu<'_> {
+    /// The list over whatever is already drawn: the backdrop, under every menu.
     pub fn draw(&self, out: &mut Vec<Draw>) {
-        out.push(Draw::Rect {
-            x: 0.0,
-            y: 0.0,
-            w: out_w() as f32,
-            h: out_h() as f32,
-            colour: opening(),
-        });
         out.push(Draw::Rect {
             x: 0.0,
             y: self.row_top(self.row) + BAR_INSET,

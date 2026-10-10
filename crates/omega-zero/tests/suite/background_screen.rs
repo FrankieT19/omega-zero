@@ -285,9 +285,18 @@ fn the_background_screen_shows_the_background_it_is_choosing_behind_its_list() {
     let face = TexId::from_raw(700);
     r.a.set_backdrop_face(face, out_w() + 40, BackdropStyle::Grid, 0);
     r.open();
+    r.a.finish_slide();
+    let out = r.frame();
+    let under = out
+        .iter()
+        .position(|d| matches!(*d, Draw::Tex { tex, .. } if tex == face))
+        .expect("the list hid what it is choosing");
+    let veiled = out[under + 1..].iter().any(
+        |d| matches!(*d, Draw::Rect { w, h, .. } if w == out_w() as f32 && h == out_h() as f32),
+    );
     assert!(
-        pattern_x(&r.frame(), face).is_some(),
-        "the list hid what it is choosing"
+        !veiled,
+        "something was laid over the background it is choosing"
     );
 }
 

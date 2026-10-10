@@ -8,6 +8,7 @@ use common::{clocked, tmp_root_with_carts};
 use omega_gfx::{out_h, out_w, Compositor, HeadlessSurface};
 use omega_input::{Btn, InputSource, Millis, RawEvent};
 use omega_power::SimPlatform;
+use omega_store::{read_app_state, write_app_state, BackdropStyle};
 use omega_ui::{quick_rows_shown, quick_top, quick_window, stage_x, SettingsRow, QUICK_PITCH};
 use omega_zero::frontend::Frontend;
 
@@ -36,7 +37,9 @@ fn inked(px: &[u8], xs: std::ops::Range<usize>, top: usize) -> Vec<usize> {
         .collect()
 }
 
+/// The frame once the screen has slid into place.
 fn composed(f: &mut Frontend, c: &mut Compositor, name: &str) -> Vec<u8> {
+    f.app_mut().finish_slide();
     f.compose(c);
     let px = c.read_frame();
     if let Ok(dir) = std::env::var("SCRATCH_PNG_DIR") {
@@ -64,13 +67,16 @@ fn settings_renders_full_screen() {
     };
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     clocked(d.path());
+    solid(d.path(), 0);
     let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
     f.upload_faces(&mut c);
     let mut input = Script(VecDeque::new());
     tap(&mut f, &mut input, Btn::Start);
 
     let bar = [0x4d, 0x4d, 0x57];
-    let ground = [0x05, 0x05, 0x08];
+    // a plain backdrop seen through the plate, wherever the list draws nothing
+    let ground = at(&composed(&mut f, &mut c, "ground"), 2, out_h() as usize - 2);
+    assert_ne!(ground, bar, "the ground is the bar's colour");
     let mut bar_on = SettingsRow::ALL[0];
     let (n, mut first) = (SettingsRow::ALL.len(), 0);
     let shown = quick_rows_shown(n);
@@ -102,7 +108,7 @@ fn settings_renders_full_screen() {
             "{name}: the bar is not inset"
         );
         assert_eq!(
-            at(&px, 2, out_h() as usize - 2),
+            at(&px, out_w() as usize - 2, 2),
             ground,
             "{name}: not on the ground"
         );
@@ -142,6 +148,62 @@ fn settings_renders_full_screen() {
             298 + (out_h() as usize - 480) / 2
         ) == [0xf6, 0xf4, 0xef]),
         "the clock from the menu does not offer B BACK"
+    );
+}
+
+/// Sets the card's background to the plain colour `colour`.
+fn solid(root: &std::path::Path, colour: u8) {
+    let mut s = read_app_state(root);
+    s.backdrop = Some(BackdropStyle::Solid);
+    s.backdrop_colour = colour;
+    write_app_state(root, &s).expect("write omega-zero.state");
+}
+
+/// Settings over a card whose background is the plain colour `colour`.
+fn settings_over(colour: u8, c: &mut Compositor) -> Vec<u8> {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    clocked(d.path());
+    solid(d.path(), colour);
+    let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
+    f.upload_faces(c);
+    let mut input = Script(VecDeque::new());
+    tap(&mut f, &mut input, Btn::Start);
+    assert!(f.app().settings_row().is_some(), "START opened no Settings");
+    composed(&mut f, c, &format!("over-{colour}"))
+}
+
+#[test]
+fn the_background_shows_through_under_settings() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    // slate and crimson, neither of them the night the quick menu's opaque ground was
+    let (slate, crimson) = (settings_over(1, &mut c), settings_over(6, &mut c));
+    let opaque = [0x05, 0x05, 0x08];
+    for (x, y) in [
+        (2, 2),
+        (out_w() as usize - 2, out_h() as usize - 2),
+        (2, out_h() as usize - 2),
+    ] {
+        assert_ne!(
+            at(&slate, x, y),
+            opaque,
+            "the menu still hides the background at ({x}, {y})"
+        );
+        assert_ne!(
+            at(&slate, x, y),
+            at(&crimson, x, y),
+            "the menu looks the same over two backgrounds at ({x}, {y})"
+        );
+    }
+    let [r, g, b] = at(&crimson, 2, out_h() as usize - 2);
+    assert!(
+        r > g && r > b,
+        "crimson does not show through the plate: {:?}",
+        [r, g, b]
     );
 }
 

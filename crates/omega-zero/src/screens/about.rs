@@ -4,13 +4,17 @@ use omega_input::{Action, Btn};
 use omega_ui::{draw_sticker, Draw, SettingsRow, TexId};
 
 use crate::app::{App, Phase};
+use crate::nav::Dir;
 
 impl App {
     pub(crate) fn about_input(&mut self, action: Action) {
         if action == Action::GbaDown(Btn::B) || action == Action::QuickMenu {
-            self.phase = Phase::Settings {
-                row: SettingsRow::About,
-            }
+            self.go(
+                Phase::Settings {
+                    row: SettingsRow::About,
+                },
+                Dir::Back,
+            )
         }
     }
 
@@ -19,7 +23,6 @@ impl App {
     }
 
     pub(crate) fn draw_about(&self, out: &mut Vec<Draw>) {
-        self.draw_background(out);
         draw_sticker(self.sticker_face, out);
     }
 }

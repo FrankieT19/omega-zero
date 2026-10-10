@@ -43,6 +43,7 @@ mod link_start;
 mod link_ui;
 mod mgba_gb_link;
 mod mgba_link;
+mod nav;
 mod platform;
 mod play;
 mod polaroids;

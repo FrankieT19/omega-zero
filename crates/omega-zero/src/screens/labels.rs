@@ -7,6 +7,7 @@ use omega_ui::{Draw, SettingsRow, WifiMenuFaces};
 use crate::app::{App, Phase};
 use crate::label_screen::Outcome as LabelsOutcome;
 use crate::list_view::ListView;
+use crate::nav::Dir;
 
 impl App {
     pub(crate) fn labels_input(&mut self, action: Action) {
@@ -14,12 +15,22 @@ impl App {
         let Phase::Labels(screen) = &mut self.phase else {
             return;
         };
-        match screen.input(&mut self.labels, action, root.as_deref()) {
-            LabelsOutcome::Close => {
-                self.phase = Phase::Settings {
+        let before = screen.clone();
+        let outcome = screen.input(&mut self.labels, action, root.as_deref());
+        // the keyboard slides in over the list and away again; from the user name to the
+        // password it stays where it is
+        match (before.typing.is_some(), screen.typing.is_some()) {
+            (false, true) => self.slide_from(Phase::Labels(before), Dir::Deeper),
+            (true, false) => self.slide_from(Phase::Labels(before), Dir::Back),
+            _ => {}
+        }
+        match outcome {
+            LabelsOutcome::Close => self.go(
+                Phase::Settings {
                     row: SettingsRow::Labels,
-                }
-            }
+                },
+                Dir::Back,
+            ),
             LabelsOutcome::Sync if self.online() => {
                 let wants = self.label_wants();
                 self.labels.start(wants);
@@ -44,7 +55,7 @@ impl App {
 
     pub(crate) fn draw_labels(&self, out: &mut Vec<Draw>) {
         if let Some(faces) = &self.labels_faces {
-            faces.draw(out);
+            faces.draw_over(out);
         }
     }
 }

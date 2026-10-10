@@ -47,6 +47,7 @@ fn open_at(a: &mut App, row: SettingsRow) {
         press(a, Btn::Down);
     }
     assert_eq!(a.settings_row(), Some(row), "the bar never reached {row:?}");
+    a.finish_slide();
 }
 
 #[test]
@@ -439,6 +440,7 @@ fn the_legend_says_change_on_a_value_row_and_open_on_a_row_that_opens() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
     press(&mut a, Btn::Start);
+    a.finish_slide();
     for row in SettingsRow::ALL {
         assert_eq!(a.settings_row(), Some(row));
         let out = frame(&a);
@@ -454,6 +456,7 @@ fn the_arrows_stand_only_around_the_selected_rows_value() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
     press(&mut a, Btn::Start);
+    a.finish_slide();
     let out = frame(&a);
     assert!(
         drawn(&out, 300) && drawn(&out, 301),
@@ -493,6 +496,7 @@ fn the_bar_runs_edge_to_edge_behind_the_selected_row() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
     press(&mut a, Btn::Start);
+    a.finish_slide();
     let n = SettingsRow::ALL.len();
     let mut first = 0;
     for row in SettingsRow::ALL {
@@ -523,6 +527,7 @@ fn the_rows_out_of_view_are_not_drawn_and_scroll_in_with_the_bar() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
     press(&mut a, Btn::Start);
+    a.finish_slide();
     let shown = quick_rows_shown(SettingsRow::ALL.len());
     let label = |row: SettingsRow| 100 + row.index();
     let out = frame(&a);
@@ -551,6 +556,7 @@ fn labels_start_and_values_end_thirty_two_pixels_in() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
     press(&mut a, Btn::Start);
+    a.finish_slide();
     let out = frame(&a);
     let right = out_w() as f32 - QUICK_EDGE;
     let shown = quick_rows_shown(SettingsRow::ALL.len());
@@ -571,6 +577,7 @@ fn only_the_clock_from_the_menu_offers_b_back() {
     a.set_clock_faces(TexId::from_raw(600), TexId::from_raw(601));
     open_at(&mut a, SettingsRow::DateTime);
     press(&mut a, Btn::A);
+    a.finish_slide();
     let out = frame(&a);
     assert!(drawn(&out, 601), "the clock lost its own key");
     assert!(

@@ -12,7 +12,6 @@ const YEAR_MIN: i64 = 2000;
 const YEAR_MAX: i64 = 2099;
 
 const INK: [u8; 3] = [0xf6, 0xf4, 0xef];
-const BACKDROP: [f32; 4] = [0.06, 0.06, 0.07, 1.0];
 
 const OFFSET_STEP: i64 = 30;
 
@@ -237,13 +236,6 @@ impl ClockPicker {
         back: Option<(TexId, u32)>,
         out: &mut Vec<Draw>,
     ) {
-        out.push(Draw::Rect {
-            x: 0.0,
-            y: 0.0,
-            w: out_w() as f32,
-            h: out_h() as f32,
-            colour: BACKDROP,
-        });
         let w = picker_w() as f32;
         let x = (out_w() as f32 - w) / 2.0;
         let y = (out_h() as f32 - PICKER_H as f32) / 2.0 - HINT_DROP / 2.0;

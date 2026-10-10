@@ -6,6 +6,7 @@ use omega_ui::{Draw, SettingsRow, WifiMenuFaces};
 
 use crate::app::{App, Phase};
 use crate::list_view::ListView;
+use crate::nav::Dir;
 use crate::wifi_screen::{Outcome as WifiOutcome, Typing};
 
 impl App {
@@ -14,12 +15,21 @@ impl App {
         let Phase::Network(screen) = &mut self.phase else {
             return;
         };
-        match screen.input(&mut self.wifi, action, now) {
-            WifiOutcome::Close => {
-                self.phase = Phase::Settings {
+        let before = screen.clone();
+        let outcome = screen.input(&mut self.wifi, action, now);
+        // the passphrase's keyboard slides in over the list and away again
+        match (before.typing.is_some(), screen.typing.is_some()) {
+            (false, true) => self.slide_from(Phase::Network(before), Dir::Deeper),
+            (true, false) => self.slide_from(Phase::Network(before), Dir::Back),
+            _ => {}
+        }
+        match outcome {
+            WifiOutcome::Close => self.go(
+                Phase::Settings {
                     row: SettingsRow::Network,
-                }
-            }
+                },
+                Dir::Back,
+            ),
             WifiOutcome::Ssh => self.open_ssh(),
             WifiOutcome::Stay => {}
         }
@@ -51,7 +61,7 @@ impl App {
 
     pub(crate) fn draw_network(&self, out: &mut Vec<Draw>) {
         if let Some(faces) = &self.network_faces {
-            faces.draw(out);
+            faces.draw_over(out);
         }
     }
 }

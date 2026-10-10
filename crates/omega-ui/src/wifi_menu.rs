@@ -2,12 +2,12 @@
 //! network time and whose others are the networks in reach, with two lines under it saying
 //! how the handheld is connected.
 
-use crate::draw::{out_h, out_w, Draw, TexId};
+use crate::draw::{out_w, Draw, TexId};
 use crate::icon::symbols_font;
 use crate::plate::{centred_hints, UndoFace, HINT_H, LEGEND_GAP};
 use crate::power_menu::{MENU_H, MENU_INK, MENU_PAD};
 use crate::quick_menu::{QUICK_EDGE, QUICK_PITCH};
-use crate::slot_chrome::{edge, opening};
+use crate::slot_chrome::edge;
 use crate::stage::stage_y;
 use crate::text;
 
@@ -168,18 +168,8 @@ pub struct WifiMenuFaces {
 }
 
 impl WifiMenuFaces {
-    pub fn draw(&self, out: &mut Vec<Draw>) {
-        out.push(Draw::Rect {
-            x: 0.0,
-            y: 0.0,
-            w: out_w() as f32,
-            h: out_h() as f32,
-            colour: opening(),
-        });
-        self.draw_over(out);
-    }
-
-    /// The list over whatever is already drawn, such as the background it is choosing.
+    /// The list over whatever is already drawn: the backdrop, under every menu, which the
+    /// Background screen's list stands over to show what it is choosing.
     pub fn draw_over(&self, out: &mut Vec<Draw>) {
         if let Some(lit) = self.lit {
             out.push(Draw::Rect {

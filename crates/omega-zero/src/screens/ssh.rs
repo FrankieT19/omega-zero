@@ -8,6 +8,7 @@ use omega_ui::{Draw, WifiMenuFaces};
 
 use crate::app::{App, Phase};
 use crate::list_view::{LegendHint, ListView, RowLabel, RowValue, ViewRow};
+use crate::nav::Dir;
 use crate::wifi::Status;
 use crate::wifi_screen::{Sel as WifiSel, WifiScreen};
 
@@ -128,15 +129,16 @@ impl SshView {
 impl App {
     pub(crate) fn open_ssh(&mut self) {
         let password = read_ssh_password(self.root.as_deref());
-        self.phase = Phase::Ssh(SshScreen { password });
+        self.go(Phase::Ssh(SshScreen { password }), Dir::Deeper);
     }
 
     pub(crate) fn ssh_input(&mut self, action: Action) {
         if matches!(action, Action::GbaDown(Btn::B) | Action::QuickMenu) {
-            self.phase = Phase::Network(WifiScreen {
+            let back = Phase::Network(WifiScreen {
                 sel: WifiSel::Ssh,
                 ..WifiScreen::default()
             });
+            self.go(back, Dir::Back);
         }
     }
 
@@ -154,7 +156,7 @@ impl App {
 
     pub(crate) fn draw_ssh(&self, out: &mut Vec<Draw>) {
         if let Some(faces) = &self.ssh_faces {
-            faces.draw(out);
+            faces.draw_over(out);
         }
     }
 }

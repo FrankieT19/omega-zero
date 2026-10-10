@@ -7,6 +7,7 @@ use omega_ui::{Draw, SettingsRow, WifiMenuFaces};
 use crate::app::{App, Phase};
 use crate::background_screen::Outcome as BackgroundOutcome;
 use crate::list_view::ListView;
+use crate::nav::Dir;
 
 impl App {
     pub(crate) fn background_input(&mut self, action: Action) {
@@ -15,11 +16,12 @@ impl App {
             return;
         };
         match screen.input(look, wallpaper, action) {
-            BackgroundOutcome::Close => {
-                self.phase = Phase::Settings {
+            BackgroundOutcome::Close => self.go(
+                Phase::Settings {
                     row: SettingsRow::Background,
-                }
-            }
+                },
+                Dir::Back,
+            ),
             BackgroundOutcome::Changed(b) => {
                 self.state.backdrop = Some(b.style);
                 self.state.backdrop_moving = b.moving;
@@ -44,8 +46,8 @@ impl App {
         self.background_faces = Some(faces);
     }
 
+    /// The list, over the background drawn under every screen.
     pub(crate) fn draw_background_screen(&self, out: &mut Vec<Draw>) {
-        self.draw_background(out);
         if let Some(faces) = &self.background_faces {
             faces.draw_over(out);
         }

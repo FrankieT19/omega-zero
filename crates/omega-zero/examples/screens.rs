@@ -447,6 +447,17 @@ fn still_frame() -> Vec<u8> {
     xrgb
 }
 
+/// The canvas as the panel shows it. Its alpha is what blending left there, which the panel
+/// never shows: a translucent plate over the backdrop would come out looking pale in a
+/// picture viewer, so every pixel is written opaque.
+fn panel_frame(compositor: &Compositor) -> Vec<u8> {
+    let mut rgba = compositor.read_frame();
+    for px in rgba.chunks_exact_mut(4) {
+        px[3] = 0xff;
+    }
+    rgba
+}
+
 fn write_png(path: &Path, rgba: &[u8]) {
     let file = std::fs::File::create(path).expect("create the png");
     let mut e = png::Encoder::new(std::io::BufWriter::new(file), out_w(), out_h());
@@ -542,7 +553,7 @@ fn main() {
             Step::Frames(name, n) => {
                 for i in 0..n {
                     tick(&mut frontend, &mut compositor, &mut input, &mut frame);
-                    let rgba = compositor.read_frame();
+                    let rgba = panel_frame(&compositor);
                     write_png(&out.join(format!("{name}-{i:03}.png")), &rgba);
                 }
             }
@@ -560,7 +571,7 @@ fn main() {
                 settle(&mut frontend, &mut compositor);
                 compositor.upload_game(&still_frame());
                 frontend.compose(&mut compositor);
-                let rgba = compositor.read_frame();
+                let rgba = panel_frame(&compositor);
                 write_png(&out.join(format!("{name}.png")), &rgba);
                 if let (Some(baseline), true) = (&baseline, shots.contains(&name)) {
                     if let Err(e) = compare(&name, &rgba, baseline) {
@@ -585,7 +596,7 @@ fn main() {
                 compositor.set_screen_power(power);
                 compositor.begin_frame();
                 compositor.draw_list(&[Draw::Game]);
-                let rgba = compositor.read_frame();
+                let rgba = panel_frame(&compositor);
                 write_png(&out.join(format!("{name}.png")), &rgba);
                 if let Some(baseline) = &baseline {
                     if let Err(e) = compare(&name, &rgba, baseline) {
