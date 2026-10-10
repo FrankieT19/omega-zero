@@ -52,6 +52,7 @@ mod polaroids;
 mod power;
 mod refusal;
 mod render;
+mod render_bar;
 mod render_colour_correction;
 mod render_gb_palette;
 mod render_keyboard;
