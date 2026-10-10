@@ -83,7 +83,7 @@ fn select_chords_map_to_all_four_axes() {
 fn a_select_tap_reaches_the_game_on_its_release() {
     let mut g = Gestures::new();
     assert!(g.feed(Down(Select), 0).is_empty());
-    assert_eq!(g.feed(Up(Select), 80), vec![GbaDown(Select)]);
+    assert_eq!(g.feed(Up(Select), 80), vec![GbaDown(Select), SelectTap]);
     assert!(g.tick(80 + SELECT_TAP_MS - 1).is_empty());
     assert_eq!(g.tick(80 + SELECT_TAP_MS), vec![GbaUp(Select)]);
     assert!(g.tick(5_000).is_empty());
@@ -264,13 +264,55 @@ fn a_chord_landing_late_is_still_a_chord() {
 fn a_select_tap_too_short_to_be_polled_is_held_on_to() {
     let mut g = Gestures::new();
     assert!(g.feed(Down(Select), 0).is_empty());
-    assert_eq!(g.feed(Up(Select), 20), vec![GbaDown(Select)]);
+    assert_eq!(g.feed(Up(Select), 20), vec![GbaDown(Select), SelectTap]);
     assert!(g.tick(20 + SELECT_TAP_MS - 1).is_empty());
     assert_eq!(g.tick(20 + SELECT_TAP_MS), vec![GbaUp(Select)]);
     assert!(
         g.tick(5_000).is_empty(),
         "the release was handed over twice"
     );
+}
+
+/// Every action a press and release of SELECT alone hands on, from its press at 0 until well
+/// after it is let go at `up`.
+fn lone_select(up: u64) -> Vec<omega_input::Action> {
+    let mut g = Gestures::new();
+    let mut log = g.feed(Down(Select), 0);
+    for t in 1..up {
+        log.extend(g.tick(t));
+    }
+    log.extend(g.feed(Up(Select), up));
+    for t in up..up + 1_000 {
+        log.extend(g.tick(t));
+    }
+    log
+}
+
+#[test]
+fn a_lone_select_tap_says_it_was_tapped_once() {
+    let log = lone_select(80);
+    assert_eq!(log, vec![GbaDown(Select), SelectTap, GbaUp(Select)]);
+}
+
+#[test]
+fn a_select_held_past_the_chord_window_is_not_a_tap() {
+    let log = lone_select(SELECT_CHORD_MS + 200);
+    assert!(
+        !log.contains(&SelectTap),
+        "a held SELECT was taken for a tap: {log:?}"
+    );
+    assert_eq!(log, vec![GbaDown(Select), GbaUp(Select)]);
+}
+
+#[test]
+fn a_select_chord_is_not_a_tap() {
+    let mut g = Gestures::new();
+    let mut log = g.feed(Down(Select), 0);
+    log.extend(g.feed(Down(Btn::Up), 50));
+    log.extend(g.feed(Up(Btn::Up), 90));
+    log.extend(g.feed(Up(Select), 120));
+    log.extend(g.tick(5_000));
+    assert_eq!(log, vec![BrightnessUp], "SELECT+Up was taken for a tap");
 }
 
 #[test]

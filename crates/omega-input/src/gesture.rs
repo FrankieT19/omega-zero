@@ -35,6 +35,10 @@ pub enum Action {
     VolumeUp,
     VolumeDown,
     QuickMenu,
+    /// SELECT pressed and let go on its own, before it could become a chord. It comes after
+    /// the `GbaDown(Select)` the tap also hands the game, and is never sent for a SELECT held
+    /// past the chord window.
+    SelectTap,
     GameMenu,
     MuteToggle,
     ColourCorrectionToggle,
@@ -262,7 +266,7 @@ impl Gestures {
             (None, true) => Vec::new(),
             (None, false) => {
                 self.select = Select::ReleaseDue(now + SELECT_TAP_MS);
-                vec![Action::GbaDown(Btn::Select)]
+                vec![Action::GbaDown(Btn::Select), Action::SelectTap]
             }
         }
     }
