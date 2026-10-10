@@ -159,12 +159,10 @@ fn a_shelf_of_one_does_not_move_when_a_shoulder_is_held() {
         "the lone cart is not standing centred at its own width even before the press"
     );
     for (f, (px, still)) in frames.iter().zip(&alone).enumerate() {
-        assert!(
-            px == still,
-            "frame {f}: holding the shoulder moved the lone cart to {:?}, where left alone it \
-             stands at {:?}",
+        assert_eq!(
             bare_edges(px),
-            bare_edges(still)
+            bare_edges(still),
+            "frame {f}: holding the shoulder moved the lone cart from where it stands left alone"
         );
     }
 }
