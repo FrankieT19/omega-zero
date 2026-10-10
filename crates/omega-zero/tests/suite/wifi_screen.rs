@@ -5,11 +5,11 @@ use std::sync::{Arc, Mutex};
 use common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 use omega_input::{Action, Btn, Millis};
 use omega_store::{read_app_state, write_app_state, AppState};
+use omega_ui::network::networks_shown;
 use omega_ui::SettingsRow;
 use omega_zero::app::{App, Phase};
-use omega_zero::list_view::RowLabel;
 use omega_zero::wifi::{Saved, Seen, Status, WifiJob, WifiJobs, WifiNews, JOIN_TIMEOUT_MS};
-use omega_zero::wifi_screen::{Sel, Summary};
+use omega_zero::wifi_screen::{Lit, NetworkLine, NetworkView, Sel, SettingLine, Summary};
 use tempfile::TempDir;
 
 #[derive(Default)]
@@ -173,9 +173,39 @@ impl Rig {
         self.a.typing().map(|t| t.keys.text.clone())
     }
 
-    fn status(&mut self) -> Vec<String> {
-        self.a.network_view().expect("the list is showing").status
+    fn view(&mut self) -> NetworkView {
+        self.a.network_view().expect("the Network modal is showing")
     }
+
+    fn status(&mut self) -> Vec<String> {
+        self.view().notes
+    }
+
+    /// The labels of NETWORK's rows, top first.
+    fn settings(&mut self) -> Vec<&'static str> {
+        self.view().settings.iter().map(|s| s.label).collect()
+    }
+
+    /// The names of the networks in view, top first.
+    fn names(&mut self) -> Vec<String> {
+        self.view().networks.into_iter().map(|n| n.name).collect()
+    }
+
+    /// The network's name under the cursor, when it is on one.
+    fn lit_name(&mut self) -> Option<String> {
+        let view = self.view();
+        match view.lit {
+            Lit::Network(i) => Some(view.networks[i].name.clone()),
+            Lit::Setting(_) => None,
+        }
+    }
+}
+
+/// `n` networks in reach, the first strongest, all locked.
+fn many(n: usize) -> Vec<(String, i32, bool)> {
+    (0..n)
+        .map(|i| (format!("Net {i:02}"), -40 - i as i32, true))
+        .collect()
 }
 
 fn joined(ssid: &str, ip: Option<&str>) -> WifiNews {
@@ -404,27 +434,183 @@ fn a_saved_network_is_joined_by_its_id_and_y_forgets_it() {
 fn a_saved_network_out_of_reach_is_still_listed_to_be_forgotten() {
     let mut r = Rig::new();
     r.on_with(&[("Home", -48, true)], &[(5, "Cabin")]);
-    let view = r.a.network_view().unwrap();
-    let labels: Vec<_> = view.rows.iter().map(|row| row.label.clone()).collect();
+    assert_eq!(r.names(), ["Home", "Cabin"]);
+    let cabin = r.view().networks[1].clone();
     assert_eq!(
-        labels,
-        [
-            RowLabel::Setting("Wi-Fi"),
-            RowLabel::Setting("Network Time"),
-            RowLabel::Setting("SSH"),
-            RowLabel::Name("Home".into()),
-            RowLabel::Name("Cabin".into()),
-        ]
+        cabin,
+        NetworkLine {
+            name: "Cabin".into(),
+            value: Some("SAVED"),
+            signal: None,
+            lock: false,
+        },
+        "an absent network showed a signal"
     );
-    let cabin = view
-        .rows
-        .iter()
-        .find(|row| row.label == RowLabel::Name("Cabin".into()))
-        .unwrap();
-    assert_eq!(cabin.signal, None, "an absent network showed a signal");
     r.go_to("Cabin");
+    assert!(r.a.network_forgets(), "the bar would not offer Y FORGET");
     r.press(Btn::Y);
     assert_eq!(r.radio.asked(), [WifiJob::Forget(5)]);
+}
+
+#[test]
+fn network_holds_wifi_and_only_with_it_on_network_time_and_ssh() {
+    let mut r = Rig::new();
+    r.open_wifi();
+    assert_eq!(r.settings(), ["WI-FI"]);
+    assert_eq!(
+        r.view().settings[0],
+        SettingLine {
+            label: "WI-FI",
+            value: Some("OFF"),
+            carets: true,
+            opens: false,
+        }
+    );
+    assert!(r.names().is_empty(), "networks listed with Wi-Fi off");
+    assert_eq!(r.status(), ["Wi-Fi is off."]);
+    assert_eq!(r.view().lit, Lit::Setting(0));
+
+    let mut r = Rig::new();
+    r.on_with(&[("Home", -48, true)], &[]);
+    assert_eq!(r.settings(), ["WI-FI", "NETWORK TIME", "SSH"]);
+    let view = r.view();
+    assert_eq!(view.settings[0].value, Some("ON"));
+    let ntp = if r.a.wifi().ntp() { "ON" } else { "OFF" };
+    assert_eq!(view.settings[1].value, Some(ntp), "{:?}", view.settings[1]);
+    assert!(view.settings[1].carets && !view.settings[1].opens);
+    assert_eq!(view.settings[2].value, None);
+    assert!(view.settings[2].opens && !view.settings[2].carets);
+
+    r.press(Btn::Down);
+    r.press(Btn::Down);
+    assert_eq!(r.view().lit, Lit::Setting(2), "SSH");
+    r.press(Btn::Down);
+    assert_eq!(r.view().lit, Lit::Network(0), "the first network");
+    assert!(
+        !r.a.network_forgets(),
+        "Y FORGET offered on a network never saved"
+    );
+    r.press(Btn::Up);
+    r.press(Btn::Up);
+    r.press(Btn::Up);
+    r.press(Btn::Left);
+    assert_eq!(r.settings(), ["WI-FI"], "Wi-Fi off kept its other rows");
+}
+
+#[test]
+fn the_networks_list_the_joined_one_then_by_signal_then_the_saved_out_of_reach() {
+    let mut r = Rig::new();
+    r.on_with(
+        &[
+            ("Upstairs 5G", -45, true),
+            ("Café Wi-Fi", -60, false),
+            ("Home", -70, true),
+            ("Attic", -90, true),
+        ],
+        &[(1, "Home"), (2, "Cabin")],
+    );
+    r.radio.say(joined("Home", Some("192.168.1.20")));
+    r.tick(16);
+    let line = |name: &str, value, signal, lock| NetworkLine {
+        name: name.into(),
+        value,
+        signal,
+        lock,
+    };
+    assert_eq!(
+        r.view().networks,
+        [
+            line("Home", Some("CONNECTED"), Some(1), true),
+            line("Upstairs 5G", None, Some(3), true),
+            line("Café Wi-Fi", None, Some(2), false),
+            line("Attic", None, Some(0), true),
+            line("Cabin", Some("SAVED"), None, false),
+        ],
+        "the name keeps its case, accent and all"
+    );
+    assert_eq!(
+        r.status(),
+        Vec::<String>::new(),
+        "joined and addressed, a note still said something: SSH has the address"
+    );
+}
+
+#[test]
+fn a_list_longer_than_its_panel_scrolls_a_whole_row_at_a_time() {
+    let mut r = Rig::new();
+    let nets = many(30);
+    let nets: Vec<(&str, i32, bool)> = nets.iter().map(|(s, d, l)| (s.as_str(), *d, *l)).collect();
+    r.on_with(&nets, &[]);
+    let shown = networks_shown(3, r.status().len());
+    assert!(shown < 30, "the panel holds all {shown}");
+    assert_eq!(r.names().len(), shown, "the panel is not full");
+    assert_eq!(r.names()[0], "Net 00");
+
+    // down to the last network in view: the list stays
+    r.go_to(&format!("Net {:02}", shown - 1));
+    assert_eq!(r.names()[0], "Net 00");
+    assert_eq!(r.view().lit, Lit::Network(shown - 1));
+    // one more: the list moves up a row, the cursor on the bottom one
+    r.press(Btn::Down);
+    assert_eq!(r.names()[0], "Net 01");
+    assert_eq!(r.lit_name().as_deref(), Some(&*format!("Net {shown:02}")));
+    assert_eq!(r.view().lit, Lit::Network(shown - 1));
+    assert_eq!(r.names().len(), shown);
+    // and back up: it moves only once the cursor passes its top
+    for _ in 0..shown - 1 {
+        r.press(Btn::Up);
+    }
+    assert_eq!(r.names()[0], "Net 01");
+    assert_eq!(r.view().lit, Lit::Network(0));
+    r.press(Btn::Up);
+    assert_eq!(r.names()[0], "Net 00");
+    assert_eq!(r.view().lit, Lit::Network(0));
+
+    // up from Wi-Fi goes round to the last network, the list at its end
+    r.press(Btn::Up);
+    r.press(Btn::Up);
+    r.press(Btn::Up);
+    r.press(Btn::Up);
+    assert_eq!(r.view().lit, Lit::Network(shown - 1));
+    assert_eq!(r.lit_name().as_deref(), Some("Net 29"));
+    assert_eq!(r.names()[0], format!("Net {:02}", 30 - shown));
+    // down from there goes round to Wi-Fi, and the list stays where it was
+    r.press(Btn::Down);
+    assert_eq!(r.view().lit, Lit::Setting(0));
+    assert_eq!(r.names()[0], format!("Net {:02}", 30 - shown));
+}
+
+#[test]
+fn with_nothing_heard_yet_it_says_it_is_looking() {
+    let mut r = Rig::new();
+    r.on_with(&[], &[]);
+    assert_eq!(r.status(), ["Looking for networks…"]);
+    r.radio.say(WifiNews::Seen(vec![Seen {
+        ssid: b"Home".to_vec(),
+        rssi: -50,
+        secured: true,
+    }]));
+    r.tick(16);
+    assert_eq!(r.status(), ["Not connected. Pick a network to join."]);
+}
+
+#[test]
+fn a_long_name_is_cut_short_in_a_note() {
+    let mut r = Rig::new();
+    let long = "The network with the very long name upstairs";
+    r.on_with(&[(long, -60, false)], &[]);
+    r.go_to(long);
+    r.press(Btn::A);
+    r.tick(JOIN_TIMEOUT_MS * 2);
+    let notes = r.status();
+    assert_eq!(notes.len(), 1);
+    assert!(notes[0].starts_with("Could not join The network with") && notes[0].ends_with("…."));
+    assert!(
+        notes[0].chars().count() <= 43,
+        "{:?} is wider than the list's panel at 640x480",
+        notes[0]
+    );
+    assert_eq!(r.names(), [long], "the list cut the name; its row cuts it");
 }
 
 #[test]
@@ -469,20 +655,19 @@ fn a_join_that_never_finishes_gives_up() {
 }
 
 #[test]
-fn joined_it_says_where_to_reach_it_over_ssh() {
+fn joined_it_waits_for_an_address_then_leaves_it_to_ssh() {
     let mut r = Rig::new();
     r.on_with(&[("Home", -48, true)], &[(0, "Home")]);
     r.radio.say(joined("Home", None));
     r.tick(16);
-    assert_eq!(r.status(), ["Joined Home.", "Waiting for an address…"]);
+    assert_eq!(r.status(), ["Waiting for an address…"]);
+    assert_eq!(r.view().networks[0].value, Some("CONNECTED"));
     r.radio.say(joined("Home", Some("192.168.1.20")));
     r.tick(16);
-    assert_eq!(
-        r.status(),
-        [
-            "Connected to Home as 192.168.1.20",
-            "SSH and SFTP: root@rg35xxsp.local"
-        ]
+    assert!(
+        r.status().is_empty(),
+        "the address is SSH's to say: {:?}",
+        r.status()
     );
     assert_eq!(r.a.wifi_summary(), Summary::Joined("Home".into()));
 }
@@ -530,9 +715,8 @@ fn the_cursor_stays_on_its_network_when_a_scan_reorders_the_list() {
         },
     ]));
     r.tick(16);
-    let view = r.a.network_view().unwrap();
-    let lit = view.lit.unwrap();
-    assert_eq!(view.rows[lit].label, RowLabel::Name("Far".into()));
+    assert_eq!(r.lit_name().as_deref(), Some("Far"));
+    assert_eq!(r.names(), ["Far", "Near"]);
     r.press(Btn::A);
     assert!(
         r.a.network_typing().is_some_and(|t| t.ssid == b"Far"),

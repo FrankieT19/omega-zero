@@ -4,10 +4,10 @@
 use std::path::Path;
 
 use omega_input::{Action, Btn};
-use omega_ui::{Draw, WifiMenuFaces};
+use omega_ui::network::SshFaces;
+use omega_ui::Draw;
 
 use crate::app::{App, Phase};
-use crate::list_view::{LegendHint, ListView, RowLabel, RowValue, ViewRow};
 use crate::nav::Dir;
 use crate::wifi::Status;
 use crate::wifi_screen::{Sel as WifiSel, WifiScreen};
@@ -96,32 +96,12 @@ impl SshScreen {
         SshView {
             lines: vec![
                 ("IP", ip.clone()),
-                ("Host", host),
-                ("User", "root".to_string()),
-                ("Password", self.password.clone()),
-                ("Port", SSH_PORT.to_string()),
+                ("HOST", host),
+                ("USER", "root".to_string()),
+                ("PASSWORD", self.password.clone()),
+                ("PORT", SSH_PORT.to_string()),
             ],
-            note: "SFTP uses the same login.",
-        }
-    }
-}
-
-impl SshView {
-    /// The view as a list, for the list faces the other screens are drawn with.
-    pub fn list(&self) -> ListView {
-        ListView {
-            rows: self
-                .lines
-                .iter()
-                .map(|(label, value)| ViewRow {
-                    label: RowLabel::Setting(label),
-                    value: Some(RowValue::Name(value.clone())),
-                    signal: None,
-                })
-                .collect(),
-            lit: None,
-            status: vec![self.note.to_string()],
-            legend: vec![LegendHint::Back],
+            note: "SFTP uses the same login",
         }
     }
 }
@@ -150,13 +130,13 @@ impl App {
         }
     }
 
-    pub fn set_ssh_faces(&mut self, faces: WifiMenuFaces) {
+    pub fn set_ssh_faces(&mut self, faces: SshFaces) {
         self.ssh_faces = Some(faces);
     }
 
     pub(crate) fn draw_ssh(&self, out: &mut Vec<Draw>) {
         if let Some(faces) = &self.ssh_faces {
-            faces.draw_over(out);
+            faces.draw(out);
         }
     }
 }
