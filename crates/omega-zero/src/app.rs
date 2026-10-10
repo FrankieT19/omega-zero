@@ -302,6 +302,16 @@ pub enum Phase {
     },
 }
 
+/// What a bar across the top prints beside its icons: the time, the battery's figure, and the
+/// bolt shown while the handheld charges. The shelf's top bar and the switcher each have their
+/// own, baked in their own ink.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Readouts {
+    pub clock: omega_ui::Printed,
+    pub percent: omega_ui::Printed,
+    pub bolt: Option<TexId>,
+}
+
 pub struct App {
     pub(crate) phase: Phase,
     pub(crate) shelves: Vec<(Platform, Shelf)>,
@@ -361,13 +371,14 @@ pub struct App {
     pub(crate) settings_faces: Option<SettingsFaces>,
     pub(crate) sticker_face: Option<TexId>,
     pub(crate) wallpaper: Option<TexId>,
-    pub(crate) battery_percent: omega_ui::Printed,
-    pub(crate) bolt: Option<TexId>,
+    /// The top bar's clock, figure and bolt, baked in its ink.
+    pub(crate) top_readouts: Readouts,
+    /// The switcher's, which keep the white they have over the game.
+    pub(crate) switcher_readouts: Readouts,
     pub(crate) shelf_platform: omega_ui::Printed,
     pub(crate) name_pending: bool,
     pub(crate) slot_letter: Option<char>,
     pub(crate) shelf_named: Option<Millis>,
-    pub(crate) shelf_clock: omega_ui::Printed,
     pub(crate) hud: Hud,
     pub(crate) screen: f32,
     pub(crate) game_ready: bool,
@@ -502,13 +513,12 @@ impl App {
             settings_faces: None,
             sticker_face: None,
             wallpaper: None,
-            battery_percent: omega_ui::Printed::default(),
-            bolt: None,
+            top_readouts: Readouts::default(),
+            switcher_readouts: Readouts::default(),
             shelf_platform: omega_ui::Printed::default(),
             name_pending: false,
             slot_letter: None,
             shelf_named: None,
-            shelf_clock: omega_ui::Printed::default(),
             hud: Hud::new(),
             screen: 0.0,
             game_ready: false,
@@ -705,8 +715,14 @@ impl App {
         }
     }
 
-    pub fn set_bolt_face(&mut self, bolt: TexId) {
-        self.bolt = Some(bolt);
+    /// The top bar's clock, figure and bolt, baked in `chrome_colours().ink`.
+    pub fn set_top_readouts(&mut self, readouts: Readouts) {
+        self.top_readouts = readouts;
+    }
+
+    /// The switcher's clock, figure and bolt, in white.
+    pub fn set_switcher_readouts(&mut self, readouts: Readouts) {
+        self.switcher_readouts = readouts;
     }
 
     pub fn set_shelf_platform_face(&mut self, face: TexId, w: u32) {
@@ -727,14 +743,6 @@ impl App {
     pub fn shelf_platform_name(&self) -> Option<&'static str> {
         self.next_shelf(1)?;
         Some(self.shelves[self.shelf_at].0.name())
-    }
-
-    pub fn set_battery_percent_face(&mut self, face: TexId, w: u32) {
-        self.battery_percent = omega_ui::Printed::new(face, w);
-    }
-
-    pub fn set_shelf_clock_face(&mut self, face: TexId, w: u32) {
-        self.shelf_clock = omega_ui::Printed::new(face, w);
     }
 
     /// Moves to the screen `to`, the one shown now sliding away as it comes in.
@@ -1944,13 +1952,8 @@ impl App {
             Phase::Polaroids { .. } => {
                 self.push_game(out);
                 if let Some(p) = &self.polaroids {
-                    p.draw(
-                        self.battery,
-                        self.battery_percent,
-                        self.bolt,
-                        self.shelf_clock,
-                        out,
-                    );
+                    let r = self.switcher_readouts;
+                    p.draw(self.battery, r.percent, r.bolt, r.clock, out);
                 }
             }
             Phase::Doze { .. } => out.push(Draw::Rect {

@@ -1,5 +1,5 @@
 use omega_power::{Battery, Charge};
-use omega_ui::{draw_gauge, Draw, Printed, TexId, GAUGE_W, SPRITE_PX, WALL};
+use omega_ui::{draw_gauge, Draw, Printed, TexId, GAUGE_W, HUD_INK, SPRITE_PX, WALL};
 
 fn percent_face() -> Printed {
     Printed { face: None, w: 30 }
@@ -28,6 +28,7 @@ fn nothing_moves_when_the_charge_state_changes() {
         at(68, Charge::Discharging),
         percent_face(),
         None,
+        HUD_INK,
         &mut idle,
     );
     draw_gauge(
@@ -36,6 +37,7 @@ fn nothing_moves_when_the_charge_state_changes() {
         at(68, Charge::Charging),
         percent_face(),
         Some(TexId::from_raw(7)),
+        HUD_INK,
         &mut charging,
     );
     let idle = quads(&idle);
@@ -56,6 +58,7 @@ fn the_bolt_never_reaches_the_capsule() {
         at(68, Charge::Charging),
         percent_face(),
         Some(TexId::from_raw(7)),
+        HUD_INK,
         &mut out,
     );
     let bolt_right = out
@@ -88,6 +91,7 @@ fn the_bolt_is_only_drawn_while_charging() {
             at(68, charge),
             percent_face(),
             Some(TexId::from_raw(7)),
+            HUD_INK,
             &mut out,
         );
         out.iter()
@@ -110,6 +114,7 @@ fn the_fill_tracks_the_percent_in_whole_pixels_and_never_leaves_the_capsule() {
             at(percent, Charge::Discharging),
             percent_face(),
             None,
+            HUD_INK,
             &mut out,
         );
         let capsule_left = out
@@ -159,6 +164,7 @@ fn the_capsule_lands_on_whole_pixels() {
         at(68, Charge::Discharging),
         percent_face(),
         None,
+        HUD_INK,
         &mut out,
     );
     for d in &out {
@@ -173,6 +179,35 @@ fn the_capsule_lands_on_whole_pixels() {
 #[test]
 fn no_reading_draws_nothing() {
     let mut out = Vec::new();
-    draw_gauge(24.0, 400.0, None, percent_face(), None, &mut out);
+    draw_gauge(24.0, 400.0, None, percent_face(), None, HUD_INK, &mut out);
     assert!(out.is_empty());
+}
+
+#[test]
+fn the_capsule_and_its_fill_are_drawn_in_the_ink_they_are_handed() {
+    let ink = [0x12, 0x34, 0x56];
+    let mut out = Vec::new();
+    draw_gauge(
+        24.0,
+        400.0,
+        at(68, Charge::Discharging),
+        percent_face(),
+        None,
+        ink,
+        &mut out,
+    );
+    // the figure has no face here, so it stands as a faint placeholder; the rest is ink
+    let solid: Vec<[f32; 4]> = out
+        .iter()
+        .filter_map(|d| match *d {
+            Draw::Rect { colour, .. } if colour[3] == 1.0 => Some(colour),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(solid.len(), 6, "the walls, the nub and the fill: {out:?}");
+    let want = omega_ui::kit::palette::rgba(ink, 1.0);
+    assert!(
+        solid.iter().all(|&c| c == want),
+        "the capsule is not in its ink: {solid:?}"
+    );
 }

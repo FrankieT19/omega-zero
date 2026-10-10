@@ -4,12 +4,12 @@ use omega_gfx::{out_h, out_w, Bezel, Compositor, Draw, TexId};
 use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_ui::{
-    arrows_hint_face, badge_face, bezel_mark_face, bolt_face, cart_face, cart_shadow, chip_face,
+    arrows_hint_face, badge_face, bezel_mark_face, cart_face, cart_shadow, chip_face,
     chip_shadow_face, gb_cart_shadow, hint_face, icon_face, mark_height, mark_rect, menu_face, rim,
     socket_face, toast_face, wallpaper_face, GbShell, Icon, LinkBadge, PowerChoice, Toast,
     UndoFace, ALERT_PX, BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
 };
-use omega_ui::{link_face, overlay_clear, overlay_face, overlay_path, Link, LinkFaces};
+use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
 use crate::app::LinkRow;
 use crate::face_builder::FaceBuilder;
@@ -34,6 +34,7 @@ mod sync_network;
 mod sync_settings;
 mod sync_ssh;
 mod sync_switcher;
+mod sync_top_bar;
 
 use lone::Baked;
 use sync_about::{sync_about, AboutFace};
@@ -48,6 +49,7 @@ use sync_network::{sync_network, NetworkTexes};
 use sync_settings::{sync_settings, SettingsTexes};
 use sync_ssh::{sync_ssh, SshTexes};
 use sync_switcher::{sync_switcher, Faces, Switcher};
+use sync_top_bar::{sync_top_bar, TopBarTexes};
 
 const DOZE_TIMEOUT: Duration = Duration::from_secs(180);
 
@@ -70,6 +72,7 @@ pub struct Frontend {
     undo_tex: Option<TexId>,
     switcher: Switcher,
     clocks: Clocks,
+    top_bar: TopBarTexes,
     about: AboutFace,
     settings: SettingsTexes,
     bezel_marks: Vec<BezelMark>,
@@ -128,6 +131,7 @@ impl Frontend {
             undo_tex: None,
             switcher: Switcher::default(),
             clocks: Clocks::default(),
+            top_bar: TopBarTexes::default(),
             about: AboutFace::default(),
             settings: SettingsTexes::default(),
             bezel_marks: Vec::new(),
@@ -263,21 +267,6 @@ impl Frontend {
         let rounded = gb_cart_shadow(GbShell::Rounded);
         let rounded = compositor.create_texture(rounded.w, rounded.h, &rounded.rgba);
         self.session.app_mut().set_gb_cart_shadows(notched, rounded);
-        let bolt = bolt_face();
-        let bolt_id = compositor.create_texture(bolt.w, bolt.h, &bolt.rgba);
-        self.session.app_mut().set_bolt_face(bolt_id);
-        let mut link = |l: Link| {
-            [false, true].map(|on| {
-                let f = link_face(l, on);
-                (compositor.create_texture(f.w, f.h, &f.rgba), f.w, f.h)
-            })
-        };
-        let links = LinkFaces {
-            wifi: link(Link::Wifi),
-            bluetooth: link(Link::Bluetooth),
-            ssh: link(Link::Ssh),
-        };
-        self.session.app_mut().set_link_faces(links);
         self.upload_wallpaper(compositor);
     }
 
@@ -318,6 +307,7 @@ impl Frontend {
             crate::latency::taken();
         }
         sync_clock(self.session.app_mut(), compositor, &mut self.clocks);
+        sync_top_bar(self.session.app_mut(), compositor, &mut self.top_bar);
         sync_about(self.session.app_mut(), compositor, &mut self.about);
         sync_settings(self.session.app_mut(), compositor, &mut self.settings);
         sync_network(self.session.app_mut(), compositor, &mut self.network_modal);

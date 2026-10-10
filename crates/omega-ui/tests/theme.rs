@@ -1,5 +1,8 @@
 use omega_store::Theme;
-use omega_ui::{draw_empty_slot, edge, housing, opening, recess, set_theme, ChromeColours, Draw};
+use omega_ui::{
+    draw_empty_slot, edge, housing, link_face, opening, recess, set_theme, ChromeColours, Draw,
+    Link, HUD_INK, LINK_OFF, LINK_ON,
+};
 
 #[test]
 fn the_card_s_palette_is_what_reaches_the_screen() {
@@ -42,4 +45,29 @@ fn the_card_s_palette_is_what_reaches_the_screen() {
         assert_eq!(c, set, "the slot's {name} is not the theme's");
         assert!(has(c), "the slot is not drawn in the theme's {name}");
     }
+}
+
+/// A theme.txt names the chrome's greys and no ink, so the top bar keeps the white and grey it
+/// was printed in, whatever colour the player picked.
+#[test]
+fn a_theme_keeps_the_top_bar_white() {
+    let t = Theme {
+        housing: [0x11, 0x22, 0x33],
+        ..Theme::default()
+    };
+    let themed = ChromeColours::themed(&t);
+    assert_eq!((themed.ink, themed.ink_off), (LINK_ON, LINK_OFF));
+    assert_eq!(LINK_ON, HUD_INK, "the theme's ink is not the white it was");
+    assert_eq!(ChromeColours::default().ink, LINK_ON);
+    let amber = omega_store::colour_index("amber").expect("a backdrop colour");
+    let palette = omega_ui::kit::palette::palette(amber);
+    assert_ne!(ChromeColours::of(palette).ink, themed.ink);
+    let wifi = link_face(Link::Wifi, true, &themed);
+    assert!(
+        wifi.rgba
+            .chunks(4)
+            .filter(|p| p[3] > 200)
+            .all(|p| [p[0], p[1], p[2]] == HUD_INK),
+        "the theme's Wi-Fi is not white"
+    );
 }

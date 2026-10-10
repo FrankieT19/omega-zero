@@ -12,6 +12,7 @@ use crate::plate::HINT_H;
 use crate::shelf::{foot_y, shelf_box, shelf_scale};
 use crate::spin::{self, Pose};
 use crate::sprite::SPRITE_PX;
+use crate::status_bar::{LINK_OFF, LINK_ON};
 
 /// The alert shown on a refused cart as it comes back out, sized to the cart, which now
 /// keeps its shelf size in the slot.
@@ -121,6 +122,12 @@ pub struct ChromeColours {
     pub opening: [f32; 4],
     /// The lip over the slit, the scoop's rim and the top bar's rule.
     pub edge: [f32; 4],
+    /// What the top bar prints in: the clock, the battery and its figure, and what the
+    /// handheld is connected to. Its faces are baked in it, so it is kept as bytes.
+    pub ink: [u8; 3],
+    /// What the top bar prints something that is off in: Wi-Fi, Bluetooth or SSH not
+    /// connected.
+    pub ink_off: [u8; 3],
 }
 
 /// How much of the kit's darkest colour the slot's hole keeps: a quarter, so on Night it is as
@@ -131,23 +138,38 @@ const HOLE: u32 = 4;
 impl ChromeColours {
     /// The chrome in the kit's colours, as flow.html draws the shelf: the slot's band and the
     /// top bar in the well colour, ruled in the edge colour, the bay in the dark one and the
-    /// hole in it darker still.
+    /// hole in it darker still. The top bar prints in cream, as flow.html's does, and what is
+    /// off in the plate colour, as a network row draws the Wi-Fi bars a signal does not reach.
     pub fn of(pal: &Palette) -> Self {
         ChromeColours {
             housing: rgb(pal.well),
             recess: rgb(pal.dark),
             opening: rgb(pal.dark.map(|c| ((c as u32 + HOLE / 2) / HOLE) as u8)),
             edge: rgb(pal.edge),
+            ink: pal.cream,
+            ink_off: pal.plate,
         }
     }
 
-    /// The chrome a card's Config/theme.txt sets, whatever the palette.
+    /// The chrome a card's Config/theme.txt sets, whatever the palette. A theme names no ink,
+    /// so the top bar keeps the white and grey it was printed in before it took the palette.
     pub fn themed(theme: &Theme) -> Self {
         ChromeColours {
             housing: rgb(theme.housing),
             recess: rgb(theme.recess),
             opening: rgb(theme.opening),
             edge: rgb(theme.edge),
+            ink: LINK_ON,
+            ink_off: LINK_OFF,
+        }
+    }
+
+    /// What the top bar prints an item in, `on` or off.
+    pub fn link_ink(&self, on: bool) -> [u8; 3] {
+        if on {
+            self.ink
+        } else {
+            self.ink_off
         }
     }
 }
