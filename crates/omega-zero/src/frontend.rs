@@ -40,7 +40,7 @@ use sync_background::{sync_background, BackdropTex};
 use sync_clock::{sync_clock, Clocks};
 use sync_controls::sync_controls;
 use sync_core_picker::sync_core_picker;
-use sync_keyboard::sync_keyboard;
+use sync_keyboard::{sync_keyboard, KeyboardTexes};
 use sync_labels::sync_labels;
 use sync_network::sync_network;
 use sync_settings::{sync_settings_clock, sync_settings_network, SettingsClock};
@@ -72,8 +72,10 @@ pub struct Frontend {
     settings_clock: SettingsClock,
     bezel_marks: Vec<BezelMark>,
     overlays: Vec<Overlay>,
-    /// The Network screen's list, Settings' Network value and the keyboard.
+    /// The Network screen's list and Settings' Network value.
     network: WifiTexes,
+    /// The keyboard's window, field, keys and lit key.
+    keyboard: KeyboardTexes,
     ssh: WifiTexes,
     labels: WifiTexes,
     background: WifiTexes,
@@ -127,6 +129,7 @@ impl Frontend {
             bezel_marks: Vec::new(),
             overlays: Vec::new(),
             network: WifiTexes::default(),
+            keyboard: KeyboardTexes::default(),
             ssh: WifiTexes::default(),
             labels: WifiTexes::default(),
             background: WifiTexes::default(),
@@ -338,7 +341,7 @@ impl Frontend {
         sync_settings_clock(self.session.app_mut(), compositor, &mut self.settings_clock);
         sync_settings_network(self.session.app_mut(), compositor, &mut self.network);
         sync_network(self.session.app_mut(), compositor, &mut self.network);
-        sync_keyboard(self.session.app_mut(), compositor, &mut self.network);
+        sync_keyboard(self.session.app_mut(), compositor, &mut self.keyboard);
         sync_ssh(self.session.app_mut(), compositor, &mut self.ssh);
         sync_controls(self.session.app_mut(), compositor);
         sync_labels(self.session.app_mut(), compositor, &mut self.labels);

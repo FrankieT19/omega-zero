@@ -63,9 +63,10 @@ pub use hud::{
 };
 pub use icon::{badge_face, icon_box, icon_face, Badge, Icon};
 pub use keyboard::{
-    bottom_key_face, bottom_label, field_face, key_glyph_face, key_on, key_rect, prompt_face,
-    row_len, Key, Keyboard, KeyboardFaces, KeyboardScreen, Layer, BOTTOM, KEY_COLS, KEY_H,
-    KEY_ROWS, KEY_W, MAX_TEXT, SHIFT_INK,
+    bottom_label, field_face, key_box, key_label, key_on, key_rect, keyboard_place, keyboard_title,
+    keys_face, lit_key_face, row_len, window_face, Key, Keyboard, KeyboardFaces, KeyboardLook,
+    KeyboardPlace, KeyboardScreen, KeyboardStale, Layer, BOTTOM, FIELD_H, KEYS_H, KEYS_W, KEY_COLS,
+    KEY_GAP, KEY_H, KEY_ROWS, KEY_W, MAX_TEXT,
 };
 pub use link_art::{
     arcs, arrow_left_x, arrow_right_x, arrow_y, clicks_x, clicks_y, link_art, port_y, LinkArt,

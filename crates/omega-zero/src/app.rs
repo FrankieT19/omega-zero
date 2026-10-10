@@ -389,7 +389,6 @@ pub struct App {
     pub(crate) ssh_faces: Option<WifiMenuFaces>,
     pub(crate) controls_faces: Option<ControlsFaces>,
     pub(crate) keyboard_faces: Option<KeyboardFaces>,
-    pub(crate) typing_faces: Option<[(TexId, u32, u32); 2]>,
     pub(crate) settings_network_faces: Option<[(TexId, u32, u32); 2]>,
     pub(crate) link_faces: Option<LinkFaces>,
     /// None on a handheld without Bluetooth; otherwise whether it is on.
@@ -435,7 +434,6 @@ impl App {
             ssh_faces: None,
             controls_faces: None,
             keyboard_faces: None,
-            typing_faces: None,
             settings_network_faces: None,
             link_faces: None,
             bluetooth: Some(false),
@@ -1911,8 +1909,12 @@ impl App {
             // the list stands over the background it is choosing, with nothing between
             Phase::Background(_) => self.draw_background_screen(out),
             Phase::Network(_) | Phase::Labels(_) => {
-                draw_plate(out);
-                match typing_of(phase) {
+                let typing = typing_of(phase);
+                // the keyboard's modal stands on the backdrop itself
+                if typing.is_none() {
+                    draw_plate(out);
+                }
+                match typing {
                     Some(t) => self.draw_keyboard(&t, out),
                     None if matches!(phase, Phase::Labels(_)) => self.draw_labels(out),
                     None => self.draw_network(out),
