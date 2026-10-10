@@ -1,6 +1,6 @@
 //! The top bar's faces: what the handheld is connected to, on and off, the clock, the battery's
 //! figure and its bolt, all baked in the top bar's ink (`ChromeColours::ink`). The ink is the
-//! palette's, so a new colour in Settings > Background bakes them all again, as it does the
+//! palette's, so a new colour in Settings > Theme bakes them all again, as it does the
 //! kit's faces; a card's theme.txt keeps them white. The clock and the figure are also printed
 //! again when what they say changes.
 

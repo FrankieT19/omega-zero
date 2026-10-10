@@ -1,4 +1,4 @@
-//! The picture of the pattern the shelf is drawn over, and the BACKGROUND panel.
+//! The picture of the pattern the shelf is drawn over, and the THEME panel.
 
 use omega_gfx::{Compositor, TexId};
 
@@ -16,8 +16,8 @@ pub(crate) struct BackdropTex {
     built: Option<(omega_store::BackdropStyle, u8)>,
 }
 
-/// The panel is baked again when its rows or the palette change: a new colour re-tints it in
-/// the frame the colour changes in.
+/// The panel is baked again when its rows or the palette change: a new colour re-tints it, and
+/// a new font shows on its FONT row, in the frame it changes in.
 pub(crate) fn sync_background(
     app: &mut App,
     compositor: &mut Compositor,
