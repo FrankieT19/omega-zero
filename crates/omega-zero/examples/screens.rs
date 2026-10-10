@@ -103,6 +103,42 @@ tap up
 wait 10
 tap right
 wait 10
+tap up
+wait 10
+tap right
+wait 10
+settle
+wait 10
+shot theme-thin
+tap b
+wait 30
+tap b
+wait 60
+settle
+shot shelf-thin
+tap start
+wait 60
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
+tap a
+settle
+wait 30
+tap up
+wait 10
+tap left
+wait 10
 tap b
 wait 30
 tap down
