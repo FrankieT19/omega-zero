@@ -199,6 +199,7 @@ fn a_card_from_before_the_settings_keeps_all_its_values() {
             colour_correction: false,
             wifi: false,
             ssh: true,
+            bluetooth: false,
             backdrop: None,
             backdrop_moving: true,
             backdrop_colour: 0,
@@ -505,6 +506,62 @@ fn ssh_is_on_unless_the_card_says_off() {
         .unwrap();
         let s = read_app_state(d.path());
         assert_eq!(s.ssh, on, "{line:?}");
+        assert_eq!(
+            s.brightness, 3,
+            "{line:?} took the rest of the card with it"
+        );
+    }
+}
+
+#[test]
+fn bluetooth_round_trips_as_on_or_off() {
+    for bluetooth in [true, false] {
+        let d = tmp_root();
+        let s = AppState {
+            clock_set: true,
+            bluetooth,
+            ..AppState::default()
+        };
+        write_app_state(d.path(), &s).unwrap();
+        assert_eq!(
+            read_app_state(d.path()),
+            s,
+            "bluetooth {bluetooth} did not come back"
+        );
+        let text = std::fs::read_to_string(d.path().join("Config/omega-zero.state")).unwrap();
+        let want = if bluetooth {
+            "bluetooth=on"
+        } else {
+            "bluetooth=off"
+        };
+        assert!(text.lines().any(|l| l == want), "no {want} in {text:?}");
+    }
+}
+
+#[test]
+fn bluetooth_is_off_unless_the_card_says_on() {
+    assert!(
+        !AppState::default().bluetooth,
+        "a first boot switches Bluetooth on"
+    );
+    let d = tmp_root();
+    let known =
+        "cart=\nbrightness=3\nblue_light=1\nvolume=40\nmuted=0\nclock_set=1\nutc_offset_min=0\n";
+    for (line, on) in [
+        ("", false),
+        ("bluetooth=on\n", true),
+        ("bluetooth=off\n", false),
+        ("bluetooth=\n", false),
+        ("bluetooth=1\n", false),
+        ("bluetooth=ON\n", false),
+    ] {
+        std::fs::write(
+            d.path().join("Config/omega-zero.state"),
+            format!("{known}{line}"),
+        )
+        .unwrap();
+        let s = read_app_state(d.path());
+        assert_eq!(s.bluetooth, on, "{line:?}");
         assert_eq!(
             s.brightness, 3,
             "{line:?} took the rest of the card with it"
