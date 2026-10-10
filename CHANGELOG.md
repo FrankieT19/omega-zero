@@ -27,6 +27,8 @@
 - Every move between screens slides, over a background that keeps moving. Going into a screen,
   the one you leave goes out to the right and the new one comes in from the left; coming back is
   the mirror. Leaving the shelf, the top bar goes up, the carts right and the slot down.
+  CONTROLS slides the other way round: the carts go out to the left as it comes in from the
+  right, and it goes back out to the right.
 - The menus, both bars and the slot take their colours from Settings > Theme > Colour.
   Night is grey; Amber is Mega Man Zero's own colours.
 - Theme is what Background was: the background's pattern, its motion and its colour. It also
