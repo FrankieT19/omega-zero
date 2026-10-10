@@ -99,11 +99,6 @@ fn push_lid(out: &mut Vec<Draw>, at: (f32, f32, f32, f32), tex: TexId, turn: f32
     });
 }
 
-/// Where the core picker's swap hint stands: on the slot, just over its lip.
-fn core_swap_y() -> f32 {
-    omega_ui::slot_top() - HINT_H as f32
-}
-
 fn link_text_y() -> f32 {
     44.0 + stage_y()
 }
@@ -331,9 +326,6 @@ pub struct App {
     pub(crate) core_chip_faces: Vec<TexId>,
     pub(crate) core_blank_chip_face: Option<TexId>,
     pub(crate) core_chip_shadow_face: Option<TexId>,
-    /// The core picker's one hint of its own, "◀▶ Swap", and its width: the rest are the
-    /// bar's actions.
-    pub(crate) core_swap_face: Option<(TexId, u32)>,
     pub(crate) game_menu: Option<GameMenu>,
     pub(crate) link_sprites: Option<LinkSprites>,
     pub(crate) link_hardware: LinkKind,
@@ -475,7 +467,6 @@ impl App {
             core_chip_faces: Vec::new(),
             core_blank_chip_face: None,
             core_chip_shadow_face: None,
-            core_swap_face: None,
             game_menu: None,
             link_sprites: None,
             link_hardware: LinkKind::Cable,
@@ -2063,11 +2054,6 @@ impl App {
         self.core_chip_shadow_face = Some(shadow);
     }
 
-    /// The core picker's "◀▶ Swap" hint, and its width.
-    pub fn set_core_swap_face(&mut self, face: (TexId, u32)) {
-        self.core_swap_face = Some(face);
-    }
-
     pub fn set_link_menu_faces(&mut self, faces: Vec<(TexId, u32, u32)>) {
         self.link_menu_faces = faces;
     }
@@ -2222,19 +2208,6 @@ impl App {
         {
             let (lid, turn) = lid_from(shelf, progress);
             push_lid(out, (lid.x, lid.y, lid.w, lid.h), tex, turn, pose.yaw);
-        }
-
-        // B and A are the bar's RETURN and CONFIRM now; only the swap is the picker's own
-        if let Some((tex, w)) = self.core_swap_face {
-            let seen = w.saturating_sub(HINT_EDGE) as f32;
-            out.push(Draw::Tex {
-                x: ((out_w() as f32 - seen) / 2.0).round(),
-                y: core_swap_y(),
-                w: w as f32,
-                h: HINT_H as f32,
-                tex,
-                alpha: lift,
-            });
         }
     }
 

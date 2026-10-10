@@ -7,7 +7,8 @@
 //! The plate never moves with the screens. When a slide's two ends have different actions, the
 //! old ones sink out of the screen over its first half and the new ones rise into place over
 //! the second, as flow/player.js does; between two menus they stay put, and the hints change at
-//! halfway. The core picker swaps them the same way as it opens and closes.
+//! halfway. The core picker swaps them the same way as it opens and closes, its ◀▶ SWAP coming
+//! onto the plate with RETURN and CONFIRM and leaving with them.
 //!
 //! A cart going in takes the whole bar down out of the screen with it, by the time it starts
 //! down into the slot; the bar stays away while the game is on and rises back as the cart comes
@@ -17,10 +18,17 @@ use omega_gfx::{out_h, Draw, TexId};
 use omega_ui::kit::action::Side;
 use omega_ui::kit::bar::{action_swap, BarLayout, Hint, SINK};
 use omega_ui::kit::pixel::quad;
-use omega_ui::{ease, CATCH_OUT, SPRITE_PX};
+use omega_ui::{ease, Millis, CATCH_OUT, SPRITE_PX};
 
 use crate::app::{App, Phase};
+use crate::core_picker::CorePicker;
 use crate::screens::labels::labels_hints;
+
+/// The core picker's one key beyond the bar's actions: Left and Right move the chip.
+pub const SWAP: Hint<'static> = Hint {
+    key: "◀▶",
+    word: "SWAP",
+};
 
 /// Which pair of actions the bar shows at its ends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -107,6 +115,12 @@ fn sunk_for(seat: f32) -> u32 {
     (ease((seat / CATCH_OUT).clamp(0.0, 1.0)) * SINK as f32).round() as u32
 }
 
+/// How far through the swap to its actions the core picker is, eased: the bar follows the
+/// picker opening and closing.
+fn picker_swap(picker: &CorePicker, now: Millis) -> f32 {
+    ease(picker.openness(now))
+}
+
 /// The actions shown, and how far sunk, `p` of the way (eased) from `from`'s to `to`'s.
 fn swapped(from: Option<Actions>, to: Option<Actions>, p: f32) -> Option<(Actions, u32)> {
     if from == to {
@@ -135,7 +149,7 @@ impl App {
             (None, Some(picker)) if matches!(self.phase, Phase::Shelf) => swapped(
                 Some(Actions::Shelf),
                 Some(Actions::Menu),
-                ease(picker.openness(now)),
+                picker_swap(&picker, now),
             )?,
             (None, _) => (actions_on(&self.phase)?, 0),
         };
@@ -151,12 +165,14 @@ impl App {
     }
 
     /// The keys `phase` has beyond its two actions, for its plate: Y FORGET on a saved network
-    /// (`network_forgets`' rule), and on Labels START FETCH or START STOP and Y SIGN OUT
-    /// (`labels_bar_hints`'), asked of `phase` rather than the screen on show so a slide can
-    /// show the hints of the screen it leaves. A screen with more keys adds them here; Settings
-    /// and SSH have none, and the keyboard keeps its own line in its modal.
+    /// (`network_forgets`' rule), on Labels START FETCH or START STOP and Y SIGN OUT
+    /// (`labels_bar_hints`'), and on the shelf, while the core picker over it shows RETURN and
+    /// CONFIRM, ◀▶ SWAP. They are asked of `phase` rather than the screen on show so a slide
+    /// can show the hints of the screen it leaves. A screen with more keys adds them here;
+    /// Settings and SSH have none, and the keyboard keeps its own line in its modal.
     pub fn bar_hints(&self, phase: &Phase) -> Vec<Hint<'static>> {
         match phase {
+            Phase::Shelf if self.picker_has_bar() => vec![SWAP],
             Phase::Network(screen) if screen.typing.is_none() && screen.forgets(&self.wifi) => {
                 vec![Hint {
                     key: "Y",
@@ -168,6 +184,13 @@ impl App {
             }
             _ => Vec::new(),
         }
+    }
+
+    /// Whether the core picker is open far enough to have the bar: past halfway through the
+    /// swap to its actions, where they and their plate come in.
+    fn picker_has_bar(&self) -> bool {
+        self.core_picker_shown()
+            .is_some_and(|picker| action_swap(picker_swap(&picker, self.now())).new)
     }
 
     /// The hints the plate shows now: the screen's on show, and through a slide the leaving

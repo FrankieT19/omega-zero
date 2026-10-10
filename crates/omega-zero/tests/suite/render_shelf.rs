@@ -8,8 +8,8 @@ use omega_gfx::{out_h, out_w, Compositor, HeadlessSurface, TexId};
 use omega_input::{Action, Btn};
 use omega_store::{write_app_state, AppState, Core, Platform};
 use omega_ui::{
-    arrows_hint_face, board_face, cart_face, cart_shadow, chip_face, chip_shadow_face, clean_label,
-    gb_cart_shadow, label_colour, padded, socket_face, ChromeColours, GbShell, TURN_PAD,
+    board_face, cart_face, cart_shadow, chip_face, chip_shadow_face, clean_label, gb_cart_shadow,
+    label_colour, padded, socket_face, ChromeColours, GbShell, TURN_PAD,
 };
 use omega_zero::app::App;
 use tempfile::TempDir;
@@ -64,9 +64,6 @@ fn upload_faces(app: &mut App, c: &mut Compositor) {
     let chip_shadow = chip_shadow_face();
     let chip_shadow = tex(c, chip_shadow.w, chip_shadow.h, &chip_shadow.rgba);
     app.set_core_part_faces(sockets, chips, blank, chip_shadow);
-
-    let swap = arrows_hint_face("Swap");
-    app.set_core_swap_face((tex(c, swap.w, swap.h, &swap.rgba), swap.w));
 
     let highlighted = app.selected_stem().map(str::to_string);
     let Some(cart) = app

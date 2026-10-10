@@ -221,12 +221,6 @@ impl Frontend {
         self.session
             .app_mut()
             .set_core_part_faces(sockets, chips, blank, shadow);
-        let swap = arrows_hint_face("Swap");
-        let swap = (
-            compositor.create_texture(swap.w, swap.h, &swap.rgba),
-            swap.w,
-        );
-        self.session.app_mut().set_core_swap_face(swap);
         let roles = menu_faces(compositor, LinkRow::ALL.iter().map(|r| r.text()));
         self.session.app_mut().set_link_menu_faces(roles);
         if let Some(linked) = menu_faces(compositor, ["Linked"].into_iter()).pop() {
