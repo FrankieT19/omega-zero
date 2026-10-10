@@ -14,7 +14,7 @@ use omega_ui::{
     backdrop_shift, board_from, board_x, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease,
     grown, lid_at, lid_from, lift_of, on_board, posed_face, push_cart_side, shelf_cart_at,
     ClockPicker, Draw, FfState, GbShell, Hud, HudKind, Icon, KeyboardFaces, LinkBadge, LinkFaces,
-    Links, Millis, Placed, Polaroids, PowerChoice, QuickMenuFaces, Refusal, SettingsRow, Shelf,
+    Links, Millis, Placed, Polaroids, PowerChoice, Refusal, SettingsFaces, SettingsRow, Shelf,
     SlotChrome, TexId, Toast, WifiMenuFaces, BOARD_W, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W,
     HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W,
     TURN_PAD,
@@ -356,8 +356,7 @@ pub struct App {
     pub(crate) legend_faces: Vec<TexId>,
     pub(crate) undo_face: Option<TexId>,
     pub(crate) clock_faces: Option<(TexId, TexId)>,
-    pub(crate) settings_faces: Option<QuickMenuFaces>,
-    pub(crate) settings_clock_faces: Option<[(TexId, u32, u32); 2]>,
+    pub(crate) settings_faces: Option<SettingsFaces>,
     pub(crate) sticker_face: Option<TexId>,
     pub(crate) wallpaper: Option<TexId>,
     pub(crate) battery_percent: omega_ui::Printed,
@@ -390,7 +389,6 @@ pub struct App {
     pub(crate) controls_faces: Option<ControlsFaces>,
     pub(crate) keyboard_faces: Option<KeyboardFaces>,
     pub(crate) typing_faces: Option<[(TexId, u32, u32); 2]>,
-    pub(crate) settings_network_faces: Option<[(TexId, u32, u32); 2]>,
     pub(crate) link_faces: Option<LinkFaces>,
     /// None on a handheld without Bluetooth; otherwise whether it is on.
     pub(crate) bluetooth: Option<bool>,
@@ -402,8 +400,6 @@ pub struct App {
     /// The pattern the shelf is drawn over, the width of its picture, and what it was drawn
     /// as, so a stale one is not shown while the new one is made.
     pub(crate) backdrop_face: Option<(TexId, u32, BackdropStyle, u8)>,
-    /// The first Settings row in view, on a canvas too short for them all.
-    pub(crate) settings_first: usize,
     /// The move between screens under way, while it slides.
     pub(crate) slide: Option<Slide>,
 }
@@ -436,7 +432,6 @@ impl App {
             controls_faces: None,
             keyboard_faces: None,
             typing_faces: None,
-            settings_network_faces: None,
             link_faces: None,
             bluetooth: Some(false),
             labels: Labels::new(Box::new(NoKey::default()), None),
@@ -444,7 +439,6 @@ impl App {
             stale_faces: Vec::new(),
             background_faces: None,
             backdrop_face: None,
-            settings_first: 0,
             slide: None,
             phase: Phase::Shelf,
             shelves,
@@ -500,7 +494,6 @@ impl App {
             undo_face: None,
             clock_faces: None,
             settings_faces: None,
-            settings_clock_faces: None,
             sticker_face: None,
             wallpaper: None,
             battery_percent: omega_ui::Printed::default(),
@@ -1900,10 +1893,8 @@ impl App {
                 draw_plate(out);
                 self.draw_clock(picker, *from_menu, out);
             }
-            Phase::Settings { row } => {
-                draw_plate(out);
-                self.draw_settings(*row, out);
-            }
+            // the modal stands over the backdrop, which shows round it
+            Phase::Settings { row } => self.draw_settings(*row, out),
             Phase::Controls => {
                 draw_plate(out);
                 self.draw_controls(out);

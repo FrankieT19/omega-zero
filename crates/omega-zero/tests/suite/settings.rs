@@ -4,13 +4,20 @@ use common::{
     app_booting_at, app_booting_with_clock, app_playing_in, tmp_root_with_carts, Clock,
     CLOCK_IS_SET,
 };
+use std::sync::{Arc, Mutex};
+
 use omega_input::{Action, Btn};
 use omega_store::{read_app_state, write_app_state, AppState};
+use omega_ui::kit::layout::modal_rect;
+use omega_ui::kit::palette::palette;
+use omega_ui::kit::row::ROW_H;
 use omega_ui::{
-    edge, out_w, quick_rows_shown, quick_top, quick_window, stage_y, Draw, Icon, QuickMenuFaces,
-    QuickValue, SettingsRow, TexId, MENU_PAD, QUICK_EDGE, QUICK_PITCH,
+    date_time_text, out_w, settings_frame, settings_row_rects, Draw, Icon, QuickValue,
+    SettingsFaces, SettingsGroup, SettingsRow, TexId, SPRITE_PX,
 };
 use omega_zero::app::{App, Phase};
+use omega_zero::wifi::{Status, WifiJob, WifiJobs, WifiNews};
+use omega_zero::wifi_screen::Summary;
 use tempfile::TempDir;
 
 fn on_carousel_with(state: AppState) -> (TempDir, App, Clock) {
@@ -393,27 +400,17 @@ fn brightness_and_volume_still_answer_over_settings() {
     );
 }
 
-fn fake_faces(a: &mut App) {
+/// Settings' faces as fake textures where the real ones go: the frame 100, the lit titles 110
+/// and 111, and each row 200 and its index.
+fn fake_faces(a: &mut App) -> SettingsFaces {
     let id = TexId::from_raw;
-    a.set_settings_faces(QuickMenuFaces {
-        labels: (0..SettingsRow::ALL.len())
-            .map(|i| (id(100 + i), 200, 40))
-            .collect(),
-        values: (0..QuickValue::ALL.len())
-            .map(|i| [(id(200 + i), 60, 40), (id(210 + i), 60, 40)])
-            .collect(),
-        carets: [(id(300), 10, 40), (id(301), 10, 40)],
-        legend: [(id(400), 70), (id(401), 110), (id(402), 80)],
-    });
-    a.set_settings_clock_faces((id(500), 150, 40), (id(501), 150, 40));
-}
-
-fn value(v: QuickValue, lit: bool) -> usize {
-    if lit {
-        210 + v.index()
-    } else {
-        200 + v.index()
+    let frame = settings_frame(5, palette(0));
+    let mut faces = SettingsFaces::new(&frame, id(100), [(id(110), [42, 11]), (id(111), [42, 11])]);
+    for row in a.settings_rows() {
+        faces.rows[row.index()] = Some((id(200 + row.index()), [270, ROW_H]));
     }
+    a.set_settings_faces(faces.clone());
+    faces
 }
 
 fn frame(a: &App) -> Vec<Draw> {
@@ -435,164 +432,218 @@ fn drawn(out: &[Draw], id: usize) -> bool {
     placed(out, id).is_some()
 }
 
+/// An art-pixel rect as the screen rect a face drawn there at 2x covers.
+fn at_2x([x, y, w, h]: [u32; 4]) -> [f32; 4] {
+    [x, y, w, h].map(|v| (v * SPRITE_PX) as f32)
+}
+
 #[test]
-fn the_legend_says_change_on_a_value_row_and_open_on_a_row_that_opens() {
+fn the_modal_fills_the_page_and_the_lit_title_follows_the_cursor() {
     let (_d, mut a, _) = on_carousel();
-    fake_faces(&mut a);
+    let faces = fake_faces(&mut a);
     press(&mut a, Btn::Start);
     a.finish_slide();
-    for row in SettingsRow::ALL {
+    for row in a.settings_rows() {
         assert_eq!(a.settings_row(), Some(row));
         let out = frame(&a);
-        assert!(drawn(&out, 400), "no B BACK on {row:?}");
-        assert_eq!(drawn(&out, 401), !row.opens(), "CHANGE on {row:?}");
-        assert_eq!(drawn(&out, 402), row.opens(), "OPEN on {row:?}");
+        assert_eq!(
+            placed(&out, 100),
+            Some(at_2x(modal_rect())),
+            "{row:?}: the frame"
+        );
+        let (configs, general) = (drawn(&out, 110), drawn(&out, 111));
+        match row.group() {
+            SettingsGroup::Configs => assert!(configs && !general, "{row:?} lit GENERAL"),
+            SettingsGroup::General => assert!(general && !configs, "{row:?} lit CONFIGS"),
+        }
+        let g = row.group().index();
+        assert_eq!(placed(&out, 110 + g), Some(at_2x(faces.titles[g].at)));
         press(&mut a, Btn::Down);
     }
 }
 
 #[test]
-fn the_arrows_stand_only_around_the_selected_rows_value() {
+fn the_title_lights_over_the_frame_and_the_rows_over_both() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
-    press(&mut a, Btn::Start);
-    a.finish_slide();
+    open_at(&mut a, SettingsRow::FastForward);
     let out = frame(&a);
-    assert!(
-        drawn(&out, 300) && drawn(&out, 301),
-        "no arrows on Fast Forward"
-    );
-    assert!(
-        drawn(&out, value(QuickValue::Speed6, true)),
-        "6× is not lit"
-    );
-    assert!(
-        drawn(&out, value(QuickValue::Off, false)),
-        "sound's OFF is not grey"
-    );
-    assert!(
-        drawn(&out, value(QuickValue::On, false)),
-        "rumble's ON is not grey"
-    );
-    assert!(drawn(&out, 500), "the date and time is not grey");
+    let at = |id: usize| {
+        out.iter()
+            .position(|d| matches!(*d, Draw::Tex { tex, .. } if tex == TexId::from_raw(id)))
+            .unwrap_or_else(|| panic!("{id} is not drawn"))
+    };
+    assert!(at(100) < at(110), "the lit title is under the frame");
+    assert!(at(110) < at(200), "a row is under the title");
+}
 
+#[test]
+fn every_row_is_drawn_in_its_panels_well() {
+    let (_d, mut a, _) = on_carousel();
+    let faces = fake_faces(&mut a);
+    open_at(&mut a, SettingsRow::FastForward);
+    let out = frame(&a);
+    for (row, rect) in settings_row_rects(&a.settings_rows(), faces.wells) {
+        let [x, y, ..] = at_2x(rect);
+        assert_eq!(
+            placed(&out, 200 + row.index()),
+            Some([x, y, 540.0, (2 * ROW_H) as f32]),
+            "{row:?}"
+        );
+        let [wx, wy, ww, wh] = faces.wells[row.group().index()];
+        assert!(
+            rect[1] >= wy && rect[1] + ROW_H <= wy + wh && rect[0] + 1 == wx && rect[2] == ww + 2,
+            "{row:?} is not in its well"
+        );
+    }
+}
+
+#[test]
+fn settings_no_longer_lays_a_plate_over_the_backdrop() {
+    let (_d, mut a, _) = on_carousel();
+    fake_faces(&mut a);
+    open_at(&mut a, SettingsRow::FastForward);
+    let see_through = frame(&a).into_iter().any(
+        |d| matches!(d, Draw::Rect { w, h, colour, .. } if w >= out_w() as f32 && h >= 100.0 && colour[3] < 1.0),
+    );
+    assert!(
+        !see_through,
+        "a plate still darkens the backdrop under Settings"
+    );
+}
+
+#[test]
+fn the_rows_say_what_is_set_in_flows_capitals() {
+    let (_d, mut a, clock) = on_carousel_with(AppState {
+        ff_speed: 4,
+        ff_sound: true,
+        colour_correction: false,
+        rumble: true,
+        ..AppState::default()
+    });
+    open_at(&mut a, SettingsRow::FastForward);
+    let said = |a: &App| SettingsRow::ALL.map(|r| a.settings_text(r));
+    let text = |s: &str| Some(s.to_string());
+    let clock_text = text(&date_time_text(a.wall_secs()));
+    assert_eq!(
+        said(&a),
+        [
+            text("4X"),
+            text("ON"),
+            text("OFF"),
+            text("ON"),
+            None,
+            clock_text,
+            text("OFF"),
+            None,
+            None,
+        ]
+    );
+    // the clock's row follows the clock
+    clock.advance(3_600);
+    assert_eq!(
+        a.settings_text(SettingsRow::DateTime),
+        text(&date_time_text(a.wall_secs()))
+    );
+}
+
+#[test]
+fn only_the_cursors_row_is_shown_lit() {
+    let (_d, mut a, _) = on_carousel();
+    open_at(&mut a, SettingsRow::Background);
+    let shown = a.settings_shown();
+    assert_eq!(
+        shown.iter().map(|s| s.row).collect::<Vec<_>>(),
+        a.settings_rows()
+    );
+    for s in &shown {
+        assert_eq!(s.lit, s.row == SettingsRow::Background, "{:?}", s.row);
+        assert_eq!(s.value, a.settings_text(s.row), "{:?}", s.row);
+    }
+}
+
+/// A radio that is there or not, and says what the test hands it.
+#[derive(Clone, Default)]
+struct Radio(Arc<Mutex<(bool, Vec<WifiNews>)>>);
+
+impl WifiJobs for Radio {
+    fn present(&self) -> bool {
+        !self.0.lock().unwrap().0
+    }
+
+    fn ask(&mut self, _job: WifiJob) {}
+
+    fn news(&mut self) -> Vec<WifiNews> {
+        std::mem::take(&mut self.0.lock().unwrap().1)
+    }
+}
+
+#[test]
+fn network_names_the_network_joined_in_capitals() {
+    let (_d, mut a, _) = on_carousel_with(AppState {
+        wifi: true,
+        ..AppState::default()
+    });
+    let radio = Radio::default();
+    a.set_wifi_jobs(Box::new(radio.clone()));
+    open_at(&mut a, SettingsRow::Network);
+    assert_eq!(
+        a.settings_text(SettingsRow::Network),
+        Some("ON".into()),
+        "on, none joined"
+    );
+    radio.0.lock().unwrap().1.push(WifiNews::Status(Status {
+        enabled: true,
+        state: "COMPLETED".into(),
+        ssid: Some(b"Home".to_vec()),
+        ..Status::default()
+    }));
+    a.tick_ms(1_000);
+    assert_eq!(a.wifi_summary(), Summary::Joined("Home".into()));
+    assert_eq!(a.settings_text(SettingsRow::Network), Some("HOME".into()));
+}
+
+#[test]
+fn without_a_radio_network_is_not_listed_drawn_or_stepped_onto() {
+    let (_d, mut a, _) = on_carousel();
+    let radio = Radio::default();
+    radio.0.lock().unwrap().0 = true;
+    a.set_wifi_jobs(Box::new(radio));
+    let faces = fake_faces(&mut a);
+    assert!(!a.settings_rows().contains(&SettingsRow::Network));
+    assert!(a
+        .settings_shown()
+        .iter()
+        .all(|s| s.row != SettingsRow::Network));
+    open_at(&mut a, SettingsRow::FastForward);
     for _ in 0..SettingsRow::DateTime.index() {
         press(&mut a, Btn::Down);
     }
-    let out = frame(&a);
-    assert!(
-        !drawn(&out, 300) && !drawn(&out, 301),
-        "arrows on a row that opens"
+    assert_eq!(a.settings_row(), Some(SettingsRow::DateTime));
+    press(&mut a, Btn::Down);
+    assert_eq!(
+        a.settings_row(),
+        Some(SettingsRow::Background),
+        "the cursor landed on Network"
     );
-    assert!(drawn(&out, 501), "the date and time in hand is not lit");
+    let out = frame(&a);
+    assert!(!drawn(&out, 200 + SettingsRow::Network.index()));
+    // Background and About close up under Date & Time; the panels stay where they were
+    let date = placed(&out, 200 + SettingsRow::DateTime.index()).unwrap();
+    let background = placed(&out, 200 + SettingsRow::Background.index()).unwrap();
+    assert_eq!(background[1], date[1] + (2 * ROW_H) as f32);
+    assert_eq!(placed(&out, 100), Some(at_2x(modal_rect())));
+    assert_eq!(placed(&out, 111), Some(at_2x(faces.titles[1].at)));
+}
+
+#[test]
+fn nothing_is_drawn_before_its_faces_are_made() {
+    let (_d, mut a, _) = on_carousel();
+    open_at(&mut a, SettingsRow::FastForward);
+    assert!(a.settings_faces().is_none());
+    let out = frame(&a);
     assert!(
-        drawn(&out, value(QuickValue::Speed6, false)),
-        "6× stayed lit after the bar left it"
-    );
-}
-
-#[test]
-fn the_bar_runs_edge_to_edge_behind_the_selected_row() {
-    let (_d, mut a, _) = on_carousel();
-    fake_faces(&mut a);
-    press(&mut a, Btn::Start);
-    a.finish_slide();
-    let n = SettingsRow::ALL.len();
-    let mut first = 0;
-    for row in SettingsRow::ALL {
-        let bars: Vec<_> = frame(&a)
-            .into_iter()
-            .filter_map(|d| match d {
-                Draw::Rect { x, y, w, h, colour } if colour == edge() => Some([x, y, w, h]),
-                _ => None,
-            })
-            .collect();
-        first = quick_window(row.index(), n, first);
-        let top = quick_top() + QUICK_PITCH * (row.index() - first) as f32;
-        assert_eq!(
-            bars,
-            vec![[0.0, top + 4.0, out_w() as f32, QUICK_PITCH - 8.0]],
-            "{row:?}"
-        );
-        assert!(
-            top + QUICK_PITCH <= 427.0 + stage_y(),
-            "{row:?}'s bar runs into the legend"
-        );
-        press(&mut a, Btn::Down);
-    }
-}
-
-#[test]
-fn the_rows_out_of_view_are_not_drawn_and_scroll_in_with_the_bar() {
-    let (_d, mut a, _) = on_carousel();
-    fake_faces(&mut a);
-    press(&mut a, Btn::Start);
-    a.finish_slide();
-    let shown = quick_rows_shown(SettingsRow::ALL.len());
-    let label = |row: SettingsRow| 100 + row.index();
-    let out = frame(&a);
-    for row in SettingsRow::ALL {
-        assert_eq!(
-            drawn(&out, label(row)),
-            row.index() < shown,
-            "{row:?} with the bar on the first row"
-        );
-    }
-    press(&mut a, Btn::Up);
-    assert_eq!(a.settings_row(), Some(SettingsRow::About));
-    let out = frame(&a);
-    let n = SettingsRow::ALL.len();
-    for row in SettingsRow::ALL {
-        assert_eq!(
-            drawn(&out, label(row)),
-            row.index() >= n - shown,
-            "{row:?} with the bar on the last row"
-        );
-    }
-}
-
-#[test]
-fn labels_start_and_values_end_thirty_two_pixels_in() {
-    let (_d, mut a, _) = on_carousel();
-    fake_faces(&mut a);
-    press(&mut a, Btn::Start);
-    a.finish_slide();
-    let out = frame(&a);
-    let right = out_w() as f32 - QUICK_EDGE;
-    let shown = quick_rows_shown(SettingsRow::ALL.len());
-    for row in SettingsRow::ALL.into_iter().take(shown) {
-        let [x, ..] = placed(&out, 100 + row.index()).expect("a label was not drawn");
-        assert_eq!(x + MENU_PAD as f32, QUICK_EDGE, "{row:?}'s label");
-    }
-    let [x, _, w, _] = placed(&out, value(QuickValue::On, false)).expect("rumble's value");
-    assert_eq!(x + w - MENU_PAD as f32, right, "an unselected value");
-    let [x, _, w, _] = placed(&out, 301).expect("the right arrow");
-    assert_eq!(x + w, right, "the arrow around the selected value");
-}
-
-#[test]
-fn only_the_clock_from_the_menu_offers_b_back() {
-    let (_d, mut a, _) = on_carousel();
-    fake_faces(&mut a);
-    a.set_clock_faces(TexId::from_raw(600), TexId::from_raw(601));
-    open_at(&mut a, SettingsRow::DateTime);
-    press(&mut a, Btn::A);
-    a.finish_slide();
-    let out = frame(&a);
-    assert!(drawn(&out, 601), "the clock lost its own key");
-    assert!(
-        drawn(&out, 400),
-        "the clock from the menu does not offer B BACK"
-    );
-
-    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
-    let (mut first, _) = app_booting_with_clock(d.path());
-    fake_faces(&mut first);
-    first.set_clock_faces(TexId::from_raw(600), TexId::from_raw(601));
-    let out = frame(&first);
-    assert!(drawn(&out, 601), "the first boot clock lost its key");
-    assert!(
-        !drawn(&out, 400),
-        "the first boot clock offers a way back it does not have"
+        !out.iter().any(|d| matches!(d, Draw::Tex { .. })),
+        "Settings drew faces it was never given"
     );
 }

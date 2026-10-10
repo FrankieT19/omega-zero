@@ -18,6 +18,7 @@ mod polaroids;
 mod power_menu;
 mod quick_menu;
 mod refusal;
+mod settings_menu;
 mod shelf;
 mod shell;
 mod silhouette;
@@ -79,12 +80,13 @@ pub use plate::{
 };
 pub use polaroids::{photo_face, PhotoFace, Polaroids, DOT, LEGEND, PHOTO_H, PHOTO_W};
 pub use power_menu::{menu_face, PowerChoice, MENU_H, MENU_INK, MENU_PAD};
-pub use quick_menu::{
-    quick_caret_face, quick_label_face, quick_legend_faces, quick_rows_shown, quick_top,
-    quick_top_of, quick_value_face, quick_window, QuickMenu, QuickMenuFaces, QuickValue,
-    SettingsGroup, SettingsRow, QUICK_EDGE, QUICK_PITCH,
-};
+pub use quick_menu::{quick_caret_face, quick_value_face, QUICK_EDGE, QUICK_PITCH};
 pub use refusal::Refusal;
+pub use settings_menu::{
+    configs_in, settings_frame, settings_panels, settings_row_face, settings_row_rects,
+    settings_row_width, settings_title_face, FaceAt, QuickValue, Rebake, RowShown, SettingsBaked,
+    SettingsFaces, SettingsFrame, SettingsGroup, SettingsMenu, SettingsRow,
+};
 pub use shelf::{foot_y, rest_y, shelf_box, shelf_scale, sway_reach, Shelf, GB_SHELF_SCALE};
 pub use shell::{
     gb_table_shells, gba_shell_for, lookup_order_is_exact_then_family_then_default, shell_for,
