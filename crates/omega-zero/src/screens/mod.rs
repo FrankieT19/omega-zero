@@ -2,8 +2,7 @@
 //! the screen it is on and `App::draw` draws the screen it shows, and what each screen does
 //! with them lives in its own file here.
 
-use omega_gfx::{out_h, out_w, Draw};
-use omega_ui::opening;
+use omega_gfx::Draw;
 
 pub mod about;
 pub mod background;
@@ -16,22 +15,6 @@ pub mod network;
 pub mod settings;
 pub mod shelf;
 pub mod ssh;
-
-/// How much of the backdrop a menu's plate lets through.
-const PLATE_ALPHA: f32 = 0.6;
-
-/// A dark plate the size of the screen behind a menu, so its text reads over any backdrop.
-/// It slides with the menu. The menus' own panels take its place next.
-pub(crate) fn draw_plate(out: &mut Vec<Draw>) {
-    let [r, g, b, _] = opening();
-    out.push(Draw::Rect {
-        x: 0.0,
-        y: 0.0,
-        w: out_w() as f32,
-        h: out_h() as f32,
-        colour: [r, g, b, PLATE_ALPHA],
-    });
-}
 
 /// `d` moved `dx` across and `dy` down, a spun face's clip with it. It moves to omega-gfx as
 /// `Draw::shifted` once that lands.

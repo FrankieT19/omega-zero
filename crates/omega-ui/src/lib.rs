@@ -31,7 +31,6 @@ mod status_bar;
 mod sticker;
 pub mod text;
 mod toast;
-mod wifi_menu;
 
 pub use backdrop::{
     backdrop_colour_name, backdrop_pattern_face, backdrop_period, backdrop_rgb, backdrop_shift,
@@ -109,7 +108,3 @@ pub use sticker::{
     CREDITS, DC, HOME, ORIGIN, STICKER_H, STICKER_W,
 };
 pub use toast::{toast_box, toast_face, toast_rect, Toast};
-pub use wifi_menu::{
-    network_name_face, plain_face, signal_face, signal_glyph, status_fits, wifi_rows_shown,
-    wifi_status_face, wifi_window, WifiMenuFaces, WifiRowFaces,
-};
