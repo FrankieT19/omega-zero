@@ -6,6 +6,7 @@
 #[path = "../common/mod.rs"]
 mod common;
 
+mod about;
 mod app;
 mod audio;
 mod background_screen;
@@ -43,6 +44,7 @@ mod link_screen;
 mod link_session;
 mod link_start;
 mod link_ui;
+mod lone;
 mod mgba_gb_link;
 mod mgba_link;
 mod nav;
@@ -57,6 +59,7 @@ mod render_colour_correction;
 mod render_gb_palette;
 mod render_keyboard;
 mod render_link_screen;
+mod render_lone;
 mod render_network;
 mod render_overlay;
 mod render_picture_modes;

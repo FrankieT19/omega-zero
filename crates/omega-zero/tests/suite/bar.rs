@@ -10,7 +10,7 @@ use common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 use omega_input::{Action, Btn, Millis};
 use omega_store::{write_app_state, AppState, Theme};
 use omega_ui::kit::action::{action_face, Side};
-use omega_ui::kit::bar::{bar_layout, BarLayout, SINK};
+use omega_ui::kit::bar::{bar_layout, BarLayout, Hint, SINK};
 use omega_ui::kit::palette::palette;
 use omega_ui::{out_h, out_w, ChromeColours, Draw, SettingsRow, TexId, SPRITE_PX, TOP_BAR_H};
 use omega_zero::app::{App, Phase, SEATED_AT};
@@ -26,10 +26,13 @@ const SHELF_LEFT: usize = 800;
 const SHELF_RIGHT: usize = 801;
 const MENU_LEFT: usize = 810;
 const MENU_RIGHT: usize = 811;
+const CONFIRM_LEFT: usize = 820;
+const CONFIRM_RIGHT: usize = 821;
 const SHELF_PLATE: usize = 850;
 const MENU_PLATE: usize = 851;
+const CONFIRM_PLATE: usize = 852;
 
-/// A radio that is on and hears Home, a network it has saved, and Café, one it has not.
+/// A radio that comes up hearing Home, a network it has saved, and Café, one it has not.
 #[derive(Clone, Default)]
 struct Radio(Arc<Mutex<Vec<WifiNews>>>);
 
@@ -39,28 +42,26 @@ impl WifiJobs for Radio {
     }
 
     fn ask(&mut self, job: WifiJob) {
-        let mut news = self.0.lock().unwrap();
-        match job {
-            WifiJob::Up => {
-                news.push(WifiNews::Started(true));
-                news.push(WifiNews::Seen(
-                    [("Home", -48), ("Café", -60)]
-                        .map(|(ssid, rssi)| Seen {
-                            ssid: ssid.as_bytes().to_vec(),
-                            rssi,
-                            secured: true,
-                        })
-                        .to_vec(),
-                ));
-                news.push(WifiNews::Saved(vec![Saved {
-                    id: 1,
-                    ssid: b"Home".to_vec(),
-                    current: false,
-                    refused: false,
-                }]));
-            }
-            _ => {}
+        if job != WifiJob::Up {
+            return;
         }
+        let mut news = self.0.lock().unwrap();
+        news.push(WifiNews::Started(true));
+        news.push(WifiNews::Seen(
+            [("Home", -48), ("Café", -60)]
+                .map(|(ssid, rssi)| Seen {
+                    ssid: ssid.as_bytes().to_vec(),
+                    rssi,
+                    secured: true,
+                })
+                .to_vec(),
+        ));
+        news.push(WifiNews::Saved(vec![Saved {
+            id: 1,
+            ssid: b"Home".to_vec(),
+            current: false,
+            refused: false,
+        }]));
     }
 
     fn news(&mut self) -> Vec<WifiNews> {
@@ -112,6 +113,11 @@ fn fake_bar(a: &mut App) {
     a.set_bar_sets(sets);
     a.set_bar_plate(Actions::Shelf, TexId::from_raw(SHELF_PLATE));
     a.set_bar_plate(Actions::Menu, TexId::from_raw(MENU_PLATE));
+    a.set_bar_plate(Actions::Confirm, TexId::from_raw(CONFIRM_PLATE));
+}
+
+fn hint(key: &'static str, word: &'static str) -> Hint<'static> {
+    Hint { key, word }
 }
 
 fn frame(a: &App) -> Vec<Draw> {
@@ -136,10 +142,17 @@ fn rest_y() -> f32 {
 
 /// The actions shown, each with how far below its place it is in screen pixels.
 fn shown(out: &[Draw]) -> Vec<(usize, f32)> {
-    [SHELF_LEFT, SHELF_RIGHT, MENU_LEFT, MENU_RIGHT]
-        .into_iter()
-        .filter_map(|tex| at(out, tex).map(|(_, y)| (tex, y - rest_y())))
-        .collect()
+    [
+        SHELF_LEFT,
+        SHELF_RIGHT,
+        MENU_LEFT,
+        MENU_RIGHT,
+        CONFIRM_LEFT,
+        CONFIRM_RIGHT,
+    ]
+    .into_iter()
+    .filter_map(|tex| at(out, tex).map(|(_, y)| (tex, y - rest_y())))
+    .collect()
 }
 
 fn press(a: &mut App, btn: Btn) {
@@ -413,7 +426,7 @@ fn a_saved_network_under_the_cursor_puts_y_forget_on_the_plate() {
         a.wifi().entries().iter().any(|e| e.saved.is_some()),
         "the radio saved nothing"
     );
-    assert_eq!(a.bar_hints(&network_at("Home")), [("Y", "FORGET")]);
+    assert_eq!(a.bar_hints(&network_at("Home")), [hint("Y", "FORGET")]);
     assert_eq!(a.bar_hints(&network_at("Café")), []);
     assert_eq!(a.bar_hints(&Phase::Network(WifiScreen::default())), []);
     assert_eq!(a.bar_hints(&Phase::Shelf), []);
@@ -433,7 +446,7 @@ fn a_signed_in_account_puts_y_sign_out_on_the_plate() {
     let a = booted(&d);
     assert_eq!(
         a.bar_hints(&Phase::Labels(LabelsScreen::default())),
-        [("Y", "SIGN OUT")]
+        [hint("Y", "SIGN OUT")]
     );
 }
 
@@ -458,13 +471,13 @@ fn the_plates_hints_change_halfway_through_a_slide() {
         a.network_forgets(),
         "the cursor never reached a saved network"
     );
-    assert_eq!(a.bar_hints_shown(), [("Y", "FORGET")]);
+    assert_eq!(a.bar_hints_shown(), [hint("Y", "FORGET")]);
     let start: Millis = 30_000;
     a.apply_at(Action::GbaDown(Btn::B), start);
     a.tick_ms(start + SLIDE_MS / 4);
     assert_eq!(
         a.bar_hints_shown(),
-        [("Y", "FORGET")],
+        [hint("Y", "FORGET")],
         "Network's hint left early"
     );
     a.tick_ms(start + 3 * SLIDE_MS / 4);
@@ -548,4 +561,31 @@ fn a_cards_theme_is_the_chrome_whatever_the_colour() {
         top_bar_fill(&a),
         Some(ChromeColours::themed(&theme).housing)
     );
+}
+
+#[test]
+fn the_first_boot_clock_offers_only_confirm() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    let (mut a, _) = app_booting_at(d.path(), CLOCK_IS_SET);
+    fake_bar(&mut a);
+    assert!(
+        matches!(
+            a.phase(),
+            Phase::SetClock {
+                from_menu: false,
+                ..
+            }
+        ),
+        "{:?}",
+        a.phase()
+    );
+    let out = frame(&a);
+    assert_eq!(
+        shown(&out),
+        [(CONFIRM_LEFT, 0.0), (CONFIRM_RIGHT, 0.0)],
+        "the first clock offers a way back it has not got"
+    );
+    assert!(at(&out, CONFIRM_PLATE).is_some());
+    assert_eq!(Actions::Confirm.action(Side::Left), ("", ""));
+    assert_eq!(Actions::Confirm.action(Side::Right), ("CONFIRM", "A"));
 }

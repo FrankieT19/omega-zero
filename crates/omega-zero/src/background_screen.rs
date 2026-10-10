@@ -124,7 +124,7 @@ impl BackgroundScreen {
         Outcome::Changed(next)
     }
 
-    pub fn view(&self, look: Backdrop, wallpaper: bool) -> ListView {
+    pub fn view(&self, look: Backdrop) -> ListView {
         let rows = Self::rows(look);
         let at = rows.iter().position(|r| *r == self.sel).unwrap_or(0);
         let row = |sel: &Sel| match sel {
@@ -148,17 +148,11 @@ impl BackgroundScreen {
                 signal: None,
             },
         };
-        let status = if look.style == BackdropStyle::Wallpaper {
-            "Your own picture, from Wallpapers/."
-        } else if wallpaper {
-            "Pick Wallpaper to see your picture again."
-        } else {
-            "Or put a .png of your own in Wallpapers/."
-        };
+        // the panel holds its rows and nothing under them, as flow.html draws it
         ListView {
             rows: rows.iter().map(row).collect(),
             lit: Some(at),
-            status: vec![status.to_string()],
+            status: Vec::new(),
             legend: vec![LegendHint::Back, LegendHint::Change],
         }
     }

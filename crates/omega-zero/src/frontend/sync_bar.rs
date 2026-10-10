@@ -9,18 +9,18 @@ use omega_ui::SPRITE_PX;
 
 use crate::app::App;
 use crate::frontend::faces::upload_nearest;
-use crate::screens::bar::{Actions, BarHint, BarSet};
+use crate::screens::bar::{Actions, BarSet};
 
 /// The bar's textures, each reused as what it shows changes, and what each was made for.
 #[derive(Default)]
 pub(crate) struct BarTexes {
     /// Each pair of actions' faces, left then right.
-    actions: [[Option<TexId>; 2]; 2],
+    actions: [[Option<TexId>; 2]; 3],
     /// The palette colour the actions were made in.
     actions_built: Option<u8>,
-    plates: [Option<TexId>; 2],
+    plates: [Option<TexId>; 3],
     /// The palette colour and the hints each plate was made with.
-    plates_built: [Option<(u8, Vec<BarHint>)>; 2],
+    plates_built: [Option<(u8, Vec<Hint<'static>>)>; 3],
 }
 
 pub(crate) fn sync_bar(app: &mut App, compositor: &mut Compositor, texes: &mut BarTexes) {
@@ -60,12 +60,7 @@ pub(crate) fn sync_bar(app: &mut App, compositor: &mut Compositor, texes: &mut B
     let Some(set) = app.bar_faces().map(|f| f.sets[at]) else {
         return;
     };
-    let hints: Vec<Hint> = want
-        .1
-        .iter()
-        .map(|&(key, word)| Hint { key, word })
-        .collect();
-    let face = plate_face(set.layout.plate[2], &hints, pal);
+    let face = plate_face(set.layout.plate[2], &want.1, pal);
     let tex = upload_nearest(compositor, &mut texes.plates[at], &face);
     app.set_bar_plate(place.actions, tex);
     texes.plates_built[at] = Some(want);

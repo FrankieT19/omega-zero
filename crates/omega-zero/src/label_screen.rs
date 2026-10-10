@@ -118,7 +118,7 @@ impl Labels {
     pub fn status_lines(&self, online: bool) -> Vec<String> {
         if !self.jobs.present() || self.state == SyncState::Failed(SyncFail::NoKey) {
             return said(
-                "This build of omega-zero has no ScreenScraper key.",
+                "This build has no ScreenScraper key.",
                 "Labels can still be copied into Labels/.",
             );
         }
@@ -167,7 +167,7 @@ fn failed_lines(fail: SyncFail) -> Vec<String> {
             "Press A on ScreenScraper to sign in again.",
         ),
         SyncFail::Refused(Who::Program) => said(
-            "ScreenScraper refused this build of omega-zero.",
+            "ScreenScraper refused this build.",
             "A newer omega-zero may be let in.",
         ),
         SyncFail::Spent => said(
@@ -262,6 +262,16 @@ pub enum Outcome {
     Sync,
 }
 
+/// What A on Fetch Labels and START do: stop the fetch going, or ask for one once signed in.
+fn fetch(labels: &mut Labels) -> Outcome {
+    if labels.working() {
+        labels.stop();
+    } else if labels.account().is_some() {
+        return Outcome::Sync;
+    }
+    Outcome::Stay
+}
+
 impl LabelsScreen {
     pub fn input(&mut self, labels: &mut Labels, action: Action, root: Option<&Path>) -> Outcome {
         if self.typing.is_some() {
@@ -290,13 +300,9 @@ impl LabelsScreen {
             Action::GbaDown(Btn::Y) if self.sel == Sel::Account && !labels.working() => {
                 labels.sign_out(root)
             }
-            Action::GbaDown(Btn::A) if self.sel == Sel::Sync => {
-                if labels.working() {
-                    labels.stop();
-                } else if labels.account().is_some() {
-                    return Outcome::Sync;
-                }
-            }
+            // A on Fetch Labels, or START on either row, starts a fetch or stops the one going
+            Action::GbaDown(Btn::A) if self.sel == Sel::Sync => return fetch(labels),
+            Action::GbaDown(Btn::Start) => return fetch(labels),
             _ => {}
         }
         Outcome::Stay
@@ -378,16 +384,17 @@ impl LabelsScreen {
             },
         ];
         let mut legend = vec![LegendHint::Back];
-        match self.sel {
-            Sel::Account if !labels.working() => {
-                legend.push(LegendHint::SignIn);
-                if labels.account().is_some() {
-                    legend.push(LegendHint::SignOut);
-                }
+        if self.sel == Sel::Account && !labels.working() {
+            legend.push(LegendHint::SignIn);
+            if labels.account().is_some() {
+                legend.push(LegendHint::SignOut);
             }
-            Sel::Sync if labels.working() => legend.push(LegendHint::Stop),
-            Sel::Sync if labels.account().is_some() && online => legend.push(LegendHint::Start),
-            _ => {}
+        }
+        // START stops a fetch or starts one from either row
+        if labels.working() {
+            legend.push(LegendHint::Stop);
+        } else if labels.account().is_some() && online {
+            legend.push(LegendHint::Start);
         }
         ListView {
             rows,

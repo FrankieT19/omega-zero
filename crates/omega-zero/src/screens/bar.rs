@@ -1,7 +1,8 @@
 //! The bar along the bottom of the shelf and of every menu, as flow.html draws it: an action at
 //! each end and the plate between them, with the keys a screen has beyond its two actions shown
 //! on the plate as hints. The shelf's actions are SELECT QUICKMENU and START SETTINGS, a menu's
-//! B RETURN and A CONFIRM.
+//! B RETURN and A CONFIRM. Setting the clock on first boot has nowhere to go back to, so its
+//! left action is the kit's empty one: the bar keeps its shape and offers only CONFIRM.
 //!
 //! The plate never moves with the screens. When a slide's two ends have different actions, the
 //! old ones sink out of the screen over its first half and the new ones rise into place over
@@ -14,12 +15,12 @@
 
 use omega_gfx::{out_h, Draw, TexId};
 use omega_ui::kit::action::Side;
-use omega_ui::kit::bar::{action_swap, BarLayout, SINK};
+use omega_ui::kit::bar::{action_swap, BarLayout, Hint, SINK};
 use omega_ui::kit::pixel::quad;
 use omega_ui::{ease, CATCH_OUT, SPRITE_PX};
 
 use crate::app::{App, Phase};
-use crate::list_view::LegendHint;
+use crate::screens::labels::labels_hints;
 
 /// Which pair of actions the bar shows at its ends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -28,10 +29,13 @@ pub enum Actions {
     Shelf,
     /// A menu's: B RETURN and A CONFIRM.
     Menu,
+    /// A menu with no way back, the clock set on first boot: A CONFIRM alone, the left action
+    /// empty.
+    Confirm,
 }
 
 impl Actions {
-    pub const ALL: [Actions; 2] = [Actions::Shelf, Actions::Menu];
+    pub const ALL: [Actions; 3] = [Actions::Shelf, Actions::Menu, Actions::Confirm];
 
     pub fn index(self) -> usize {
         self as usize
@@ -43,13 +47,11 @@ impl Actions {
             (Actions::Shelf, Side::Left) => ("QUICKMENU", "SELECT"),
             (Actions::Shelf, Side::Right) => ("SETTINGS", "START"),
             (Actions::Menu, Side::Left) => ("RETURN", "B"),
-            (Actions::Menu, Side::Right) => ("CONFIRM", "A"),
+            (Actions::Menu | Actions::Confirm, Side::Right) => ("CONFIRM", "A"),
+            (Actions::Confirm, Side::Left) => ("", ""),
         }
     }
 }
-
-/// A key and what it does, as the plate shows it: ("Y", "FORGET").
-pub type BarHint = (&'static str, &'static str);
 
 /// Where the bar is in a frame: whose actions it shows, how far they are sunk below their place
 /// in a swap, and how far the whole bar is sunk below the screen's bottom edge as a cart goes
@@ -74,8 +76,8 @@ pub struct BarSet {
 /// `Actions::ALL`'s order. A plate is made with the hints of the screen it is shown on.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BarFaces {
-    pub sets: [BarSet; 2],
-    pub plates: [Option<TexId>; 2],
+    pub sets: [BarSet; 3],
+    pub plates: [Option<TexId>; 3],
 }
 
 /// The actions the bar shows on `phase` at rest, or None where there is no bar: in a game, its
@@ -83,6 +85,9 @@ pub struct BarFaces {
 pub fn actions_on(phase: &Phase) -> Option<Actions> {
     match phase {
         Phase::Shelf | Phase::Inserting { .. } | Phase::Ejecting { .. } => Some(Actions::Shelf),
+        Phase::SetClock {
+            from_menu: false, ..
+        } => Some(Actions::Confirm),
         Phase::Settings { .. }
         | Phase::Controls
         | Phase::Network(_)
@@ -116,22 +121,6 @@ fn swapped(from: Option<Actions>, to: Option<Actions>, p: f32) -> Option<(Action
     }
 }
 
-/// What the Labels screen's legend says on the plate. B and A are the actions' own, and left
-/// and right are on the rows that take them; fetching is START's, as flow.html has it.
-fn labels_hint(hint: LegendHint) -> Option<BarHint> {
-    match hint {
-        LegendHint::Start => Some(("START", "FETCH")),
-        LegendHint::Stop => Some(("START", "STOP")),
-        LegendHint::SignOut => Some(("Y", "SIGN OUT")),
-        LegendHint::Forget => Some(("Y", "FORGET")),
-        LegendHint::Back
-        | LegendHint::Change
-        | LegendHint::Join
-        | LegendHint::SignIn
-        | LegendHint::Open => None,
-    }
-}
-
 impl App {
     /// Where the bar is now, or None when it is out of sight.
     pub fn bar_place(&self) -> Option<BarPlace> {
@@ -161,28 +150,29 @@ impl App {
         })
     }
 
-    /// The keys `phase` has beyond its two actions, for its plate: Y FORGET on a saved network,
-    /// and on Labels START FETCH or START STOP on the fetch and Y SIGN OUT on a signed-in
-    /// account, as its legend has them. A screen with more keys adds them here; Settings and
-    /// SSH have none, and the keyboard keeps its own line in its modal.
-    pub fn bar_hints(&self, phase: &Phase) -> Vec<BarHint> {
+    /// The keys `phase` has beyond its two actions, for its plate: Y FORGET on a saved network
+    /// (`network_forgets`' rule), and on Labels START FETCH or START STOP and Y SIGN OUT
+    /// (`labels_bar_hints`'), asked of `phase` rather than the screen on show so a slide can
+    /// show the hints of the screen it leaves. A screen with more keys adds them here; Settings
+    /// and SSH have none, and the keyboard keeps its own line in its modal.
+    pub fn bar_hints(&self, phase: &Phase) -> Vec<Hint<'static>> {
         match phase {
             Phase::Network(screen) if screen.typing.is_none() && screen.forgets(&self.wifi) => {
-                vec![("Y", "FORGET")]
+                vec![Hint {
+                    key: "Y",
+                    word: "FORGET",
+                }]
             }
-            Phase::Labels(screen) if screen.typing.is_none() => screen
-                .view(&self.labels, self.online())
-                .legend
-                .into_iter()
-                .filter_map(labels_hint)
-                .collect(),
+            Phase::Labels(screen) if screen.typing.is_none() => {
+                labels_hints(&screen.view(&self.labels, self.online()).legend)
+            }
             _ => Vec::new(),
         }
     }
 
     /// The hints the plate shows now: the screen's on show, and through a slide the leaving
     /// screen's until halfway, the arriving one's after.
-    pub fn bar_hints_shown(&self) -> Vec<BarHint> {
+    pub fn bar_hints_shown(&self) -> Vec<Hint<'static>> {
         match &self.slide {
             Some(slide) if slide.progress(self.now()) < 0.5 => self.bar_hints(&slide.from),
             _ => self.bar_hints(&self.phase),
@@ -190,10 +180,10 @@ impl App {
     }
 
     /// Each pair of actions, uploaded: what the bar's plates are laid out from.
-    pub fn set_bar_sets(&mut self, sets: [BarSet; 2]) {
+    pub fn set_bar_sets(&mut self, sets: [BarSet; 3]) {
         self.bar_faces = Some(BarFaces {
             sets,
-            plates: [None; 2],
+            plates: [None; 3],
         });
     }
 

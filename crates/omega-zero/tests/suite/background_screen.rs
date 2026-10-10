@@ -299,22 +299,3 @@ fn the_background_screen_shows_the_background_it_is_choosing_behind_its_list() {
         "something was laid over the background it is choosing"
     );
 }
-
-#[test]
-fn every_hint_under_the_list_fits_whole() {
-    let mut seen = Vec::new();
-    let mut plain = Rig::new();
-    plain.open();
-    seen.extend(plain.a.background_view().unwrap().status);
-    let mut own = Rig::new();
-    own.a.set_wallpaper(TexId::from_raw(9));
-    own.open();
-    seen.extend(own.a.background_view().unwrap().status);
-    own.press(Btn::Right);
-    seen.extend(own.a.background_view().unwrap().status);
-    let distinct: std::collections::BTreeSet<_> = seen.iter().collect();
-    assert_eq!(distinct.len(), 3, "not every hint was shown: {seen:?}");
-    for line in seen {
-        assert!(omega_ui::status_fits(&line), "{line:?} is cut short");
-    }
-}

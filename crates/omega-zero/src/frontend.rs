@@ -6,8 +6,8 @@ use omega_power::{Platform, Power};
 use omega_ui::{
     arrows_hint_face, badge_face, bezel_mark_face, bolt_face, cart_face, cart_shadow, chip_face,
     chip_shadow_face, gb_cart_shadow, hint_face, icon_face, mark_height, mark_rect, menu_face, rim,
-    set_clock_hint_face, socket_face, toast_face, wallpaper_face, GbShell, Icon, LinkBadge,
-    PowerChoice, Toast, UndoFace, ALERT_PX, BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
+    socket_face, toast_face, wallpaper_face, GbShell, Icon, LinkBadge, PowerChoice, Toast,
+    UndoFace, ALERT_PX, BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
 };
 use omega_ui::{link_face, overlay_clear, overlay_face, overlay_path, Link, LinkFaces};
 
@@ -16,10 +16,12 @@ use crate::face_builder::FaceBuilder;
 use crate::link_art_builder::LinkArtBuilder;
 use crate::link_screen::{LinkSprites, Sprite};
 use crate::link_start::{LinkFail, LinkStep};
+use crate::list_view::ListView;
 use crate::session::Session;
 use crate::wallpaper;
 
 mod faces;
+mod lone;
 mod sync_about;
 mod sync_background;
 mod sync_bar;
@@ -33,7 +35,7 @@ mod sync_settings;
 mod sync_ssh;
 mod sync_switcher;
 
-use faces::WifiTexes;
+use lone::Baked;
 use sync_about::{sync_about, AboutFace};
 use sync_background::{sync_background, BackdropTex};
 use sync_bar::{sync_bar, BarTexes};
@@ -77,8 +79,9 @@ pub struct Frontend {
     /// The keyboard's window, field, keys and lit key.
     keyboard: KeyboardTexes,
     ssh: SshTexes,
-    labels: WifiTexes,
-    background: WifiTexes,
+    labels: Baked<(ListView, u8)>,
+    controls: Baked<u8>,
+    background: Baked<(ListView, u8)>,
     backdrop: BackdropTex,
     bar: BarTexes,
 }
@@ -132,8 +135,9 @@ impl Frontend {
             network_modal: NetworkTexes::default(),
             keyboard: KeyboardTexes::default(),
             ssh: SshTexes::default(),
-            labels: WifiTexes::default(),
-            background: WifiTexes::default(),
+            labels: Baked::default(),
+            controls: Baked::default(),
+            background: Baked::default(),
             backdrop: BackdropTex::default(),
             bar: BarTexes::default(),
         }
@@ -251,8 +255,6 @@ impl Frontend {
         self.session.app_mut().set_toast_faces(toasts);
         let legend = legend_faces(compositor, &LEGEND);
         self.session.app_mut().set_legend_faces(legend);
-        let hint = set_clock_hint_face();
-        self.clocks.hint = Some(compositor.create_texture(hint.w, hint.h, &hint.rgba));
         let shadow = cart_shadow();
         let id = compositor.create_texture(shadow.w, shadow.h, &shadow.rgba);
         self.session.app_mut().set_cart_shadow(id);
@@ -321,7 +323,7 @@ impl Frontend {
         sync_network(self.session.app_mut(), compositor, &mut self.network_modal);
         sync_keyboard(self.session.app_mut(), compositor, &mut self.keyboard);
         sync_ssh(self.session.app_mut(), compositor, &mut self.ssh);
-        sync_controls(self.session.app_mut(), compositor);
+        sync_controls(self.session.app_mut(), compositor, &mut self.controls);
         sync_labels(self.session.app_mut(), compositor, &mut self.labels);
         sync_background(
             self.session.app_mut(),

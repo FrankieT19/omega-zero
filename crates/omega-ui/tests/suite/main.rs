@@ -42,7 +42,6 @@ mod sticker;
 mod switcher;
 mod toast;
 mod top_bar;
-mod wifi_menu;
 
 /// A file in this folder that the list above leaves out is never compiled, let alone run.
 #[test]

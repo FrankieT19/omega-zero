@@ -1,10 +1,46 @@
 //! The clock: asked for at first boot, and opened from Settings' Date & Time.
+//!
+//! Both are the one lone panel, as flow.html's `#screen=datetime`: DATE & TIME, holding the
+//! picker's line in the middle of its well with the field under the cursor underlined. The
+//! bottom bar says what A and B do.
 
 use omega_input::{Action, Btn};
-use omega_ui::{ClockPicker, Draw, SettingsRow, TexId};
+use omega_ui::kit::palette::Palette;
+use omega_ui::kit::panel::panel_face;
+use omega_ui::kit::pixel::LINE;
+use omega_ui::kit::row::panel_height;
+use omega_ui::{ClockPicker, Draw, SettingsRow, UndoFace};
 
 use crate::app::{App, Phase};
 use crate::nav::Dir;
+use crate::screens::lone::{over, Lone};
+
+/// How wide the panel is, in art pixels: flow.css's .datetime-panel.
+pub const WIDTH: u32 = 240;
+
+/// The panel's title.
+pub const TITLE: &str = "DATE & TIME";
+
+/// Where the line stands in the well: 6 under its top, and 10 clear under the line, where the
+/// underline is, so its capitals have as much room above as the underline has below.
+pub const LINE_TOP: u32 = 6;
+const LINE_BELOW: u32 = 10;
+
+/// The Date & Time panel holding `picker`, in `pal`.
+pub fn clock_face(picker: &ClockPicker, pal: &Palette) -> UndoFace {
+    let content = LINE_TOP + LINE + LINE_BELOW;
+    let mut panel = panel_face(WIDTH, panel_height(content), TITLE, true, pal);
+    let [x, y, w, _] = panel.well;
+    let line = picker.face(pal);
+    // across the well's middle by its letters, rounded down to a whole pixel
+    over(
+        &mut panel.face,
+        &line,
+        x + w.saturating_sub(line.w) / 2,
+        y + LINE_TOP,
+    );
+    panel.face
+}
 
 impl App {
     pub(crate) fn clock_input(&mut self, action: Action) {
@@ -66,18 +102,15 @@ impl App {
         }
     }
 
-    pub fn set_clock_faces(&mut self, line: TexId, hint: TexId) {
-        self.clock_faces = Some((line, hint));
+    pub fn set_clock_panel(&mut self, panel: Lone) {
+        self.clock_panel = Some(panel);
     }
 
-    pub(crate) fn draw_clock(&self, picker: &ClockPicker, from_menu: bool, out: &mut Vec<Draw>) {
-        let (line, hint) = match self.clock_faces {
-            Some((line, hint)) => (Some(line), Some(hint)),
-            None => (None, None),
-        };
-        // the bar under every menu says B RETURN now, so the clock no longer prints its own
-        let _ = from_menu;
-        picker.draw(line, hint, None, out);
+    /// The Date & Time panel, at first boot as from Settings.
+    pub(crate) fn draw_clock(&self, out: &mut Vec<Draw>) {
+        if let Some(panel) = &self.clock_panel {
+            panel.draw(out);
+        }
     }
 }
 

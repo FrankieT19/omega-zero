@@ -31,7 +31,6 @@ mod status_bar;
 mod sticker;
 pub mod text;
 mod toast;
-mod wifi_menu;
 
 pub use backdrop::{
     backdrop_colour_name, backdrop_pattern_face, backdrop_period, backdrop_rgb, backdrop_shift,
@@ -56,7 +55,7 @@ pub use cart::{
     GB_CART_H, GB_CART_W, GB_LABEL_H, GB_LABEL_W, GB_LABEL_X, GB_LABEL_Y, LABEL_H, LABEL_W,
     LABEL_X, LABEL_Y,
 };
-pub use clock::{clock_label, date_time_text, hhmm, set_clock_hint_face, ClockPicker, Field};
+pub use clock::{clock_label, date_time_text, hhmm, ClockPicker, Field};
 pub use draw::{out_h, out_w, Draw, TexId};
 pub use footer::Printed;
 pub use hud::{
@@ -109,7 +108,3 @@ pub use sticker::{
     CREDITS, DC, HOME, ORIGIN, STICKER_H, STICKER_W,
 };
 pub use toast::{toast_box, toast_face, toast_rect, Toast};
-pub use wifi_menu::{
-    network_name_face, plain_face, signal_face, signal_glyph, status_fits, wifi_rows_shown,
-    wifi_status_face, wifi_window, WifiMenuFaces, WifiRowFaces,
-};

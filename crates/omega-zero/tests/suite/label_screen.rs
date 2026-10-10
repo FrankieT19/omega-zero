@@ -388,8 +388,5 @@ fn a_build_without_screenscrapers_key_says_so() {
     let mut r = Rig::signed_in();
     r.scraper.0.lock().unwrap().absent = true;
     r.open_labels();
-    assert_eq!(
-        r.status()[0],
-        "This build of omega-zero has no ScreenScraper key."
-    );
+    assert_eq!(r.status()[0], "This build has no ScreenScraper key.");
 }
