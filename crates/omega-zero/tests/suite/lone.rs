@@ -1,4 +1,4 @@
-//! The lone panels, QUICKMENU, BACKGROUND, DATE & TIME and LABELS, against flow.html: each
+//! The lone panels, CONTROLS, BACKGROUND, DATE & TIME and LABELS, against flow.html: each
 //! panel's face is held to a screenshot of flow.html in Chrome (lone/ref/, made by
 //! lone/make-refs.sh from assets/ui/flow.html), pixel for pixel, in Night and in Amber. The
 //! screenshots are the whole 640x480 screen; a panel is in the middle of its page, which is the
@@ -10,7 +10,7 @@ use crate::common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 
 use omega_input::{Action, Btn};
 use omega_store::{colour_index, write_app_state, AppState, BackdropStyle};
-use omega_ui::kit::layout::screen_px;
+use omega_ui::kit::layout::{screen_px, BAR_U};
 use omega_ui::kit::palette::{palette, Palette};
 use omega_ui::kit::pixel::text_width;
 use omega_ui::kit::row::panel_height;
@@ -32,8 +32,8 @@ use omega_zero::screens::lone::{fitted, Lone, NOTE_X};
 /// The time flow.html's Date & Time shows: 2026-10-10 16:00 UTC.
 pub const FLOW_DATE: i64 = 1_791_648_000;
 
-/// The page a 640x480 screen's menus sit in, in art pixels: all of it above the 21 of the bar.
-const PAGE: [u32; 2] = [320, 219];
+/// The page a 640x480 screen's menus sit in, in art pixels: all of it above the bar's `BAR_U`.
+const PAGE: [u32; 2] = [320, 240 - BAR_U];
 
 pub fn colours() -> [(u8, &'static str); 2] {
     [(0, "night"), (amber(), "amber")]
@@ -173,10 +173,11 @@ fn labels_is_flows() {
     }
 }
 
-/// QUICKMENU's lines are its own, trimmed to fit flow.html's grid, and it has three more than
-/// flow.html's; its title, its headings and the lines both say are flow.html's pixel for pixel.
+/// The Controls panel's lines are its own, trimmed to fit flow.html's grid, and it has three
+/// more than flow.html's; its title, its headings and the lines both say are flow.html's pixel
+/// for pixel.
 #[test]
-fn the_quickmenu_is_flows_where_it_says_what_flow_says() {
+fn the_controls_panel_is_flows_where_it_says_what_flow_says() {
     let view = ControlsView::new();
     for (colour, name) in colours() {
         let face = controls_face(&view, palette(colour));
@@ -193,10 +194,10 @@ fn the_quickmenu_is_flows_where_it_says_what_flow_says() {
     }
 }
 
-/// At 640x480 the page is 320 by 219 art pixels: the panel fits it, and every line fits its
+/// At 640x480 the page is 320 by 225 art pixels: the panel fits it, and every line fits its
 /// column, its buttons in their room and what they do in theirs.
 #[test]
-fn the_quickmenu_fits_at_640() {
+fn the_controls_panel_fits_at_640() {
     let view = ControlsView::new();
     let face = controls_face(&view, palette(0));
     assert_eq!(face.w, WIDTH);

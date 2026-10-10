@@ -294,11 +294,11 @@ fn flows_networks(joined: bool) -> [ListRow<'static>; 3] {
 #[test]
 fn the_modal_sits_where_flow_puts_it() {
     if (out_w(), out_h()) == (640, 480) {
-        assert_eq!(modal_rect(), [16, 14, 288, 200]);
-        assert_eq!(network_panels(3), [[4, 2, 280, 62], [4, 63, 280, 133]]);
-        assert_eq!(network_panels(1), [[4, 2, 280, 36], [4, 37, 280, 159]]);
-        assert_eq!(ssh_rect(5), [60, 57, 200, 104], "flow's SSH panel");
-        assert_eq!(ssh_rect(0), [60, 88, 200, 42], "flow's SSH panel offline");
+        assert_eq!(modal_rect(), [16, 14, 288, 206]);
+        assert_eq!(network_panels(3), [[4, 2, 280, 62], [4, 63, 280, 139]]);
+        assert_eq!(network_panels(1), [[4, 2, 280, 36], [4, 37, 280, 165]]);
+        assert_eq!(ssh_rect(5), [60, 60, 200, 104], "flow's SSH panel");
+        assert_eq!(ssh_rect(0), [60, 91, 200, 42], "flow's SSH panel offline");
     }
     let [_, _, _, h] = modal_rect();
     for settings in [1, 3] {

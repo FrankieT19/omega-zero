@@ -9,8 +9,8 @@ use std::sync::{Arc, Mutex};
 use common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 use omega_input::{Action, Btn, Millis};
 use omega_store::{write_app_state, AppState, Theme};
-use omega_ui::kit::action::{action_face, Side};
-use omega_ui::kit::bar::{bar_layout, BarLayout, Hint, SINK};
+use omega_ui::kit::action::{action_pair, Side, RISE};
+use omega_ui::kit::bar::{bar_layout, BarLayout, Hint, PLATE_TOP, SINK};
 use omega_ui::kit::palette::palette;
 use omega_ui::{out_h, out_w, ChromeColours, Draw, SettingsRow, TexId, SPRITE_PX, TOP_BAR_H};
 use omega_zero::app::{App, Phase, SEATED_AT};
@@ -94,16 +94,13 @@ fn on_shelf() -> (TempDir, App) {
     (d, a)
 }
 
-/// Both sets of actions as the kit lays them out, uploaded as made-up textures, and a plate
-/// for each.
+/// Both sets of actions as the kit lays them out, each pair made together, uploaded as made-up
+/// textures, and a plate for each.
 fn fake_bar(a: &mut App) {
     let width = out_w() / SPRITE_PX;
     let pal = a.palette();
     let sets = Actions::ALL.map(|actions| {
-        let [l, r] = [Side::Left, Side::Right].map(|side| {
-            let (word, pill) = actions.action(side);
-            action_face(side, word, pill, pal)
-        });
+        let [l, r] = action_pair(actions.action(Side::Left), actions.action(Side::Right), pal);
         let base = SHELF_LEFT + 10 * actions.index();
         BarSet {
             layout: bar_layout(width, &l, &r),
@@ -138,7 +135,12 @@ fn at(out: &[Draw], tex: usize) -> Option<(f32, f32)> {
 /// How far the actions' faces stand above the screen's bottom edge at rest: the bar, and the
 /// notch rising over it.
 fn rest_y() -> f32 {
-    BarLayout::top(out_h()) - 12.0
+    BarLayout::top(out_h()) - (RISE * SPRITE_PX) as f32
+}
+
+/// Where the plate's top is on the screen: `PLATE_TOP` down the bar, under the actions' rails.
+fn plate_y() -> f32 {
+    BarLayout::top(out_h()) + (PLATE_TOP * SPRITE_PX) as f32
 }
 
 /// The actions shown, each with how far below its place it is in screen pixels.
@@ -162,7 +164,7 @@ fn press(a: &mut App, btn: Btn) {
 }
 
 #[test]
-fn the_shelf_shows_quickmenu_and_settings_and_a_menu_return_and_confirm() {
+fn the_shelf_shows_controls_and_settings_and_a_menu_return_and_confirm() {
     let (_d, mut a) = on_shelf();
     let out = frame(&a);
     assert_eq!(shown(&out), [(SHELF_LEFT, 0.0), (SHELF_RIGHT, 0.0)]);
@@ -171,7 +173,7 @@ fn the_shelf_shows_quickmenu_and_settings_and_a_menu_return_and_confirm() {
     assert_eq!(
         at(&out, SHELF_LEFT).unwrap().0,
         0.0,
-        "QUICKMENU is off the left edge"
+        "CONTROLS is off the left edge"
     );
     assert_eq!(
         at(&out, SHELF_RIGHT).unwrap().0,
@@ -180,10 +182,7 @@ fn the_shelf_shows_quickmenu_and_settings_and_a_menu_return_and_confirm() {
     );
     assert_eq!(
         at(&out, SHELF_PLATE),
-        Some((
-            (set.layout.plate[0] * SPRITE_PX) as f32,
-            BarLayout::top(out_h()) + 6.0
-        )),
+        Some(((set.layout.plate[0] * SPRITE_PX) as f32, plate_y())),
         "the plate is not between the shelf's actions"
     );
 
@@ -196,8 +195,8 @@ fn the_shelf_shows_quickmenu_and_settings_and_a_menu_return_and_confirm() {
     assert_eq!(at(&out, SHELF_PLATE), None);
 }
 
-/// flow/player.js's sink: even((p / 0.5) · 54) over the first half, the new actions
-/// even(((1 − p) / 0.5) · 54) over the second.
+/// flow/player.js's sink: even((p / 0.5) · 38) over the first half, the new actions
+/// even(((1 − p) / 0.5) · 38) over the second.
 fn players_sink(p: f32) -> f32 {
     let even = |x: f32| 2.0 * (x / 2.0).round();
     let sink = 2.0 * SINK as f32;
@@ -213,7 +212,6 @@ fn the_shelfs_actions_sink_and_a_menus_rise_as_flow_does() {
     let (_d, mut a) = on_shelf();
     let start: Millis = 10_000;
     a.apply_at(Action::GbaDown(Btn::Start), start);
-    let plate_y = BarLayout::top(out_h()) + 6.0;
     let mut seen = Vec::new();
     for t in [0.0, 0.25, 0.5, 0.75, 1.0] {
         a.tick_ms(start + (t * SLIDE_MS as f32) as Millis);
@@ -229,7 +227,7 @@ fn the_shelfs_actions_sink_and_a_menus_rise_as_flow_does() {
         let plate = if p < 0.5 { SHELF_PLATE } else { MENU_PLATE };
         assert_eq!(
             at(&out, plate).map(|(_, y)| y),
-            Some(plate_y),
+            Some(plate_y()),
             "the plate moved at t {t}"
         );
         seen.push(want);
@@ -238,9 +236,9 @@ fn the_shelfs_actions_sink_and_a_menus_rise_as_flow_does() {
         seen,
         [
             vec![(SHELF_LEFT, 0.0), (SHELF_RIGHT, 0.0)],
-            vec![(SHELF_LEFT, 12.0), (SHELF_RIGHT, 12.0)],
+            vec![(SHELF_LEFT, 8.0), (SHELF_RIGHT, 8.0)],
             vec![],
-            vec![(MENU_LEFT, 12.0), (MENU_RIGHT, 12.0)],
+            vec![(MENU_LEFT, 8.0), (MENU_RIGHT, 8.0)],
             vec![(MENU_LEFT, 0.0), (MENU_RIGHT, 0.0)],
         ],
         "the swap is not where flow.html has it at a quarter, a half and three quarters"
@@ -256,9 +254,9 @@ fn going_back_to_the_shelf_swaps_them_the_other_way() {
     a.apply_at(Action::GbaDown(Btn::B), start);
     assert!(matches!(a.phase(), Phase::Shelf));
     a.tick_ms(start + SLIDE_MS / 4);
-    assert_eq!(shown(&frame(&a)), [(MENU_LEFT, 12.0), (MENU_RIGHT, 12.0)]);
+    assert_eq!(shown(&frame(&a)), [(MENU_LEFT, 8.0), (MENU_RIGHT, 8.0)]);
     a.tick_ms(start + 3 * SLIDE_MS / 4);
-    assert_eq!(shown(&frame(&a)), [(SHELF_LEFT, 12.0), (SHELF_RIGHT, 12.0)]);
+    assert_eq!(shown(&frame(&a)), [(SHELF_LEFT, 8.0), (SHELF_RIGHT, 8.0)]);
 }
 
 #[test]
@@ -288,8 +286,7 @@ fn the_bar_sinks_as_a_cart_goes_in_stays_away_in_the_game_and_comes_back_on_ejec
     let (_d, mut a) = on_shelf();
     press(&mut a, Btn::A);
     assert!(matches!(a.phase(), Phase::Inserting { .. }));
-    let plate =
-        |out: &[Draw]| at(out, SHELF_PLATE).map(|(_, y)| y - (BarLayout::top(out_h()) + 6.0));
+    let plate = |out: &[Draw]| at(out, SHELF_PLATE).map(|(_, y)| y - plate_y());
     let mut last = 0.0;
     let mut gone_at = None;
     for _ in 0..60 {
@@ -676,7 +673,7 @@ fn the_swap_fits_the_menu_plate() {
     let wide = omega_ui::kit::bar::hints_width(&[SWAP]);
     assert_eq!(
         plate,
-        if out_w() == 640 { 107 } else { 147 },
+        if out_w() == 640 { 136 } else { 176 },
         "the plate's width"
     );
     assert!(
