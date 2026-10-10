@@ -30,7 +30,8 @@
 - Theme, Date & Time and Labels are panels over the background, and the passphrase
   keyboard is a window. About is the same sticker as before.
 - In the menus the bottom bar says B RETURN and A CONFIRM. A screen's own keys sit in the middle
-  of it: Y FORGET on Network, START FETCH and Y SIGN OUT on Labels.
+  of it: Y FORGET on Network, START FETCH and Y SIGN OUT on Labels. Between its two ends there is
+  nothing but those keys, over the background.
 - Every move between screens slides, over a background that keeps moving. Going into a screen,
   the one you leave goes out to the right and the new one comes in from the left; coming back is
   the mirror. Leaving the shelf, the top bar goes up, the carts right and the slot down.
@@ -55,6 +56,9 @@
   HTML kit pixel for pixel; `make-refs.sh` takes them again.
 - Each menu screen's input and drawing is a file of its own in `crates/omega-zero/src/screens/`,
   its faces are made in `frontend/sync_*.rs`, and `nav.rs` slides between them.
+- Now that root's password is random, `task deploy:wifi` and `task log:wifi` log in with
+  `CONSOLE_PASSWORD` or, without it, the first line of a git-ignored `.console-password` at the
+  top of the repo.
 
 ## omega-zero 0.0.2
 
