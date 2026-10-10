@@ -72,7 +72,7 @@
 <body>
 <div id="kit"></div>
 
-<!-- flow.html's lone panels, as it has them (#screen=ssh, labels, controls). SSH's two ways
+<!-- flow.html's lone panels, as it has them (#screen=ssh, labels, controls). SSH's three ways
      are one each here, its rows straight in the panel: flow.html keeps them in a div it shows
      or hides, where omega-panel's ::slotted rule cannot reach them, so there they miss the
      pixel every row reaches into a well's sides (its network list's rows, in .list, too). -->
@@ -81,7 +81,7 @@
     <omega-row label="IP" value="192.168.1.20"></omega-row>
     <omega-row label="HOST" value="rg35xxsp.local"></omega-row>
     <omega-row label="USER" value="root"></omega-row>
-    <omega-row label="PASSWORD" value="root"></omega-row>
+    <omega-row label="PASSWORD" value="482913"></omega-row>
     <omega-row label="PORT" value="22"></omega-row>
     <p class="note">SFTP uses the same login</p>
   </omega-panel>
@@ -89,6 +89,11 @@
 <template id="flow-ssh-offline">
   <omega-panel label="SSH" active class="lone small ssh offline">
     <p class="note">Join a Wi-Fi network first.</p>
+  </omega-panel>
+</template>
+<template id="flow-ssh-switched-off">
+  <omega-panel label="SSH" active class="lone small ssh offline">
+    <p class="note">Turn SSH on first.</p>
   </omega-panel>
 </template>
 <template id="flow-labels">
