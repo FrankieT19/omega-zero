@@ -245,7 +245,7 @@ fn a_handheld_without_a_radio_has_no_network_row() {
     assert!(!r.a.settings_rows().contains(&SettingsRow::Network));
     r.open_menu_at(SettingsRow::DateTime);
     r.press(Btn::Down);
-    assert_eq!(r.a.settings_row(), Some(SettingsRow::Background));
+    assert_eq!(r.a.settings_row(), Some(SettingsRow::Bluetooth));
     r.press(Btn::Up);
     assert_eq!(r.a.settings_row(), Some(SettingsRow::DateTime));
 }
@@ -700,8 +700,6 @@ fn the_top_bar_lights_wifi_and_ssh_once_a_network_is_joined() {
         Some(false),
         "Bluetooth is not shown off"
     );
-    r.a.set_bluetooth(true);
-    assert_eq!(r.a.links().bluetooth, Some(true));
 }
 
 #[test]

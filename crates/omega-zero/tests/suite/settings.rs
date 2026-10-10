@@ -142,6 +142,7 @@ fn up_and_down_move_the_bar_and_wrap_at_the_ends() {
         SettingsRow::Labels,
         SettingsRow::DateTime,
         SettingsRow::Network,
+        SettingsRow::Bluetooth,
         SettingsRow::Background,
         SettingsRow::About,
         SettingsRow::FastForward,
@@ -535,6 +536,7 @@ fn the_rows_say_what_is_set_in_flows_capitals() {
             None,
             clock_text,
             text("OFF"),
+            text("OFF"),
             None,
             None,
         ]
@@ -623,15 +625,15 @@ fn without_a_radio_network_is_not_listed_drawn_or_stepped_onto() {
     press(&mut a, Btn::Down);
     assert_eq!(
         a.settings_row(),
-        Some(SettingsRow::Background),
+        Some(SettingsRow::Bluetooth),
         "the cursor landed on Network"
     );
     let out = frame(&a);
     assert!(!drawn(&out, 200 + SettingsRow::Network.index()));
-    // Background and About close up under Date & Time; the panels stay where they were
+    // Bluetooth and the rows after it close up under Date & Time; the panels stay where they were
     let date = placed(&out, 200 + SettingsRow::DateTime.index()).unwrap();
-    let background = placed(&out, 200 + SettingsRow::Background.index()).unwrap();
-    assert_eq!(background[1], date[1] + (2 * ROW_H) as f32);
+    let bluetooth = placed(&out, 200 + SettingsRow::Bluetooth.index()).unwrap();
+    assert_eq!(bluetooth[1], date[1] + (2 * ROW_H) as f32);
     assert_eq!(placed(&out, 100), Some(at_2x(modal_rect())));
     assert_eq!(placed(&out, 111), Some(at_2x(faces.titles[1].at)));
 }

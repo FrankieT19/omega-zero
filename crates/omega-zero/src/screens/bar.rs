@@ -30,6 +30,12 @@ pub const SWAP: Hint<'static> = Hint {
     word: "SWAP",
 };
 
+/// Y on a saved network or a paired Bluetooth device: it forgets it.
+pub const FORGET: Hint<'static> = Hint {
+    key: "Y",
+    word: "FORGET",
+};
+
 /// Which pair of actions the bar shows at its ends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Actions {
@@ -99,6 +105,7 @@ pub fn actions_on(phase: &Phase) -> Option<Actions> {
         Phase::Settings { .. }
         | Phase::Controls
         | Phase::Network(_)
+        | Phase::Bluetooth(_)
         | Phase::Ssh(_)
         | Phase::Labels(_)
         | Phase::Background(_)
@@ -165,7 +172,7 @@ impl App {
     }
 
     /// The keys `phase` has beyond its two actions, for between them: Y FORGET on a saved network
-    /// (`network_forgets`' rule), on Labels START FETCH or START STOP and Y SIGN OUT
+    /// (`network_forgets`' rule) and on a paired Bluetooth device (`bluetooth_forgets`'), on Labels START FETCH or START STOP and Y SIGN OUT
     /// (`labels_bar_hints`'), and on the shelf, while the core picker over it shows RETURN and
     /// CONFIRM, ◀▶ SWAP. They are asked of `phase` rather than the screen on show so a slide
     /// can show the hints of the screen it leaves. A screen with more keys adds them here;
@@ -174,11 +181,9 @@ impl App {
         match phase {
             Phase::Shelf if self.picker_has_bar() => vec![SWAP],
             Phase::Network(screen) if screen.typing.is_none() && screen.forgets(&self.wifi) => {
-                vec![Hint {
-                    key: "Y",
-                    word: "FORGET",
-                }]
+                vec![FORGET]
             }
+            Phase::Bluetooth(screen) if screen.forgets(&self.bluetooth) => vec![FORGET],
             Phase::Labels(screen) if screen.typing.is_none() => {
                 labels_hints(&screen.view(&self.labels, self.online()).legend)
             }

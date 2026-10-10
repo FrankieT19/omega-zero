@@ -9,6 +9,7 @@ pub use omega_ui::{SettingsGroup, SettingsRow};
 
 use crate::app::{App, Phase};
 use crate::background_screen::BackgroundScreen;
+use crate::bluetooth_screen::{BluetoothScreen, Summary as BluetoothSummary};
 use crate::label_screen::LabelsScreen;
 use crate::nav::Dir;
 use crate::screens::clock::clock_screen;
@@ -33,13 +34,15 @@ impl App {
             SettingsRow::Labels
             | SettingsRow::DateTime
             | SettingsRow::Network
+            | SettingsRow::Bluetooth
             | SettingsRow::Background
             | SettingsRow::About => None,
         }
     }
 
-    /// What a row says on its right: a config's value, the date and time, or the network
-    /// joined (in capitals, as flow.html prints it), ON with none, OFF with the radio off.
+    /// What a row says on its right: a config's value, the date and time, the network joined
+    /// or the Bluetooth device connected (in capitals, as flow.html prints them), else ON, or
+    /// OFF with the radio off.
     pub fn settings_text(&self, row: SettingsRow) -> Option<String> {
         match row {
             SettingsRow::DateTime => Some(date_time_text(self.wall_secs())),
@@ -47,6 +50,11 @@ impl App {
                 Summary::Off => QuickValue::Off.text().to_string(),
                 Summary::On => QuickValue::On.text().to_string(),
                 Summary::Joined(name) => name.to_uppercase(),
+            }),
+            SettingsRow::Bluetooth => Some(match self.bluetooth_summary() {
+                BluetoothSummary::Off => QuickValue::Off.text().to_string(),
+                BluetoothSummary::On => QuickValue::On.text().to_string(),
+                BluetoothSummary::Connected(name) => name.to_uppercase(),
             }),
             _ => self.settings_value(row).map(|v| v.text().to_string()),
         }
@@ -83,11 +91,16 @@ impl App {
         );
     }
 
-    /// The rows Settings lists on this handheld: Network only where there is a radio.
+    /// The rows Settings lists on this handheld: Network only where there is a Wi-Fi radio,
+    /// Bluetooth only where there is Bluetooth.
     pub fn settings_rows(&self) -> Vec<SettingsRow> {
         SettingsRow::ALL
             .into_iter()
-            .filter(|r| *r != SettingsRow::Network || self.wifi.present())
+            .filter(|r| match r {
+                SettingsRow::Network => self.wifi.present(),
+                SettingsRow::Bluetooth => self.bluetooth.present(),
+                _ => true,
+            })
             .collect()
     }
 
@@ -112,6 +125,7 @@ impl App {
             SettingsRow::Labels => Phase::Labels(LabelsScreen::default()),
             SettingsRow::DateTime => clock_screen(self.utc_secs(), self.state.utc_offset_min, true),
             SettingsRow::Network => Phase::Network(WifiScreen::default()),
+            SettingsRow::Bluetooth => Phase::Bluetooth(BluetoothScreen::default()),
             SettingsRow::Background => Phase::Background(BackgroundScreen::default()),
             SettingsRow::About => Phase::About,
             SettingsRow::FastForward
@@ -141,6 +155,7 @@ impl App {
             SettingsRow::Labels
             | SettingsRow::DateTime
             | SettingsRow::Network
+            | SettingsRow::Bluetooth
             | SettingsRow::Background
             | SettingsRow::About => return,
         }
