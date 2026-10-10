@@ -6,8 +6,9 @@ use std::sync::{Arc, Mutex};
 use common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 use omega_input::{Action, Btn, Millis};
 use omega_store::{write_app_state, AppState};
+use omega_ui::kit::palette::palette;
 use omega_ui::{
-    housing, out_w, Draw, QuickMenuFaces, QuickValue, SettingsRow, TexId, SPRITE_PX, TOP_BAR_H,
+    housing, out_w, settings_frame, Draw, SettingsFaces, SettingsRow, TexId, SPRITE_PX, TOP_BAR_H,
 };
 use omega_zero::app::{App, Phase};
 use omega_zero::label_screen::LabelsScreen;
@@ -397,18 +398,12 @@ fn a_volume_press_during_a_slide_leaves_it_sliding() {
     assert!(a.slide().is_some(), "the volume ended the slide");
 }
 
+/// Settings' faces as fake textures: its modal is 100.
 fn fake_settings_faces(a: &mut App) {
     let id = TexId::from_raw;
-    a.set_settings_faces(QuickMenuFaces {
-        labels: (0..SettingsRow::ALL.len())
-            .map(|i| (id(100 + i), 200, 40))
-            .collect(),
-        values: (0..QuickValue::ALL.len())
-            .map(|i| [(id(200 + i), 60, 40), (id(210 + i), 60, 40)])
-            .collect(),
-        carets: [(id(300), 10, 40), (id(301), 10, 40)],
-        legend: [(id(400), 70), (id(401), 110), (id(402), 80)],
-    });
+    let frame = settings_frame(5, palette(0));
+    let titles = [(id(110), [42, 11]), (id(111), [42, 11])];
+    a.set_settings_faces(SettingsFaces::new(&frame, id(100), titles));
 }
 
 fn frame(a: &App) -> Vec<Draw> {
@@ -442,7 +437,7 @@ fn halfway_to_settings_both_screens_are_drawn_where_the_slide_has_them() {
         let mut done = Vec::new();
         a.finish_slide();
         a.draw(&mut done);
-        x_of(&done, label).expect("Settings' first label is not drawn")
+        x_of(&done, label).expect("Settings' modal is not drawn")
     };
     a.apply_at(Action::GbaDown(Btn::B), at + 1_000);
     a.apply_at(Action::GbaDown(Btn::Start), at + 2_000);

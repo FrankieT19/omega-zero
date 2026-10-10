@@ -1,5 +1,8 @@
 #![cfg(target_os = "macos")]
 
+//! Settings drawn by the whole frontend on a headless GL canvas: the modal and its rows where
+//! the kit puts them, at 2x on the art grid, in the palette of the backdrop showing round it.
+
 use crate::common;
 
 use std::collections::VecDeque;
@@ -9,8 +12,16 @@ use omega_gfx::{out_h, out_w, Compositor, HeadlessSurface};
 use omega_input::{Btn, InputSource, Millis, RawEvent};
 use omega_power::SimPlatform;
 use omega_store::{read_app_state, write_app_state, BackdropStyle};
-use omega_ui::{quick_rows_shown, quick_top, quick_window, stage_x, SettingsRow, QUICK_PITCH};
+use omega_ui::kit::layout::modal_rect;
+use omega_ui::kit::palette::{palette, Palette};
+use omega_ui::{
+    configs_in, settings_frame, settings_row_face, settings_row_rects, settings_title_face,
+    RowShown, SettingsRow, UndoFace,
+};
 use omega_zero::frontend::Frontend;
+
+const NIGHT: u8 = 0;
+const AMBER: u8 = 7;
 
 struct Script(VecDeque<Vec<RawEvent>>);
 
@@ -27,23 +38,35 @@ fn tap(f: &mut Frontend, input: &mut Script, btn: Btn) {
     f.advance(input);
 }
 
-fn at(px: &[u8], x: usize, y: usize) -> [u8; 3] {
-    let o = (y * out_w() as usize + x) * 4;
+/// The screen's pixel at (`x`, `y`), from the top left.
+fn at(px: &[u8], x: u32, y: u32) -> [u8; 3] {
+    let o = ((y * out_w() + x) * 4) as usize;
     [px[o], px[o + 1], px[o + 2]]
 }
 
-fn inked(px: &[u8], xs: std::ops::Range<usize>, top: usize) -> Vec<usize> {
-    xs.filter(|&x| (top + 8..top + 44).any(|y| at(px, x, y)[0] > 0x80))
-        .collect()
+/// The screen's art pixel at (`x`, `y`): the 2x2 block a texel covers, which must be one colour.
+fn art(px: &[u8], x: u32, y: u32) -> [u8; 3] {
+    let c = at(px, 2 * x, 2 * y);
+    for (dx, dy) in [(1, 0), (0, 1), (1, 1)] {
+        assert_eq!(
+            at(px, 2 * x + dx, 2 * y + dy),
+            c,
+            "art pixel ({x}, {y}) is off the grid"
+        );
+    }
+    c
 }
 
-/// The frame once the screen has slid into place.
+/// The frame once the screen has slid into place, written to SCRATCH_PNG_DIR if it is set.
 fn composed(f: &mut Frontend, c: &mut Compositor, name: &str) -> Vec<u8> {
     f.app_mut().finish_slide();
     f.compose(c);
-    let px = c.read_frame();
+    let mut px = c.read_frame();
+    for p in px.chunks_exact_mut(4) {
+        p[3] = 0xff;
+    }
     if let Ok(dir) = std::env::var("SCRATCH_PNG_DIR") {
-        let path = format!("{dir}/settings-{name}.png");
+        let path = format!("{dir}/settings-{name}-{}x{}.png", out_w(), out_h());
         let file = std::fs::File::create(&path).expect("create png");
         let mut e = png::Encoder::new(std::io::BufWriter::new(file), out_w(), out_h());
         e.set_color(png::ColorType::Rgba);
@@ -57,100 +80,6 @@ fn composed(f: &mut Frontend, c: &mut Compositor, name: &str) -> Vec<u8> {
     px
 }
 
-#[test]
-fn settings_renders_full_screen() {
-    let Ok(surface) = HeadlessSurface::new() else {
-        return;
-    };
-    let Ok(mut c) = Compositor::new(&surface) else {
-        return;
-    };
-    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
-    clocked(d.path());
-    solid(d.path(), 0);
-    let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
-    f.upload_faces(&mut c);
-    let mut input = Script(VecDeque::new());
-    tap(&mut f, &mut input, Btn::Start);
-
-    let bar = [0x4d, 0x4d, 0x57];
-    // a plain backdrop seen through the plate, wherever the list draws nothing
-    let ground = at(&composed(&mut f, &mut c, "ground"), 2, out_h() as usize - 2);
-    assert_ne!(ground, bar, "the ground is the bar's colour");
-    let mut bar_on = SettingsRow::ALL[0];
-    let (n, mut first) = (SettingsRow::ALL.len(), 0);
-    let shown = quick_rows_shown(n);
-    for (name, selected) in [
-        ("fast-forward", SettingsRow::FastForward),
-        ("colour-correction", SettingsRow::ColourCorrection),
-        ("date-time", SettingsRow::DateTime),
-        ("about", SettingsRow::About),
-    ] {
-        for i in bar_on.index()..selected.index() {
-            tap(&mut f, &mut input, Btn::Down);
-            first = quick_window(i + 1, n, first);
-        }
-        bar_on = selected;
-        let px = composed(&mut f, &mut c, name);
-        let row_top = |row: SettingsRow| quick_top() + QUICK_PITCH * (row.index() - first) as f32;
-
-        let top = row_top(selected) as usize;
-        for x in [1, out_w() as usize - 2] {
-            assert_eq!(at(&px, x, top + 26), bar, "{name}: no bar at x {x}");
-        }
-        assert!(
-            (0..out_w() as usize).all(|x| at(&px, x, top + 26) != ground),
-            "{name}: the bar breaks somewhere across the row"
-        );
-        assert_eq!(
-            at(&px, out_w() as usize / 2, top + 1),
-            ground,
-            "{name}: the bar is not inset"
-        );
-        assert_eq!(
-            at(&px, out_w() as usize - 2, 2),
-            ground,
-            "{name}: not on the ground"
-        );
-
-        for row in SettingsRow::ALL.into_iter().skip(first).take(shown) {
-            let top = row_top(row) as usize;
-            let label = inked(&px, 0..out_w() as usize / 2, top);
-            let first = *label.first().expect("a row with no label");
-            assert!(
-                (32..=36).contains(&first),
-                "{name}: {row:?}'s label starts at x {first}"
-            );
-            if matches!(
-                row,
-                SettingsRow::Labels | SettingsRow::About | SettingsRow::Background
-            ) {
-                continue;
-            }
-            let value = inked(&px, out_w() as usize / 2..out_w() as usize, top);
-            let last = *value.last().expect("a row with no value");
-            assert!(
-                (out_w() as usize - 41..=out_w() as usize - 32).contains(&last),
-                "{name}: {row:?}'s value ends at x {last}"
-            );
-        }
-    }
-
-    while f.app().settings_row() != Some(SettingsRow::DateTime) {
-        tap(&mut f, &mut input, Btn::Up);
-    }
-    tap(&mut f, &mut input, Btn::A);
-    let px = composed(&mut f, &mut c, "clock");
-    assert!(
-        (200..270).any(|x| at(
-            &px,
-            (x as f32 + stage_x()) as usize,
-            298 + (out_h() as usize - 480) / 2
-        ) == [0xf6, 0xf4, 0xef]),
-        "the clock from the menu does not offer B BACK"
-    );
-}
-
 /// Sets the card's background to the plain colour `colour`.
 fn solid(root: &std::path::Path, colour: u8) {
     let mut s = read_app_state(root);
@@ -159,8 +88,8 @@ fn solid(root: &std::path::Path, colour: u8) {
     write_app_state(root, &s).expect("write omega-zero.state");
 }
 
-/// Settings over a card whose background is the plain colour `colour`.
-fn settings_over(colour: u8, c: &mut Compositor) -> Vec<u8> {
+/// A frontend on a card with the plain background `colour`, Settings opened with START.
+fn settings_over(colour: u8, c: &mut Compositor) -> (tempfile::TempDir, Frontend, Script) {
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     clocked(d.path());
     solid(d.path(), colour);
@@ -169,89 +98,233 @@ fn settings_over(colour: u8, c: &mut Compositor) -> Vec<u8> {
     let mut input = Script(VecDeque::new());
     tap(&mut f, &mut input, Btn::Start);
     assert!(f.app().settings_row().is_some(), "START opened no Settings");
-    composed(&mut f, c, &format!("over-{colour}"))
+    (d, f, input)
+}
+
+/// `top` laid over `under` with its top left at (`x`, `y`), where it is not clear.
+fn over(under: &mut UndoFace, top: &UndoFace, x: u32, y: u32) {
+    for ty in 0..top.h {
+        for tx in 0..top.w {
+            let from = ((ty * top.w + tx) * 4) as usize;
+            if top.rgba[from + 3] == 0 {
+                continue;
+            }
+            let to = (((y + ty) * under.w + x + tx) * 4) as usize;
+            under.rgba[to..to + 4].copy_from_slice(&top.rgba[from..from + 4]);
+        }
+    }
+}
+
+/// The modal as the kit's faces make it for `shown`, at art resolution, at `modal_rect()`.
+fn expected(shown: &[RowShown], pal: &Palette) -> UndoFace {
+    let rows: Vec<SettingsRow> = shown.iter().map(|s| s.row).collect();
+    let frame = settings_frame(configs_in(&rows), pal);
+    let [mx, my, ..] = modal_rect();
+    let mut modal = UndoFace {
+        rgba: frame.face.rgba.clone(),
+        w: frame.face.w,
+        h: frame.face.h,
+    };
+    if let Some(g) = shown.iter().find(|s| s.lit).map(|s| s.row.group()) {
+        let [tx, ty, ..] = frame.titles[g.index()];
+        over(&mut modal, &settings_title_face(g, pal), tx - mx, ty - my);
+    }
+    for (row, [x, y, w, _]) in settings_row_rects(&rows, frame.wells) {
+        let s = shown.iter().find(|s| s.row == row).expect("a row shown");
+        over(&mut modal, &settings_row_face(w, s, pal), x - mx, y - my);
+    }
+    modal
+}
+
+/// Every pixel the modal's faces ink is on the screen, at 2x where the kit puts it.
+fn holds_the_modal(px: &[u8], f: &Frontend, name: &str) {
+    let pal = f.app().palette();
+    let want = expected(&f.app().settings_shown(), pal);
+    let [mx, my, ..] = modal_rect();
+    let mut off = Vec::new();
+    for y in 0..want.h {
+        for x in 0..want.w {
+            let i = ((y * want.w + x) * 4) as usize;
+            if want.rgba[i + 3] == 0 {
+                continue;
+            }
+            let c = [want.rgba[i], want.rgba[i + 1], want.rgba[i + 2]];
+            let got = art(px, mx + x, my + y);
+            if got != c {
+                off.push((x, y, got, c));
+            }
+        }
+    }
+    assert!(
+        off.is_empty(),
+        "{name}: {} art pixels of the modal are off, first (x, y, drawn, face) {:?}",
+        off.len(),
+        &off[..off.len().min(8)]
+    );
+}
+
+/// Where the lit row's band is, in art pixels: the row `row` of what is shown.
+fn row_rect(f: &Frontend, row: SettingsRow) -> [u32; 4] {
+    let rows = f.app().settings_rows();
+    let frame = settings_frame(configs_in(&rows), f.app().palette());
+    settings_row_rects(&rows, frame.wells)
+        .into_iter()
+        .find(|(r, _)| *r == row)
+        .expect("a row shown")
+        .1
 }
 
 #[test]
-fn the_background_shows_through_under_settings() {
+fn settings_draws_the_modal_and_the_lit_rows_band_over_the_backdrop() {
     let Ok(surface) = HeadlessSurface::new() else {
         return;
     };
     let Ok(mut c) = Compositor::new(&surface) else {
         return;
     };
-    // slate and crimson, neither of them the night the quick menu's opaque ground was
-    let (slate, crimson) = (settings_over(1, &mut c), settings_over(6, &mut c));
-    let opaque = [0x05, 0x05, 0x08];
-    for (x, y) in [
-        (2, 2),
-        (out_w() as usize - 2, out_h() as usize - 2),
-        (2, out_h() as usize - 2),
-    ] {
-        assert_ne!(
-            at(&slate, x, y),
-            opaque,
-            "the menu still hides the background at ({x}, {y})"
-        );
-        assert_ne!(
-            at(&slate, x, y),
-            at(&crimson, x, y),
-            "the menu looks the same over two backgrounds at ({x}, {y})"
+    let (_d, mut f, _) = settings_over(NIGHT, &mut c);
+    let px = composed(&mut f, &mut c, "night");
+    let pal = palette(NIGHT);
+    holds_the_modal(&px, &f, "night");
+
+    // the frame: its dark outline, its bright line, the frame colour the panels sit on
+    let [mx, my, mw, mh] = modal_rect();
+    assert_eq!(art(&px, mx + 3, my), pal.dark, "the frame's top outline");
+    assert_eq!(art(&px, mx, my + 3), pal.dark, "the frame's left outline");
+    assert_eq!(
+        art(&px, mx + 1, my + 3),
+        pal.frame_hi,
+        "the frame's bright line"
+    );
+    assert_eq!(art(&px, mx + 3, my + mh / 2), pal.frame, "the frame's side");
+    assert_eq!(
+        art(&px, mx + mw - 4, my + mh / 2),
+        pal.frame,
+        "the frame's other side"
+    );
+
+    // the lit row's band: a frame line with its corners left out, round the tab colour
+    let [x, y, w, h] = row_rect(&f, SettingsRow::FastForward);
+    assert_eq!(art(&px, x + 1, y), pal.frame, "the band's top line");
+    assert_eq!(art(&px, x, y + 1), pal.frame, "the band's left line");
+    assert_eq!(
+        art(&px, x + w - 1, y + h - 2),
+        pal.frame,
+        "the band's right line"
+    );
+    assert_eq!(art(&px, x + 2, y + 2), pal.tab, "the band");
+    assert_eq!(art(&px, x + w / 2, y + h - 2), pal.tab, "the band");
+    assert_eq!(art(&px, x, y), pal.well, "the band's corner is the well's");
+    let [x, y, w, h] = row_rect(&f, SettingsRow::Rumble);
+    for (dx, dy) in [(1, 0), (2, 2), (w / 2, h - 2)] {
+        assert_eq!(
+            art(&px, x + dx, y + dy),
+            pal.well,
+            "an unlit row has a band"
         );
     }
-    let [r, g, b] = at(&crimson, 2, out_h() as usize - 2);
+
+    // round the modal, the backdrop and nothing over it
+    for (x, y) in [
+        (0, 0),
+        (mx - 1, my + mh / 2),
+        (mx + mw, my),
+        (mx + mw / 2, my - 1),
+    ] {
+        assert_eq!(art(&px, x, y), pal.bg, "the backdrop at art ({x}, {y})");
+    }
+    assert_eq!(art(&px, mx + mw / 2, my + mh), pal.bg, "under the modal");
+    assert_eq!(art(&px, mx, my), pal.bg, "the frame's clear corner");
+}
+
+#[test]
+fn the_palette_tints_settings_with_the_backdrop() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    let [mx, my, _, mh] = modal_rect();
+    let mut sides = Vec::new();
+    for (colour, name) in [(NIGHT, "night"), (AMBER, "amber")] {
+        let (_d, mut f, _) = settings_over(colour, &mut c);
+        let px = composed(&mut f, &mut c, name);
+        let pal = palette(colour);
+        holds_the_modal(&px, &f, name);
+        assert_eq!(art(&px, 0, 0), pal.bg, "{name}'s backdrop");
+        assert_eq!(art(&px, mx + 3, my + mh / 2), pal.frame, "{name}'s frame");
+        let [x, y, ..] = row_rect(&f, SettingsRow::FastForward);
+        assert_eq!(art(&px, x + 2, y + 2), pal.tab, "{name}'s band");
+        sides.push(art(&px, mx + 3, my + mh / 2));
+    }
+    assert_ne!(sides[0], sides[1], "Night and Amber draw the same frame");
+    let [r, g, b] = sides[1];
+    assert!(r > g && g > b, "Amber's frame is not amber: {:?}", sides[1]);
+}
+
+#[test]
+fn the_cursor_in_general_lights_its_title_and_its_row() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    let (_d, mut f, mut input) = settings_over(AMBER, &mut c);
+    while f.app().settings_row() != Some(SettingsRow::DateTime) {
+        tap(&mut f, &mut input, Btn::Down);
+    }
+    let px = composed(&mut f, &mut c, "general");
+    holds_the_modal(&px, &f, "general");
+    let pal = palette(AMBER);
+    let rows = f.app().settings_rows();
+    let frame = settings_frame(configs_in(&rows), pal);
+    // a title's first column of ink, cream where the cursor is and dim where it is not
+    let ink = |[x, y, w, h]: [u32; 4]| {
+        (0..w)
+            .flat_map(|dx| (0..h).map(move |dy| (x + dx, y + dy)))
+            .map(|(x, y)| art(&px, x, y))
+            .filter(|c| *c == pal.cream || *c == pal.dim)
+            .collect::<Vec<_>>()
+    };
+    let (configs, general) = (ink(frame.titles[0]), ink(frame.titles[1]));
     assert!(
-        r > g && r > b,
-        "crimson does not show through the plate: {:?}",
-        [r, g, b]
+        !configs.is_empty() && configs.iter().all(|c| *c == pal.dim),
+        "CONFIGS is lit"
+    );
+    assert!(
+        !general.is_empty() && general.iter().all(|c| *c == pal.cream),
+        "GENERAL is dim"
+    );
+    let [x, y, ..] = row_rect(&f, SettingsRow::DateTime);
+    assert_eq!(art(&px, x + 2, y + 2), pal.tab, "Date & Time is not lit");
+    let [x, y, ..] = row_rect(&f, SettingsRow::FastForward);
+    assert_eq!(
+        art(&px, x + 2, y + 2),
+        pal.well,
+        "Fast Forward is still lit"
     );
 }
 
 #[test]
-fn every_fast_forward_speed_sits_on_the_rows_right_edge_and_clears_the_label() {
+fn a_new_value_is_on_the_screen_the_frame_after() {
     let Ok(surface) = HeadlessSurface::new() else {
         return;
     };
     let Ok(mut c) = Compositor::new(&surface) else {
         return;
     };
-    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
-    clocked(d.path());
-    let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
-    f.upload_faces(&mut c);
-    let mut input = Script(VecDeque::new());
-    tap(&mut f, &mut input, Btn::Start);
+    let (_d, mut f, mut input) = settings_over(NIGHT, &mut c);
+    let px = composed(&mut f, &mut c, "speed-before");
+    holds_the_modal(&px, &f, "before");
+    let was = f.app().ff_speed();
     tap(&mut f, &mut input, Btn::Left);
-    tap(&mut f, &mut input, Btn::Left);
-
-    let top = quick_top() as usize;
-    for name in ["2x", "3x", "4x", "6x", "8x"] {
-        let px = composed(&mut f, &mut c, name);
-        let value = inked(&px, out_w() as usize / 2..out_w() as usize, top);
-        let last = *value
-            .last()
-            .unwrap_or_else(|| panic!("{name}: the Fast Forward row has no value"));
-        assert!(
-            (out_w() as usize - 41..=out_w() as usize - 32).contains(&last),
-            "{name} ends at x {last}, off the edge every other value keeps"
-        );
-        assert!(
-            inked(
-                &px,
-                out_w() as usize / 2 - 10..out_w() as usize / 2 + 10,
-                top
-            )
-            .is_empty(),
-            "{name} and its arrows reach the middle of the row"
-        );
-        let label = inked(&px, 0..350, top);
-        let first = *label
-            .first()
-            .unwrap_or_else(|| panic!("{name}: the Fast Forward row has no label"));
-        assert!(
-            (32..=36).contains(&first),
-            "the label moved to x {first} to make room for {name}"
-        );
-        tap(&mut f, &mut input, Btn::Right);
-    }
+    assert_ne!(f.app().ff_speed(), was, "Left changed no speed");
+    let px = composed(&mut f, &mut c, "speed-after");
+    holds_the_modal(&px, &f, "after");
+    tap(&mut f, &mut input, Btn::Down);
+    tap(&mut f, &mut input, Btn::Right);
+    let px = composed(&mut f, &mut c, "sound-on");
+    holds_the_modal(&px, &f, "sound on");
 }
