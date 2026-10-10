@@ -20,8 +20,8 @@ assets/ui/
 │   ├── fonts.css          Pixel Code Regular, cut to Latin-1 and inlined
 │   ├── tokens.css         the art pixel (--u) and the shelf's backdrop
 │   ├── pixel.js           OmegaPixel: sprites, 9-slices, letters, the base element
-│   ├── backdrop.js        OmegaBackdrop: the patterns in Settings > Background > Style
-│   └── palette.js         OmegaPalette: colours from Settings > Background > Colour
+│   ├── backdrop.js        OmegaBackdrop: the patterns in Settings > Theme > Background
+│   └── palette.js         OmegaPalette: colours from Settings > Theme > Colour
 └── components/
     ├── omega-modal.js     <omega-modal>     the menu window, a frame that stacks its content
     ├── omega-panel.js     <omega-panel>     a titled section for inside it
@@ -83,7 +83,7 @@ Walk it with the keyboard or the buttons under the screen:
 | START | `Enter` |
 | SELECT | `Space` or right `Shift` |
 
-The sidebar jumps straight to a screen, sets Settings > Background and the panel size, and has
+The sidebar jumps straight to a screen, sets Settings > Theme and the panel size, and has
 **slow motion ×5** and **step one frame**, which holds a slide and moves it a frame at a time.
 A key pressed during a slide finishes it, then does what it does.
 
@@ -92,12 +92,13 @@ headless Chrome screenshot lands on the same frame:
 
 | Key | Values |
 |---|---|
-| `screen` | `shelf`, `settings`, `controls`, `network`, `ssh`, `keyboard`, `labels`, `datetime`, `background`, `about` |
+| `screen` | `shelf`, `settings`, `controls`, `network`, `ssh`, `keyboard`, `labels`, `datetime`, `background` (THEME), `about` |
 | `from` | slide into `screen` from this one, deeper or back as the tree has it; `dir=in` or `dir=out` forces the way |
 | `t` | with `from`: hold the slide at this time, 0 to 1 |
 | `size` | `640x480` (default), `720x480`, `720x720` |
 | `colour` | `night` (default), `slate`, `navy`, `teal`, `green`, `plum`, `crimson`, `amber` |
-| `style`, `moving` | the backdrop, as Settings > Background sets it: `style=plates`, `moving=0` |
+| `style`, `moving` | the backdrop, as Settings > Theme sets it: `style=plates`, `moving=0` |
+| `font` | `thin`: the bottom bar's labels in the thin font, as Settings > Theme > Font sets it |
 | `bar` | `floating` instead of the plate |
 | `wifi` | `off`: SSH shows what it says offline, and the networks dim |
 | `row` | the cursor's row on `screen`, from 0 |

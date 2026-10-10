@@ -160,7 +160,7 @@
     <p class="dim">The kit omega-zero's menus are drawn from: pixel-art components rebuilt in HTML as
       the reference for each screen, before and while it is drawn on the device. Every shape is a
       sprite written pixel by pixel, every word lands on whole pixels, and every colour follows the
-      backdrop colour the player picks in Settings › Background › Colour, over the pattern picked in
+      backdrop colour the player picks in Settings › Theme › Colour, over the pattern picked in
       Style. The rules for adding to the kit are in <code>assets/ui/README.md</code>.</p>
     <nav class="toc" aria-label="Contents">
       <a href="#foundation">Foundation</a>
@@ -169,7 +169,7 @@
     </nav>
     <div class="controls">
       <fieldset class="group">
-        <legend>Settings › Background › Style</legend>
+        <legend>Settings › Theme › Background</legend>
         <div class="seg" id="styles"></div>
       </fieldset>
       <fieldset class="group">
@@ -220,7 +220,7 @@
       <article class="card wide">
         <header><h3>Backdrop</h3><code>foundation/backdrop.js</code></header>
         <p class="dim">The shelf's backdrop: the backdrop colour under one of the patterns in
-          Settings › Background › Style, each a tile drawn in whole art pixels and drifting left with
+          Settings › Theme › Background, each a tile drawn in whole art pixels and drifting left with
           <code>data-moving</code> (16px a second, Bits 10), as
           <code>crates/omega-ui/src/backdrop.rs</code> draws them. The Style picked above puts the
           same pattern behind every example on this page.</p>
@@ -648,7 +648,7 @@
 </main>
 
 <script>
-  // Settings › Background › Style: one choice per pattern; picking one puts it behind every example
+  // Settings › Theme › Background: one choice per pattern; picking one puts it behind every example
   // but the Backdrop card's own
   const STYLE_NAMES = {
     grid: 'Grid', plates: 'Plates', dotted: 'Dotted', dither: 'Dither', rivets: 'Rivets', bits: 'Bits',
@@ -672,7 +672,7 @@
     return figure;
   }));
 
-  // Settings › Background › Colour: one choice per backdrop colour, each showing the backdrop and
+  // Settings › Theme › Colour: one choice per backdrop colour, each showing the backdrop and
   // the frame colour it gives; picking one recolours the whole page
   const colours = document.getElementById('colours');
   for (const name of OmegaPalette.COLOURS) {

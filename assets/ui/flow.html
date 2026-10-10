@@ -74,7 +74,7 @@
                 <omega-panel label="GENERAL">
                   <omega-row label="DATE &amp; TIME" value="OCT 10 16:00" opens data-opens="datetime" data-show="date"></omega-row>
                   <omega-row label="NETWORK" value="HOME" opens data-opens="network" data-show="network"></omega-row>
-                  <omega-row label="BACKGROUND" opens data-opens="background"></omega-row>
+                  <omega-row label="THEME" opens data-opens="background"></omega-row>
                   <omega-row label="ABOUT" opens data-opens="about"></omega-row>
                 </omega-panel>
               </omega-modal>
@@ -180,12 +180,13 @@
             </omega-panel>
           </section>
 
-          <!-- Settings > Background: changes the real backdrop behind every screen -->
+          <!-- Settings > Theme: changes the real backdrop behind every screen, and the bar's font -->
           <section class="part page away" data-screen="background">
-            <omega-panel label="BACKGROUND" active class="lone small">
-              <omega-row label="STYLE" value="GRID" carets data-values="GRID|PLATES|DOTTED|DITHER|RIVETS|BITS|SOLID" data-set="style"></omega-row>
+            <omega-panel label="THEME" active class="lone small">
+              <omega-row label="BACKGROUND" value="GRID" carets data-values="GRID|PLATES|DOTTED|DITHER|RIVETS|BITS|SOLID" data-set="style"></omega-row>
               <omega-row label="MOTION" value="MOVING" carets data-values="MOVING|STILL" data-set="moving"></omega-row>
               <omega-row label="COLOUR" value="NIGHT" carets data-values="NIGHT|SLATE|NAVY|TEAL|GREEN|PLUM|CRIMSON|AMBER" data-set="colour"></omega-row>
+              <omega-row label="FONT" value="BOLD" carets data-values="BOLD|THIN" data-set="font"></omega-row>
             </omega-panel>
           </section>
 
@@ -232,11 +233,18 @@
       </div>
 
       <div class="card">
-        <h2>Settings › Background, and the panel</h2>
+        <h2>Settings › Theme, and the panel</h2>
         <div class="controls">
-          <fieldset class="group"><legend>Style</legend><div class="seg" id="styles"></div></fieldset>
+          <fieldset class="group"><legend>Background</legend><div class="seg" id="styles"></div></fieldset>
           <fieldset class="group"><legend>Colour</legend><div class="seg" id="colours"></div></fieldset>
           <label class="check"><input type="checkbox" id="moving" checked> moving</label>
+          <fieldset class="group">
+            <legend>Font</legend>
+            <div class="seg">
+              <label><input type="radio" name="font" value="bold" checked><span>Bold</span></label>
+              <label><input type="radio" name="font" value="thin"><span>Thin</span></label>
+            </div>
+          </fieldset>
         </div>
         <div class="controls">
           <fieldset class="group">
@@ -293,13 +301,14 @@
           slide, can be taken with headless Chrome. The page keeps it up to date as you walk.</p>
         <table>
           <tr><th>Key</th><th>What it does</th></tr>
-          <tr><td>screen</td><td><code>shelf</code>, <code>settings</code>, <code>controls</code>, <code>network</code>, <code>ssh</code>, <code>keyboard</code>, <code>labels</code>, <code>datetime</code>, <code>background</code>, <code>about</code></td></tr>
+          <tr><td>screen</td><td><code>shelf</code>, <code>settings</code>, <code>controls</code>, <code>network</code>, <code>ssh</code>, <code>keyboard</code>, <code>labels</code>, <code>datetime</code>, <code>background</code> (Theme), <code>about</code></td></tr>
           <tr><td>from</td><td>Slide into <code>screen</code> from this one, deeper or back as the tree has it (<code>dir=in</code> or <code>out</code> to force it).</td></tr>
           <tr><td>t</td><td>With <code>from</code>: hold the slide at this time, 0 to 1 (eased into p).</td></tr>
           <tr><td>size</td><td><code>640x480</code> (default), <code>720x480</code>, <code>720x720</code></td></tr>
           <tr><td>colour</td><td><code>night</code> (default), <code>slate</code>, <code>navy</code>, <code>teal</code>, <code>green</code>, <code>plum</code>, <code>crimson</code>, <code>amber</code></td></tr>
           <tr><td>style</td><td><code>grid</code> (default), <code>plates</code>, <code>dotted</code>, <code>dither</code>, <code>rivets</code>, <code>bits</code>, <code>solid</code></td></tr>
           <tr><td>moving</td><td><code>1</code> (default) or <code>0</code></td></tr>
+          <tr><td>font</td><td><code>bold</code> (default) or <code>thin</code>: the bottom bar's labels, as Theme › Font draws them</td></tr>
           <tr><td>bar</td><td><code>plate</code> (default) or <code>floating</code></td></tr>
           <tr><td>wifi</td><td><code>on</code> (default) or <code>off</code>: SSH shows its offline variant, the networks dim</td></tr>
           <tr><td>row</td><td>The cursor's row on <code>screen</code>, from 0 (the key, for the keyboard; the field, for Date &amp; Time)</td></tr>
