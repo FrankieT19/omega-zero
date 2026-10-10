@@ -366,16 +366,18 @@ fn start_fetches_from_either_row() {
     assert_eq!(screen.input(&mut out, start, None), Outcome::Stay);
 }
 
-/// The rows a style has no use for leave the panel, and it is only as tall as the rows left.
+/// A row a style has no use for stays on the panel, faint, so the panel is as tall for every
+/// style: three rows.
 #[test]
-fn the_background_panel_is_as_tall_as_its_rows() {
+fn the_background_panel_keeps_its_three_rows() {
     let view = BackgroundScreen::default().view(Backdrop {
         style: BackdropStyle::Solid,
         moving: true,
         colour: 0,
     });
-    assert_eq!(view.rows.len(), 2);
-    assert_eq!(background_face(&view, palette(0)).h, panel_height(2 * 13));
+    assert_eq!(view.rows.len(), 3);
+    assert!(view.rows[1].dim, "Solid does not move");
+    assert_eq!(background_face(&view, palette(0)).h, panel_height(3 * 13));
     assert!(view.status.is_empty(), "a note under the rows");
     assert_eq!(view.legend, [LegendHint::Back, LegendHint::Change]);
 }

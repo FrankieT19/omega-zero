@@ -81,16 +81,22 @@ fn step<T: PartialEq + Copy>(items: &[T], at: T, forward: bool) -> T {
 }
 
 impl BackgroundScreen {
-    /// The rows a style has a use for: a picture has no colour, a plain colour does not move.
+    /// Whether a style has a use for a row: a picture has no colour, a plain colour does not
+    /// move. A row it has none for stays on the panel, faint, so the panel keeps its size.
+    fn applies(look: Backdrop, sel: Sel) -> bool {
+        match sel {
+            Sel::Style => true,
+            Sel::Motion => look.style.moves(),
+            Sel::Colour => look.style.coloured(),
+        }
+    }
+
+    /// The rows the cursor can stand on for this style.
     fn rows(look: Backdrop) -> Vec<Sel> {
-        let mut rows = vec![Sel::Style];
-        if look.style.moves() {
-            rows.push(Sel::Motion);
-        }
-        if look.style.coloured() {
-            rows.push(Sel::Colour);
-        }
-        rows
+        [Sel::Style, Sel::Motion, Sel::Colour]
+            .into_iter()
+            .filter(|sel| Self::applies(look, *sel))
+            .collect()
     }
 
     pub fn input(&mut self, look: Backdrop, wallpaper: bool, action: Action) -> Outcome {
@@ -125,13 +131,13 @@ impl BackgroundScreen {
     }
 
     pub fn view(&self, look: Backdrop) -> ListView {
-        let rows = Self::rows(look);
+        let rows = [Sel::Style, Sel::Motion, Sel::Colour];
         let at = rows.iter().position(|r| *r == self.sel).unwrap_or(0);
         let row = |sel: &Sel| match sel {
             Sel::Style => ViewRow {
                 label: RowLabel::Setting("Style"),
                 value: Some(RowValue::Choice(look.style.label())),
-                signal: None,
+                dim: false,
             },
             Sel::Motion => ViewRow {
                 label: RowLabel::Setting("Motion"),
@@ -140,12 +146,12 @@ impl BackgroundScreen {
                 } else {
                     "Still"
                 })),
-                signal: None,
+                dim: !Self::applies(look, Sel::Motion),
             },
             Sel::Colour => ViewRow {
                 label: RowLabel::Setting("Colour"),
                 value: Some(RowValue::Choice(backdrop_colour_name(look.colour))),
-                signal: None,
+                dim: !Self::applies(look, Sel::Colour),
             },
         };
         // the panel holds its rows and nothing under them, as flow.html draws it
