@@ -478,8 +478,8 @@ fn network_holds_wifi_and_only_with_it_on_network_time_and_ssh() {
     let ntp = if r.a.wifi().ntp() { "ON" } else { "OFF" };
     assert_eq!(view.settings[1].value, Some(ntp), "{:?}", view.settings[1]);
     assert!(view.settings[1].carets && !view.settings[1].opens);
-    assert_eq!(view.settings[2].value, None);
-    assert!(view.settings[2].opens && !view.settings[2].carets);
+    assert_eq!(view.settings[2].value, Some("ON"), "SSH is not on");
+    assert!(view.settings[2].carets && !view.settings[2].opens);
 
     r.press(Btn::Down);
     r.press(Btn::Down);

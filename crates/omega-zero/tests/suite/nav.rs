@@ -279,6 +279,8 @@ fn ssh_and_the_passphrase_slide_in_over_network_and_back() {
     while at(&a) != Sel::Ssh {
         press(&mut a, Btn::Down);
     }
+    // ON, back round to INFO, which A opens
+    press(&mut a, Btn::Left);
     press(&mut a, Btn::A);
     let ssh = moved(&a).0;
     slid(&a, &ssh, Dir::Deeper, &network);

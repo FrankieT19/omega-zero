@@ -1,7 +1,5 @@
-//! SSH, opened from Network: how to log in to the handheld from a computer on the same
-//! network. BaseOS runs SSH and SFTP whenever a network is joined.
-
-use std::path::Path;
+//! SSH, opened from Network's SSH row on INFO: how to log in to the handheld from a computer on
+//! the same network. The row switches the server on and off; SFTP comes with it.
 
 use omega_input::{Action, Btn};
 use omega_ui::network::SshFaces;
@@ -9,59 +7,12 @@ use omega_ui::Draw;
 
 use crate::app::{App, Phase};
 use crate::nav::Dir;
+use crate::ssh::{read_ssh_password, Ssh, SshServer, Trouble, SSH_PORT};
 use crate::wifi::Status;
 use crate::wifi_screen::{Sel as WifiSel, WifiScreen};
 
-/// The file on the card BaseOS reads its settings from, `ssh_password` among them.
-pub const BASEOS_CONF: &str = "baseos.conf";
-
-/// root's password when baseos.conf sets none.
-pub const DEFAULT_PASSWORD: &str = "root";
-
-pub const SSH_PORT: u16 = 22;
-
-/// The password BaseOS gives root, from the text of its baseos.conf: what `ssh_password=` says,
-/// or root's own when the line is missing, commented out or left empty. Spaces around the
-/// value and a pair of quotes around it are not part of it.
-pub fn ssh_password(conf: &str) -> String {
-    let mut password = None;
-    for line in conf.lines() {
-        let line = line.trim();
-        if line.starts_with('#') {
-            continue;
-        }
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
-        if key.trim() == "ssh_password" {
-            password = Some(unquoted(value.trim()).to_string());
-        }
-    }
-    password
-        .filter(|p| !p.is_empty())
-        .unwrap_or_else(|| DEFAULT_PASSWORD.to_string())
-}
-
-fn unquoted(value: &str) -> &str {
-    for quote in ['"', '\''] {
-        if let Some(inner) = value
-            .strip_prefix(quote)
-            .and_then(|v| v.strip_suffix(quote))
-        {
-            return inner;
-        }
-    }
-    value
-}
-
-/// root's password on the card at `root`.
-pub fn read_ssh_password(root: Option<&Path>) -> String {
-    root.and_then(|root| std::fs::read_to_string(root.join(BASEOS_CONF)).ok())
-        .map_or_else(|| DEFAULT_PASSWORD.to_string(), |conf| ssh_password(&conf))
-}
-
-/// What the SSH screen shows: each line a name and its value, then a note under them. With
-/// no network joined there are no lines, only the note.
+/// What the SSH screen shows: each line a name and its value, then a note under them. With SSH
+/// off or no network joined there are no lines, only the note.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SshView {
     pub lines: Vec<(&'static str, String)>,
@@ -72,11 +23,21 @@ pub struct SshView {
 pub struct SshScreen {
     /// root's password, read from baseos.conf when the screen opened.
     pub password: String,
+    /// SSH was on when the screen opened.
+    pub on: bool,
+    /// What went wrong giving root a password of its own, when something did.
+    pub trouble: Option<Trouble>,
 }
 
 impl SshScreen {
     /// How to log in, as the radio's `status` says the handheld can be reached.
     pub fn view(&self, status: &Status) -> SshView {
+        if !self.on {
+            return SshView {
+                lines: Vec::new(),
+                note: "Turn SSH on first.",
+            };
+        }
         if !status.joined() {
             return SshView {
                 lines: Vec::new(),
@@ -101,15 +62,21 @@ impl SshScreen {
                 ("PASSWORD", self.password.clone()),
                 ("PORT", SSH_PORT.to_string()),
             ],
-            note: "SFTP uses the same login",
+            note: self
+                .trouble
+                .map_or("SFTP uses the same login", Trouble::note),
         }
     }
 }
 
 impl App {
     pub(crate) fn open_ssh(&mut self) {
-        let password = read_ssh_password(self.root.as_deref());
-        self.go(Phase::Ssh(SshScreen { password }), Dir::Deeper);
+        let screen = SshScreen {
+            password: read_ssh_password(self.root.as_deref()),
+            on: self.state.ssh,
+            trouble: self.ssh.trouble(),
+        };
+        self.go(Phase::Ssh(screen), Dir::Deeper);
     }
 
     pub(crate) fn ssh_input(&mut self, action: Action) {
@@ -120,6 +87,27 @@ impl App {
             });
             self.go(back, Dir::Back);
         }
+    }
+
+    /// SSH is switched on.
+    pub fn ssh_on(&self) -> bool {
+        self.state.ssh
+    }
+
+    /// Switches SSH on or off: the server starts or stops, and the card remembers.
+    pub(crate) fn set_ssh(&mut self, on: bool) {
+        self.ssh.switch(on);
+        if self.state.ssh != on {
+            self.state.ssh = on;
+            self.persist();
+        }
+    }
+
+    /// Puts `server` in place of the system's, and does with it what omega-zero does as it
+    /// starts.
+    pub fn set_ssh_server(&mut self, server: Box<dyn SshServer>) {
+        self.ssh = Ssh::new(server);
+        self.ssh.start(self.state.ssh, self.root.as_deref());
     }
 
     /// The SSH screen's lines, while it is open.

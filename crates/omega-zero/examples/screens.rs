@@ -197,6 +197,16 @@ wait 30
 shot network-joined
 tap up
 wait 10
+tap right
+wait 10
+settle
+shot network-ssh-off
+tap left
+wait 10
+tap left
+wait 10
+settle
+shot network-ssh-info
 tap a
 settle
 wait 30

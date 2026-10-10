@@ -77,6 +77,7 @@ mod settings;
 mod sfx;
 mod single;
 mod ssh;
+mod ssh_password;
 mod swap;
 mod thumb;
 mod toast;
