@@ -21,7 +21,7 @@ use omega_ui::kit::bar::{
     action_swap, bar_layout, cap_width, hint_width, hints_face, hints_width, BarLayout, Hint, Swap,
     KEY_H, SINK,
 };
-use omega_ui::kit::list_row::{list_row_face, ListRow};
+use omega_ui::kit::list_row::{list_row_face, DeviceKind, ListRow, DEVICE_W};
 use omega_ui::kit::modal::{modal_face, modal_layout};
 use omega_ui::kit::palette::Palette;
 use omega_ui::kit::panel::{panel_face, tab_width, title_face, PanelFace, TAB_W};
@@ -524,6 +524,120 @@ fn a_signal_past_three_is_three() {
     let past = network("Home", None, Some(9), "lit");
     let face = |row| list_row_face(150, row, &RAMP).rgba;
     assert!(face(&past) == face(&full));
+}
+
+/// A device's row as kit.html builds one: `label`, `value`, its kind, and the flags set.
+fn device<'a>(
+    label: &'a str,
+    value: Option<&'a str>,
+    kind: DeviceKind,
+    flags: &str,
+) -> ListRow<'a> {
+    let has = |flag| flags.split(' ').any(|f| f == flag);
+    ListRow {
+        label,
+        value,
+        signal: None,
+        lock: false,
+        device: Some(kind),
+        lit: has("lit"),
+        dim: has("dim"),
+    }
+}
+
+const KINDS: [DeviceKind; 4] = [
+    DeviceKind::Audio,
+    DeviceKind::Gamepad,
+    DeviceKind::Keyboard,
+    DeviceKind::Other,
+];
+
+#[test]
+fn device_rows_are_chromes() {
+    let rows = [
+        (
+            "list-gamepad",
+            "8BitDo SN30 Pro",
+            Some("CONNECTED"),
+            DeviceKind::Gamepad,
+        ),
+        (
+            "list-audio",
+            "WH-1000XM4",
+            Some("PAIRED"),
+            DeviceKind::Audio,
+        ),
+        ("list-keyboard", "Keychron K3", None, DeviceKind::Keyboard),
+        ("list-other", "4C:4C:6B:1A:80:D3", None, DeviceKind::Other),
+    ];
+    for (name, label, value, kind) in rows {
+        for (flags, suffix) in [("", ""), ("lit", "-lit")] {
+            let face = list_row_face(150, &device(label, value, kind, flags), &RAMP);
+            assert_eq!((face.w, face.h), (150, ROW_H));
+            matches(&face, &format!("{name}{suffix}"));
+        }
+    }
+    let dim = device("Keychron K3", Some("PAIRING"), DeviceKind::Keyboard, "dim");
+    matches(&list_row_face(150, &dim, &RAMP), "list-device-dim");
+    let long = device(
+        "8BitDo SN30 Pro",
+        Some("CONNECTING"),
+        DeviceKind::Gamepad,
+        "lit",
+    );
+    matches(&list_row_face(100, &long, &RAMP), "list-device-cut");
+}
+
+#[test]
+fn every_device_icon_stands_on_the_capitals_in_the_middle_of_its_room() {
+    for kind in KINDS {
+        let icon = kind.icon();
+        let w = icon[0].len() as u32;
+        assert!(icon.iter().all(|row| row.len() as u32 == w), "{kind:?}");
+        assert!(w <= DEVICE_W, "{kind:?} is wider than its room");
+        assert_eq!((DEVICE_W - w) % 2, 0, "{kind:?} is off its room's middle");
+        assert!(icon[0].contains('#') && icon[6].contains('#'), "{kind:?}");
+    }
+}
+
+/// A device's row draws neither a padlock nor bars, and keeps no room for them: what a network's
+/// `signal` and `lock` say changes nothing on it.
+#[test]
+fn a_devices_row_has_its_icon_and_nothing_of_a_networks() {
+    let row = device("Keychron K3", Some("PAIRED"), DeviceKind::Keyboard, "lit");
+    let networkish = ListRow {
+        signal: Some(3),
+        lock: true,
+        ..row
+    };
+    let face = |row| list_row_face(150, row, &RAMP).rgba;
+    assert!(face(&networkish) == face(&row));
+}
+
+/// Down a list of devices the values end on one column and the icons share a middle one,
+/// whatever their kinds.
+#[test]
+fn a_list_of_devices_lines_up_its_values_and_icons() {
+    let columns = |face: &omega_ui::UndoFace, colour: [u8; 3]| -> Vec<u32> {
+        (0..face.w)
+            .filter(|&x| {
+                (0..face.h).any(|y| {
+                    let i = ((y * face.w + x) * 4) as usize;
+                    face.rgba[i + 3] != 0 && face.rgba[i..i + 3] == colour
+                })
+            })
+            .collect()
+    };
+    let mut ends = Vec::new();
+    for kind in KINDS {
+        let face = list_row_face(150, &device("Pad", Some("PAIRED"), kind, ""), &RAMP);
+        let value = columns(&face, RAMP.dim);
+        let ink = columns(&face, RAMP.label);
+        let icon: Vec<u32> = ink.into_iter().filter(|&x| x > 100).collect();
+        let (first, last) = (icon[0], icon[icon.len() - 1]);
+        ends.push((value[value.len() - 1], first + last));
+    }
+    assert!(ends.iter().all(|e| *e == ends[0]), "{ends:?}");
 }
 
 /// The bar `w` art pixels wide as omega-bar draws it with these actions, one width, and hints:

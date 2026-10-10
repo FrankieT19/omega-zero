@@ -74,6 +74,19 @@ shoot list-dim-lit 150 13 'c=list-row&w=150&label=Home&value=CONNECTED&signal=3&
 shoot list-bare 150 13 'c=list-row&w=150&label=Hidden'
 shoot list-cut 100 13 'c=list-row&w=100&label=A%20very%20long%20network%20name&signal=2&lock&lit'
 
+# device rows: each kind's icon, unlit and lit, in the middle of its room where the bars end and
+# no room kept for a padlock; a device with no name shows its MAC; dim; a name cut short
+shoot list-gamepad 150 13 'c=list-row&w=150&label=8BitDo%20SN30%20Pro&value=CONNECTED&device=gamepad'
+shoot list-gamepad-lit 150 13 'c=list-row&w=150&label=8BitDo%20SN30%20Pro&value=CONNECTED&device=gamepad&lit'
+shoot list-audio 150 13 'c=list-row&w=150&label=WH-1000XM4&value=PAIRED&device=audio'
+shoot list-audio-lit 150 13 'c=list-row&w=150&label=WH-1000XM4&value=PAIRED&device=audio&lit'
+shoot list-keyboard 150 13 'c=list-row&w=150&label=Keychron%20K3&device=keyboard'
+shoot list-keyboard-lit 150 13 'c=list-row&w=150&label=Keychron%20K3&device=keyboard&lit'
+shoot list-other 150 13 'c=list-row&w=150&label=4C%3A4C%3A6B%3A1A%3A80%3AD3&device=other'
+shoot list-other-lit 150 13 'c=list-row&w=150&label=4C%3A4C%3A6B%3A1A%3A80%3AD3&device=other&lit'
+shoot list-device-dim 150 13 'c=list-row&w=150&label=Keychron%20K3&value=PAIRING&device=keyboard&dim'
+shoot list-device-cut 100 13 'c=list-row&w=100&label=8BitDo%20SN30%20Pro&value=CONNECTING&device=gamepad&lit'
+
 # the bar at 640 and 720 (320 and 360 art pixels): the shelf's, a menu's, with one hint and two;
 # its two actions one width
 for w in 320 360; do

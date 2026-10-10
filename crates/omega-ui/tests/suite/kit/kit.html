@@ -12,6 +12,7 @@
     kit.html?c=action-left&label=RETURN&hint=B&font=thin      in the thin font
     kit.html?c=row&w=150&label=FAST%20FORWARD&value=6X&lit&carets
     kit.html?c=list-row&w=150&label=Home&value=CONNECTED&signal=3&lock&lit
+    kit.html?c=list-row&w=150&label=Keychron%20K3&device=keyboard
     kit.html?c=bar&w=320&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET
     kit.html?c=text&tone=dim&text=SFTP%20uses%20the%20same%20login
     kit.html?c=flow&screen=ssh                           a panel as flow.html builds it
@@ -181,7 +182,7 @@
   } else if (c === 'row' || c === 'list-row') {
     const row = document.createElement(`omega-${c}`);
     row.style.width = `calc(${q.get('w')} * var(--u))`;
-    attrs(row, ['label', 'value', 'signal'], ['lit', 'carets', 'opens', 'dim', 'lock']);
+    attrs(row, ['label', 'value', 'signal', 'device'], ['lit', 'carets', 'opens', 'dim', 'lock']);
     kit.append(row);
   } else if (c === 'bar') {
     kit.className = 'action';
