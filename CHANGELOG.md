@@ -6,6 +6,9 @@
   right. The slot sits a bar higher to make room for it.
 - Game Boy carts stand at 80% of their size on the shelf and grow to full size as they go into
   the slot.
+- The boot logo fades into the shelf. The shelf's first frames show the same logo, where the
+  handheld drew it, and it fades out over half a second to the shelf already moving under it.
+  Any button ends the fade at once. A boot back into a game, or to the clock, cuts as before.
 - START on the shelf opens Settings, a window in the style of Mega Man Zero's menus, in place of
   the old quick menu. CONFIGS holds Fast Forward (2X, 3X, 4X or 6X), Fast Forward Sound, Colour
   Correction, Rumble and Labels; GENERAL holds Date & Time, Network, Theme and About.
