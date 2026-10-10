@@ -44,7 +44,13 @@ tap b
 wait 60
 tap start
 wait 60
-shot quick-menu
+shot settings
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
 tap down
 wait 10
 tap down
@@ -83,39 +89,23 @@ tap right
 wait 10
 tap b
 wait 30
-tap up
-wait 10
-tap up
-wait 10
-tap up
-wait 10
-tap up
-wait 10
-tap up
+tap down
 wait 10
 settle
-shot quick-menu-scrolled
-tap down
+shot settings-scrolled
+tap up
 wait 10
-tap down
-wait 10
-tap down
-wait 10
-tap down
-wait 10
-tap down
-wait 10
-tap down
+tap up
 wait 10
 tap a
 settle
 wait 30
-shot wifi-off
+shot network-off
 tap a
 wait 30
 settle
 wait 30
-shot wifi-list
+shot network-list
 tap down
 wait 10
 tap down
@@ -149,7 +139,28 @@ tap start
 wait 30
 settle
 wait 30
-shot wifi-joined
+shot network-joined
+tap up
+wait 10
+tap a
+settle
+wait 30
+shot ssh
+tap b
+wait 30
+tap b
+wait 30
+settle
+wait 10
+shot settings-network
+tap up
+wait 10
+tap a
+settle
+wait 60
+shot clock
+tap b
+wait 60
 tap up
 wait 10
 tap a
@@ -180,19 +191,12 @@ tap a
 wait 10
 tap b
 wait 30
-tap b
-wait 30
-settle
-wait 10
-shot quick-menu-wifi
 tap down
 wait 10
-tap a
-settle
-wait 60
-shot clock
-tap b
-wait 60
+tap down
+wait 10
+tap down
+wait 10
 tap down
 wait 10
 tap a
@@ -201,6 +205,12 @@ wait 90
 look about
 tap b
 wait 60
+tap b
+wait 60
+tap select
+wait 60
+settle
+shot controls
 tap b
 wait 60
 tap r1
@@ -437,6 +447,17 @@ fn still_frame() -> Vec<u8> {
     xrgb
 }
 
+/// The canvas as the panel shows it. Its alpha is what blending left there, which the panel
+/// never shows: a translucent plate over the backdrop would come out looking pale in a
+/// picture viewer, so every pixel is written opaque.
+fn panel_frame(compositor: &Compositor) -> Vec<u8> {
+    let mut rgba = compositor.read_frame();
+    for px in rgba.chunks_exact_mut(4) {
+        px[3] = 0xff;
+    }
+    rgba
+}
+
 fn write_png(path: &Path, rgba: &[u8]) {
     let file = std::fs::File::create(path).expect("create the png");
     let mut e = png::Encoder::new(std::io::BufWriter::new(file), out_w(), out_h());
@@ -532,7 +553,7 @@ fn main() {
             Step::Frames(name, n) => {
                 for i in 0..n {
                     tick(&mut frontend, &mut compositor, &mut input, &mut frame);
-                    let rgba = compositor.read_frame();
+                    let rgba = panel_frame(&compositor);
                     write_png(&out.join(format!("{name}-{i:03}.png")), &rgba);
                 }
             }
@@ -550,7 +571,7 @@ fn main() {
                 settle(&mut frontend, &mut compositor);
                 compositor.upload_game(&still_frame());
                 frontend.compose(&mut compositor);
-                let rgba = compositor.read_frame();
+                let rgba = panel_frame(&compositor);
                 write_png(&out.join(format!("{name}.png")), &rgba);
                 if let (Some(baseline), true) = (&baseline, shots.contains(&name)) {
                     if let Err(e) = compare(&name, &rgba, baseline) {
@@ -575,7 +596,7 @@ fn main() {
                 compositor.set_screen_power(power);
                 compositor.begin_frame();
                 compositor.draw_list(&[Draw::Game]);
-                let rgba = compositor.read_frame();
+                let rgba = panel_frame(&compositor);
                 write_png(&out.join(format!("{name}.png")), &rgba);
                 if let Some(baseline) = &baseline {
                     if let Err(e) = compare(&name, &rgba, baseline) {

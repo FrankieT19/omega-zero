@@ -1,32 +1,53 @@
 use crate::draw::{out_h, out_w, Draw, TexId};
 use crate::plate::{arrows_hint_face, centred_hints, hint_face, UndoFace, HINT_H, LEGEND_GAP};
 use crate::power_menu::{MENU_H, MENU_INK, MENU_PAD, MENU_PX};
-use crate::slot_chrome::{edge, opening};
+use crate::slot_chrome::edge;
 use crate::stage::stage_y;
 use crate::text;
 
+/// The two groups the settings are listed in.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum QuickRow {
+pub enum SettingsGroup {
+    /// How the games play: the settings left and right change in place, and the cart labels.
+    Configs,
+    /// The handheld itself: its clock, its network, its background and what it is.
+    General,
+}
+
+impl SettingsGroup {
+    pub fn label(self) -> &'static str {
+        match self {
+            SettingsGroup::Configs => "Configs",
+            SettingsGroup::General => "General",
+        }
+    }
+}
+
+/// A row of the settings START opens on the shelf, in the order they are listed.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum SettingsRow {
     FastForward,
     FastForwardSound,
     ColourCorrection,
     Rumble,
-    Background,
-    Wifi,
+    Labels,
     DateTime,
+    Network,
+    Background,
     About,
 }
 
-impl QuickRow {
-    pub const ALL: [QuickRow; 8] = [
-        QuickRow::FastForward,
-        QuickRow::FastForwardSound,
-        QuickRow::ColourCorrection,
-        QuickRow::Rumble,
-        QuickRow::Background,
-        QuickRow::Wifi,
-        QuickRow::DateTime,
-        QuickRow::About,
+impl SettingsRow {
+    pub const ALL: [SettingsRow; 9] = [
+        SettingsRow::FastForward,
+        SettingsRow::FastForwardSound,
+        SettingsRow::ColourCorrection,
+        SettingsRow::Rumble,
+        SettingsRow::Labels,
+        SettingsRow::DateTime,
+        SettingsRow::Network,
+        SettingsRow::Background,
+        SettingsRow::About,
     ];
 
     pub fn index(self) -> usize {
@@ -35,42 +56,62 @@ impl QuickRow {
 
     pub fn label(self) -> &'static str {
         match self {
-            QuickRow::FastForward => "Fast Forward",
-            QuickRow::FastForwardSound => "Fast Forward Sound",
-            QuickRow::ColourCorrection => "Colour Correction",
-            QuickRow::Rumble => "Rumble",
-            QuickRow::Background => "Background",
-            QuickRow::Wifi => "Wi-Fi",
-            QuickRow::DateTime => "Date & Time",
-            QuickRow::About => "About",
+            SettingsRow::FastForward => "Fast Forward",
+            SettingsRow::FastForwardSound => "Fast Forward Sound",
+            SettingsRow::ColourCorrection => "Colour Correction",
+            SettingsRow::Rumble => "Rumble",
+            SettingsRow::Labels => "Labels",
+            SettingsRow::DateTime => "Date & Time",
+            SettingsRow::Network => "Network",
+            SettingsRow::Background => "Background",
+            SettingsRow::About => "About",
         }
     }
 
+    pub fn group(self) -> SettingsGroup {
+        match self {
+            SettingsRow::FastForward
+            | SettingsRow::FastForwardSound
+            | SettingsRow::ColourCorrection
+            | SettingsRow::Rumble
+            | SettingsRow::Labels => SettingsGroup::Configs,
+            SettingsRow::DateTime
+            | SettingsRow::Network
+            | SettingsRow::Background
+            | SettingsRow::About => SettingsGroup::General,
+        }
+    }
+
+    /// A opens a screen of its own for this row, rather than left and right changing it.
     pub fn opens(self) -> bool {
         matches!(
             self,
-            QuickRow::Background | QuickRow::Wifi | QuickRow::DateTime | QuickRow::About
+            SettingsRow::Labels
+                | SettingsRow::DateTime
+                | SettingsRow::Network
+                | SettingsRow::Background
+                | SettingsRow::About
         )
     }
 
     /// The row above this one among `rows`, the rows a handheld shows, wrapping at the top.
-    pub fn up_in(self, rows: &[QuickRow]) -> QuickRow {
+    pub fn up_in(self, rows: &[SettingsRow]) -> SettingsRow {
         let n = rows.len();
         let at = rows.iter().position(|r| *r == self).unwrap_or(0);
         rows[(at + n - 1) % n]
     }
 
-    pub fn down_in(self, rows: &[QuickRow]) -> QuickRow {
+    pub fn down_in(self, rows: &[SettingsRow]) -> SettingsRow {
         let at = rows.iter().position(|r| *r == self).unwrap_or(0);
         rows[(at + 1) % rows.len()]
     }
 
-    pub fn up(self) -> QuickRow {
-        self.up_in(&QuickRow::ALL)
+    pub fn up(self) -> SettingsRow {
+        self.up_in(&SettingsRow::ALL)
     }
 
-    pub fn down(self) -> QuickRow {
-        self.down_in(&QuickRow::ALL)
+    pub fn down(self) -> SettingsRow {
+        self.down_in(&SettingsRow::ALL)
     }
 }
 
@@ -131,7 +172,7 @@ impl QuickValue {
 pub const QUICK_PITCH: f32 = 52.0;
 /// Where the first row in view sits with every row this build has.
 pub fn quick_top() -> f32 {
-    quick_top_of(quick_rows_shown(QuickRow::ALL.len()))
+    quick_top_of(quick_rows_shown(SettingsRow::ALL.len()))
 }
 
 /// How many of `n` rows are in view at once: all of them while they fit above the legend,
@@ -173,7 +214,7 @@ fn legend_y() -> f32 {
 }
 const DIM_INK: [u8; 3] = [0x9a, 0x9a, 0xa4];
 
-pub fn quick_label_face(row: QuickRow) -> UndoFace {
+pub fn quick_label_face(row: SettingsRow) -> UndoFace {
     quick_text_face(row.label(), MENU_INK)
 }
 
@@ -251,26 +292,21 @@ pub struct QuickMenuFaces {
 }
 
 pub struct QuickMenu<'a> {
-    pub row: QuickRow,
-    /// The rows this handheld shows: all of them, but for Wi-Fi on one without a radio.
-    pub rows: &'a [QuickRow],
-    pub values: [Option<QuickValue>; QuickRow::ALL.len()],
+    pub row: SettingsRow,
+    /// The rows this handheld shows: all of them, but for Network on one without a radio.
+    pub rows: &'a [SettingsRow],
+    pub values: [Option<QuickValue>; SettingsRow::ALL.len()],
     pub clock: Option<[(TexId, u32, u32); 2]>,
-    pub wifi: Option<[(TexId, u32, u32); 2]>,
+    /// What Network says: off, on, or the name of the network joined.
+    pub network: Option<[(TexId, u32, u32); 2]>,
     pub faces: Option<&'a QuickMenuFaces>,
     /// The first row in view, from [`quick_window`].
     pub first: usize,
 }
 
 impl QuickMenu<'_> {
+    /// The list over whatever is already drawn: the backdrop, under every menu.
     pub fn draw(&self, out: &mut Vec<Draw>) {
-        out.push(Draw::Rect {
-            x: 0.0,
-            y: 0.0,
-            w: out_w() as f32,
-            h: out_h() as f32,
-            colour: opening(),
-        });
         out.push(Draw::Rect {
             x: 0.0,
             y: self.row_top(self.row) + BAR_INSET,
@@ -290,8 +326,8 @@ impl QuickMenu<'_> {
                 push(out, tex, QUICK_EDGE - pad, y, w, h);
             }
             let value = match row {
-                QuickRow::DateTime => self.clock.map(|c| c[lit as usize]),
-                QuickRow::Wifi => self.wifi.map(|c| c[lit as usize]),
+                SettingsRow::DateTime => self.clock.map(|c| c[lit as usize]),
+                SettingsRow::Network => self.network.map(|c| c[lit as usize]),
                 _ => self.values[row.index()]
                     .and_then(|v| faces.values.get(v.index()))
                     .map(|v| v[lit as usize]),
@@ -319,7 +355,7 @@ impl QuickMenu<'_> {
 }
 
 impl QuickMenu<'_> {
-    fn row_top(&self, row: QuickRow) -> f32 {
+    fn row_top(&self, row: SettingsRow) -> f32 {
         let at = self.rows.iter().position(|r| *r == row).unwrap_or(0);
         let shown = quick_rows_shown(self.rows.len());
         quick_top_of(shown) + QUICK_PITCH * at.saturating_sub(self.first) as f32

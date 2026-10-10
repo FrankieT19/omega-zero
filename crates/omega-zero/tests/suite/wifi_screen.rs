@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 use omega_input::{Action, Btn, Millis};
 use omega_store::{read_app_state, write_app_state, AppState};
-use omega_ui::QuickRow;
+use omega_ui::SettingsRow;
 use omega_zero::app::{App, Phase};
 use omega_zero::list_view::RowLabel;
 use omega_zero::wifi::{Saved, Seen, Status, WifiJob, WifiJobs, WifiNews, JOIN_TIMEOUT_MS};
@@ -99,29 +99,29 @@ impl Rig {
         self.a.tick_ms(self.now);
     }
 
-    fn open_menu_at(&mut self, row: QuickRow) {
+    fn open_menu_at(&mut self, row: SettingsRow) {
         self.press(Btn::Start);
-        assert!(self.a.quick_menu().is_some(), "START opened no quick menu");
-        while self.a.quick_menu() != Some(row) {
+        assert!(self.a.settings_row().is_some(), "START opened no Settings");
+        while self.a.settings_row() != Some(row) {
             self.press(Btn::Down);
             assert_ne!(
-                self.a.quick_menu(),
-                Some(QuickRow::FastForward),
+                self.a.settings_row(),
+                Some(SettingsRow::FastForward),
                 "the bar went round without reaching {row:?}"
             );
         }
     }
 
     fn open_wifi(&mut self) {
-        self.open_menu_at(QuickRow::Wifi);
+        self.open_menu_at(SettingsRow::Network);
         self.press(Btn::A);
         assert!(
-            matches!(self.a.phase(), Phase::Wifi(_)),
+            matches!(self.a.phase(), Phase::Network(_)),
             "A did not open Wi-Fi"
         );
     }
 
-    /// Opens the Wi-Fi screen with Wi-Fi on and these networks heard.
+    /// Opens the Network screen with Wi-Fi on and these networks heard.
     fn on_with(&mut self, seen: &[(&str, i32, bool)], saved: &[(u32, &str)]) {
         self.open_wifi();
         if !self.a.wifi().enabled() {
@@ -153,8 +153,8 @@ impl Rig {
 
     fn sel(&self) -> Sel {
         match self.a.phase() {
-            Phase::Wifi(s) => s.sel.clone(),
-            other => panic!("not on the Wi-Fi screen: {other:?}"),
+            Phase::Network(s) => s.sel.clone(),
+            other => panic!("not on the Network screen: {other:?}"),
         }
     }
 
@@ -174,7 +174,7 @@ impl Rig {
     }
 
     fn status(&mut self) -> Vec<String> {
-        self.a.wifi_view().expect("the list is showing").status
+        self.a.network_view().expect("the list is showing").status
     }
 }
 
@@ -197,25 +197,25 @@ fn a_on_wifi_opens_its_screen_and_b_comes_back_to_the_row() {
     r.open_wifi();
     assert_eq!(r.sel(), Sel::Wifi);
     r.press(Btn::B);
-    assert_eq!(r.a.quick_menu(), Some(QuickRow::Wifi));
+    assert_eq!(r.a.settings_row(), Some(SettingsRow::Network));
     r.press(Btn::A);
     r.a.apply(Action::QuickMenu);
     assert_eq!(
-        r.a.quick_menu(),
-        Some(QuickRow::Wifi),
+        r.a.settings_row(),
+        Some(SettingsRow::Network),
         "MENU did not come back"
     );
 }
 
 #[test]
-fn a_handheld_without_a_radio_has_no_wifi_row() {
+fn a_handheld_without_a_radio_has_no_network_row() {
     let mut r = Rig::with(AppState::default(), Radio::absent());
-    assert!(!r.a.quick_rows().contains(&QuickRow::Wifi));
-    r.open_menu_at(QuickRow::Background);
+    assert!(!r.a.settings_rows().contains(&SettingsRow::Network));
+    r.open_menu_at(SettingsRow::DateTime);
     r.press(Btn::Down);
-    assert_eq!(r.a.quick_menu(), Some(QuickRow::DateTime));
+    assert_eq!(r.a.settings_row(), Some(SettingsRow::Background));
     r.press(Btn::Up);
-    assert_eq!(r.a.quick_menu(), Some(QuickRow::Background));
+    assert_eq!(r.a.settings_row(), Some(SettingsRow::DateTime));
 }
 
 #[test]
@@ -256,7 +256,7 @@ fn the_screen_looks_for_networks_and_the_menu_only_asks_how_it_is_joined() {
     r.radio.forget_asked();
     r.tick(5_000);
     assert_eq!(r.radio.asked(), [], "the shelf kept the radio busy");
-    r.open_menu_at(QuickRow::Wifi);
+    r.open_menu_at(SettingsRow::Network);
     r.tick(16);
     assert_eq!(r.radio.asked(), [WifiJob::Refresh]);
     r.tick(5_000);
@@ -358,14 +358,14 @@ fn b_on_an_empty_field_and_menu_go_back_to_the_list() {
     r.press(Btn::B);
     assert_eq!(r.typing(), None);
     assert!(
-        matches!(r.a.phase(), Phase::Wifi(_)),
+        matches!(r.a.phase(), Phase::Network(_)),
         "B left Wi-Fi altogether"
     );
     r.press(Btn::A);
     r.a.apply(Action::QuickMenu);
     assert_eq!(r.typing(), None);
     assert!(
-        matches!(r.a.phase(), Phase::Wifi(_)),
+        matches!(r.a.phase(), Phase::Network(_)),
         "MENU left Wi-Fi altogether"
     );
     assert_eq!(r.radio.asked(), []);
@@ -404,14 +404,14 @@ fn a_saved_network_is_joined_by_its_id_and_y_forgets_it() {
 fn a_saved_network_out_of_reach_is_still_listed_to_be_forgotten() {
     let mut r = Rig::new();
     r.on_with(&[("Home", -48, true)], &[(5, "Cabin")]);
-    let view = r.a.wifi_view().unwrap();
+    let view = r.a.network_view().unwrap();
     let labels: Vec<_> = view.rows.iter().map(|row| row.label.clone()).collect();
     assert_eq!(
         labels,
         [
             RowLabel::Setting("Wi-Fi"),
             RowLabel::Setting("Network Time"),
-            RowLabel::Setting("Cart Labels"),
+            RowLabel::Setting("SSH"),
             RowLabel::Name("Home".into()),
             RowLabel::Name("Cabin".into()),
         ]
@@ -452,7 +452,7 @@ fn a_passphrase_turned_away_says_so_and_is_asked_for_again() {
         Some(""),
         "a turned-away network was retried as it was"
     );
-    assert_eq!(r.a.wifi_typing().unwrap().replace, Some(0));
+    assert_eq!(r.a.network_typing().unwrap().replace, Some(0));
     assert_eq!(r.radio.asked(), []);
 }
 
@@ -530,18 +530,18 @@ fn the_cursor_stays_on_its_network_when_a_scan_reorders_the_list() {
         },
     ]));
     r.tick(16);
-    let view = r.a.wifi_view().unwrap();
+    let view = r.a.network_view().unwrap();
     let lit = view.lit.unwrap();
     assert_eq!(view.rows[lit].label, RowLabel::Name("Far".into()));
     r.press(Btn::A);
     assert!(
-        r.a.wifi_typing().is_some_and(|t| t.ssid == b"Far"),
+        r.a.network_typing().is_some_and(|t| t.ssid == b"Far"),
         "A picked another network"
     );
 }
 
 #[test]
-fn the_quick_menu_says_off_on_or_the_network_joined() {
+fn settings_says_off_on_or_the_network_joined() {
     let mut r = Rig::new();
     assert_eq!(r.a.wifi_summary(), Summary::Off);
     r.on_with(&[], &[]);

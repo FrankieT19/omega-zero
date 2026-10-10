@@ -8,36 +8,37 @@ use omega_power::{Battery, Charge, LedState, LidPolicy, Power};
 use omega_retro::LinkChannel;
 use omega_store::{
     format_stamp, read_app_state, scan, write_app_state, AppState, BackdropStyle, Cart, Core,
-    Platform, StateEntry, StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, FF_SPEEDS, RING_MAX,
-    VOLUME_MAX,
+    Platform, StateEntry, StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, RING_MAX, VOLUME_MAX,
 };
 use omega_ui::{
-    backdrop_shift, board_from, board_x, board_zoom, draw_backdrop, draw_empty_slot, draw_pattern,
-    draw_slot_name, draw_solid, draw_sticker, ease, grown, lid_at, lid_from, lift_of, on_board,
-    posed_face, push_cart_side, quick_window, shelf_cart_at, ClockPicker, Draw, FfState, GbShell,
-    Hud, HudKind, Icon, KeyboardFaces, KeyboardScreen, LinkBadge, LinkFaces, Links, Millis, Placed,
-    Polaroids, PowerChoice, QuickMenu, QuickMenuFaces, QuickRow, QuickValue, Refusal, Shelf,
-    SlotChrome, TexId, Toast, TopBar, WifiMenuFaces, BOARD_W, CART_W, CHIP_H, CHIP_U, CHIP_V,
-    CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V,
-    SOCKET_W, TURN_PAD,
+    backdrop_shift, board_from, board_x, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease,
+    grown, lid_at, lid_from, lift_of, on_board, posed_face, push_cart_side, shelf_cart_at,
+    ClockPicker, Draw, FfState, GbShell, Hud, HudKind, Icon, KeyboardFaces, LinkBadge, LinkFaces,
+    Links, Millis, Placed, Polaroids, PowerChoice, QuickMenuFaces, Refusal, SettingsRow, Shelf,
+    SlotChrome, TexId, Toast, WifiMenuFaces, BOARD_W, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W,
+    HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W,
+    TURN_PAD,
 };
 
 use crate::audio::Sfx;
-use crate::background_screen::{Backdrop, BackgroundScreen, Outcome as BackgroundOutcome};
+use crate::background_screen::{Backdrop, BackgroundScreen};
 use crate::core_picker::{Chip, CorePicker, Outcome, Press};
-use crate::label_screen::{Labels, LabelsScreen, Outcome as LabelsOutcome};
+use crate::label_screen::{Labels, LabelsScreen};
 use crate::label_sync::{label_jobs, Account, LabelJobs, NoKey, Want};
 use crate::link_kind::{link_carried, link_kind, serial_option, LinkKind};
 use crate::link_radio::{radio_jobs, LinkRole, RadioJob, RadioJobs};
 use crate::link_screen::LinkSprites;
 use crate::link_start::{link_port, LinkFail, LinkProgress, LinkStarter, LinkStep};
-use crate::list_view::{ListView, TypingView};
+use crate::nav::{offsets, Dir, End, Offsets, Slide};
 use crate::persist::{self, Snapshot};
+use crate::screens::clock::clock_screen;
+use crate::screens::controls::ControlsFaces;
+use crate::screens::keyboard::typing_of;
+use crate::screens::ssh::SshScreen;
+use crate::screens::{draw_plate, shift_all};
 use crate::video_mode::{self, VideoMode};
-use crate::wifi::{shown, wifi_jobs, WifiJobs};
-use crate::wifi_screen::{
-    Outcome as WifiOutcome, Sel as WifiSel, Summary, Typing, Watch, Wifi, WifiScreen,
-};
+use crate::wifi::{wifi_jobs, WifiJobs};
+use crate::wifi_screen::{Summary, Watch, Wifi, WifiScreen};
 
 pub const INSERT_S: f32 = 0.73;
 const INSERT_HOLD_S: f32 = 0.28;
@@ -75,13 +76,11 @@ const SHUTDOWN_SHOW_MS: Millis = 250;
 
 const POWER_MENU_PITCH: f32 = 44.0;
 const POWER_MENU_BAR_INSET: f32 = 4.0;
-const CORE_PICKER_RECEDE: f32 = 0.26;
 
 const PLATFORM_NAME_IN_MS: Millis = 200;
 const PLATFORM_NAME_HOLD_MS: Millis = 1200;
 const PLATFORM_NAME_OUT_MS: Millis = 800;
 const PLATFORM_NAME_ALPHA: f32 = 0.4;
-const CORE_PICKER_DIM: f32 = 0.614;
 /// The core picker's lid, the cart's own face, turned `turn` as it lifts and spun `yaw` as it
 /// leaves the shelf. Unspun, it is drawn exactly as it was before carts swayed.
 fn push_lid(out: &mut Vec<Draw>, at: (f32, f32, f32, f32), tex: TexId, turn: f32, yaw: f32) {
@@ -261,7 +260,7 @@ pub const LINKED_HOLD_MS: Millis = 1000;
 
 pub const UNPLUG_HOLD_MS: Millis = 420;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Phase {
     SetClock {
         picker: ClockPicker,
@@ -269,9 +268,12 @@ pub enum Phase {
         from_menu: bool,
     },
     Shelf,
-    QuickMenu {
-        row: QuickRow,
+    /// The settings START opens on the shelf, with `row` lit.
+    Settings {
+        row: SettingsRow,
     },
+    /// What the buttons do, on the shelf and in a game, opened with a SELECT tap on the shelf.
+    Controls,
     Inserting {
         cart: String,
         t: f32,
@@ -290,7 +292,9 @@ pub enum Phase {
         cart: String,
     },
     About,
-    Wifi(WifiScreen),
+    Network(WifiScreen),
+    /// How to reach the handheld over SSH, opened from Network.
+    Ssh(SshScreen),
     Labels(LabelsScreen),
     Background(BackgroundScreen),
     Doze {
@@ -299,105 +303,109 @@ pub enum Phase {
 }
 
 pub struct App {
-    phase: Phase,
-    shelves: Vec<(Platform, Shelf)>,
-    shelf_at: usize,
-    play_held: Option<Millis>,
-    refusal: Option<Refusal>,
-    refused_from: Option<f32>,
-    alert_face: Option<TexId>,
-    shutdown_faces: Vec<(TexId, u32, u32)>,
-    power_menu: Option<usize>,
-    power_menu_faces: Vec<(TexId, u32, u32)>,
-    core_picker: Option<CorePicker>,
-    core_board_face: Option<TexId>,
-    core_lid_face: Option<TexId>,
-    core_faces_stem: Option<String>,
-    core_socket_faces: Vec<TexId>,
-    core_chip_faces: Vec<TexId>,
-    core_blank_chip_face: Option<TexId>,
-    core_chip_shadow_face: Option<TexId>,
-    core_legend_faces: Vec<(TexId, u32)>,
-    game_menu: Option<GameMenu>,
-    link_sprites: Option<LinkSprites>,
-    link_hardware: LinkKind,
-    last_role: LinkRow,
-    link_choices: HashMap<String, LinkKind>,
-    link_loaded: Option<&'static str>,
-    link_reload: Option<(String, &'static str)>,
+    pub(crate) phase: Phase,
+    pub(crate) shelves: Vec<(Platform, Shelf)>,
+    pub(crate) shelf_at: usize,
+    pub(crate) play_held: Option<Millis>,
+    pub(crate) refusal: Option<Refusal>,
+    pub(crate) refused_from: Option<f32>,
+    pub(crate) alert_face: Option<TexId>,
+    pub(crate) shutdown_faces: Vec<(TexId, u32, u32)>,
+    pub(crate) power_menu: Option<usize>,
+    pub(crate) power_menu_faces: Vec<(TexId, u32, u32)>,
+    pub(crate) core_picker: Option<CorePicker>,
+    pub(crate) core_board_face: Option<TexId>,
+    pub(crate) core_lid_face: Option<TexId>,
+    pub(crate) core_faces_stem: Option<String>,
+    pub(crate) core_socket_faces: Vec<TexId>,
+    pub(crate) core_chip_faces: Vec<TexId>,
+    pub(crate) core_blank_chip_face: Option<TexId>,
+    pub(crate) core_chip_shadow_face: Option<TexId>,
+    pub(crate) core_legend_faces: Vec<(TexId, u32)>,
+    pub(crate) game_menu: Option<GameMenu>,
+    pub(crate) link_sprites: Option<LinkSprites>,
+    pub(crate) link_hardware: LinkKind,
+    pub(crate) last_role: LinkRow,
+    pub(crate) link_choices: HashMap<String, LinkKind>,
+    pub(crate) link_loaded: Option<&'static str>,
+    pub(crate) link_reload: Option<(String, &'static str)>,
     reload: Option<Reload>,
-    link_menu_faces: Vec<(TexId, u32, u32)>,
-    link_linked_face: Option<(TexId, u32, u32)>,
-    link_step_faces: Vec<(TexId, u32, u32)>,
-    link_fail_faces: Vec<(TexId, u32, u32)>,
-    link_legend_faces: Vec<(TexId, u32)>,
+    pub(crate) link_menu_faces: Vec<(TexId, u32, u32)>,
+    pub(crate) link_linked_face: Option<(TexId, u32, u32)>,
+    pub(crate) link_step_faces: Vec<(TexId, u32, u32)>,
+    pub(crate) link_fail_faces: Vec<(TexId, u32, u32)>,
+    pub(crate) link_legend_faces: Vec<(TexId, u32)>,
     starting: Option<LinkStarting>,
-    link_transport: Option<(u16, Box<dyn LinkChannel>)>,
-    restarting: bool,
-    act_at: Millis,
-    root: Option<PathBuf>,
-    state: AppState,
-    vol_before: Vec<(u8, bool, Millis)>,
-    snapshot: Option<Box<dyn Snapshot>>,
-    core: Core,
-    colour_pending: Option<bool>,
-    link_player: Option<u8>,
-    platform: Platform,
-    named_core: bool,
-    video_mode: VideoMode,
+    pub(crate) link_transport: Option<(u16, Box<dyn LinkChannel>)>,
+    pub(crate) restarting: bool,
+    pub(crate) act_at: Millis,
+    pub(crate) root: Option<PathBuf>,
+    pub(crate) state: AppState,
+    pub(crate) vol_before: Vec<(u8, bool, Millis)>,
+    pub(crate) snapshot: Option<Box<dyn Snapshot>>,
+    pub(crate) core: Core,
+    pub(crate) colour_pending: Option<bool>,
+    pub(crate) link_player: Option<u8>,
+    pub(crate) platform: Platform,
+    pub(crate) named_core: bool,
+    pub(crate) video_mode: VideoMode,
     link: Option<LinkSession>,
-    sfx: Option<Sfx>,
-    polaroids: Option<Polaroids>,
-    pending: Option<(PendingUndo, Millis)>,
-    legend_faces: Vec<TexId>,
-    undo_face: Option<TexId>,
-    clock_faces: Option<(TexId, TexId)>,
-    quick_menu_faces: Option<QuickMenuFaces>,
-    quick_clock_faces: Option<[(TexId, u32, u32); 2]>,
-    sticker_face: Option<TexId>,
-    wallpaper: Option<TexId>,
-    battery_percent: omega_ui::Printed,
-    bolt: Option<TexId>,
-    shelf_platform: omega_ui::Printed,
-    name_pending: bool,
-    slot_letter: Option<char>,
-    shelf_named: Option<Millis>,
-    shelf_clock: omega_ui::Printed,
-    hud: Hud,
-    screen: f32,
-    game_ready: bool,
-    clock: f64,
-    power: Option<Power>,
-    dozed_at: Millis,
-    woke_on_press: bool,
-    autosave_at: Millis,
-    pending_save: Option<std::thread::JoinHandle<()>>,
-    battery_at: Millis,
-    charge_at: Millis,
-    headphones: bool,
-    headphones_at: Millis,
-    battery: Option<Battery>,
-    last_led: Option<LedState>,
-    powering_off: bool,
-    radio: Box<dyn RadioJobs>,
-    wifi: Wifi,
-    wifi_faces: Option<WifiMenuFaces>,
-    keyboard_faces: Option<KeyboardFaces>,
-    typing_faces: Option<[(TexId, u32, u32); 2]>,
-    quick_wifi_faces: Option<[(TexId, u32, u32); 2]>,
-    link_faces: Option<LinkFaces>,
+    pub(crate) sfx: Option<Sfx>,
+    pub(crate) polaroids: Option<Polaroids>,
+    pub(crate) pending: Option<(PendingUndo, Millis)>,
+    pub(crate) legend_faces: Vec<TexId>,
+    pub(crate) undo_face: Option<TexId>,
+    pub(crate) clock_faces: Option<(TexId, TexId)>,
+    pub(crate) settings_faces: Option<QuickMenuFaces>,
+    pub(crate) settings_clock_faces: Option<[(TexId, u32, u32); 2]>,
+    pub(crate) sticker_face: Option<TexId>,
+    pub(crate) wallpaper: Option<TexId>,
+    pub(crate) battery_percent: omega_ui::Printed,
+    pub(crate) bolt: Option<TexId>,
+    pub(crate) shelf_platform: omega_ui::Printed,
+    pub(crate) name_pending: bool,
+    pub(crate) slot_letter: Option<char>,
+    pub(crate) shelf_named: Option<Millis>,
+    pub(crate) shelf_clock: omega_ui::Printed,
+    pub(crate) hud: Hud,
+    pub(crate) screen: f32,
+    pub(crate) game_ready: bool,
+    pub(crate) clock: f64,
+    pub(crate) power: Option<Power>,
+    pub(crate) dozed_at: Millis,
+    pub(crate) woke_on_press: bool,
+    pub(crate) autosave_at: Millis,
+    pub(crate) pending_save: Option<std::thread::JoinHandle<()>>,
+    pub(crate) battery_at: Millis,
+    pub(crate) charge_at: Millis,
+    pub(crate) headphones: bool,
+    pub(crate) headphones_at: Millis,
+    pub(crate) battery: Option<Battery>,
+    pub(crate) last_led: Option<LedState>,
+    pub(crate) powering_off: bool,
+    pub(crate) radio: Box<dyn RadioJobs>,
+    pub(crate) wifi: Wifi,
+    pub(crate) network_faces: Option<WifiMenuFaces>,
+    pub(crate) ssh_faces: Option<WifiMenuFaces>,
+    pub(crate) controls_faces: Option<ControlsFaces>,
+    pub(crate) keyboard_faces: Option<KeyboardFaces>,
+    pub(crate) typing_faces: Option<[(TexId, u32, u32); 2]>,
+    pub(crate) settings_network_faces: Option<[(TexId, u32, u32); 2]>,
+    pub(crate) link_faces: Option<LinkFaces>,
     /// None on a handheld without Bluetooth; otherwise whether it is on.
-    bluetooth: Option<bool>,
-    labels: Labels,
-    labels_faces: Option<WifiMenuFaces>,
+    pub(crate) bluetooth: Option<bool>,
+    pub(crate) labels: Labels,
+    pub(crate) labels_faces: Option<WifiMenuFaces>,
     /// Carts whose labels arrived and whose faces are still drawn without them.
-    stale_faces: Vec<(Platform, String)>,
-    background_faces: Option<WifiMenuFaces>,
+    pub(crate) stale_faces: Vec<(Platform, String)>,
+    pub(crate) background_faces: Option<WifiMenuFaces>,
     /// The pattern the shelf is drawn over, the width of its picture, and what it was drawn
     /// as, so a stale one is not shown while the new one is made.
-    backdrop_face: Option<(TexId, u32, BackdropStyle, u8)>,
-    /// The first quick menu row in view, on a canvas too short for them all.
-    quick_first: usize,
+    pub(crate) backdrop_face: Option<(TexId, u32, BackdropStyle, u8)>,
+    /// The first Settings row in view, on a canvas too short for them all.
+    pub(crate) settings_first: usize,
+    /// The move between screens under way, while it slides.
+    pub(crate) slide: Option<Slide>,
 }
 
 fn shelves_of(carts: Vec<Cart>) -> Vec<(Platform, Shelf)> {
@@ -423,10 +431,12 @@ impl App {
         App {
             radio: radio_jobs(),
             wifi: Wifi::new(wifi_jobs()),
-            wifi_faces: None,
+            network_faces: None,
+            ssh_faces: None,
+            controls_faces: None,
             keyboard_faces: None,
             typing_faces: None,
-            quick_wifi_faces: None,
+            settings_network_faces: None,
             link_faces: None,
             bluetooth: Some(false),
             labels: Labels::new(Box::new(NoKey::default()), None),
@@ -434,7 +444,8 @@ impl App {
             stale_faces: Vec::new(),
             background_faces: None,
             backdrop_face: None,
-            quick_first: 0,
+            settings_first: 0,
+            slide: None,
             phase: Phase::Shelf,
             shelves,
             shelf_at,
@@ -488,8 +499,8 @@ impl App {
             legend_faces: Vec::new(),
             undo_face: None,
             clock_faces: None,
-            quick_menu_faces: None,
-            quick_clock_faces: None,
+            settings_faces: None,
+            settings_clock_faces: None,
             sticker_face: None,
             wallpaper: None,
             battery_percent: omega_ui::Printed::default(),
@@ -537,7 +548,7 @@ impl App {
         app
     }
 
-    fn start(&mut self) {
+    pub(crate) fn start(&mut self) {
         let seated = if self.single_cart() {
             Some((self.shelf_at, 0))
         } else {
@@ -564,7 +575,7 @@ impl App {
         }
     }
 
-    fn shelf(&self) -> &Shelf {
+    pub(crate) fn shelf(&self) -> &Shelf {
         &self.shelves[self.shelf_at].1
     }
 
@@ -605,7 +616,7 @@ impl App {
         self.name_pending = true;
     }
 
-    fn slot_name_alpha(&self) -> f32 {
+    pub(crate) fn slot_name_alpha(&self) -> f32 {
         let Some(at) = self.shelf_named else {
             return 0.0;
         };
@@ -642,32 +653,6 @@ impl App {
             })
     }
 
-    pub fn confirm_clock(&mut self) {
-        let Phase::SetClock {
-            picker,
-            seed,
-            from_menu,
-        } = &self.phase
-        else {
-            return;
-        };
-        let (moved, offset, from_menu) = (picker.secs() - *seed, picker.offset_min(), *from_menu);
-        let utc = self.utc_secs() + moved;
-        if let Some(power) = &mut self.power {
-            power.set_clock(utc);
-        }
-        self.state.utc_offset_min = offset as i16;
-        self.state.clock_set = true;
-        self.persist();
-        if from_menu {
-            self.phase = Phase::QuickMenu {
-                row: QuickRow::DateTime,
-            };
-        } else {
-            self.start();
-        }
-    }
-
     pub fn root(&self) -> Option<&Path> {
         self.root.as_deref()
     }
@@ -676,48 +661,8 @@ impl App {
         self.utc_secs() + i64::from(self.state.utc_offset_min) * 60
     }
 
-    fn utc_secs(&self) -> i64 {
+    pub(crate) fn utc_secs(&self) -> i64 {
         self.power.as_ref().map_or_else(system_secs, |p| p.now())
-    }
-
-    pub fn picker(&self) -> Option<&ClockPicker> {
-        match &self.phase {
-            Phase::SetClock { picker, .. } => Some(picker),
-            _ => None,
-        }
-    }
-
-    pub fn quick_menu(&self) -> Option<QuickRow> {
-        match self.phase {
-            Phase::QuickMenu { row } => Some(row),
-            _ => None,
-        }
-    }
-
-    pub fn quick_value(&self, row: QuickRow) -> Option<QuickValue> {
-        match row {
-            QuickRow::FastForward => QuickValue::speed(self.state.ff_speed),
-            QuickRow::FastForwardSound => Some(QuickValue::flag(self.state.ff_sound)),
-            QuickRow::ColourCorrection => Some(QuickValue::flag(self.state.colour_correction)),
-            QuickRow::Rumble => Some(QuickValue::flag(self.state.rumble)),
-            QuickRow::Background | QuickRow::Wifi | QuickRow::DateTime | QuickRow::About => None,
-        }
-    }
-
-    pub fn set_quick_menu_faces(&mut self, faces: QuickMenuFaces) {
-        self.quick_menu_faces = Some(faces);
-    }
-
-    pub fn set_quick_clock_faces(&mut self, dim: (TexId, u32, u32), lit: (TexId, u32, u32)) {
-        self.quick_clock_faces = Some([dim, lit]);
-    }
-
-    pub fn set_sticker_face(&mut self, face: TexId) {
-        self.sticker_face = Some(face);
-    }
-
-    pub fn set_clock_faces(&mut self, line: TexId, hint: TexId) {
-        self.clock_faces = Some((line, hint));
     }
 
     pub fn set_cart_shadow(&mut self, face: TexId) {
@@ -760,18 +705,6 @@ impl App {
         }
     }
 
-    fn draw_top_bar(&self, out: &mut Vec<Draw>) {
-        TopBar {
-            links: self.links(),
-            faces: self.link_faces.as_ref(),
-            clock: self.shelf_clock,
-            battery: self.battery,
-            percent: self.battery_percent,
-            bolt: self.bolt,
-        }
-        .draw(out);
-    }
-
     pub fn set_bolt_face(&mut self, bolt: TexId) {
         self.bolt = Some(bolt);
     }
@@ -802,6 +735,32 @@ impl App {
 
     pub fn set_shelf_clock_face(&mut self, face: TexId, w: u32) {
         self.shelf_clock = omega_ui::Printed::new(face, w);
+    }
+
+    /// Moves to the screen `to`, the one shown now sliding away as it comes in.
+    pub fn go(&mut self, to: Phase, dir: Dir) {
+        let from = std::mem::replace(&mut self.phase, to);
+        self.slide_from(from, dir);
+    }
+
+    /// Slides from `from` to the phase there is now, when a screen changed in place into
+    /// another, as the Network screen does putting its keyboard up.
+    pub(crate) fn slide_from(&mut self, from: Phase, dir: Dir) {
+        self.slide = Some(Slide {
+            from,
+            dir,
+            started: self.now(),
+        });
+    }
+
+    /// Ends the slide under way, if there is one, as though its time were up.
+    pub fn finish_slide(&mut self) {
+        self.slide = None;
+    }
+
+    /// The move between screens under way.
+    pub fn slide(&self) -> Option<&Slide> {
+        self.slide.as_ref()
     }
 
     pub fn phase(&self) -> &Phase {
@@ -1018,6 +977,7 @@ impl App {
         let secs = power.now();
         if matches!(self.phase, Phase::SetClock { .. }) || secs < CLOCK_FLOOR {
             self.phase = clock_screen(secs, 0, false);
+            self.slide = None;
         }
         self.power = Some(power);
         self.battery_at = self.now();
@@ -1196,27 +1156,18 @@ impl App {
             Action::PowerOff => return,
             _ => {}
         }
-        if let Phase::SetClock {
-            picker, from_menu, ..
-        } = &mut self.phase
-        {
-            match action {
-                Action::GbaDown(Btn::Left) | Action::ShelfLeft => picker.left(),
-                Action::GbaDown(Btn::Right) | Action::ShelfRight => picker.right(),
-                Action::GbaDown(Btn::Up) => picker.up(),
-                Action::GbaDown(Btn::Down) => picker.down(),
-                Action::GbaDown(Btn::A) | Action::Insert => self.confirm_clock(),
-                Action::GbaDown(Btn::B) if *from_menu => {
-                    self.phase = Phase::QuickMenu {
-                        row: QuickRow::DateTime,
-                    }
-                }
-                _ => {}
-            }
+        let clock = matches!(self.phase, Phase::SetClock { .. });
+        if !clock && self.adjust(action) {
             return;
         }
-        if self.adjust(action) {
-            return;
+        // A press during a slide ends it, then acts on the screen it arrived at. A release
+        // does not: a tap's own release, or the one SELECT hands the game after its tap,
+        // would end the slide its press began.
+        if !matches!(action, Action::GbaUp(_)) {
+            self.finish_slide();
+        }
+        if clock {
+            return self.clock_input(action);
         }
         match action {
             Action::GbaUp(Btn::Left) => self.shelf_mut().release_left(),
@@ -1232,7 +1183,8 @@ impl App {
                 Action::GbaDown(Btn::X) if self.core_picker.is_none() => self.open_core_picker(),
                 _ if self.core_picker.is_some() => self.core_picker_input(action),
                 // START is the settings button on the shelf; MENU opens nothing here
-                Action::GbaDown(Btn::Start) => self.open_quick_menu(),
+                Action::GbaDown(Btn::Start) => self.open_settings(),
+                Action::SelectTap => self.go(Phase::Controls, Dir::Deeper),
                 Action::GbaDown(Btn::Up) => self.jump_letter(-1),
                 Action::GbaDown(Btn::Down) => self.jump_letter(1),
                 Action::ShelfLeft | Action::GbaDown(Btn::Left) => self.shelf_mut().hold_left(now),
@@ -1276,92 +1228,14 @@ impl App {
                 Action::GbaDown(Btn::Y) => self.delete_selected(),
                 _ => {}
             },
-            Phase::About if action == Action::GbaDown(Btn::B) || action == Action::QuickMenu => {
-                self.phase = Phase::QuickMenu {
-                    row: QuickRow::About,
-                }
-            }
-            Phase::QuickMenu { row } => self.quick_menu_input(row, action),
-            Phase::Wifi(_) => self.wifi_input(action),
+            Phase::About => self.about_input(action),
+            Phase::Settings { row } => self.settings_input(row, action),
+            Phase::Controls => self.controls_input(action),
+            Phase::Network(_) => self.network_input(action),
+            Phase::Ssh(_) => self.ssh_input(action),
             Phase::Labels(_) => self.labels_input(action),
             Phase::Background(_) => self.background_input(action),
             _ => {}
-        }
-    }
-
-    fn open_quick_menu(&mut self) {
-        self.quick_first = 0;
-        self.phase = Phase::QuickMenu {
-            row: QuickRow::ALL[0],
-        };
-    }
-
-    /// The quick menu's rows on this handheld: Wi-Fi only where there is a radio.
-    pub fn quick_rows(&self) -> Vec<QuickRow> {
-        QuickRow::ALL
-            .into_iter()
-            .filter(|r| *r != QuickRow::Wifi || self.wifi.present())
-            .collect()
-    }
-
-    fn quick_menu_input(&mut self, row: QuickRow, action: Action) {
-        let rows = self.quick_rows();
-        let row = match action {
-            Action::GbaDown(Btn::Up) => row.up_in(&rows),
-            Action::GbaDown(Btn::Down) => row.down_in(&rows),
-            Action::GbaDown(Btn::Left) => return self.change_setting(row, false),
-            Action::GbaDown(Btn::Right) => return self.change_setting(row, true),
-            Action::GbaDown(Btn::A) => return self.open_quick_row(row),
-            Action::GbaDown(Btn::B | Btn::Start) | Action::QuickMenu => {
-                self.phase = Phase::Shelf;
-                return;
-            }
-            _ => return,
-        };
-        self.quick_first = self.quick_first_for(row);
-        self.phase = Phase::QuickMenu { row };
-    }
-
-    /// The first quick menu row to show with `row` lit, moving the list as little as it can.
-    fn quick_first_for(&self, row: QuickRow) -> usize {
-        let rows = self.quick_rows();
-        let at = rows.iter().position(|r| *r == row).unwrap_or(0);
-        quick_window(at, rows.len(), self.quick_first)
-    }
-
-    fn open_quick_row(&mut self, row: QuickRow) {
-        match row {
-            QuickRow::DateTime => {
-                self.phase = clock_screen(self.utc_secs(), self.state.utc_offset_min, true);
-            }
-            QuickRow::About => self.phase = Phase::About,
-            QuickRow::Wifi => self.phase = Phase::Wifi(WifiScreen::default()),
-            QuickRow::Background => self.phase = Phase::Background(BackgroundScreen::default()),
-            QuickRow::FastForward
-            | QuickRow::FastForwardSound
-            | QuickRow::ColourCorrection
-            | QuickRow::Rumble => {}
-        }
-    }
-
-    fn background_input(&mut self, action: Action) {
-        let (look, wallpaper) = (self.backdrop(), self.wallpaper.is_some());
-        let Phase::Background(screen) = &mut self.phase else {
-            return;
-        };
-        match screen.input(look, wallpaper, action) {
-            BackgroundOutcome::Close => {
-                self.phase = Phase::QuickMenu {
-                    row: QuickRow::Background,
-                }
-            }
-            BackgroundOutcome::Changed(b) => {
-                self.state.backdrop = Some(b.style);
-                self.state.backdrop_moving = b.moving;
-                self.state.backdrop_colour = b.colour;
-                self.persist();
-            }
-            BackgroundOutcome::Stay => {}
         }
     }
 
@@ -1385,21 +1259,7 @@ impl App {
         self.backdrop_face = Some((tex, w, style, colour));
     }
 
-    /// The Background screen's list, while it is open.
-    pub fn background_view(&self) -> Option<ListView> {
-        match &self.phase {
-            Phase::Background(screen) => {
-                Some(screen.view(self.backdrop(), self.wallpaper.is_some()))
-            }
-            _ => None,
-        }
-    }
-
-    pub fn set_background_faces(&mut self, faces: WifiMenuFaces) {
-        self.background_faces = Some(faces);
-    }
-
-    fn draw_background(&self, out: &mut Vec<Draw>) {
+    pub(crate) fn draw_background(&self, out: &mut Vec<Draw>) {
         let b = self.backdrop();
         match (b.style, self.backdrop_face) {
             (BackdropStyle::Wallpaper, _) => draw_backdrop(self.wallpaper, out),
@@ -1412,64 +1272,27 @@ impl App {
         }
     }
 
-    fn wifi_input(&mut self, action: Action) {
-        let now = self.now();
-        let Phase::Wifi(screen) = &mut self.phase else {
-            return;
-        };
-        match screen.input(&mut self.wifi, action, now) {
-            WifiOutcome::Close => {
-                self.phase = Phase::QuickMenu {
-                    row: QuickRow::Wifi,
-                }
-            }
-            WifiOutcome::Labels => self.phase = Phase::Labels(LabelsScreen::default()),
-            WifiOutcome::Stay => {}
-        }
-        if self.state.wifi != self.wifi.enabled() {
-            self.state.wifi = self.wifi.enabled();
-            self.persist();
-        }
-    }
-
-    /// How closely the radio is watched: the Wi-Fi screen looks for networks, the quick menu
-    /// names the one joined, and the shelf's top bar only shows whether there is one.
-    fn wifi_watch(&self) -> Watch {
+    /// How closely the radio is watched: the Network screen looks for networks, Settings and
+    /// SSH name the one joined, and the shelf's top bar and Labels only need to know whether
+    /// there is one.
+    pub fn wifi_watch(&self) -> Watch {
         match self.phase {
-            Phase::Wifi(_) => Watch::Networks,
-            Phase::QuickMenu { .. } => Watch::Status,
-            Phase::Shelf | Phase::Inserting { .. } | Phase::Ejecting { .. } => Watch::Glance,
+            Phase::Network(_) => Watch::Networks,
+            Phase::Settings { .. } | Phase::Ssh(_) => Watch::Status,
+            Phase::Shelf | Phase::Inserting { .. } | Phase::Ejecting { .. } | Phase::Labels(_) => {
+                Watch::Glance
+            }
             _ => Watch::Idle,
         }
     }
 
-    fn labels_input(&mut self, action: Action) {
-        let root = self.root.clone();
-        let Phase::Labels(screen) = &mut self.phase else {
-            return;
-        };
-        match screen.input(&mut self.labels, action, root.as_deref()) {
-            LabelsOutcome::Close => {
-                self.phase = Phase::Wifi(WifiScreen {
-                    sel: WifiSel::Labels,
-                    ..WifiScreen::default()
-                })
-            }
-            LabelsOutcome::Sync if self.online() => {
-                let wants = self.label_wants();
-                self.labels.start(wants);
-            }
-            LabelsOutcome::Sync | LabelsOutcome::Stay => {}
-        }
-    }
-
     /// Wi-Fi has a network joined.
-    fn online(&self) -> bool {
+    pub(crate) fn online(&self) -> bool {
         self.wifi.status().joined()
     }
 
     /// The carts with no label, for a sync to look up.
-    fn label_wants(&self) -> Vec<Want> {
+    pub(crate) fn label_wants(&self) -> Vec<Want> {
         self.carts()
             .filter(|c| c.label.is_none())
             .map(|c| Want {
@@ -1520,20 +1343,6 @@ impl App {
         &self.labels
     }
 
-    /// The Labels screen's list, while it is open and not taking an account.
-    pub fn labels_view(&self) -> Option<ListView> {
-        match &self.phase {
-            Phase::Labels(screen) if screen.typing.is_none() => {
-                Some(screen.view(&self.labels, self.online()))
-            }
-            _ => None,
-        }
-    }
-
-    pub fn set_labels_faces(&mut self, faces: WifiMenuFaces) {
-        self.labels_faces = Some(faces);
-    }
-
     pub fn set_wifi_jobs(&mut self, jobs: Box<dyn WifiJobs>) {
         self.wifi = Wifi::new(jobs);
         self.wifi.start(self.state.wifi);
@@ -1547,84 +1356,6 @@ impl App {
         self.wifi.summary()
     }
 
-    /// The Wi-Fi screen's list, while it is open and not taking a passphrase.
-    pub fn wifi_view(&mut self) -> Option<ListView> {
-        match &mut self.phase {
-            Phase::Wifi(screen) if screen.typing.is_none() => Some(screen.view(&self.wifi)),
-            _ => None,
-        }
-    }
-
-    /// The Wi-Fi screen's keyboard, and the network it is for.
-    pub fn wifi_typing(&self) -> Option<&Typing> {
-        match &self.phase {
-            Phase::Wifi(screen) => screen.typing.as_ref(),
-            _ => None,
-        }
-    }
-
-    /// The keyboard in use, and what it is asking for.
-    pub fn typing(&self) -> Option<TypingView<'_>> {
-        match &self.phase {
-            Phase::Wifi(screen) => screen.typing.as_ref().map(|t| TypingView {
-                prompt: if t.refused {
-                    "A passphrase has 8 to 63 characters".to_string()
-                } else {
-                    format!("Passphrase for {}", shown(&t.ssid))
-                },
-                keys: &t.keys,
-                refused: t.refused,
-            }),
-            Phase::Labels(screen) => screen.typing.as_ref().map(|t| TypingView {
-                prompt: t.prompt(),
-                keys: &t.keys,
-                refused: false,
-            }),
-            _ => None,
-        }
-    }
-
-    pub fn set_wifi_faces(&mut self, faces: WifiMenuFaces) {
-        self.wifi_faces = Some(faces);
-    }
-
-    pub fn set_keyboard_faces(&mut self, faces: KeyboardFaces) {
-        self.keyboard_faces = Some(faces);
-    }
-
-    pub fn keyboard_faces_ready(&self) -> bool {
-        self.keyboard_faces.is_some()
-    }
-
-    pub fn set_typing_faces(&mut self, prompt: (TexId, u32, u32), field: (TexId, u32, u32)) {
-        self.typing_faces = Some([prompt, field]);
-    }
-
-    pub fn set_quick_wifi_faces(&mut self, dim: (TexId, u32, u32), lit: (TexId, u32, u32)) {
-        self.quick_wifi_faces = Some([dim, lit]);
-    }
-
-    fn change_setting(&mut self, row: QuickRow, right: bool) {
-        let s = &mut self.state;
-        match row {
-            QuickRow::FastForward => {
-                let to = ff_next(s.ff_speed, right);
-                if to == s.ff_speed {
-                    return;
-                }
-                s.ff_speed = to;
-            }
-            QuickRow::FastForwardSound => s.ff_sound = !s.ff_sound,
-            QuickRow::ColourCorrection => {
-                s.colour_correction = !s.colour_correction;
-                self.colour_pending = Some(s.colour_correction);
-            }
-            QuickRow::Rumble => s.rumble = !s.rumble,
-            QuickRow::Background | QuickRow::Wifi | QuickRow::DateTime | QuickRow::About => return,
-        }
-        self.persist();
-    }
-
     pub fn apply_at(&mut self, action: Action, now: Millis) {
         self.clock = now as f64;
         self.apply(action);
@@ -1636,7 +1367,7 @@ impl App {
             return true;
         }
         if action == Action::ColourCorrectionToggle {
-            self.change_setting(QuickRow::ColourCorrection, true);
+            self.change_setting(SettingsRow::ColourCorrection, true);
             let said = match self.state.colour_correction {
                 true => Toast::ColourOn,
                 false => Toast::ColourOff,
@@ -1816,17 +1547,19 @@ impl App {
         if !self.on_shelf() {
             self.shelf_mut().release_hold();
         }
+        // the shelf keeps swaying while it slides away or back
+        if self.shelf_shown() {
+            let picking = self.core_picker.is_some();
+            let shelf = self.shelf_mut();
+            shelf.tick(now);
+            shelf.hold_still(picking);
+            shelf.update(dt);
+        }
+        if self.slide.as_ref().is_some_and(|s| s.over(now)) {
+            self.slide = None;
+        }
         let mut touched = false;
-        let at = self.shelf_at;
-        let picking = self.core_picker.is_some();
         let next = match &mut self.phase {
-            Phase::Shelf => {
-                let shelf = &mut self.shelves[at].1;
-                shelf.tick(now);
-                shelf.hold_still(picking);
-                shelf.update(dt);
-                None
-            }
             Phase::Inserting {
                 cart,
                 t,
@@ -1999,7 +1732,7 @@ impl App {
         self.persist();
     }
 
-    fn persist(&self) {
+    pub(crate) fn persist(&self) {
         let Some(root) = &self.root else {
             return;
         };
@@ -2116,82 +1849,71 @@ impl App {
             }
             return;
         }
-        match &self.phase {
+        // the backdrop never moves: the screens slide over it
+        if backdrop_under(&self.phase) {
+            self.draw_background(out);
+        }
+        match &self.slide {
+            Some(slide) => {
+                let (p, w) = (slide.progress(self.now()), out_w() as f32);
+                self.draw_screen(&slide.from, offsets(slide.dir, End::Leaving, p, w), out);
+                self.draw_screen(&self.phase, offsets(slide.dir, End::Arriving, p, w), out);
+            }
+            None => self.draw_screen(&self.phase, Offsets::NONE, out),
+        }
+        self.draw_bar(out);
+        if matches!(
+            self.phase,
+            Phase::SetClock { .. } | Phase::About | Phase::Doze { .. }
+        ) {
+            return;
+        }
+        if let Some(picker) = self.core_picker_shown() {
+            self.draw_core_picker(&picker, out);
+        }
+        if let Some(menu) = self.game_menu {
+            self.draw_game_menu(menu, out);
+        }
+        self.hud.draw(self.now(), out);
+    }
+
+    /// Draws `phase`, a screen of a slide or the one shown, moved by `off`. A menu screen
+    /// moves as one; the shelf moves its carts, its top bar and its slot each their own way.
+    fn draw_screen(&self, phase: &Phase, off: Offsets, out: &mut Vec<Draw>) {
+        let start = out.len();
+        match phase {
+            Phase::Shelf => return self.draw_shelf(off, out),
             Phase::SetClock {
                 picker, from_menu, ..
             } => {
-                let (line, hint) = match self.clock_faces {
-                    Some((line, hint)) => (Some(line), Some(hint)),
-                    None => (None, None),
-                };
-                let back = self
-                    .quick_menu_faces
-                    .as_ref()
-                    .filter(|_| *from_menu)
-                    .map(|f| f.legend[0]);
-                picker.draw(line, hint, back, out);
-                return;
+                draw_plate(out);
+                self.draw_clock(picker, *from_menu, out);
             }
-            Phase::QuickMenu { row } => QuickMenu {
-                row: *row,
-                rows: &self.quick_rows(),
-                values: QuickRow::ALL.map(|r| self.quick_value(r)),
-                clock: self.quick_clock_faces,
-                wifi: self.quick_wifi_faces,
-                faces: self.quick_menu_faces.as_ref(),
-                first: self.quick_first_for(*row),
+            Phase::Settings { row } => {
+                draw_plate(out);
+                self.draw_settings(*row, out);
             }
-            .draw(out),
-            Phase::Background(_) => {
-                self.draw_background(out);
-                if let Some(faces) = &self.background_faces {
-                    faces.draw_over(out);
+            Phase::Controls => {
+                draw_plate(out);
+                self.draw_controls(out);
+            }
+            // the list stands over the background it is choosing, with nothing between
+            Phase::Background(_) => self.draw_background_screen(out),
+            Phase::Network(_) | Phase::Labels(_) => {
+                draw_plate(out);
+                match typing_of(phase) {
+                    Some(t) => self.draw_keyboard(&t, out),
+                    None if matches!(phase, Phase::Labels(_)) => self.draw_labels(out),
+                    None => self.draw_network(out),
                 }
             }
-            Phase::Wifi(_) | Phase::Labels(_) => match self.typing() {
-                Some(t) => KeyboardScreen {
-                    keys: t.keys,
-                    faces: self.keyboard_faces.as_ref(),
-                    prompt: self.typing_faces.map(|f| f[0]),
-                    field: self.typing_faces.map(|f| f[1]),
-                    refused: t.refused,
-                }
-                .draw(out),
-                None => {
-                    let faces = match self.phase {
-                        Phase::Labels(_) => &self.labels_faces,
-                        _ => &self.wifi_faces,
-                    };
-                    if let Some(faces) = faces {
-                        faces.draw(out);
-                    }
-                }
-            },
-            Phase::Shelf => {
-                self.draw_background(out);
-                match (self.core_picker_shown(), self.selected_stem()) {
-                    (Some(picker), Some(stem)) => {
-                        let open = ease(picker.openness(self.now()));
-                        let dim = 1.0 + (CORE_PICKER_DIM - 1.0) * open;
-                        self.shelf()
-                            .draw_row(Some(stem), 0.0, CORE_PICKER_RECEDE * open, dim, out);
-                        draw_empty_slot(out);
-                    }
-                    _ => {
-                        self.shelf().draw(self.shelf_shake(), out);
-                        draw_slot_name(self.shelf_platform, self.slot_name_alpha(), out);
-                    }
-                }
-                self.draw_top_bar(out);
+            Phase::Ssh(_) => {
+                draw_plate(out);
+                self.draw_ssh(out);
             }
-            Phase::About => {
-                self.draw_background(out);
-                draw_sticker(self.sticker_face, out);
-                return;
-            }
+            Phase::About => self.draw_about(out),
             Phase::Inserting { cart, resumed, .. } => {
                 if !resumed {
-                    self.draw_background(out);
                     self.shelf()
                         .draw_row(Some(cart), 0.0, self.seat(), 1.0, out);
                     self.draw_top_bar(out);
@@ -2199,7 +1921,6 @@ impl App {
                 self.chrome(cart, self.seat(), out);
             }
             Phase::Ejecting { cart, .. } => {
-                self.draw_background(out);
                 self.shelf()
                     .draw_row(Some(cart), 0.0, self.seat(), 1.0, out);
                 self.draw_top_bar(out);
@@ -2219,25 +1940,20 @@ impl App {
                     );
                 }
             }
-            Phase::Doze { .. } => {
-                out.push(Draw::Rect {
-                    x: 0.0,
-                    y: 0.0,
-                    w: out_w() as f32,
-                    h: out_h() as f32,
-                    colour: [0.0, 0.0, 0.0, 1.0],
-                });
-                return;
-            }
+            Phase::Doze { .. } => out.push(Draw::Rect {
+                x: 0.0,
+                y: 0.0,
+                w: out_w() as f32,
+                h: out_h() as f32,
+                colour: [0.0, 0.0, 0.0, 1.0],
+            }),
         }
-        if let Some(picker) = self.core_picker_shown() {
-            self.draw_core_picker(&picker, out);
-        }
-        if let Some(menu) = self.game_menu {
-            self.draw_game_menu(menu, out);
-        }
-        self.hud.draw(self.now(), out);
+        shift_all(&mut out[start..], off.dx, 0.0);
     }
+
+    /// Where the bar across the bottom of the menus will be drawn, over every screen and
+    /// still while they slide. The bar itself comes next.
+    fn draw_bar(&self, _out: &mut Vec<Draw>) {}
 
     pub fn screen_shake(&self) -> f32 {
         self.shake_at(self.now())
@@ -2380,7 +2096,7 @@ impl App {
         );
     }
 
-    fn core_picker_shown(&self) -> Option<CorePicker> {
+    pub(crate) fn core_picker_shown(&self) -> Option<CorePicker> {
         self.core_picker.filter(|p| !p.waiting())
     }
 
@@ -2595,6 +2311,15 @@ impl App {
         matches!(self.phase, Phase::Shelf)
     }
 
+    /// The shelf is on the screen: shown, or sliding away or back.
+    fn shelf_shown(&self) -> bool {
+        self.on_shelf()
+            || self
+                .slide
+                .as_ref()
+                .is_some_and(|s| matches!(s.from, Phase::Shelf))
+    }
+
     fn insert(&mut self, clean: bool) {
         if !self.on_shelf() {
             return;
@@ -2688,6 +2413,7 @@ impl App {
         }
         self.close_game_menu();
         self.core_picker = None;
+        self.slide = None;
         if matches!(self.phase, Phase::Doze { .. }) {
             return;
         }
@@ -3519,18 +3245,16 @@ fn up(level: u8, step: u8, max: u8) -> u8 {
     level.saturating_add(step).min(max)
 }
 
-fn ff_next(from: u8, right: bool) -> u8 {
-    let at = FF_SPEEDS.iter().position(|&v| v == from).unwrap_or(0);
-    let to = if right { at + 1 } else { at.saturating_sub(1) };
-    FF_SPEEDS[to.min(FF_SPEEDS.len() - 1)]
-}
-
-fn clock_screen(utc: i64, offset_min: i16, from_menu: bool) -> Phase {
-    Phase::SetClock {
-        picker: ClockPicker::local(utc, offset_min),
-        seed: utc - utc.rem_euclid(60),
-        from_menu,
-    }
+/// Whether the backdrop is drawn under `phase`: under the shelf and every menu, and under a
+/// cart going in or coming out, but not under a game, nor a cart resumed at boot.
+fn backdrop_under(phase: &Phase) -> bool {
+    !matches!(
+        phase,
+        Phase::Playing { .. }
+            | Phase::Polaroids { .. }
+            | Phase::Doze { .. }
+            | Phase::Inserting { resumed: true, .. }
+    )
 }
 
 fn system_secs() -> i64 {

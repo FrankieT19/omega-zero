@@ -8,7 +8,7 @@ use omega_input::{Action, Btn};
 use omega_store::{read_app_state, write_app_state, AppState};
 use omega_ui::{
     edge, out_w, quick_rows_shown, quick_top, quick_window, stage_y, Draw, Icon, QuickMenuFaces,
-    QuickRow, QuickValue, TexId, MENU_PAD, QUICK_EDGE, QUICK_PITCH,
+    QuickValue, SettingsRow, TexId, MENU_PAD, QUICK_EDGE, QUICK_PITCH,
 };
 use omega_zero::app::{App, Phase};
 use tempfile::TempDir;
@@ -41,25 +41,26 @@ fn press(a: &mut App, btn: Btn) {
     a.apply(Action::GbaUp(btn));
 }
 
-fn open_at(a: &mut App, row: QuickRow) {
+fn open_at(a: &mut App, row: SettingsRow) {
     press(a, Btn::Start);
     for _ in 0..row.index() {
         press(a, Btn::Down);
     }
-    assert_eq!(a.quick_menu(), Some(row), "the bar never reached {row:?}");
+    assert_eq!(a.settings_row(), Some(row), "the bar never reached {row:?}");
+    a.finish_slide();
 }
 
 #[test]
-fn start_opens_the_quick_menu_with_its_top_row_selected_every_time() {
+fn start_opens_settings_with_its_top_row_selected_every_time() {
     let (_d, mut a, _) = on_carousel();
     press(&mut a, Btn::Start);
-    assert_eq!(a.quick_menu(), Some(QuickRow::FastForward));
+    assert_eq!(a.settings_row(), Some(SettingsRow::FastForward));
     press(&mut a, Btn::Down);
     press(&mut a, Btn::Start);
     press(&mut a, Btn::Start);
     assert_eq!(
-        a.quick_menu(),
-        Some(QuickRow::FastForward),
+        a.settings_row(),
+        Some(SettingsRow::FastForward),
         "the menu opened where it was last left"
     );
 }
@@ -73,7 +74,7 @@ fn menu_opens_nothing_on_the_carousel() {
         "MENU still opened {:?}",
         a.phase()
     );
-    assert_eq!(a.quick_menu(), None);
+    assert_eq!(a.settings_row(), None);
 }
 
 #[test]
@@ -102,18 +103,18 @@ fn start_b_or_menu_closes_it_back_onto_the_carousel_where_you_were() {
 }
 
 #[test]
-fn the_quick_menu_is_only_on_the_carousel() {
+fn settings_is_only_on_the_carousel() {
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     let mut a = app_playing_in(d.path(), "Emerald");
     for button in [Action::GbaDown(Btn::Start), Action::QuickMenu] {
         a.apply(button);
         assert!(
             matches!(a.phase(), Phase::Playing { .. }),
-            "{button:?} raised the quick menu over a game: {:?}",
+            "{button:?} raised Settings over a game: {:?}",
             a.phase()
         );
     }
-    assert_eq!(a.quick_menu(), None);
+    assert_eq!(a.settings_row(), None);
 }
 
 #[test]
@@ -122,30 +123,31 @@ fn up_and_down_move_the_bar_and_wrap_at_the_ends() {
     press(&mut a, Btn::Start);
     press(&mut a, Btn::Up);
     assert_eq!(
-        a.quick_menu(),
-        Some(QuickRow::About),
+        a.settings_row(),
+        Some(SettingsRow::About),
         "up from the top did not wrap to the bottom"
     );
     for want in [
-        QuickRow::FastForward,
-        QuickRow::FastForwardSound,
-        QuickRow::ColourCorrection,
-        QuickRow::Rumble,
-        QuickRow::Background,
-        QuickRow::Wifi,
-        QuickRow::DateTime,
-        QuickRow::About,
-        QuickRow::FastForward,
+        SettingsRow::FastForward,
+        SettingsRow::FastForwardSound,
+        SettingsRow::ColourCorrection,
+        SettingsRow::Rumble,
+        SettingsRow::Labels,
+        SettingsRow::DateTime,
+        SettingsRow::Network,
+        SettingsRow::Background,
+        SettingsRow::About,
+        SettingsRow::FastForward,
     ] {
         press(&mut a, Btn::Down);
-        assert_eq!(a.quick_menu(), Some(want));
+        assert_eq!(a.settings_row(), Some(want));
     }
 }
 
 #[test]
 fn fast_forward_steps_through_its_speeds_and_saves_each_one() {
     let (d, mut a, _) = on_carousel();
-    open_at(&mut a, QuickRow::FastForward);
+    open_at(&mut a, SettingsRow::FastForward);
     for (btn, want) in [
         (Btn::Left, 4),
         (Btn::Left, 3),
@@ -161,7 +163,7 @@ fn fast_forward_steps_through_its_speeds_and_saves_each_one() {
         assert_eq!(a.ff_speed(), want, "{btn:?}");
         assert_eq!(read_app_state(d.path()).ff_speed, want, "not on the card");
         assert_eq!(
-            a.quick_value(QuickRow::FastForward),
+            a.settings_value(SettingsRow::FastForward),
             QuickValue::speed(want)
         );
     }
@@ -174,11 +176,11 @@ fn rumble_and_fast_forward_sound_flip_on_either_arrow_and_save() {
         let s = read_app_state(d.path());
         (s.ff_sound, s.rumble)
     };
-    open_at(&mut a, QuickRow::FastForwardSound);
+    open_at(&mut a, SettingsRow::FastForwardSound);
     press(&mut a, Btn::Left);
     assert_eq!(card(&d), (true, true));
     assert_eq!(
-        a.quick_value(QuickRow::FastForwardSound),
+        a.settings_value(SettingsRow::FastForwardSound),
         Some(QuickValue::On)
     );
     press(&mut a, Btn::Right);
@@ -188,7 +190,7 @@ fn rumble_and_fast_forward_sound_flip_on_either_arrow_and_save() {
     press(&mut a, Btn::Right);
     assert_eq!(card(&d), (false, false));
     assert!(!a.rumble_enabled());
-    assert_eq!(a.quick_value(QuickRow::Rumble), Some(QuickValue::Off));
+    assert_eq!(a.settings_value(SettingsRow::Rumble), Some(QuickValue::Off));
     press(&mut a, Btn::Left);
     assert_eq!(card(&d), (false, true));
 }
@@ -196,13 +198,13 @@ fn rumble_and_fast_forward_sound_flip_on_either_arrow_and_save() {
 #[test]
 fn colour_correction_flips_on_either_arrow_and_saves() {
     let (d, mut a, _) = on_carousel();
-    open_at(&mut a, QuickRow::ColourCorrection);
+    open_at(&mut a, SettingsRow::ColourCorrection);
     assert!(
         !a.colour_correction(),
         "the row did not open on the default, which is off"
     );
     assert_eq!(
-        a.quick_value(QuickRow::ColourCorrection),
+        a.settings_value(SettingsRow::ColourCorrection),
         Some(QuickValue::Off)
     );
     for (btn, want) in [
@@ -219,7 +221,7 @@ fn colour_correction_flips_on_either_arrow_and_saves() {
             "{btn:?} never reached the card"
         );
         assert_eq!(
-            a.quick_value(QuickRow::ColourCorrection),
+            a.settings_value(SettingsRow::ColourCorrection),
             Some(QuickValue::flag(want))
         );
     }
@@ -228,7 +230,7 @@ fn colour_correction_flips_on_either_arrow_and_saves() {
 #[test]
 fn colour_correction_leaves_the_settings_around_it_alone() {
     let (d, mut a, _) = on_carousel();
-    open_at(&mut a, QuickRow::ColourCorrection);
+    open_at(&mut a, SettingsRow::ColourCorrection);
     press(&mut a, Btn::Right);
     let s = read_app_state(d.path());
     assert!(s.colour_correction, "the row never took");
@@ -248,11 +250,11 @@ fn the_arrows_change_nothing_on_a_row_that_opens() {
     let (d, mut a, _) = on_carousel();
     let before =
         std::fs::read(d.path().join("Config/omega-zero.state")).expect("read omega-zero.state");
-    for row in [QuickRow::DateTime, QuickRow::About] {
+    for row in [SettingsRow::DateTime, SettingsRow::About] {
         open_at(&mut a, row);
         press(&mut a, Btn::Left);
         press(&mut a, Btn::Right);
-        assert_eq!(a.quick_menu(), Some(row), "an arrow left {row:?}");
+        assert_eq!(a.settings_row(), Some(row), "an arrow left {row:?}");
         a.apply(Action::QuickMenu);
     }
     assert_eq!(
@@ -265,11 +267,11 @@ fn the_arrows_change_nothing_on_a_row_that_opens() {
 #[test]
 fn a_on_about_opens_the_label_and_b_comes_back_to_the_menu() {
     let (_d, mut a, _) = on_carousel();
-    open_at(&mut a, QuickRow::About);
+    open_at(&mut a, SettingsRow::About);
     press(&mut a, Btn::A);
     assert!(matches!(a.phase(), Phase::About), "{:?}", a.phase());
     press(&mut a, Btn::B);
-    assert_eq!(a.quick_menu(), Some(QuickRow::About));
+    assert_eq!(a.settings_row(), Some(SettingsRow::About));
 }
 
 #[test]
@@ -278,7 +280,7 @@ fn a_on_date_and_time_opens_the_clock_at_the_time_it_already_has() {
         utc_offset_min: -300,
         ..AppState::default()
     });
-    open_at(&mut a, QuickRow::DateTime);
+    open_at(&mut a, SettingsRow::DateTime);
     press(&mut a, Btn::A);
     let picker = a.picker().expect("A on Date & Time did not open the clock");
     assert_eq!(picker.offset_min(), -300, "the offset started over");
@@ -295,7 +297,7 @@ fn confirming_the_clock_from_the_menu_sets_it_and_comes_back_to_the_menu() {
         utc_offset_min: -300,
         ..AppState::default()
     });
-    open_at(&mut a, QuickRow::DateTime);
+    open_at(&mut a, SettingsRow::DateTime);
     press(&mut a, Btn::A);
     press(&mut a, Btn::Up);
     for _ in 0..5 {
@@ -304,7 +306,12 @@ fn confirming_the_clock_from_the_menu_sets_it_and_comes_back_to_the_menu() {
     press(&mut a, Btn::Down);
     let changed = a.picker().expect("not on the clock").secs() - (CLOCK_IS_SET - CLOCK_IS_SET % 60);
     press(&mut a, Btn::A);
-    assert_eq!(a.quick_menu(), Some(QuickRow::DateTime), "{:?}", a.phase());
+    assert_eq!(
+        a.settings_row(),
+        Some(SettingsRow::DateTime),
+        "{:?}",
+        a.phase()
+    );
     assert_eq!(
         clock.get(),
         CLOCK_IS_SET + changed,
@@ -321,7 +328,7 @@ fn b_on_the_clock_from_the_menu_comes_back_without_changing_anything() {
         utc_offset_min: -300,
         ..AppState::default()
     });
-    open_at(&mut a, QuickRow::DateTime);
+    open_at(&mut a, SettingsRow::DateTime);
     press(&mut a, Btn::A);
     press(&mut a, Btn::Up);
     for _ in 0..5 {
@@ -329,7 +336,12 @@ fn b_on_the_clock_from_the_menu_comes_back_without_changing_anything() {
     }
     press(&mut a, Btn::Down);
     press(&mut a, Btn::B);
-    assert_eq!(a.quick_menu(), Some(QuickRow::DateTime), "{:?}", a.phase());
+    assert_eq!(
+        a.settings_row(),
+        Some(SettingsRow::DateTime),
+        "{:?}",
+        a.phase()
+    );
     assert_eq!(clock.get(), CLOCK_IS_SET, "B set the clock");
     assert_eq!(
         read_app_state(d.path()).utc_offset_min,
@@ -353,13 +365,13 @@ fn the_first_boot_clock_still_has_no_way_back() {
 }
 
 #[test]
-fn brightness_and_volume_still_answer_over_the_quick_menu() {
+fn brightness_and_volume_still_answer_over_settings() {
     let (d, mut a, _) = on_carousel();
     let icons: Vec<TexId> = (0..Icon::ALL.len())
         .map(|i| TexId::from_raw(700 + i))
         .collect();
     a.set_icon_faces(icons.clone());
-    open_at(&mut a, QuickRow::FastForward);
+    open_at(&mut a, SettingsRow::FastForward);
     let before = read_app_state(d.path());
     a.apply(Action::BrightnessUp);
     a.apply(Action::VolumeDown);
@@ -369,8 +381,8 @@ fn brightness_and_volume_still_answer_over_the_quick_menu() {
         (before.brightness + 1, before.volume - 5)
     );
     assert_eq!(
-        a.quick_menu(),
-        Some(QuickRow::FastForward),
+        a.settings_row(),
+        Some(SettingsRow::FastForward),
         "a level moved the menu"
     );
     let out = frame(&a);
@@ -383,8 +395,8 @@ fn brightness_and_volume_still_answer_over_the_quick_menu() {
 
 fn fake_faces(a: &mut App) {
     let id = TexId::from_raw;
-    a.set_quick_menu_faces(QuickMenuFaces {
-        labels: (0..QuickRow::ALL.len())
+    a.set_settings_faces(QuickMenuFaces {
+        labels: (0..SettingsRow::ALL.len())
             .map(|i| (id(100 + i), 200, 40))
             .collect(),
         values: (0..QuickValue::ALL.len())
@@ -393,7 +405,7 @@ fn fake_faces(a: &mut App) {
         carets: [(id(300), 10, 40), (id(301), 10, 40)],
         legend: [(id(400), 70), (id(401), 110), (id(402), 80)],
     });
-    a.set_quick_clock_faces((id(500), 150, 40), (id(501), 150, 40));
+    a.set_settings_clock_faces((id(500), 150, 40), (id(501), 150, 40));
 }
 
 fn value(v: QuickValue, lit: bool) -> usize {
@@ -428,8 +440,9 @@ fn the_legend_says_change_on_a_value_row_and_open_on_a_row_that_opens() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
     press(&mut a, Btn::Start);
-    for row in QuickRow::ALL {
-        assert_eq!(a.quick_menu(), Some(row));
+    a.finish_slide();
+    for row in SettingsRow::ALL {
+        assert_eq!(a.settings_row(), Some(row));
         let out = frame(&a);
         assert!(drawn(&out, 400), "no B BACK on {row:?}");
         assert_eq!(drawn(&out, 401), !row.opens(), "CHANGE on {row:?}");
@@ -443,6 +456,7 @@ fn the_arrows_stand_only_around_the_selected_rows_value() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
     press(&mut a, Btn::Start);
+    a.finish_slide();
     let out = frame(&a);
     assert!(
         drawn(&out, 300) && drawn(&out, 301),
@@ -462,7 +476,7 @@ fn the_arrows_stand_only_around_the_selected_rows_value() {
     );
     assert!(drawn(&out, 500), "the date and time is not grey");
 
-    for _ in 0..QuickRow::DateTime.index() {
+    for _ in 0..SettingsRow::DateTime.index() {
         press(&mut a, Btn::Down);
     }
     let out = frame(&a);
@@ -482,9 +496,10 @@ fn the_bar_runs_edge_to_edge_behind_the_selected_row() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
     press(&mut a, Btn::Start);
-    let n = QuickRow::ALL.len();
+    a.finish_slide();
+    let n = SettingsRow::ALL.len();
     let mut first = 0;
-    for row in QuickRow::ALL {
+    for row in SettingsRow::ALL {
         let bars: Vec<_> = frame(&a)
             .into_iter()
             .filter_map(|d| match d {
@@ -512,10 +527,11 @@ fn the_rows_out_of_view_are_not_drawn_and_scroll_in_with_the_bar() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
     press(&mut a, Btn::Start);
-    let shown = quick_rows_shown(QuickRow::ALL.len());
-    let label = |row: QuickRow| 100 + row.index();
+    a.finish_slide();
+    let shown = quick_rows_shown(SettingsRow::ALL.len());
+    let label = |row: SettingsRow| 100 + row.index();
     let out = frame(&a);
-    for row in QuickRow::ALL {
+    for row in SettingsRow::ALL {
         assert_eq!(
             drawn(&out, label(row)),
             row.index() < shown,
@@ -523,10 +539,10 @@ fn the_rows_out_of_view_are_not_drawn_and_scroll_in_with_the_bar() {
         );
     }
     press(&mut a, Btn::Up);
-    assert_eq!(a.quick_menu(), Some(QuickRow::About));
+    assert_eq!(a.settings_row(), Some(SettingsRow::About));
     let out = frame(&a);
-    let n = QuickRow::ALL.len();
-    for row in QuickRow::ALL {
+    let n = SettingsRow::ALL.len();
+    for row in SettingsRow::ALL {
         assert_eq!(
             drawn(&out, label(row)),
             row.index() >= n - shown,
@@ -540,10 +556,11 @@ fn labels_start_and_values_end_thirty_two_pixels_in() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
     press(&mut a, Btn::Start);
+    a.finish_slide();
     let out = frame(&a);
     let right = out_w() as f32 - QUICK_EDGE;
-    let shown = quick_rows_shown(QuickRow::ALL.len());
-    for row in QuickRow::ALL.into_iter().take(shown) {
+    let shown = quick_rows_shown(SettingsRow::ALL.len());
+    for row in SettingsRow::ALL.into_iter().take(shown) {
         let [x, ..] = placed(&out, 100 + row.index()).expect("a label was not drawn");
         assert_eq!(x + MENU_PAD as f32, QUICK_EDGE, "{row:?}'s label");
     }
@@ -558,8 +575,9 @@ fn only_the_clock_from_the_menu_offers_b_back() {
     let (_d, mut a, _) = on_carousel();
     fake_faces(&mut a);
     a.set_clock_faces(TexId::from_raw(600), TexId::from_raw(601));
-    open_at(&mut a, QuickRow::DateTime);
+    open_at(&mut a, SettingsRow::DateTime);
     press(&mut a, Btn::A);
+    a.finish_slide();
     let out = frame(&a);
     assert!(drawn(&out, 601), "the clock lost its own key");
     assert!(

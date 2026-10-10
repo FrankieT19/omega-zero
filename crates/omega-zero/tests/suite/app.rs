@@ -714,7 +714,7 @@ fn eject_is_the_insert_backwards() {
 }
 
 #[test]
-fn the_quick_menu_opens_from_the_shelf_and_nowhere_else() {
+fn settings_opens_from_the_shelf_and_nowhere_else() {
     let d = common::tmp_root_with_carts(&["Emerald", "Fusion"]);
     let (mut s, _motor) = common::session_with_platform(d.path());
 
@@ -727,7 +727,7 @@ fn the_quick_menu_opens_from_the_shelf_and_nowhere_else() {
         .apply(omega_input::Action::GbaDown(omega_input::Btn::Start));
     assert!(matches!(
         s.app().phase(),
-        omega_zero::app::Phase::QuickMenu { .. }
+        omega_zero::app::Phase::Settings { .. }
     ));
 
     s.app_mut()
@@ -736,13 +736,13 @@ fn the_quick_menu_opens_from_the_shelf_and_nowhere_else() {
     s.app_mut()
         .apply(omega_input::Action::GbaDown(omega_input::Btn::Start));
     assert!(
-        !matches!(s.app().phase(), omega_zero::app::Phase::QuickMenu { .. }),
+        !matches!(s.app().phase(), omega_zero::app::Phase::Settings { .. }),
         "a menu opened over a seated cart"
     );
 }
 
 #[test]
-fn both_b_and_menu_take_the_about_screen_back_to_the_quick_menu() {
+fn both_b_and_menu_take_the_about_screen_back_to_settings() {
     let d = common::tmp_root_with_carts(&["Emerald", "Fusion"]);
     for out in [
         omega_input::Action::GbaDown(omega_input::Btn::B),
@@ -751,7 +751,7 @@ fn both_b_and_menu_take_the_about_screen_back_to_the_quick_menu() {
         let (mut s, _motor) = common::session_with_platform(d.path());
         s.app_mut()
             .apply(omega_input::Action::GbaDown(omega_input::Btn::Start));
-        for _ in 0..omega_ui::QuickRow::About.index() {
+        for _ in 0..omega_ui::SettingsRow::About.index() {
             s.app_mut()
                 .apply(omega_input::Action::GbaDown(omega_input::Btn::Down));
         }
@@ -760,8 +760,8 @@ fn both_b_and_menu_take_the_about_screen_back_to_the_quick_menu() {
         assert!(matches!(s.app().phase(), omega_zero::app::Phase::About));
         s.app_mut().apply(out);
         assert_eq!(
-            s.app().quick_menu(),
-            Some(omega_ui::QuickRow::About),
+            s.app().settings_row(),
+            Some(omega_ui::SettingsRow::About),
             "{out:?} did not take the label back to the menu"
         );
     }

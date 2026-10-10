@@ -4,7 +4,7 @@ use common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 use omega_input::{Action, Btn, Millis};
 use omega_store::{read_app_state, write_app_state, AppState, BackdropStyle};
 use omega_ui::{
-    backdrop_period, backdrop_rgb, backdrop_shift, out_h, out_w, Draw, QuickRow, TexId,
+    backdrop_period, backdrop_rgb, backdrop_shift, out_h, out_w, Draw, SettingsRow, TexId,
 };
 use omega_zero::app::{App, Phase};
 use omega_zero::background_screen::{Backdrop, Sel};
@@ -50,8 +50,8 @@ impl Rig {
 
     fn open(&mut self) {
         self.press(Btn::Start);
-        assert!(self.a.quick_menu().is_some(), "START opened no quick menu");
-        while self.a.quick_menu() != Some(QuickRow::Background) {
+        assert!(self.a.settings_row().is_some(), "START opened no Settings");
+        while self.a.settings_row() != Some(SettingsRow::Background) {
             self.press(Btn::Down);
         }
         self.press(Btn::A);
@@ -122,7 +122,7 @@ fn a_card_that_never_picked_drifts_a_night_grid_or_shows_its_wallpaper() {
 }
 
 #[test]
-fn background_opens_from_the_quick_menu_and_b_comes_back_to_its_row() {
+fn background_opens_from_settings_and_b_comes_back_to_its_row() {
     let mut r = Rig::new();
     r.open();
     assert_eq!(r.sel(), Sel::Style);
@@ -135,7 +135,7 @@ fn background_opens_from_the_quick_menu_and_b_comes_back_to_its_row() {
         ]
     );
     r.press(Btn::B);
-    assert_eq!(r.a.quick_menu(), Some(QuickRow::Background));
+    assert_eq!(r.a.settings_row(), Some(SettingsRow::Background));
 }
 
 #[test]
@@ -285,9 +285,18 @@ fn the_background_screen_shows_the_background_it_is_choosing_behind_its_list() {
     let face = TexId::from_raw(700);
     r.a.set_backdrop_face(face, out_w() + 40, BackdropStyle::Grid, 0);
     r.open();
+    r.a.finish_slide();
+    let out = r.frame();
+    let under = out
+        .iter()
+        .position(|d| matches!(*d, Draw::Tex { tex, .. } if tex == face))
+        .expect("the list hid what it is choosing");
+    let veiled = out[under + 1..].iter().any(
+        |d| matches!(*d, Draw::Rect { w, h, .. } if w == out_w() as f32 && h == out_h() as f32),
+    );
     assert!(
-        pattern_x(&r.frame(), face).is_some(),
-        "the list hid what it is choosing"
+        !veiled,
+        "something was laid over the background it is choosing"
     );
 }
 
