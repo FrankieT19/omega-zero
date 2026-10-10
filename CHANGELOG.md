@@ -1,6 +1,6 @@
 # Changelog
 
-## omega-zero 0.1.0 (unreleased)
+## omega-zero 0.0.1
 
 The first release, for the RG35XX SP and the other H700 handhelds BaseOS runs on.
 
