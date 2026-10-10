@@ -145,7 +145,7 @@ fn the_keyboard_sits_in_the_modal_where_flow_html_centres_it() {
     if (out_w(), out_h()) == (640, 480) {
         assert_eq!(
             (p.field[0], p.field[1]),
-            (31, 47),
+            (31, 50),
             "flow.html's field at 640x480"
         );
     }

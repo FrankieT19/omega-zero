@@ -7,9 +7,9 @@
 <!--
   Every new omega-zero screen, put together from the kit, and a player that walks between them
   with the slides the device will draw: the shelf, Settings and everything under it, the
-  Quickmenu. Open it straight from disk; it needs no server or build. The URL's hash picks the
-  screen, the panel size, the colour and any moment of a slide (see "The URL" on the page), so a
-  still of any of them can be taken with headless Chrome. The placeholders for what Rust draws
+  Controls panel. Open it straight from disk; it needs no server or build. The URL's hash picks
+  the screen, the panel size, the colour and any moment of a slide (see "The URL" on the page), so
+  a still of any of them can be taken with headless Chrome. The placeholders for what Rust draws
   (the carts, the slot, the top bar, the About sticker) are flat on purpose.
 -->
 <link rel="stylesheet" href="foundation/fonts.css">
@@ -81,9 +81,9 @@
             </div>
           </section>
 
-          <!-- Quickmenu, from the shelf's SELECT: what every button does -->
+          <!-- Controls, from the shelf's SELECT: what every button does -->
           <section class="part page away" data-screen="controls">
-            <omega-panel label="QUICKMENU" active class="lone controls-panel">
+            <omega-panel label="CONTROLS" active class="lone controls-panel">
               <div class="columns">
                 <div class="keymap" style="--keys: 6; --does: 11">
                   <h3>SHELF</h3>
@@ -91,7 +91,7 @@
                   <span class="k">HOLD A</span><span>CLEAN START</span>
                   <span class="k">X</span><span>CORE</span>
                   <span class="k">START</span><span>SETTINGS</span>
-                  <span class="k">SELECT</span><span>QUICKMENU</span>
+                  <span class="k">SELECT</span><span>CONTROLS</span>
                   <span class="k"><i class="g left"></i><i class="g right"></i></span><span>BROWSE</span>
                   <span class="k"><i class="g up"></i><i class="g down"></i></span><span>LETTER</span>
                   <span class="k">L1 R1</span><span>SHELF</span>
@@ -199,7 +199,7 @@
           </section>
 
           <omega-bar>
-            <action-left slot="left" label="QUICKMENU" hint="SELECT"></action-left>
+            <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
             <action-right slot="right" label="SETTINGS" hint="START"></action-right>
           </omega-bar>
         </div>
@@ -283,7 +283,7 @@
           <tr><td>A</td><td><kbd>X</kbd> <kbd>A</kbd></td><td>Confirm: open a row's screen, press a key</td></tr>
           <tr><td>B</td><td><kbd>Z</kbd> <kbd>B</kbd> <kbd>Esc</kbd></td><td>Back one screen; on the keyboard, delete (back once the field is empty)</td></tr>
           <tr><td>START</td><td><kbd>Enter</kbd></td><td>Shelf → Settings; Settings → shelf; keyboard: done</td></tr>
-          <tr><td>SELECT</td><td><kbd>Space</kbd> <kbd>right Shift</kbd></td><td>Shelf → Quickmenu</td></tr>
+          <tr><td>SELECT</td><td><kbd>Space</kbd> <kbd>right Shift</kbd></td><td>Shelf → Controls</td></tr>
         </table>
       </div>
 

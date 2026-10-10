@@ -8,7 +8,7 @@
       from the left, dx = −even((1 − p)·W); going back is the mirror. even() rounds to a whole
       art pixel, 2px.
     Leaving the shelf, its top bar goes up (dy = −p·36), its carts right (dx = +p·(W + the widest
-      cart)) and its slot down behind the bottom bar (dy = +p·122), while the menu comes in from
+      cart)) and its slot down behind the bottom bar (dy = +p·110), while the menu comes in from
       the left. Coming back, the same with q = 1 − p.
     The bottom bar never leaves. When its actions change (shelf and menus), the old ones sink out
       of the screen over p 0 to 0.5 and the new ones rise into place over p 0.5 to 1; between two
@@ -25,12 +25,12 @@
   const FRAME_MS = 1000 / 60;
 
   // The shelf's parts' sizes in pixels (flow.css): its top bar; how far its slot rises from the
-  // screen's bottom, its own 80 and the bottom bar's 42 under it; the widest cart.
+  // screen's bottom, its own 80 and the bottom bar's 30 under it; the widest cart.
   const TOP_H = 36;
-  const SLOT_RISE = 122;
+  const SLOT_RISE = 110;
   const WIDEST = 360;
-  // An action's 21 art pixels and the 6 its notch rises above them: how far it sinks to be gone.
-  const SINK = 27 * 2;
+  // An action's 15 art pixels and the 4 its notch rises above them: how far it sinks to be gone.
+  const SINK = 19 * 2;
 
   const screen = document.getElementById('screen');
   const backdrop = screen.querySelector('.backdrop');
@@ -47,10 +47,10 @@
 
   const NAMES = {
     shelf: 'Shelf', settings: 'Settings', network: 'Network', ssh: 'SSH', keyboard: 'Keyboard',
-    labels: 'Labels', datetime: 'Date & Time', background: 'Background', about: 'About', controls: 'Quickmenu',
+    labels: 'Labels', datetime: 'Date & Time', background: 'Background', about: 'About', controls: 'Controls',
   };
   // What the bottom bar shows: the shelf's actions, every menu's, and the key hints some menus add.
-  const SHELF_BAR = { left: ['QUICKMENU', 'SELECT'], right: ['SETTINGS', 'START'] };
+  const SHELF_BAR = { left: ['CONTROLS', 'SELECT'], right: ['SETTINGS', 'START'] };
   const MENU_BAR = { left: ['RETURN', 'B'], right: ['CONFIRM', 'A'] };
   const barOf = name => (name === 'shelf' ? SHELF_BAR : MENU_BAR);
   const HINTS = { network: 'Y FORGET', labels: 'START FETCH' };

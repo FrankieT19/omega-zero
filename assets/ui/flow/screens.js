@@ -123,7 +123,7 @@ window.FlowScreens = (() => {
     press(key) { if (key === 'b') return { back: true }; }
   }
 
-  // The shelf, as far as these screens go: START to Settings, SELECT to the Quickmenu.
+  // The shelf, as far as these screens go: START to Settings, SELECT to Controls.
   class Shelf extends Still {
     press(key) {
       if (key === 'start') return { go: 'settings' };

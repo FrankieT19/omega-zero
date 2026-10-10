@@ -58,7 +58,7 @@ classic scripts, no build step, so it works from `file://`.
   </omega-panel>
 </omega-modal>
 <omega-bar hint="Y RESET">
-  <action-left slot="left" label="QUICKMENU" hint="SELECT"></action-left>
+  <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
   <action-right slot="right" label="SETTINGS" hint="START"></action-right>
 </omega-bar>
 
@@ -68,7 +68,7 @@ classic scripts, no build step, so it works from `file://`.
 ## Screens and slides
 
 `flow.html` puts every menu screen together from the kit (the shelf, Settings and everything
-under it, QUICKMENU) and moves between them with the slides the device draws: 280 ms,
+under it, CONTROLS) and moves between them with the slides the device draws: 280 ms,
 smootherstep, every frame on whole art pixels. It is the approved reference for the Rust screens.
 Open it from disk like the storybook. What Rust draws itself (the carts, the slot, the top bar,
 the About sticker) is a flat placeholder.
@@ -92,7 +92,7 @@ headless Chrome screenshot lands on the same frame:
 
 | Key | Values |
 |---|---|
-| `screen` | `shelf`, `settings`, `controls` (QUICKMENU), `network`, `ssh`, `keyboard`, `labels`, `datetime`, `background`, `about` |
+| `screen` | `shelf`, `settings`, `controls`, `network`, `ssh`, `keyboard`, `labels`, `datetime`, `background`, `about` |
 | `from` | slide into `screen` from this one, deeper or back as the tree has it; `dir=in` or `dir=out` forces the way |
 | `t` | with `from`: hold the slide at this time, 0 to 1 |
 | `size` | `640x480` (default), `720x480`, `720x720` |

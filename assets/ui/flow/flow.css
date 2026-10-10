@@ -101,10 +101,10 @@ body.shot .screen-scroll { padding: 0; overflow: visible; }
    so it keeps its layout. */
 .part { position: absolute; left: 0; top: 0; width: 100%; }
 .part.away { visibility: hidden; }
-.shelf-carts { top: 36px; height: calc(100% - 36px - 122px); z-index: 1; }
-.shelf-slot { top: calc(100% - 122px); height: 80px; z-index: 1; }
+.shelf-carts { top: 36px; height: calc(100% - 36px - 110px); z-index: 1; }
+.shelf-slot { top: calc(100% - 110px); height: 80px; z-index: 1; }
 .shelf-top { height: 36px; z-index: 1; }
-.page { height: calc(100% - 21 * var(--u)); z-index: 2; }
+.page { height: calc(100% - 15 * var(--u)); z-index: 2; }
 .screen > omega-bar { position: absolute; left: 0; bottom: 0; width: 100%; z-index: 3; }
 
 /* ---- the shelf: what Rust draws, as flat placeholders ---- */

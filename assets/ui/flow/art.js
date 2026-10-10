@@ -1,7 +1,7 @@
 /*
   The art flow.html draws itself: placeholders for what Rust draws on the device (the shelf's carts,
-  the top bar's icons, the About sticker), the keyboard's keys, and the arrows the Quickmenu needs,
-  which fonts.css's Pixel Code, cut to Latin-1, has no letter for (◀ ▶ ▲ ▼). Like the kit's
+  the top bar's icons, the About sticker), the keyboard's keys, and the arrows the Controls panel
+  needs, which fonts.css's Pixel Code, cut to Latin-1, has no letter for (◀ ▶ ▲ ▼). Like the kit's
   components, every
   shape is a sprite written as rows of colour keys (see foundation/pixel.js), shown at one art pixel
   to --u, in the --oz-* colours palette.js sets.

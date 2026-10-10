@@ -21,14 +21,14 @@ fn at_640x480_everything_is_where_flow_puts_it() {
     if (out_w(), out_h()) != (640, 480) {
         return;
     }
-    assert_eq!(modal_rect(), [16, 14, 288, 200]);
+    assert_eq!(modal_rect(), [16, 14, 288, 206]);
     // NETWORK hugging three rows, AVAILABLE NETWORKS a pixel over it to the frame
-    assert_eq!(network_panels(3), [[4, 2, 280, 62], [4, 63, 280, 133]]);
-    assert_eq!(networks_shown(3, 0), 8, "110 pixels of well hold 8 rows");
+    assert_eq!(network_panels(3), [[4, 2, 280, 62], [4, 63, 280, 139]]);
+    assert_eq!(networks_shown(3, 0), 8, "116 pixels of well hold 8 rows");
     assert_eq!(networks_shown(3, 1), 7);
     assert_eq!(networks_shown(3, 2), 6);
-    assert_eq!(ssh_rect(5), [60, 57, 200, 104]);
-    assert_eq!(ssh_rect(0), [60, 88, 200, 42]);
+    assert_eq!(ssh_rect(5), [60, 60, 200, 104]);
+    assert_eq!(ssh_rect(0), [60, 91, 200, 42]);
 }
 
 #[test]

@@ -15,7 +15,7 @@ fn a_modal_keeps_its_margin_inside_the_page() {
     assert_eq!(x + mw + side, w);
     assert_eq!(y + mh + bottom, h);
     if out_w() == 640 && out_h() == 480 {
-        assert_eq!([mw, mh], [288, 200], "flow.html's modal at 640x480");
+        assert_eq!([mw, mh], [288, 206], "flow.html's modal at 640x480");
     }
 }
 

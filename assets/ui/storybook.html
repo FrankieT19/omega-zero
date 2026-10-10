@@ -67,7 +67,7 @@
   .preview { display: grid; gap: 20px; padding: 28px 24px; border-radius: 4px; overflow: hidden; }
   .preview.actions { padding-top: 40px; justify-items: start; }
   .preview .tag { font: 0.75rem var(--mono); color: var(--dim); margin-bottom: -12px; }
-  /* an action's notch rises 12px over what is above it; keep its tag clear of that */
+  /* an action's notch rises 8px over what is above it; keep its tag clear of that */
   .preview.actions .tag { margin-bottom: 0; }
   /* examples side by side, each a whole number of art pixels wide so their edges stay on the grid */
   .side { display: grid; grid-template-columns: repeat(auto-fill, calc(240 * var(--u))); gap: 20px; }
@@ -306,19 +306,22 @@
       <article class="card">
         <header><h3>&lt;action-left&gt;</h3><code>components/action-left.js</code></header>
         <p class="dim">The bottom bar's left action: a return arrow in a notch at the screen's edge, a
-          big label, and a button pill with a hint. 21 art pixels tall; the notch rises 6 above it.
+          big label, and a button pill with a hint. 15 art pixels tall; the notch rises 4 above it.
           Without attributes it is empty, with room kept for its label.</p>
         <div class="preview actions omega-backdrop">
           <span class="tag">empty</span>
           <action-left></action-left>
           <span class="tag">with text</span>
           <action-left label="MENU" hint="SELECT"></action-left>
+          <span class="tag">given room, as wide as CONFIRM A beside it</span>
+          <action-left label="RETURN" hint="B" room="54 30"></action-left>
         </div>
         <div class="table">
           <table>
             <tr><th>API</th><th>What it does</th></tr>
-            <tr><td>label</td><td>The big word: a sprite, bold, twice as tall, with a shadow.</td></tr>
+            <tr><td>label</td><td>The big word: a sprite, bold, its capitals 10 pixels tall, with a shadow.</td></tr>
             <tr><td>hint</td><td>The smaller word in the pill.</td></tr>
+            <tr><td>room</td><td>How wide the label's box and the hint's box are at least, in art pixels: <code>54 30</code>. Each word stays in the middle of its box, rounded down to a whole pixel. <code>&lt;omega-bar&gt;</code> sets it on both its actions.</td></tr>
             <tr><td>::part</td><td><code>action</code>, <code>icon</code>, <code>label</code>, <code>word</code>, <code>button</code>, <code>hint</code></td></tr>
           </table>
         </div>
@@ -339,8 +342,9 @@
         <div class="table">
           <table>
             <tr><th>API</th><th>What it does</th></tr>
-            <tr><td>label</td><td>The big word: a sprite, bold, twice as tall, with a shadow.</td></tr>
+            <tr><td>label</td><td>The big word: a sprite, bold, its capitals 10 pixels tall, with a shadow.</td></tr>
             <tr><td>hint</td><td>The smaller word in the pill.</td></tr>
+            <tr><td>room</td><td>How wide the label's box and the hint's box are at least, as <code>&lt;action-left&gt;</code>'s.</td></tr>
             <tr><td>::part</td><td><code>action</code>, <code>button</code>, <code>hint</code>, <code>label</code>, <code>word</code>, <code>icon</code></td></tr>
           </table>
         </div>
@@ -468,18 +472,25 @@
 
       <article class="card wide">
         <header><h3>&lt;omega-bar&gt;</h3><code>components/omega-bar.js</code></header>
-        <p class="dim">The bar along the bottom of a screen, as wide as what holds it and 21 art pixels
+        <p class="dim">The bar along the bottom of a screen, as wide as what holds it and 15 art pixels
           tall: an <code>&lt;action-left&gt;</code> and an <code>&lt;action-right&gt;</code> at its ends
           and, between them, a plate that sits a little under their rails and runs on behind both
-          buttons' rounded ends, so the bar's bottom line never breaks. The keys a screen has beyond
-          the two actions go on the plate as hints, each its key in a small dark cap and then the
-          word, centred on the plate and on the same rows as the words in the buttons.
-          <code>floating</code> leaves only the two actions, at the corners.</p>
+          buttons' rounded ends, so the bar's bottom line never breaks. The two actions come out one
+          width: the bar gives both the <code>room</code> of the wider label and the wider hint, and
+          an empty one takes the other's. The keys a screen has beyond the two actions go on the
+          plate as hints, each its key in a small dark cap and then the word, centred on the plate
+          and on the same rows as the words in the buttons. <code>floating</code> leaves only the
+          two actions, at the corners.</p>
         <div class="preview actions omega-backdrop">
           <span class="tag">empty</span>
           <omega-bar class="bar-box">
             <action-left slot="left"></action-left>
             <action-right slot="right"></action-right>
+          </omega-bar>
+          <span class="tag">one action, the empty one as wide</span>
+          <omega-bar class="bar-box">
+            <action-left slot="left"></action-left>
+            <action-right slot="right" label="CONFIRM" hint="A"></action-right>
           </omega-bar>
           <span class="tag">with a hint</span>
           <omega-bar class="bar-box" hint="START FETCH">
