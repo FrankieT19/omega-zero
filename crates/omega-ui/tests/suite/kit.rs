@@ -270,6 +270,23 @@ fn capitals_fill_letters_rows_two_to_eight() {
 }
 
 #[test]
+fn a_colon_between_figures_stands_a_pixel_higher_as_the_browser_draws_it() {
+    // the rows the colon's dots are on, the third letter in each
+    let dots = |text: &str| -> Vec<usize> {
+        let rows = letters(text, ADVANCE);
+        (0..rows.len())
+            .filter(|&y| rows[y][2 * ADVANCE..3 * ADVANCE].contains('#'))
+            .collect()
+    };
+    let plain = dots("ab:cd");
+    let raised = dots("16:00");
+    assert_eq!(plain.len(), 2, "two dots, a pixel each");
+    assert_eq!(raised, plain.iter().map(|y| y - 1).collect::<Vec<_>>());
+    assert_eq!(dots("UT: 0"), raised, "a space apart still counts");
+    assert_eq!(dots("16:ab"), plain, "a figure on one side only does not");
+}
+
+#[test]
 fn mirror_makes_a_sprite_from_its_quarter_and_flip_turns_it() {
     assert_eq!(mirror(&[".s", "sA"]), [".s.", "sAs", ".s."]);
     assert_eq!(
