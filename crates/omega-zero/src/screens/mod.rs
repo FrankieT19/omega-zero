@@ -1,0 +1,12 @@
+//! Each menu screen's input and drawing, as `impl App` blocks: `App::apply` hands a press to
+//! the screen it is on and `App::draw` draws the screen it shows, and what each screen does
+//! with them lives in its own file here.
+
+pub mod about;
+pub mod background;
+pub mod clock;
+pub mod keyboard;
+pub mod labels;
+pub mod network;
+pub mod settings;
+pub mod shelf;
