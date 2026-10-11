@@ -29,6 +29,8 @@ assets/ui/
     ├── omega-list-row.js  <omega-list-row>  a Wi-Fi network or Bluetooth device in a list
     ├── omega-bar.js       <omega-bar>       the bottom bar: two actions, key hints between them
     ├── omega-gauge.js     <omega-gauge>     a level on one line: a title tab, then cells and an icon
+    ├── omega-toast.js     <omega-toast>     what just happened: a lone panel's tab and one line
+    ├── omega-badge.js     <omega-badge>     what a game is doing: a key cap, a sprite and a word
     ├── action-left.js     <action-left>     the bottom bar's left action
     ├── action-right.js    <action-right>    the same, mirrored
     ├── omega-button.js    <omega-button>    a page's link or button, drawn as the bar's pill
@@ -57,6 +59,8 @@ classic scripts, no build step, so it works from `file://`.
 <script src="components/action-right.js"></script>
 <script src="components/omega-bar.js"></script>
 <script src="components/omega-gauge.js"></script>
+<script src="components/omega-toast.js"></script>   <!-- after omega-panel.js, which it is drawn with -->
+<script src="components/omega-badge.js"></script>
 
 <div class="omega-backdrop" data-style="plates" data-moving></div>  <!-- Grid without data-style -->
 
@@ -69,6 +73,8 @@ classic scripts, no build step, so it works from `file://`.
   </omega-panel>
 </omega-modal>
 <omega-gauge label="VOLUME" value="55" max="100" cells="20" icon="volume"></omega-gauge>
+<omega-toast label="SAVE STATE" text="State saved"></omega-toast>
+<omega-badge icon="fastforward" text="×4" lit></omega-badge>
 <omega-bar hint="Y RESET">
   <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
   <action-right slot="right" label="SETTINGS" hint="START"></action-right>
@@ -76,6 +82,16 @@ classic scripts, no build step, so it works from `file://`.
 
 <script>OmegaPalette.apply('teal')</script>  <!-- Night unless told otherwise -->
 ```
+
+## Over a game
+
+`<omega-gauge>`, `<omega-toast>` and `<omega-badge>` are what omega-zero puts over a game, the
+shelf or a menu, with nothing behind them but what is on the screen. A gauge (volume 20 cells,
+brightness and blue light 9, rewind 20) or a toast stands centred at the top, 2 art pixels down,
+or 2 under the top bar where the shelf shows it; only one at a time, a toast taking the gauge's
+place. Each comes at once and goes in four even steps of fading out. A badge stays in the top
+right corner while it lasts, level with a gauge's middle: fast forward, `×2` to `×6` as Settings
+sets its speed, lit once latched, or the link, which outranks it.
 
 ## Pages around the menus
 

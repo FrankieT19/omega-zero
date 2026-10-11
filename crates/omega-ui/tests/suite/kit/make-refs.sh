@@ -120,3 +120,31 @@ shoot flow-ssh-offline 200 42 'c=flow&screen=ssh-offline'
 shoot flow-ssh-switched-off 200 42 'c=flow&screen=ssh-switched-off'
 shoot flow-labels 280 75 'c=flow&screen=labels'
 shoot flow-controls 304 157 'c=flow&screen=controls'
+
+# the gauges over a game, each with its icon, and one without; 20 cells for 0 to 100, 9 for 0 to 9
+shoot gauge-volume 157 15 'c=gauge&label=VOLUME&value=55&max=100&cells=20&icon=volume'
+shoot gauge-muted 157 15 'c=gauge&label=VOLUME&value=0&max=100&cells=20&icon=muted'
+shoot gauge-headphones 157 15 'c=gauge&label=VOLUME&value=35&max=100&cells=20&icon=headphones'
+shoot gauge-brightness 137 15 'c=gauge&label=BRIGHTNESS&value=6&max=9&cells=9&icon=brightness'
+shoot gauge-bluelight 137 15 'c=gauge&label=BLUE%20LIGHT&value=3&max=9&cells=9&icon=bluelight'
+shoot gauge-rewind 157 15 'c=gauge&label=REWIND&value=70&max=100&cells=20&icon=rewind'
+shoot gauge-speed 103 15 'c=gauge&label=SPEED&value=4&max=8&cells=8&icon=fastforward'
+shoot gauge-empty 97 15 'c=gauge&label=LEVEL&value=0&max=9&cells=9'
+shoot gauge-full 97 15 'c=gauge&label=LEVEL&value=9&max=9&cells=9'
+
+# toasts: the tab wider than the line, the line wider than the tab, a descender, a label in
+# lower case
+shoot toast-saved 84 34 'c=toast&label=SAVE%20STATE&text=State%20saved'
+shoot toast-ended 96 34 'c=toast&label=LINK&text=Link%20was%20ended'
+shoot toast-gpsp 138 34 'c=toast&label=LINK&text=Please%20switch%20to%20gpSP'
+shoot toast-colour 96 34 'c=toast&label=colour&text=Correction%20off'
+
+# badges: fast forward held and latched at each speed's width, the link's and a lost one, lit and
+# not, and a sprite with no word
+shoot badge-ff-2 25 9 'c=badge&icon=fastforward&text=%C3%972'
+shoot badge-ff-6-lit 25 9 'c=badge&icon=fastforward&text=%C3%976&lit'
+shoot badge-link 11 9 'c=badge&icon=link'
+shoot badge-link-lit 11 9 'c=badge&icon=link&lit'
+shoot badge-unlinked 11 9 'c=badge&icon=unlinked'
+shoot badge-unlinked-lit 11 9 'c=badge&icon=unlinked&lit'
+shoot badge-word 37 9 'c=badge&icon=fastforward&text=HOST'

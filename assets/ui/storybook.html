@@ -22,6 +22,8 @@
 <script src="components/omega-list-row.js"></script>
 <script src="components/omega-bar.js"></script>
 <script src="components/omega-gauge.js"></script>
+<script src="components/omega-toast.js"></script>
+<script src="components/omega-badge.js"></script>
 <script src="components/omega-button.js"></script>
 <script src="components/omega-screen.js"></script>
 <script src="components/omega-card.js"></script>
@@ -157,7 +159,8 @@
   .outlined omega-bar::part(key), .outlined omega-bar::part(word),
   .outlined omega-gauge::part(tab), .outlined omega-gauge::part(label), .outlined omega-gauge::part(slant),
   .outlined omega-gauge::part(strip), .outlined omega-gauge::part(well), .outlined omega-gauge::part(cells),
-  .outlined omega-gauge::part(icon) {
+  .outlined omega-gauge::part(icon),
+  .outlined omega-toast::part(line), .outlined omega-badge::part(icon), .outlined omega-badge::part(word) {
     outline: 1px dashed var(--area); outline-offset: -1px;
   }
 
@@ -566,6 +569,84 @@
         </div>
 <pre><code>&lt;omega-gauge label="VOLUME" value="55" max="100" cells="20" icon="volume"&gt;&lt;/omega-gauge&gt;
 &lt;omega-gauge label="BRIGHTNESS" value="6" max="9" cells="9" icon="brightness"&gt;&lt;/omega-gauge&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-toast&gt;</h3><code>components/omega-toast.js</code></header>
+        <p class="dim">A word on what just happened, as a lone panel says it: the title tab names
+          what it is about and the well holds one line. It comes and goes on its own, over a game,
+          the shelf or a menu, where the gauges stand. The tab hugs its title and the strip takes
+          whatever room the line leaves, so the toast is as wide as the wider of the two. The line
+          starts in line with the title, in its own case, with 4 rows of well above its capitals
+          and 4 below; 34 art pixels tall.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">what omega-zero says over a game</span>
+          <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
+            <omega-toast label="SAVE STATE" text="State saved"></omega-toast>
+            <omega-toast label="SAVE STATE" text="State loaded"></omega-toast>
+            <omega-toast label="LINK" text="Link was ended"></omega-toast>
+            <omega-toast label="LINK" text="Please switch to gpSP"></omega-toast>
+            <omega-toast label="COLOUR" text="Correction on"></omega-toast>
+          </div>
+          <div class="side">
+            <figure>
+              <span class="tag">empty, a title alone, a line alone</span>
+              <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
+                <omega-toast></omega-toast>
+                <omega-toast label="SAVE STATE"></omega-toast>
+                <omega-toast text="No link support"></omega-toast>
+              </div>
+            </figure>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>label</td><td>What it is about, in the title tab, in capitals whatever case it is given in, lit in <code>--oz-cream</code>.</td></tr>
+            <tr><td>text</td><td>The line, in its own case, in <code>--oz-cream</code>.</td></tr>
+            <tr><td>::part</td><td><code>toast</code> (its <code>&lt;omega-panel&gt;</code>), <code>line</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-toast label="SAVE STATE" text="State saved"&gt;&lt;/omega-toast&gt;
+&lt;omega-toast label="LINK" text="Link was ended"&gt;&lt;/omega-toast&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-badge&gt;</h3><code>components/omega-badge.js</code></header>
+        <p class="dim">What a game is doing that lasts, in the corner over it: the bottom bar's key cap
+          holding a 7×7 sprite and a word after it. Fast forward shows how fast, dark while R2 is held
+          and lit once it is latched; a link shows the link, lit while hosting and dark when joined,
+          and the link broken once it is lost. Lit, it is drawn as a lit row's band: the tab colour
+          with a frame line round it. 9 art pixels tall like a key cap, its sprite and word on the
+          capitals' rows, two pixels clear of either end.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">fast forward held, latched, at each speed</span>
+          <div style="display: flex; flex-wrap: wrap; gap: calc(6 * var(--u)); align-items: start">
+            <omega-badge icon="fastforward" text="×2"></omega-badge>
+            <omega-badge icon="fastforward" text="×3"></omega-badge>
+            <omega-badge icon="fastforward" text="×4" lit></omega-badge>
+            <omega-badge icon="fastforward" text="×6" lit></omega-badge>
+          </div>
+          <span class="tag">a link: hosting, joined, lost while hosting, lost when joined</span>
+          <div style="display: flex; flex-wrap: wrap; gap: calc(6 * var(--u)); align-items: start">
+            <omega-badge icon="link" lit></omega-badge>
+            <omega-badge icon="link"></omega-badge>
+            <omega-badge icon="unlinked" lit></omega-badge>
+            <omega-badge icon="unlinked"></omega-badge>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>icon</td><td>The sprite, in <code>--oz-cream</code>: <code>fastforward</code>, <code>link</code>, <code>unlinked</code> (a link that was lost). Fast forward without it.</td></tr>
+            <tr><td>text</td><td>A word after the sprite, 3 art pixels on, in <code>--oz-cream</code>: the speed, <code>×4</code>. None without it.</td></tr>
+            <tr><td>lit</td><td>The band of a lit row, <code>--oz-tab</code> inside a <code>--oz-frame</code> line; unlit, the key cap in <code>--oz-dark</code>.</td></tr>
+            <tr><td>::part</td><td><code>badge</code>, <code>icon</code>, <code>word</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-badge icon="fastforward" text="×4"&gt;&lt;/omega-badge&gt;       &lt;!-- held --&gt;
+&lt;omega-badge icon="fastforward" text="×4" lit&gt;&lt;/omega-badge&gt;   &lt;!-- latched --&gt;
+&lt;omega-badge icon="link" lit&gt;&lt;/omega-badge&gt;                    &lt;!-- hosting a link --&gt;</code></pre>
       </article>
 
       <article class="card wide">

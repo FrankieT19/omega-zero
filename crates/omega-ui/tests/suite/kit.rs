@@ -32,7 +32,7 @@ use omega_ui::kit::row::{panel_height, row_face, row_rect, row_width, Row, ROW_H
 use omega_ui::kit::text::text_face;
 use omega_ui::{Draw, TexId, UndoFace};
 
-const RAMP: Palette = Palette {
+pub(crate) const RAMP: Palette = Palette {
     bg: [0x30, 0x22, 0x08],
     dark: [0x2a, 0x0f, 0x04],
     edge: [0x6a, 0x3d, 0x01],
@@ -81,7 +81,7 @@ fn write(path: &str, face: &UndoFace) {
 
 /// `face` is `name`'s screenshot exactly: the same size, clear where it is clear, and every
 /// other pixel the same opaque colour.
-fn matches(face: &UndoFace, name: &str) {
+pub(crate) fn matches(face: &UndoFace, name: &str) {
     if let Ok(dir) = std::env::var("KIT_OUT") {
         write(&format!("{dir}/{name}.png"), face);
     }
