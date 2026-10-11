@@ -9,7 +9,7 @@
 # where. CONSOLE_PASSWORD is root's password; when it is not set, it is read from
 # .console-password at the root of the repo, which git ignores, and failing that it is root,
 # BaseOS's own. omega-zero gives root six random digits the first time it runs on a card whose
-# baseos.conf sets no ssh_password; the console shows them under Settings > Network > SSH > INFO.
+# baseos.conf sets no ssh_password; the console shows them under Settings > Network, Y on SSH.
 set -eu
 
 console="${CONSOLE:-rg35xxsp.local}"
@@ -65,7 +65,7 @@ on() {
 			# sshpass says 5 when the password is turned away
 			if [ "$status" -eq 5 ]; then
 				echo "console.sh: $host turned the password away" >&2
-				echo "console.sh: the password is on the console under Settings > Network > SSH > INFO; put it in .console-password" >&2
+				echo "console.sh: the password is on the console under Settings > Network, Y on SSH; put it in .console-password" >&2
 			else
 				echo "console.sh: could not reach $host" >&2
 			fi
@@ -134,7 +134,7 @@ deploy)
 			refused=$((refused + 1))
 			if [ "$refused" -ge 3 ]; then
 				echo "console.sh: $host is back, but turned the password away: omega-zero gave root a new one as it started" >&2
-				echo "console.sh: the password is on the console under Settings > Network > SSH > INFO; put it in .console-password" >&2
+				echo "console.sh: the password is on the console under Settings > Network, Y on SSH; put it in .console-password" >&2
 				exit 1
 			fi
 			continue
