@@ -176,7 +176,7 @@ fn every_credit_is_kept_and_slots_is_last() {
             "the credits do not mention {owed}: {all}"
         );
     }
-    assert_eq!(BASED_ON, "Based on slot by Brandon T. Kowalski.");
+    assert_eq!(BASED_ON, "Based on slot.");
     assert!(
         !all.contains("slot"),
         "slot's credit is anywhere but last: {all}"

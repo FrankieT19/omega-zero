@@ -45,7 +45,7 @@ pub const CREDITS: [&str; 7] = [
 ];
 
 /// What omega-zero is based on, the last line, in the dim colour.
-pub const BASED_ON: &str = "Based on slot by Brandon T. Kowalski.";
+pub const BASED_ON: &str = "Based on slot.";
 
 /// What a row says when the handheld does not.
 const UNKNOWN: &str = "UNKNOWN";

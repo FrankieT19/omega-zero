@@ -125,6 +125,5 @@ UI kit, [`assets/ui`](assets/ui).
 Game Boy, Game Boy Color and Game Boy Advance are trademarks of Nintendo. Anbernic is a trademark
 of its owner. This project is not affiliated with either.
 
-<sub>Based on [slot](https://github.com/BrandonKowalski/slot) by
-[Brandon T. Kowalski](https://github.com/BrandonKowalski), released under the GPL-3.0, and
+<sub>Based on [slot](https://github.com/BrandonKowalski/slot), released under the GPL-3.0, and
 modified since October 2026.</sub>
