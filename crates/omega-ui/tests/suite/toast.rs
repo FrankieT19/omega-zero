@@ -1,7 +1,7 @@
 use omega_ui::kit::gauge::GAUGE_H;
 use omega_ui::kit::palette::palette;
 use omega_ui::kit::toast::TOAST_H;
-use omega_ui::{out_w, Draw, Hud, HudFace, HudKind, TexId, Toast, MARGIN};
+use omega_ui::{out_w, Draw, Hud, HudFace, HudKind, TexId, Toast, SCREEN_MARGIN};
 
 const TOAST_TEX: TexId = TexId::from_raw(800);
 const GAUGE_TEX: TexId = TexId::from_raw(700);
@@ -161,7 +161,7 @@ fn a_toast_is_centred_at_the_top_on_the_grid() {
     let (x, y, w, th) = toast_draw(&drawn(&h, 0)).expect("the toast is not drawn");
     assert_eq!(x + w / 2.0, out_w() as f32 / 2.0);
     assert_eq!((x % 2.0, y % 2.0), (0.0, 0.0), "off the art grid");
-    assert_eq!(y, MARGIN);
+    assert_eq!(y, SCREEN_MARGIN);
     assert_eq!(th, (TOAST_H * 2) as f32, "not drawn at 2x");
 }
 

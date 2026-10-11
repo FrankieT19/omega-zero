@@ -2,8 +2,8 @@
 //! level a button just moved (kit::gauge), a toast saying what just happened (kit::toast), and
 //! a badge in the corner while the game runs fast or is linked (kit::badge).
 //!
-//! The gauge or the toast stands centred at the top, `MARGIN` down, or that far under the bar
-//! across the top where one shows; a toast takes the gauge's place while it lasts. Each comes
+//! The gauge or the toast stands centred at the top, `SCREEN_MARGIN` down, or `MARGIN` under the
+//! bar across the top where one shows; a toast takes the gauge's place while it lasts. Each comes
 //! at once and goes in the even steps of kit::fade. The badge stays in the top right corner,
 //! level with a gauge's middle, for as long as what it says is so.
 //!
@@ -33,13 +33,18 @@ const FADE_MS: Millis = 250;
 /// chrome.
 pub const HUD_INK: [u8; 3] = [0xf5, 0xf2, 0xef];
 
-/// How far the gauge and the toast stand below the top of the screen, or below the bar across
-/// it, in screen pixels: two art pixels.
+/// How far the gauge and the toast stand below the bar across the top, where one shows, in
+/// screen pixels: two art pixels.
 pub const MARGIN: f32 = 4.0;
 
-/// How far the badge stands in from the right edge of the screen, in screen pixels: as far as
-/// it stands below the top.
-const BADGE_RIGHT: u32 = MARGIN as u32 + (GAUGE_H - BADGE_H) / 2 * SPRITE_PX;
+/// How far they stand below the top of the screen where no bar shows, over a game or a menu, in
+/// screen pixels: four art pixels, room to breathe at the panel's edge.
+pub const SCREEN_MARGIN: f32 = 8.0;
+
+/// How far the badge stands below the top of the screen, level with a gauge's middle, and in
+/// from its right edge, as far: in screen pixels.
+const BADGE_TOP: u32 = SCREEN_MARGIN as u32 + (GAUGE_H - BADGE_H) / 2 * SPRITE_PX;
+const BADGE_RIGHT: u32 = BADGE_TOP;
 
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum HudKind {
@@ -298,7 +303,10 @@ impl Hud {
     /// The gauge or the toast `top` pixels down the screen, under whatever bar stands across
     /// the top, and the badge in the corner.
     pub fn draw_at(&self, now: Millis, top: f32, out: &mut Vec<Draw>) {
-        let y = (top / 2.0).round() * 2.0 + MARGIN;
+        let y = match top > 0.0 {
+            true => (top / 2.0).round() * 2.0 + MARGIN,
+            false => SCREEN_MARGIN,
+        };
         let toast = stepped(self.toast_alpha(now));
         let gauge = stepped(self.alpha(now));
         let toast_face = face_of(self.toast_face, self.last_toast());
@@ -310,8 +318,7 @@ impl Hud {
         }
         if let Some(face) = face_of(self.badge_face, self.badge()) {
             let x = out_w().saturating_sub(BADGE_RIGHT + face.w * SPRITE_PX);
-            let y = MARGIN as u32 + (GAUGE_H - BADGE_H) / 2 * SPRITE_PX;
-            out.push(quad(face.tex, face.w, face.h, x as f32, y as f32));
+            out.push(quad(face.tex, face.w, face.h, x as f32, BADGE_TOP as f32));
         }
     }
 

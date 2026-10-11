@@ -56,6 +56,7 @@ pub use draw::{out_h, out_w, Draw, MeshId, TexId};
 pub use footer::Printed;
 pub use hud::{
     CornerBadge, FfState, Gauge, Hud, HudFace, HudKind, LinkBadge, Millis, HUD_INK, HUD_MS, MARGIN,
+    SCREEN_MARGIN,
 };
 pub use keyboard::{
     bottom_label, field_face, key_box, key_label, key_on, key_rect, keyboard_place, keyboard_title,

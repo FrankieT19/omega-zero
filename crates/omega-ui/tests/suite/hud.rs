@@ -3,7 +3,7 @@ use omega_ui::kit::gauge::GAUGE_H;
 use omega_ui::kit::palette::palette;
 use omega_ui::{
     out_h, out_w, CornerBadge, Draw, FfState, Gauge, GaugeIcon, Hud, HudFace, HudKind, LinkBadge,
-    TexId, MARGIN, SPRITE_PX,
+    TexId, MARGIN, SCREEN_MARGIN, SPRITE_PX,
 };
 
 const GAUGE_TEX: TexId = TexId::from_raw(700);
@@ -107,7 +107,7 @@ fn the_gauge_stands_at_the_top_on_its_own_with_no_plate() {
     let out = drawn(&h, 0, 0.0);
     assert_eq!(out.len(), 1, "the gauge came with company: {out:?}");
     let (_, y, _, gh, alpha) = tex(&out, GAUGE_TEX).expect("the gauge is not drawn");
-    assert_eq!(y, MARGIN, "the gauge is not at the top");
+    assert_eq!(y, SCREEN_MARGIN, "the gauge is not at the top");
     assert_eq!(gh, (GAUGE_H * SPRITE_PX) as f32, "not drawn at 2x");
     assert_eq!(alpha, 1.0);
     assert!(y + gh < out_h() as f32 / 2.0);
@@ -313,7 +313,7 @@ fn the_badge_sits_in_the_top_right_corner_on_the_grid() {
     assert_eq!(right, y, "{right} from the right but {y} from the top");
     assert_eq!(
         y + bh / 2.0,
-        MARGIN + (GAUGE_H * SPRITE_PX) as f32 / 2.0,
+        SCREEN_MARGIN + (GAUGE_H * SPRITE_PX) as f32 / 2.0,
         "the badge is not level with a gauge's middle"
     );
 }
