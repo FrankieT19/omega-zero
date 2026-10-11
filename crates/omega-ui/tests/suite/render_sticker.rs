@@ -1,4 +1,4 @@
-use omega_ui::{sticker_face, StickerFields, STICKER_H, STICKER_W};
+use omega_ui::{sticker_face, StickerFields};
 
 fn write(path: &str, px: &[u8], w: usize, h: usize) {
     let f = std::fs::File::create(path).unwrap();
@@ -18,7 +18,7 @@ fn render_sticker() {
         serial: "0473885",
         dirty_digit: '0',
     });
-    let (w, h) = (STICKER_W as usize, STICKER_H as usize);
+    let (w, h) = (face.w as usize, face.h as usize);
     write(&out, &face.rgba, w, h);
 
     if let Ok(crop) = std::env::var("SCRATCH_CROP") {

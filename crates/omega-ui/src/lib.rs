@@ -111,7 +111,7 @@ pub use sprite::{CELL_PX, SPRITE_PX};
 pub use stage::{stage_x, stage_y, MOCKUP_H, MOCKUP_W};
 pub use status_bar::{link_face, Link, LinkFaces, Links, TopBar, LINK_OFF, LINK_ON, TOP_BAR_H};
 pub use sticker::{
-    draw_sticker, head_rows, sticker_face, sticker_lines, sticker_rect, StickerFields, COPYRIGHT,
-    CREDITS, DC, HOME, ORIGIN, STICKER_H, STICKER_W,
+    draw_sticker, head_rows, sticker_face, sticker_lines, sticker_rect, sticker_size,
+    StickerFields, BASED_ON, COPYRIGHT, CREDITS, DC, HOME, ORIGIN,
 };
 pub use toast::{toast_box, toast_face, toast_rect, Toast};

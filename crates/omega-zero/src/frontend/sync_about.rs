@@ -1,11 +1,12 @@
-//! The About screen's label, made again when the battery's charge on it changes.
+//! The About screen's label, made again when the battery's charge on it changes: pixel art
+//! laid out for the canvas, uploaded with nearest filtering and drawn at 2x.
 
 use omega_gfx::{Compositor, TexId};
 use omega_ui::{sticker_face, StickerFields};
 
 use crate::app::{App, Phase};
 use crate::build_info::Build;
-use crate::frontend::faces::upload;
+use crate::frontend::faces::upload_nearest;
 
 #[derive(Default)]
 pub(crate) struct AboutFace {
@@ -28,6 +29,6 @@ pub(crate) fn sync_about(app: &mut App, compositor: &mut Compositor, state: &mut
         serial: &build.serial(),
         dirty_digit: build.dirty_digit(),
     });
-    let id = upload(compositor, &mut state.tex, face);
+    let id = upload_nearest(compositor, &mut state.tex, &face);
     app.set_sticker_face(id);
 }

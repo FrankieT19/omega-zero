@@ -13,6 +13,10 @@
   colours. The title and the cores' names are in Pixel Code at its own size and spacing. The
   chip hops between the sockets a pixel at a time, level, and the shadows under it and under
   the lid are checker dither.
+- About's sticker is pixel art laid out for the screen it is on, never shrunk to fit: its words
+  in Pixel Code at its own size, the ANBERNIC RG SP wordmark and the DC symbol as sprites, the
+  barcode's bars whole pixels wide. The credits run beside the barcode and then across the
+  sticker, name Otávio (@oauramos) as the author, and end on slot's, in grey.
 - On the shelf the volume, brightness and blue light bar sits under the top bar instead of
   over it.
 - A bar along the bottom of the shelf: SELECT CONTROLS on the left, START SETTINGS on the
