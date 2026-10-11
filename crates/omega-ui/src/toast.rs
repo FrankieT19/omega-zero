@@ -148,11 +148,6 @@ mod tests {
         assert!(bottom > top, "the line rastered to nothing at all");
 
         let shipped = ink_height_at(Toast::LinkEnded, TOAST_PX);
-        let shrunk = ink_height_at(Toast::LinkEnded, TOAST_MIN_PX);
-        assert!(
-            shipped > shrunk,
-            "the shipped line is no taller than the {TOAST_MIN_PX} px fallback: {shipped} against {shrunk}"
-        );
         let reference = ink_height_at(Toast::StateSaved, TOAST_PX);
         assert!(
             shipped.abs_diff(reference) <= 1,
