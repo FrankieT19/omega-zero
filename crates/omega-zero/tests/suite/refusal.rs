@@ -105,6 +105,26 @@ fn the_alert_is_gone_before_the_cart_is() {
 }
 
 #[test]
+fn the_alert_fades_in_the_kits_four_steps() {
+    let d = tmp_root_with_carts(&["Broken"]);
+    let mut a = boot(d.path());
+    a.on_core_failed();
+    let mut seen = Vec::new();
+    while matches!(a.phase(), Phase::Ejecting { .. }) {
+        let alpha = a.alert_alpha();
+        assert!(
+            [0.0, 0.25, 0.5, 0.75, 1.0].contains(&alpha),
+            "the alert is drawn at {alpha}, between the fade's steps"
+        );
+        if !seen.contains(&alpha) {
+            seen.push(alpha);
+        }
+        a.update(1.0 / 60.0);
+    }
+    assert_eq!(seen, [1.0, 0.75, 0.5, 0.25, 0.0], "the fade skipped a step");
+}
+
+#[test]
 fn a_shelf_refusal_shakes_the_carts_not_the_screen() {
     let d = tmp_root_with_carts(&["Emerald", "Zzz"]);
     let mut a = boot(d.path());

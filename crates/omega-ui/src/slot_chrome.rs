@@ -6,17 +6,55 @@ use omega_store::Theme;
 
 use crate::cart::{cart_box, label_colour, label_text, CART_W, SEATED_W};
 use crate::footer::Printed;
-use crate::icon::icon_box;
 use crate::kit::palette::Palette;
-use crate::plate::HINT_H;
+use crate::kit::pixel::keyed;
+use crate::plate::{UndoFace, HINT_H};
 use crate::shelf::{foot_y, shelf_box, shelf_scale};
 use crate::spin::{self, Pose};
 use crate::sprite::SPRITE_PX;
 use crate::status_bar::{LINK_OFF, LINK_ON};
 
-/// The alert shown on a refused cart as it comes back out, sized to the cart, which now
-/// keeps its shelf size in the slot.
-pub const ALERT_PX: f32 = 66.0;
+/// The alert shown on a refused cart as it comes back out: a warning sign drawn a pixel at a
+/// time on the art grid, its sides a pixel out for every one and a half down, in the frame's
+/// bright colour (`H`) ruled in the dark one (`k`), its mark in the dark one too. 62 by 50
+/// screen pixels, as big as the sign the cart's label carried before.
+#[rustfmt::skip]
+const ALERT: [&str; 25] = [
+    "...............k...............",
+    "..............kHk..............",
+    "..............kHk..............",
+    ".............kHHHk.............",
+    "............kHHHHHk............",
+    "............kHHHHHk............",
+    "...........kHHHHHHHk...........",
+    "..........kHHHHHHHHHk..........",
+    "..........kHHHHHHHHHk..........",
+    ".........kHHHHkkkHHHHk.........",
+    "........kHHHHHkkkHHHHHk........",
+    "........kHHHHHkkkHHHHHk........",
+    ".......kHHHHHHkkkHHHHHHk.......",
+    "......kHHHHHHHkkkHHHHHHHk......",
+    "......kHHHHHHHkkkHHHHHHHk......",
+    ".....kHHHHHHHHkkkHHHHHHHHk.....",
+    "....kHHHHHHHHHkkkHHHHHHHHHk....",
+    "....kHHHHHHHHHHHHHHHHHHHHHk....",
+    "...kHHHHHHHHHHHHHHHHHHHHHHHk...",
+    "..kHHHHHHHHHHHkkkHHHHHHHHHHHk..",
+    "..kHHHHHHHHHHHkkkHHHHHHHHHHHk..",
+    ".kHHHHHHHHHHHHkkkHHHHHHHHHHHHk.",
+    "kHHHHHHHHHHHHHHHHHHHHHHHHHHHHHk",
+    "kHHHHHHHHHHHHHHHHHHHHHHHHHHHHHk",
+    "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+];
+
+/// The alert's size in art pixels.
+pub const ALERT_W: u32 = ALERT[0].len() as u32;
+pub const ALERT_H: u32 = ALERT.len() as u32;
+
+/// The alert in `pal`, one texel to an art pixel, to upload NEAREST.
+pub fn alert_face(pal: &Palette) -> UndoFace {
+    keyed(&ALERT, pal)
+}
 
 /// How much larger the slot is drawn than the one a seated-size cart went into: a cart keeps
 /// the size it has on the shelf all the way in, so the slot is built around that size.
@@ -30,7 +68,7 @@ const ART: f32 = SPRITE_PX as f32;
 /// 1.5); each moves to the grid, so it is drawn within a pixel of where K puts it.
 const fn on_grid(px: f32) -> f32 {
     let art = px / ART;
-    let whole = art as i32;
+    let whole = art as i32 - (art < 0.0 && art != (art as i32) as f32) as i32;
     let up = (art - whole as f32 > 0.5) as i32;
     (whole + up) as f32 * ART
 }
@@ -328,12 +366,12 @@ impl SlotChrome<'_> {
             }
         }
 
+        // in the middle of the cart, to the nearest art pixel, as the cart moves between them
         if let Some((tex, alpha)) = self.alert {
-            let (w, h) = icon_box(ALERT_PX);
-            let (w, h) = (w as f32, h as f32);
+            let (w, h) = ((ALERT_W * SPRITE_PX) as f32, (ALERT_H * SPRITE_PX) as f32);
             out.push(Draw::Tex {
-                x: x + (cw - w) / 2.0,
-                y: y + (ch - h) / 2.0,
+                x: on_grid(x + (cw - w) / 2.0),
+                y: on_grid(y + (ch - h) / 2.0),
                 w,
                 h,
                 tex,

@@ -7,7 +7,7 @@ use omega_ui::{
     arrows_hint_face, badge_face, bezel_mark_face, cart_face, cart_mesh, cart_shadow, chip_face,
     chip_shadow_face, gb_cart_shadow, hint_face, icon_face, mark_height, mark_rect, menu_face, rim,
     socket_face, toast_face, wallpaper_face, CartMeshes, CartModel, GbShell, Icon, LinkBadge,
-    Toast, UndoFace, ALERT_PX, BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
+    Toast, UndoFace, BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
@@ -57,8 +57,6 @@ use sync_switcher::{sync_switcher, Faces, Switcher};
 use sync_top_bar::{sync_top_bar, TopBarTexes};
 
 const DOZE_TIMEOUT: Duration = Duration::from_secs(180);
-
-const ALERT_INK: [u8; 3] = [0xf0, 0xb4, 0x3c];
 
 pub struct Frontend {
     session: Session,
@@ -214,9 +212,6 @@ impl Frontend {
             })
             .collect();
         self.session.app_mut().set_link_badge_faces(link_badges);
-        let alert = icon_face(Icon::Alert, ALERT_PX, ALERT_INK);
-        let alert = compositor.create_texture(alert.w, alert.h, &alert.rgba);
-        self.session.app_mut().set_alert_face(alert);
         let sockets = omega_store::Core::ALL
             .iter()
             .map(|c| {

@@ -1,9 +1,10 @@
 //! The words printed on the shelf's slot and the switcher's bar, the time, its slot's name and
-//! the battery's charge, and the Date & Time panel. The switcher keeps its white over the game;
-//! the top bar prints its own in its ink (sync_top_bar.rs).
+//! the battery's charge, the alert a refused cart comes out with, and the Date & Time panel.
+//! The switcher keeps its white over the game; the top bar prints its own in its ink
+//! (sync_top_bar.rs).
 
 use omega_gfx::{Compositor, TexId};
-use omega_ui::{bolt_face, hhmm, word_face, Field, HUD_INK};
+use omega_ui::{alert_face, bolt_face, hhmm, word_face, Field, HUD_INK};
 
 use crate::app::App;
 use crate::frontend::faces::{upload, Printing};
@@ -22,6 +23,8 @@ pub(crate) struct Clocks {
     switcher: crate::app::Readouts,
     platform: String,
     platform_tex: Option<TexId>,
+    /// The refused cart's alert, baked again when the palette changes.
+    alert: Baked<u8>,
 }
 
 pub(crate) fn sync_clock(app: &mut App, compositor: &mut Compositor, clocks: &mut Clocks) {
@@ -34,6 +37,13 @@ pub(crate) fn sync_clock(app: &mut App, compositor: &mut Compositor, clocks: &mu
         if let Some(panel) = baked {
             app.set_clock_panel(panel);
         }
+    }
+    let colour = app.palette_colour();
+    if let Some(alert) = clocks
+        .alert
+        .bake(compositor, colour, |_| alert_face(app.palette()))
+    {
+        app.set_alert_face(alert.tex);
     }
     let mut switcher = clocks.switcher;
     let word = |text: &String| word_face(text);

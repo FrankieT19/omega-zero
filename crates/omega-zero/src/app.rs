@@ -11,6 +11,7 @@ use omega_store::{
     Platform, StateEntry, StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, RING_MAX, VOLUME_MAX,
 };
 use omega_ui::kit::action::Font;
+use omega_ui::kit::fade::stepped;
 use omega_ui::{
     backdrop_shift, board_from, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease, grown,
     lid_at, lid_from, lift_of, on_board, posed_cart, posed_face, push_cart_side, shelf_cart_at,
@@ -2050,6 +2051,8 @@ impl App {
         self.alert_alpha() > 0.0
     }
 
+    /// How much of the refused cart's alert shows: all of it until the cart is `ALERT_HOLD` of
+    /// the way out, then fading in the kit's four steps until it is gone at `ALERT_GONE`.
     pub fn alert_alpha(&self) -> f32 {
         let (Some(from), Phase::Ejecting { t, .. }) = (self.refused_from, &self.phase) else {
             return 0.0;
@@ -2059,7 +2062,7 @@ impl App {
             return 0.0;
         }
         let u = ((t - from) / span).clamp(0.0, 1.0);
-        ((ALERT_GONE - u) / (ALERT_GONE - ALERT_HOLD)).clamp(0.0, 1.0)
+        stepped((ALERT_GONE - u) / (ALERT_GONE - ALERT_HOLD))
     }
 
     pub fn set_alert_face(&mut self, face: TexId) {

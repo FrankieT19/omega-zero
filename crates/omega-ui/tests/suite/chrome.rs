@@ -1,8 +1,10 @@
 use omega_store::{Cart, Platform};
+use omega_ui::kit::palette::palette;
 use omega_ui::{
-    cart_box, draw_empty_slot, edge, foot_y, housing, icon_box, opening, out_h, out_w, recess,
-    shelf_box, slot_top, stage_y, ChromeColours, Draw, Pose, Shelf, SlotChrome, TexId, ALERT_PX,
-    CART_H, CART_W, GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, SLOT_RAISE, SPRITE_PX, TOP_BAR_H,
+    alert_face, cart_box, draw_empty_slot, edge, foot_y, housing, opening, out_h, out_w, recess,
+    shelf_box, slot_top, stage_y, ChromeColours, Draw, Pose, Shelf, SlotChrome, TexId, ALERT_H,
+    ALERT_W, CART_H, CART_W, GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, SLOT_RAISE, SPRITE_PX,
+    TOP_BAR_H,
 };
 
 fn centre_x() -> f32 {
@@ -699,10 +701,79 @@ fn the_seated_cart_never_shows_through_the_fading_housing() {
 
 #[test]
 fn the_alert_fits_on_the_cart_face() {
-    let (w, h) = icon_box(ALERT_PX);
+    let (w, h) = (ALERT_W * SPRITE_PX, ALERT_H * SPRITE_PX);
     let (cw, ch) = cart_box(Platform::Gba);
     assert!(w < cw && h < ch, "a {w}x{h} alert on a {cw}x{ch} cart");
-    assert!(h * 4 > ch, "a {h} px alert on a {ch} px cart is a speck");
+    assert!(h * 5 > ch, "a {h} px alert on a {ch} px cart is a speck");
+}
+
+/// The alert is a sprite of the kit's: an art pixel to a texel, every one of them solid or
+/// clear, in the palette's bright frame colour ruled in its dark one, whatever the colour.
+#[test]
+fn the_alert_is_a_sprite_in_the_palettes_bright_frame_colour() {
+    for name in ["night", "amber", "teal"] {
+        let pal = palette(omega_store::colour_index(name).expect("a backdrop colour"));
+        let face = alert_face(pal);
+        assert_eq!((face.w, face.h), (ALERT_W, ALERT_H), "{name}");
+        let mut inks: Vec<[u8; 3]> = Vec::new();
+        for p in face.rgba.chunks(4) {
+            assert!(p[3] == 0 || p[3] == 255, "{name}: a soft pixel");
+            if p[3] == 255 && !inks.contains(&[p[0], p[1], p[2]]) {
+                inks.push([p[0], p[1], p[2]]);
+            }
+        }
+        inks.sort();
+        let mut want = vec![pal.frame_hi, pal.dark];
+        want.sort();
+        assert_eq!(
+            inks, want,
+            "{name}: the alert is not in the frame's colours"
+        );
+    }
+}
+
+/// The alert lands on whole art pixels at two screen pixels to one of its own, wherever the
+/// cart coming out under it is.
+#[test]
+fn the_alert_is_drawn_on_the_art_grid_as_the_cart_comes_out() {
+    let alert = TexId::from_raw(77);
+    for step in 0..=20 {
+        let mut out = Vec::new();
+        let c = cart();
+        let (rest, scale) = on_shelf(&c);
+        SlotChrome {
+            colours: ChromeColours::default(),
+            cart: &c,
+            face: None,
+            mesh: None,
+            rest,
+            scale,
+            pose: Pose::REST,
+            seat: step as f32 / 20.0,
+            alert: Some((alert, 1.0)),
+            dim: 0.0,
+            screen: 0.0,
+            game: false,
+        }
+        .draw(&mut out);
+        let drawn = out
+            .iter()
+            .find_map(|d| match *d {
+                Draw::Tex {
+                    x, y, w, h, tex, ..
+                } if tex == alert => Some([x, y, w, h]),
+                _ => None,
+            })
+            .expect("no alert drawn");
+        assert_eq!(
+            [drawn[2], drawn[3]],
+            [(ALERT_W * SPRITE_PX) as f32, (ALERT_H * SPRITE_PX) as f32]
+        );
+        assert!(
+            drawn.iter().all(|v| v.rem_euclid(SPRITE_PX as f32) == 0.0),
+            "at {step}/20 the alert is at {drawn:?}, off the art grid"
+        );
+    }
 }
 
 #[test]
