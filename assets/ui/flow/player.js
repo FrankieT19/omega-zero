@@ -59,7 +59,7 @@
   const SHELF_BAR = { left: ['CONTROLS', 'SELECT'], right: ['SETTINGS', 'START'] };
   const MENU_BAR = { left: ['RETURN', 'B'], right: ['CONFIRM', 'A'] };
   const barOf = name => (name === 'shelf' ? SHELF_BAR : MENU_BAR);
-  const HINTS = { network: 'Y FORGET', labels: 'START FETCH' };
+  const HINTS = { labels: 'START FETCH' };
   // The two screens that stand beside each other rather than one under the other: a slide
   // between them goes the mirror way. A slide from Settings to a screen under it, or from the
   // shelf to Controls, goes the usual way.
@@ -270,6 +270,7 @@
     if (!model.moving) q.set('moving', '0');
     if (model.font !== 'bold') q.set('font', model.font);
     if (!model.wifi) q.set('wifi', 'off');
+    if (FlowScreens.scanState() !== 'none') q.set('scan', FlowScreens.scanState());
     if (FlowScreens.bluetoothState() !== 'on') q.set('bt', FlowScreens.bluetoothState());
     if (state.slow) q.set('slow', '1');
     if (document.body.classList.contains('shot')) q.set('shot', '1');
@@ -303,6 +304,7 @@
     FlowScreens.set('moving', q.get('moving') !== '0');
     FlowScreens.set('font', pick('font', FONTS, 'bold'));
     FlowScreens.set('wifi', q.get('wifi') !== 'off');
+    FlowScreens.scanAs(pick('scan', FlowScreens.SCAN, 'none'));
     FlowScreens.bluetoothAs(pick('bt', FlowScreens.BT, 'on'));
     state.slow = q.get('slow') === '1';
     syncControls();
@@ -312,6 +314,8 @@
     if (!from || from === to) {
       jump(to);
       setRow(to, q.get('row'));
+      // a hint that follows the cursor follows it to its row
+      setHint(to);
       return;
     }
     const dir = ['in', 'out'].includes(q.get('dir')) ? q.get('dir') :
@@ -411,7 +415,7 @@
     if (key === 'moving' && backdrop.hasAttribute('data-moving') !== model.moving) backdrop.toggleAttribute('data-moving', model.moving);
     if (key === 'colour' && document.documentElement.dataset.colour !== model.colour) OmegaPalette.apply(model.colour);
     if (key === 'font') bar.setAttribute('font', model.font);
-    // a device paired or forgotten under the cursor changes the hint
+    // a device paired or forgotten under the cursor, or Network's scan, changes the hint
     if (!state.slide) setHint(state.current);
     syncControls();
     writeHash();
@@ -425,7 +429,7 @@
 
   const KEYS = {
     ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
-    x: 'a', a: 'a', z: 'b', b: 'b', Escape: 'b', y: 'y', Enter: 'start', ' ': 'select',
+    x: 'a', a: 'a', z: 'b', b: 'b', Escape: 'b', s: 'x', y: 'y', Enter: 'start', ' ': 'select',
   };
   document.addEventListener('keydown', e => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;

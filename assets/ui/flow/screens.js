@@ -2,11 +2,12 @@
   What each of flow.html's screens does with a button: where its cursor goes, what its values
   are, and which screen a row opens. player.js does the moving between them; this file only
   answers each press with nothing, { go: <screen> } to go deeper or { back: true }. A screen whose
-  bar hint follows its cursor (Bluetooth's Y FORGET on a paired device) says it with hint().
+  bar hint follows its cursor or its state (Network's X SCAN with Wi-Fi on and Y FORGET on the
+  network joined, Bluetooth's Y FORGET on a paired device) says it with hint().
 
-  The settings that show on more than one screen (Wi-Fi, SSH, Bluetooth and its devices, the date,
-  the backdrop, the bar's font) live once, in FlowScreens.model, and every screen showing one
-  follows it.
+  The settings that show on more than one screen (Wi-Fi, SSH, Network's scan, Bluetooth and its
+  devices, the date, the backdrop, the bar's font) live once, in FlowScreens.model, and every
+  screen showing one follows it.
 */
 window.FlowScreens = (() => {
   // ---- the settings, shared ----
@@ -26,6 +27,8 @@ window.FlowScreens = (() => {
     ssh: true,            // the SSH server running
     network: 'Home',      // the network joined
     joining: 'Home',      // the one the keyboard asks the passphrase of
+    found: false,         // Network shows what a scan found since it opened
+    scanning: false,      // X's scan under way
     bluetooth: true,      // the Bluetooth radio on
     devices: DEVICES,     // what it knows of and finds, top to bottom, never changed in place
     date: { year: 2026, month: 10, day: 10, hour: 16, minute: 0, zone: 0 },
@@ -144,10 +147,17 @@ window.FlowScreens = (() => {
     }
   }
 
-  // Settings: START goes back to the shelf too.
+  // Settings: START goes back to the shelf too. Network opens without what an earlier visit's
+  // scan found.
   class Settings extends Menu {
     press(key) {
       return key === 'start' ? { back: true } : super.press(key);
+    }
+
+    open() {
+      const answer = super.open();
+      if (answer?.go === 'network') set('found', false);
+      return answer;
     }
   }
 
@@ -347,6 +357,98 @@ window.FlowScreens = (() => {
     }
   }
 
+  // ---- Network: NETWORK's rows, then the networks known, and those X's scan finds ----
+
+  // The networks the flow's scan finds, strongest first: each one's bars lit, and its padlock.
+  const NETWORKS = [
+    { name: 'Home', signal: 3, lock: true },
+    { name: 'Café Wi-Fi', signal: 2, lock: false },
+    { name: 'Upstairs 5G', signal: 1, lock: true },
+  ];
+  // How long the flow's scan takes, in ms.
+  const SCAN_MS = 1200;
+  let scanTimer = 0;
+
+  class Network extends Menu {
+    constructor(page) {
+      super(page);
+      this.settings = [...this.rows];
+      this.list = page.querySelector('.list');
+      this.note = this.list.querySelector('.note');
+      this.draw();
+    }
+
+    // The networks' rows drawn again from the model, the cursor staying on the row it was on (on
+    // the one now in its place when that one is gone), and the note under them. Before a scan
+    // the list holds the network joined alone, which the handheld has saved, with no bars or
+    // padlock, which only a scan hears; once one is done, every network it found, kept while
+    // the next looks. With Wi-Fi off there are none.
+    draw() {
+      const lit = this.row;
+      const scanned = model.found;
+      const shown = !model.wifi ? [] : scanned ? NETWORKS : [{ name: model.network }];
+      const kept = new Map([...this.list.querySelectorAll('omega-list-row')].map(row => [row.dataset.network, row]));
+      const rows = shown.map(network => {
+        const row = kept.get(network.name) ?? document.createElement('omega-list-row');
+        kept.delete(network.name);
+        row.dataset.network = network.name;
+        row.dataset.opens = 'keyboard';
+        row.setAttribute('label', network.name);
+        if (network.name === model.network) row.setAttribute('value', 'CONNECTED');
+        else row.removeAttribute('value');
+        if (scanned) row.setAttribute('signal', network.signal);
+        else row.removeAttribute('signal');
+        row.toggleAttribute('lock', scanned && network.lock);
+        return row;
+      });
+      for (const row of kept.values()) row.remove();
+      if (rows.some((row, i) => this.list.children[i] !== row)) this.note.before(...rows);
+      note(this.note, !model.wifi ? 'Wi-Fi is off.' :
+        model.scanning ? 'Looking for networks…' :
+        !model.found ? 'Press X to look for networks.' : '');
+      this.rows = [...this.settings, ...rows];
+      const at = this.rows.indexOf(lit);
+      this.cursor = at >= 0 ? at : Math.min(this.cursor, this.rows.length - 1);
+      this.light();
+    }
+
+    // X SCAN in the bar while Wi-Fi is on, and beside it Y FORGET on the network joined.
+    hint() {
+      if (!model.wifi) return null;
+      return this.row.dataset.network === model.network ? 'X SCAN | Y FORGET' : 'X SCAN';
+    }
+
+    // X looks for networks once, while Wi-Fi is on and no scan is under way.
+    press(key) {
+      if (key === 'x') return this.scan();
+      return super.press(key);
+    }
+
+    scan() {
+      if (!model.wifi || model.scanning) return;
+      set('scanning', true);
+      clearTimeout(scanTimer);
+      scanTimer = setTimeout(() => {
+        set('found', true);
+        set('scanning', false);
+      }, SCAN_MS);
+    }
+  }
+
+  // Network's scan as the URL's scan= has it: none since the screen opened, running (the first
+  // scan looking, standing still for a shot) or done. Wi-Fi off has none.
+  const SCAN = ['none', 'running', 'done'];
+  function scanAs(state) {
+    clearTimeout(scanTimer);
+    set('found', model.wifi && state === 'done');
+    set('scanning', model.wifi && state === 'running');
+  }
+  // Which of those Network's scan is in now, as near as it comes: a scan again over what one
+  // found is running.
+  function scanState() {
+    return model.scanning ? 'running' : model.found ? 'done' : 'none';
+  }
+
   // ---- Bluetooth: the radio's row, then every device it knows or finds while it is on ----
 
   // How long the flow takes to pair with a device, and to connect to a paired one, in ms.
@@ -482,7 +584,7 @@ window.FlowScreens = (() => {
 
   function build(screen) {
     const page = name => screen.querySelector(`[data-screen="${name}"]`);
-    const network = new Menu(page('network'));
+    const network = new Network(page('network'));
     const screens = {
       shelf: new Shelf(page('shelf')),
       settings: new Settings(page('settings')),
@@ -506,11 +608,7 @@ window.FlowScreens = (() => {
       screen.querySelector('[data-show="date"]').setAttribute('value',
         `${MONTHS[date.month - 1]} ${date.day} ${two(date.hour)}:${two(date.minute)}`);
       screen.querySelector('[data-show="network"]').setAttribute('value', wifi ? model.network.toUpperCase() : 'OFF');
-      for (const row of page('network').querySelectorAll('omega-list-row')) {
-        row.toggleAttribute('dim', !wifi);
-        if (wifi && row.getAttribute('label') === model.network) row.setAttribute('value', 'CONNECTED');
-        else row.removeAttribute('value');
-      }
+      screens.network.draw();
       page('ssh').querySelector('.ssh').classList.toggle('offline', !ssh || !wifi);
       page('ssh').querySelector('.when-offline .note').textContent =
         ssh ? 'Join a Wi-Fi network first.' : 'Turn SSH on first.';
@@ -524,6 +622,10 @@ window.FlowScreens = (() => {
     }
     show();
     onChange(show);
+    // Wi-Fi off forgets what a scan found, and stops one under way
+    onChange((key, on) => {
+      if (key === 'wifi' && !on) scanAs('none');
+    });
     bluetoothMenu = screens.bluetooth;
     return screens;
   }
@@ -536,5 +638,5 @@ window.FlowScreens = (() => {
     ssh: 'network', keyboard: 'network',
   };
 
-  return { model, set, onChange, build, PARENT, BT, bluetoothAs, bluetoothState };
+  return { model, set, onChange, build, PARENT, SCAN, scanAs, scanState, BT, bluetoothAs, bluetoothState };
 })();

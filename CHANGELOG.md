@@ -19,6 +19,10 @@
 - The Wi-Fi screen is now Network, under Settings. Its NETWORK panel switches Wi-Fi, Network
   Time and SSH. AVAILABLE NETWORKS shows each network's signal, a padlock on those with a
   passphrase, and CONNECTED, JOINING or SAVED. Y forgets a saved network.
+- Network looks for networks only when X is pressed, once each time, and the bar says X SCAN.
+  Until then it lists the network joined and the saved ones, with a note to press X. It no
+  longer scans every 12 seconds while it is open, which cost battery and, on the RG35XX SP,
+  came before reboots that sometimes hung.
 - SSH steps through ON, OFF and INFO. ON starts the SSH server and OFF stops it, leaving a
   login already made to carry on; the card remembers which. A on INFO shows how to log in from a
   computer: the address, `<name>.local`, user `root`, the password and port 22. SFTP uses the

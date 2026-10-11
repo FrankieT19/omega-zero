@@ -16,6 +16,7 @@ use omega_ui::BEZEL_FILL;
 use omega_zero::frontend::Frontend;
 use omega_zero::label_sync::{LabelJob, LabelJobs, LabelNews, Quota};
 use omega_zero::video_mode::{screen, VideoMode};
+use omega_zero::wifi::{SimWifi, WifiJob, WifiJobs, WifiNews};
 
 const FPS: f64 = 60.0;
 
@@ -25,6 +26,9 @@ const CLOCK: i64 = 1_790_784_000;
 const SETTLE: Duration = Duration::from_secs(2);
 
 const LIT_FRAMES: u32 = 600;
+
+/// How many frames the desktop's radio takes to answer a scan, as the handheld's takes seconds.
+const SCAN_FRAMES: u32 = 30;
 
 const SCRIPT: &str = "
 wait 1
@@ -172,6 +176,13 @@ tap a
 wait 30
 settle
 wait 30
+shot network-unscanned
+tap x
+wait 4
+settle
+shot network-scanning
+wait 40
+settle
 shot network-list
 tap down
 wait 10
@@ -415,6 +426,51 @@ impl LabelJobs for ShownLabels {
     }
 }
 
+/// The desktop's radio with each scan's answer held for `SCAN_FRAMES`, so a shot can show the
+/// Network screen while it looks.
+#[derive(Default)]
+struct HeldScans {
+    sim: SimWifi,
+    /// What the radio said alongside a scan, told at once.
+    told: Vec<WifiNews>,
+    /// The networks a scan heard, and how many more frames before they are told.
+    held: Option<(Vec<WifiNews>, u32)>,
+}
+
+impl WifiJobs for HeldScans {
+    fn present(&self) -> bool {
+        self.sim.present()
+    }
+
+    fn ask(&mut self, job: WifiJob) {
+        let scan = job == WifiJob::Scan;
+        self.sim.ask(job);
+        if scan {
+            let (seen, rest): (Vec<_>, Vec<_>) = self
+                .sim
+                .news()
+                .into_iter()
+                .partition(|n| matches!(n, WifiNews::Seen(_)));
+            self.told.extend(rest);
+            self.held = Some((seen, SCAN_FRAMES));
+        }
+    }
+
+    fn news(&mut self) -> Vec<WifiNews> {
+        let mut news = std::mem::take(&mut self.told);
+        news.extend(self.sim.news());
+        if let Some((seen, frames)) = &mut self.held {
+            if *frames == 0 {
+                news.append(seen);
+                self.held = None;
+            } else {
+                *frames -= 1;
+            }
+        }
+        news
+    }
+}
+
 enum Step {
     Settle,
     Lit,
@@ -649,6 +705,9 @@ fn main() {
     frontend
         .app_mut()
         .set_label_jobs(Box::new(ShownLabels::default()));
+    frontend
+        .app_mut()
+        .set_wifi_jobs(Box::new(HeldScans::default()));
 
     // SCREENS_SCRIPT runs another script in place of the built-in one, for one-off previews.
     let script = std::env::var("SCREENS_SCRIPT")

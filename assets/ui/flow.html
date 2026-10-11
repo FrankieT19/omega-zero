@@ -118,7 +118,10 @@
             </omega-panel>
           </section>
 
-          <!-- Settings > Network -->
+          <!-- Settings > Network: NETWORK's rows, then the networks known, drawn by screens.js from
+               what it holds: before a scan the one joined, and once X's scan is done every one it
+               found with its bars and padlock; the note under them says to press X, that it is
+               looking, or that Wi-Fi is off -->
           <section class="part page away" data-screen="network">
             <div class="modal-area">
               <omega-modal>
@@ -129,9 +132,7 @@
                 </omega-panel>
                 <omega-panel label="AVAILABLE NETWORKS">
                   <div class="list">
-                    <omega-list-row label="Home" value="CONNECTED" signal="3" lock data-opens="keyboard"></omega-list-row>
-                    <omega-list-row label="Café Wi-Fi" signal="2" data-opens="keyboard"></omega-list-row>
-                    <omega-list-row label="Upstairs 5G" signal="1" lock data-opens="keyboard"></omega-list-row>
+                    <p class="note" hidden></p>
                   </div>
                 </omega-panel>
               </omega-modal>
@@ -240,6 +241,7 @@
         </div>
         <div class="face">
           <button data-key="y">Y</button>
+          <button data-key="x">X</button>
           <button data-key="b">B</button>
           <button data-key="a">A</button>
         </div>
@@ -306,6 +308,7 @@
           <tr><td>↑ ↓ ← →</td><td><kbd>arrows</kbd></td><td>Move the cursor; ← → change a value</td></tr>
           <tr><td>A</td><td><kbd>X</kbd> <kbd>A</kbd></td><td>Confirm: open a row's screen, press a key; on Bluetooth, pair and connect a device, or disconnect it</td></tr>
           <tr><td>B</td><td><kbd>Z</kbd> <kbd>B</kbd> <kbd>Esc</kbd></td><td>Back one screen; on the keyboard, delete (back once the field is empty)</td></tr>
+          <tr><td>X</td><td><kbd>S</kbd></td><td>Network: look for networks, once</td></tr>
           <tr><td>Y</td><td><kbd>Y</kbd></td><td>Bluetooth: forget a paired device</td></tr>
           <tr><td>START</td><td><kbd>Enter</kbd></td><td>Shelf → Settings; Settings → shelf; keyboard: done</td></tr>
           <tr><td>SELECT</td><td><kbd>Space</kbd> <kbd>right Shift</kbd></td><td>Shelf → Controls</td></tr>
@@ -326,7 +329,8 @@
           <tr><td>style</td><td><code>grid</code> (default), <code>plates</code>, <code>dotted</code>, <code>dither</code>, <code>rivets</code>, <code>bits</code>, <code>solid</code></td></tr>
           <tr><td>moving</td><td><code>1</code> (default) or <code>0</code></td></tr>
           <tr><td>font</td><td><code>bold</code> (default) or <code>thin</code>: the bottom bar's labels, as Theme › Font draws them</td></tr>
-          <tr><td>wifi</td><td><code>on</code> (default) or <code>off</code>: SSH shows its offline variant, the networks dim</td></tr>
+          <tr><td>wifi</td><td><code>on</code> (default) or <code>off</code>: SSH shows its offline variant, Network lists no networks and says Wi-Fi is off</td></tr>
+          <tr><td>scan</td><td>Network's scan: <code>none</code> (default, as it opens: Home alone, and the note to press X), <code>running</code> (looking, standing still) or <code>done</code> (the three networks found)</td></tr>
           <tr><td>bt</td><td>Bluetooth: <code>on</code> (default) with four devices, <code>off</code>, <code>pairing</code> (the keyboard pairing, the cursor on it) or <code>empty</code> (none found yet)</td></tr>
           <tr><td>row</td><td>The cursor's row on <code>screen</code>, from 0 (the key, for the keyboard; the field, for Date &amp; Time)</td></tr>
           <tr><td>slow</td><td><code>1</code>: slides at a fifth of their speed</td></tr>

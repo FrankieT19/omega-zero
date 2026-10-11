@@ -7,7 +7,7 @@ use omega_ui::Keyboard;
 
 use crate::wifi::{
     bars, passphrase_ok, shown, AskFail, Saved, Seen, Status, WifiJob, WifiJobs, WifiNews,
-    GLANCE_MS, JOIN_TIMEOUT_MS, REFRESH_MS, SCAN_MS,
+    GLANCE_MS, JOIN_TIMEOUT_MS, REFRESH_MS,
 };
 
 /// How closely the radio is being watched, which sets how often it is asked.
@@ -19,7 +19,9 @@ pub enum Watch {
     Glance,
     /// Something on screen names the network: its status is kept fresh.
     Status,
-    /// The Network screen is open: the networks in reach are looked for too.
+    /// The Network screen is open, or the SSH screen opened from it: its status is kept fresh,
+    /// and what a scan finds is kept until it closes. Nothing scans by itself: X on the screen
+    /// asks for each scan.
     Networks,
 }
 
@@ -62,18 +64,19 @@ pub struct Wifi {
     jobs: Box<dyn WifiJobs>,
     enabled: bool,
     status: Status,
-    seen: Vec<Seen>,
-    empty_scans: u8,
+    /// What the last scan heard, while the Network screen stays open: None until X has asked
+    /// for one, and again once the screen closes or Wi-Fi goes off.
+    seen: Option<Vec<Seen>>,
     saved: Vec<Saved>,
     joining: Option<(Vec<u8>, Millis)>,
     note: Option<Note>,
     refreshing: bool,
+    /// A scan is on the worker. It finishes there whatever the screen does meanwhile.
     scanning: bool,
     glancing: bool,
     /// Whether the last glance found a network joined, until a status newer than it comes.
     glanced: Option<bool>,
     refresh_at: Millis,
-    scan_at: Millis,
     glance_at: Millis,
 }
 
@@ -83,8 +86,7 @@ impl Wifi {
             jobs,
             enabled: false,
             status: Status::default(),
-            seen: Vec::new(),
-            empty_scans: 0,
+            seen: None,
             saved: Vec::new(),
             joining: None,
             note: None,
@@ -93,7 +95,6 @@ impl Wifi {
             glancing: false,
             glanced: None,
             refresh_at: 0,
-            scan_at: 0,
             glance_at: 0,
         }
     }
@@ -132,10 +133,9 @@ impl Wifi {
         if on {
             self.jobs.ask(WifiJob::Up);
             self.refresh_at = now;
-            self.scan_at = now;
         } else {
             self.jobs.ask(WifiJob::Down);
-            self.seen.clear();
+            self.seen = None;
             self.status = Status {
                 hostname: std::mem::take(&mut self.status.hostname),
                 ntp: self.status.ntp,
@@ -165,6 +165,21 @@ impl Wifi {
         self.jobs.ask(WifiJob::Select(id));
     }
 
+    /// X on the Network screen: one look for the networks in reach, whose answer the list takes
+    /// in. Nothing while Wi-Fi is off or a scan is already under way.
+    pub fn scan(&mut self) {
+        if !self.enabled || self.scanning {
+            return;
+        }
+        self.scanning = true;
+        self.jobs.ask(WifiJob::Scan);
+    }
+
+    /// A scan asked for by X has not answered yet.
+    pub fn scanning(&self) -> bool {
+        self.scanning
+    }
+
     pub fn forget(&mut self, id: u32) {
         let gone = self
             .saved
@@ -179,10 +194,15 @@ impl Wifi {
     }
 
     /// Takes what the radio has said since the last tick, settles a join that has finished,
-    /// and asks again whatever is being watched.
+    /// and asks again whatever is being watched. It never asks for a scan.
     pub fn tick(&mut self, now: Millis, watch: Watch) {
         for news in self.jobs.news() {
-            self.take(news, now);
+            self.take(news, now, watch);
+        }
+        // Closed, the Network screen forgets what its scans found: opened again, it starts from
+        // the network joined and the saved ones.
+        if watch != Watch::Networks {
+            self.seen = None;
         }
         if let Some((ssid, since)) = &self.joining {
             let refused = self.saved.iter().any(|s| s.ssid == *ssid && s.refused);
@@ -219,13 +239,9 @@ impl Wifi {
             self.glancing = true;
             self.jobs.ask(WifiJob::Glance);
         }
-        if watch == Watch::Networks && !self.scanning && now >= self.scan_at {
-            self.scanning = true;
-            self.jobs.ask(WifiJob::Scan);
-        }
     }
 
-    fn take(&mut self, news: WifiNews, now: Millis) {
+    fn take(&mut self, news: WifiNews, now: Millis, watch: Watch) {
         match news {
             WifiNews::Started(true) => {
                 if self.note == Some(Note::NoRadio) {
@@ -261,16 +277,10 @@ impl Wifi {
             }
             WifiNews::Seen(seen) => {
                 self.scanning = false;
-                self.scan_at = now + SCAN_MS;
-                // A scan the radio was too busy for comes back empty: keep what was heard
-                // until a second one agrees.
-                if seen.is_empty() && self.empty_scans == 0 && self.enabled {
-                    self.empty_scans = 1;
-                    return;
-                }
-                self.empty_scans = 0;
-                if self.enabled {
-                    self.seen = seen;
+                // A scan that finishes once the screen has closed, or Wi-Fi has gone off, is
+                // for nobody.
+                if self.enabled && watch == Watch::Networks {
+                    self.seen = Some(seen);
                 }
             }
             WifiNews::Asked(Ok(())) => {}
@@ -303,8 +313,9 @@ impl Wifi {
             .or(self.status.ssid.as_ref().filter(|_| handshaking))
     }
 
-    /// The networks to offer: the one joined or being joined first, then those in reach,
-    /// strongest first, then the saved ones out of reach.
+    /// The networks to offer: the one joined or being joined first, then those the last scan
+    /// heard, strongest first, then the saved ones it did not. Before a scan that is the one
+    /// joined and the saved ones, with no signal.
     pub fn entries(&self) -> Vec<Entry> {
         if !self.enabled {
             return Vec::new();
@@ -324,6 +335,7 @@ impl Wifi {
         let mut out: Vec<Entry> = self
             .seen
             .iter()
+            .flatten()
             .map(|s| {
                 let saved = saved_id(&s.ssid);
                 Entry {
@@ -346,6 +358,21 @@ impl Wifi {
                 });
             }
         }
+        // the network the status says is joined or being joined, should no list name it yet
+        for ssid in [self.joining_ssid(), self.joined_ssid()]
+            .into_iter()
+            .flatten()
+        {
+            if !out.iter().any(|e| e.ssid == *ssid) {
+                out.push(Entry {
+                    ssid: ssid.clone(),
+                    rssi: None,
+                    secured: true,
+                    saved: None,
+                    state: state(ssid, None),
+                });
+            }
+        }
         out.sort_by_key(|e| match e.state {
             EntryState::Joined | EntryState::Joining => 0,
             _ if e.rssi.is_some() => 1,
@@ -363,14 +390,19 @@ impl Wifi {
     }
 
     /// The notes under the networks, a line each, short enough for the list's panel at 640x480:
-    /// why a join went wrong, what is under way, or what to do next. Joined and addressed there
-    /// is nothing to say: the network's row says CONNECTED, and SSH has the address.
+    /// a scan under way, why a join went wrong, what is under way, or what to do next. Joined,
+    /// addressed and scanned there is nothing to say: the network's row says CONNECTED, and SSH
+    /// has the address.
     pub fn notes(&self) -> Vec<String> {
         if !self.present() {
             return vec!["This handheld has no Wi-Fi.".into()];
         }
         if !self.enabled {
             return vec!["Wi-Fi is off.".into()];
+        }
+        // X was the last thing asked: its scan says it is under way over anything else
+        if self.scanning {
+            return vec!["Looking for networks…".into()];
         }
         match &self.note {
             Some(Note::NoRadio) => return vec!["The Wi-Fi radio did not start.".into()],
@@ -386,17 +418,21 @@ impl Wifi {
         if let Some(ssid) = self.joining_ssid() {
             return vec![format!("Joining {}…", noted(ssid))];
         }
-        if self.joined_ssid().is_none() {
-            return vec![if self.entries().is_empty() {
-                "Looking for networks…".into()
-            } else {
-                "Not connected. Pick a network to join.".into()
-            }];
+        let joined = self.joined_ssid().is_some();
+        if joined && self.status.ip.is_none() {
+            return vec!["Waiting for an address…".into()];
         }
-        match self.status.ip {
-            None => vec!["Waiting for an address…".into()],
-            Some(_) => Vec::new(),
+        if self.seen.is_none() {
+            return vec!["Press X to look for networks.".into()];
         }
+        if joined {
+            return Vec::new();
+        }
+        vec![if self.entries().is_empty() {
+            "No networks found. Press X to look again.".into()
+        } else {
+            "Not connected. Pick a network to join.".into()
+        }]
     }
 }
 
@@ -637,6 +673,7 @@ impl WifiScreen {
                     wifi.forget(id);
                 }
             }
+            Action::GbaDown(Btn::X) => wifi.scan(),
             _ => {}
         }
         let rows = self.rows(wifi);

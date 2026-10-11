@@ -180,9 +180,7 @@ impl App {
     pub fn bar_hints(&self, phase: &Phase) -> Vec<Hint<'static>> {
         match phase {
             Phase::Shelf if self.picker_has_bar() => vec![SWAP],
-            Phase::Network(screen) if screen.typing.is_none() && screen.forgets(&self.wifi) => {
-                vec![FORGET]
-            }
+            Phase::Network(screen) => self.network_hints(screen),
             Phase::Bluetooth(screen) if screen.forgets(&self.bluetooth) => vec![FORGET],
             Phase::Labels(screen) if screen.typing.is_none() => {
                 labels_hints(&screen.view(&self.labels, self.online()).legend)

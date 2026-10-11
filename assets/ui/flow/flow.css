@@ -82,8 +82,9 @@ td:first-child { white-space: nowrap; font-family: var(--mono); font-size: 0.8re
 .meta { display: grid; gap: 6px; }
 .face { display: grid; grid-template-columns: repeat(2, 44px); gap: 6px; }
 .face button { height: 40px; border-radius: 20px; }
-/* Y over B, as on the handheld, with A beside B */
+/* Y over B and X over A, as on the handheld */
 .face [data-key="y"] { grid-area: 1 / 1; }
+.face [data-key="x"] { grid-area: 1 / 2; }
 .face [data-key="b"] { grid-area: 2 / 1; }
 .face [data-key="a"] { grid-area: 2 / 2; }
 
@@ -182,8 +183,11 @@ omega-panel.hug { flex: none; }
    below, so its capitals sit as far from either edge. */
 .note { margin: 0; padding: 0 calc(3 * var(--u)); color: var(--oz-dim); white-space: nowrap; }
 
-/* Network: the networks scroll inside their panel, a whole row at a time */
-.list { position: relative; height: 100%; overflow: hidden; }
+/* Network: the networks scroll inside their panel, a whole row at a time, reaching a pixel into
+   its well's sides as every row does; under them a note 4 below, 3 in from the well as every
+   note is */
+.list { position: relative; height: 100%; overflow: hidden; margin: 0 calc(-1 * var(--u)); }
+.list .note { margin-top: calc(4 * var(--u)); padding-left: calc(4 * var(--u)); }
 
 /* Bluetooth: the devices straight in their panel, so they reach a pixel into its well's sides as
    every row does, and under them, while there are none to show, a note 4 below the well's top
