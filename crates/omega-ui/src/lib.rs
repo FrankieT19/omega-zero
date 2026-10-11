@@ -80,8 +80,11 @@ pub use plate::{
     UndoFace, ARROW_GAP, CAP, CAP_GAP, HINT_EDGE, HINT_GAP, HINT_H, LEGEND_GAP, TITLE_H, TITLE_W,
 };
 pub use polaroids::{photo_face, PhotoFace, Polaroids, DOT, LEGEND, PHOTO_H, PHOTO_W};
-pub use power_menu::{menu_face, PowerChoice, MENU_H, MENU_INK, MENU_PAD};
-pub use quick_menu::{quick_caret_face, quick_value_face, QUICK_EDGE, QUICK_PITCH};
+pub use power_menu::PowerChoice;
+pub use quick_menu::{
+    menu_face, quick_caret_face, quick_value_face, MENU_H, MENU_INK, MENU_PAD, QUICK_EDGE,
+    QUICK_PITCH,
+};
 pub use refusal::Refusal;
 pub use settings_menu::{
     configs_in, settings_frame, settings_panels, settings_row_face, settings_row_rects,

@@ -1,7 +1,8 @@
 #![cfg(target_os = "macos")]
 //! The lone panels as the frontend draws them: each is its face (held to flow.html in lone.rs)
 //! at two screen pixels to an art pixel, where flow.html centres it on this canvas, over the
-//! backdrop; and a new colour on the Background screen re-tints its panel in the next frame.
+//! backdrop, the POWER menu and the screens after its choice among them; and a new colour on the
+//! Background screen re-tints its panel in the next frame.
 //!
 //! Set SCRATCH_PNG_DIR to a folder to have each frame written there as a PNG.
 
@@ -12,18 +13,19 @@ use std::collections::VecDeque;
 
 use common::tmp_root_with_carts;
 use omega_gfx::{out_h, out_w, Compositor, HeadlessSurface};
-use omega_input::{Btn, InputSource, Millis, RawEvent};
+use omega_input::{Action, Btn, InputSource, Millis, RawEvent};
 use omega_power::SimPlatform;
 use omega_store::{read_app_state, write_app_state, BackdropStyle};
 use omega_ui::kit::layout::centred;
 use omega_ui::kit::palette::palette;
-use omega_ui::{SettingsRow, UndoFace, SPRITE_PX};
+use omega_ui::{PowerChoice, SettingsRow, UndoFace, SPRITE_PX};
 use omega_zero::app::Phase;
 use omega_zero::frontend::Frontend;
 use omega_zero::screens::background::background_face;
 use omega_zero::screens::clock::clock_face;
 use omega_zero::screens::controls::{controls_face, ControlsView};
 use omega_zero::screens::labels::labels_face;
+use omega_zero::screens::power::{going_face, power_menu_face};
 use tempfile::TempDir;
 
 struct Script(VecDeque<Vec<RawEvent>>);
@@ -40,13 +42,19 @@ enum Screen {
     Background,
     DateTime,
     Labels,
+    Power,
+    Restarting,
+    PoweringOff,
 }
 
-const SCREENS: [Screen; 4] = [
+const SCREENS: [Screen; 7] = [
     Screen::Controls,
     Screen::Background,
     Screen::DateTime,
     Screen::Labels,
+    Screen::Power,
+    Screen::Restarting,
+    Screen::PoweringOff,
 ];
 
 struct Rig {
@@ -87,6 +95,17 @@ impl Rig {
             Screen::Background => SettingsRow::Background,
             Screen::DateTime => SettingsRow::DateTime,
             Screen::Labels => SettingsRow::Labels,
+            // POWER held on the shelf, and its choice made
+            Screen::Power | Screen::Restarting | Screen::PoweringOff => {
+                r.f.app_mut().apply(Action::PowerHold);
+                if screen == Screen::PoweringOff {
+                    r.f.app_mut().apply(Action::GbaDown(Btn::Down));
+                }
+                if screen != Screen::Power {
+                    r.f.app_mut().apply(Action::GbaDown(Btn::A));
+                }
+                return r;
+            }
         };
         r.tap(Btn::Start);
         for _ in 0..row.index() {
@@ -128,6 +147,9 @@ impl Rig {
             Screen::Background => background_face(&app.background_view().expect("open"), pal),
             Screen::DateTime => clock_face(app.picker().expect("open"), pal),
             Screen::Labels => labels_face(&app.labels_view().expect("open"), pal),
+            Screen::Power => power_menu_face(PowerChoice::Restart, pal),
+            Screen::Restarting => going_face(PowerChoice::Restart, pal),
+            Screen::PoweringOff => going_face(PowerChoice::PowerOff, pal),
         }
     }
 }

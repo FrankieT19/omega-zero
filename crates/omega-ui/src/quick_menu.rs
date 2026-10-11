@@ -1,11 +1,35 @@
 //! What is left of the old full-screen settings list: its text faces and spacing, which the
-//! menus not yet drawn in the kit (Network, SSH, Labels, Controls) still set their lines in.
-//! Settings itself is settings_menu.rs.
+//! menus not yet drawn in the kit (Network, SSH, Labels, Controls) still set their lines in,
+//! and the old menus' line of text, which the link menus over a game still show. Settings
+//! itself is settings_menu.rs.
 
 use crate::draw::out_w;
 use crate::plate::UndoFace;
-use crate::power_menu::{MENU_H, MENU_INK, MENU_PAD, MENU_PX};
 use crate::text;
+
+pub(crate) const MENU_PX: f32 = 27.0;
+const MENU_MIN_PX: f32 = 18.0;
+pub const MENU_H: u32 = 40;
+pub const MENU_PAD: u32 = 18;
+pub const MENU_INK: [u8; 3] = [0xf6, 0xf4, 0xef];
+
+/// `label` as one of the old menus' lines: in the label font at `MENU_PX`, cream, centred on a
+/// clear face `MENU_H` tall with `MENU_PAD` either side.
+pub fn menu_face(label: &str) -> UndoFace {
+    let Some(font) = text::label_font() else {
+        return UndoFace {
+            rgba: Vec::new(),
+            w: 0,
+            h: 0,
+        };
+    };
+    let ink = text::line_width(font, label, MENU_PX, 0.0).ceil() as u32;
+    let w = ink + 2 * MENU_PAD;
+    let mut rgba = vec![0u8; (w * MENU_H * 4) as usize];
+    let layout = text::fit(font, label, w as f32, 1, MENU_PX, MENU_MIN_PX);
+    text::draw_centred(&mut rgba, w, MENU_H, &layout, MENU_INK);
+    UndoFace { rgba, w, h: MENU_H }
+}
 
 /// How far one of the old lists' lines is from the next.
 pub const QUICK_PITCH: f32 = 52.0;
