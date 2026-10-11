@@ -1,4 +1,4 @@
-use omega_ui::{hint_face, hint_width, UndoFace, CAP, CAP_GAP, HINT_H};
+use omega_ui::{hint_face, hint_width, UndoFace, CAP_GAP, HINT_H};
 
 fn opaque(face: &UndoFace, x: u32, y: u32) -> bool {
     face.rgba[((y * face.w + x) * 4 + 3) as usize] > 0

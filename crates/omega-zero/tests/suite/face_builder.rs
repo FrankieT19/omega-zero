@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use omega_store::{Cart, Platform};
-use omega_ui::{CART_H, CART_W, TURN_PAD};
+use omega_ui::{BOARD_H, BOARD_W, CART_H, CART_W, TURN_PAD};
 use omega_zero::face_builder::{BuiltFaces, FaceBuilder};
 
 fn cart(stem: &str) -> Cart {
@@ -35,7 +35,7 @@ fn a_request_comes_back_as_the_open_carts_faces() {
     let got = collect(&builder, 1);
     assert_eq!(got.len(), 1, "the worker never answered");
     assert_eq!(got[0].stem, "Metroid Fusion");
-    assert_eq!((got[0].board.w, got[0].board.h), (372, 209));
+    assert_eq!((got[0].board.w, got[0].board.h), (BOARD_W, BOARD_H));
     assert_eq!(
         (got[0].lid.w, got[0].lid.h),
         (CART_W + 2 * TURN_PAD, CART_H + 2 * TURN_PAD)

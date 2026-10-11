@@ -13,12 +13,12 @@ use omega_ui::kit::action::Font;
 use omega_ui::kit::fade::stepped;
 use omega_ui::{
     backdrop_shift, board_from, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease, grown,
-    lid_at, lid_from, lift_of, on_board, posed_cart, posed_face, push_cart_side, shelf_cart_at,
-    CartMeshes, ChromeColours, ClockPicker, CornerBadge, Draw, FfState, GaugeIcon, GbShell, Hud,
-    HudKind, KeyboardFaces, LinkBadge, LinkFaces, Links, Millis, Placed, Polaroids, PowerChoice,
-    Refusal, SettingsFaces, SettingsRow, Shelf, SlotChrome, TexId, Toast, CART_W, CHIP_H, CHIP_U,
-    CHIP_V, CHIP_W, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W,
-    TOP_BAR_H, TURN_PAD,
+    lid_from, lift_of, on_board, posed_cart, posed_face, push_cart_side, shelf_cart_at, CartMeshes,
+    ChromeColours, ClockPicker, CornerBadge, Draw, FfState, GaugeIcon, GbShell, Hud, HudKind,
+    KeyboardFaces, LinkBadge, LinkFaces, Links, Millis, Placed, Polaroids, PowerChoice, Refusal,
+    SettingsFaces, SettingsRow, Shelf, SlotChrome, TexId, Toast, CART_W, CHIP_H, CHIP_U, CHIP_V,
+    CHIP_W, HOP_LIFT, LID_SHADOW_H, LID_SHADOW_W, SHADOW_AT, SHADOW_H, SHADOW_W, SOCKET_H,
+    SOCKET_U, SOCKET_V, SOCKET_W, SPRITE_PX, TOP_BAR_H, TURN_PAD,
 };
 
 use crate::audio::Sfx;
@@ -33,7 +33,7 @@ use crate::link_kind::{link_carried, link_kind, serial_option, LinkKind};
 use crate::link_radio::{radio_jobs, LinkRole, RadioJob, RadioJobs};
 use crate::link_screen::{LinkBar, LinkSprites};
 use crate::link_start::{link_port, LinkFail, LinkProgress, LinkStarter, LinkStep};
-use crate::nav::{offsets, Dir, End, Offsets, Slide, SLIDE_MS};
+use crate::nav::{even, offsets, Dir, End, Offsets, Slide, SLIDE_MS};
 use crate::persist::{self, Snapshot};
 use crate::screens::bar::BarFaces;
 use crate::screens::clock::clock_screen;
@@ -105,10 +105,8 @@ fn push_lid(out: &mut Vec<Draw>, at: (f32, f32, f32, f32), tex: TexId, turn: f32
     });
 }
 
-const LID_SHADOW_W: f32 = 168.0;
-const LID_SHADOW_H: f32 = 18.0;
+/// How far under the resting lid's bottom edge the middle of its shadow falls.
 const LID_SHADOW_DROP: f32 = 29.0;
-const LID_SHADOW_ALPHA: f32 = 0.8;
 const FACES_WAIT_MS: Millis = 1500;
 
 const ALERT_HOLD: f32 = 0.45;
@@ -302,6 +300,7 @@ pub struct App {
     pub(crate) core_chip_faces: Vec<TexId>,
     pub(crate) core_blank_chip_face: Option<TexId>,
     pub(crate) core_chip_shadow_face: Option<TexId>,
+    pub(crate) core_lid_shadow_face: Option<TexId>,
     pub(crate) game_menu: Option<GameMenu>,
     pub(crate) link_sprites: Option<LinkSprites>,
     pub(crate) link_hardware: LinkKind,
@@ -445,6 +444,7 @@ impl App {
             core_chip_faces: Vec::new(),
             core_blank_chip_face: None,
             core_chip_shadow_face: None,
+            core_lid_shadow_face: None,
             game_menu: None,
             link_sprites: None,
             link_hardware: LinkKind::Cable,
@@ -2022,12 +2022,13 @@ impl App {
         sockets: Vec<TexId>,
         chips: Vec<TexId>,
         blank: TexId,
-        shadow: TexId,
+        [chip_shadow, lid_shadow]: [TexId; 2],
     ) {
         self.core_socket_faces = sockets;
         self.core_chip_faces = chips;
         self.core_blank_chip_face = Some(blank);
-        self.core_chip_shadow_face = Some(shadow);
+        self.core_chip_shadow_face = Some(chip_shadow);
+        self.core_lid_shadow_face = Some(lid_shadow);
     }
 
     pub(crate) fn core_picker_shown(&self) -> Option<CorePicker> {
@@ -2061,31 +2062,36 @@ impl App {
                     pose.yaw,
                 ));
             }
+            // the parts are pixel art like the board, a texel to `px` screen pixels as it is
+            // drawn, each put down on whole art pixels
+            let px = SPRITE_PX as f32 * zoom;
             for (i, tex) in self.core_socket_faces.iter().copied().enumerate() {
                 let (x, y) = on_board(board, SOCKET_U[i], SOCKET_V);
                 out.push(Draw::Tex {
-                    x: x.round(),
-                    y: y.round(),
-                    w: SOCKET_W as f32 * zoom,
-                    h: SOCKET_H as f32 * zoom,
+                    x: even(x),
+                    y: even(y),
+                    w: SOCKET_W as f32 * px,
+                    h: SOCKET_H as f32 * px,
                     tex,
                     alpha: 1.0,
                 });
             }
 
+            // the chip crosses and hops a whole art pixel at a time, level: a turned face
+            // would leave the grid
             let chip = picker.chip(now);
-            let u = CHIP_U[0] + (CHIP_U[1] - CHIP_U[0]) * chip.across;
-            if chip.lift > 0.0 {
+            let u = (CHIP_U[0] + (CHIP_U[1] - CHIP_U[0]) * chip.across).round();
+            let hop = (HOP_LIFT * chip.lift).round();
+            if hop > 0.0 {
                 if let Some(tex) = self.core_chip_shadow_face {
-                    let (cx, cy) = on_board(board, u + 19.0, CHIP_V + 29.4);
-                    let (w, h) = (SHADOW_W as f32 * zoom, SHADOW_H as f32 * zoom);
+                    let (x, y) = on_board(board, u + SHADOW_AT[0], CHIP_V + SHADOW_AT[1]);
                     out.push(Draw::Tex {
-                        x: cx - w / 2.0,
-                        y: cy - h / 2.0,
-                        w,
-                        h,
+                        x: even(x),
+                        y: even(y),
+                        w: SHADOW_W as f32 * px,
+                        h: SHADOW_H as f32 * px,
                         tex,
-                        alpha: 0.6 * chip.lift * lift,
+                        alpha: stepped(chip.lift * lift),
                     });
                 }
             }
@@ -2094,37 +2100,32 @@ impl App {
                 None => self.core_blank_chip_face,
             };
             if let Some(tex) = face {
-                let (x, y) = on_board(board, u, CHIP_V - HOP_LIFT * chip.lift);
-                let body = Placed {
-                    x: x + chip.shake,
-                    y,
-                    w: CHIP_W as f32 * zoom,
-                    h: CHIP_H as f32 * zoom,
-                };
-                let at = grown(body, TURN_PAD as f32 * zoom);
-                out.push(Draw::Turned {
-                    x: at.x.round(),
-                    y: at.y.round(),
-                    w: at.w,
-                    h: at.h,
+                let (x, y) = on_board(board, u, CHIP_V - hop);
+                out.push(Draw::Tex {
+                    x: even(x + chip.shake),
+                    y: even(y),
+                    w: CHIP_W as f32 * px,
+                    h: CHIP_H as f32 * px,
                     tex,
                     alpha: 1.0,
-                    turn: chip.tip,
                 });
             }
         }
 
-        if let Some(tex) = self.core_chip_shadow_face {
+        // the lid's shadow, a dithered block at the size it rests at, fading in steps as it lifts
+        if let Some(tex) = self.core_lid_shadow_face {
             let (lid, _) = lid_from(shelf, progress);
-            let k = lid.w / lid_at(1.0).0.w;
-            let (w, h) = (LID_SHADOW_W * k, LID_SHADOW_H * k);
+            let (w, h) = (
+                (LID_SHADOW_W * SPRITE_PX) as f32,
+                (LID_SHADOW_H * SPRITE_PX) as f32,
+            );
             out.push(Draw::Tex {
-                x: lid.x + (lid.w - w) / 2.0,
-                y: lid.y + lid.h + LID_SHADOW_DROP * k - h / 2.0,
+                x: even(lid.x + (lid.w - w) / 2.0),
+                y: even(lid.y + lid.h + LID_SHADOW_DROP - h / 2.0),
                 w,
                 h,
                 tex,
-                alpha: LID_SHADOW_ALPHA * lift,
+                alpha: stepped(lift),
             });
         }
 

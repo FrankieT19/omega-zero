@@ -428,7 +428,7 @@ fn the_core_pickers_cancel_and_choose_are_the_bars_return_and_confirm() {
         vec![id(902), id(903)],
         vec![id(904), id(905)],
         id(906),
-        id(907),
+        [id(907), id(908)],
     );
     a.set_core_board_faces(id(900), id(901));
     a.apply(Action::GbaDown(Btn::X));
@@ -668,7 +668,7 @@ fn picker_faces(a: &mut App) {
         vec![id(902), id(903)],
         vec![id(904), id(905)],
         id(906),
-        id(907),
+        [id(907), id(908)],
     );
     a.set_core_board_faces(id(900), id(901));
 }

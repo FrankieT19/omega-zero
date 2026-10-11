@@ -71,46 +71,55 @@ fn every_line_is_already_upper_case() {
 }
 
 #[test]
-fn the_wordmarks_top_edge_is_antialiased_not_a_hard_step() {
-    use omega_ui::sticker_face;
-    const GROUND: [u8; 3] = [0x23, 0x1f, 0x20];
-    const INK: [u8; 3] = [0xff, 0xff, 0xff];
-    let face = sticker_face(&fields());
-    let get = |x: u32, y: u32| -> [u8; 3] {
-        let i = ((y * face.w + x) * 4) as usize;
-        [face.rgba[i], face.rgba[i + 1], face.rgba[i + 2]]
-    };
-    let edges: Vec<[u8; 3]> = (400..413)
-        .filter_map(|x| {
-            (129..142).find_map(|y| {
-                let above = get(x, y - 1);
-                let here = get(x, y);
-                (above == GROUND && here != GROUND).then_some(here)
-            })
-        })
-        .collect();
-    assert!(
-        edges.iter().any(|&e| e != GROUND && e != INK),
-        "every sampled column's top edge jumps straight from the ground to the ink: {edges:?}"
+fn the_credits_name_the_author_and_end_on_slot() {
+    let lines = sticker_lines(&fields());
+    let all = lines.join("\n");
+    assert!(all.contains("OT\u{c1}VIO (@OAURAMOS)"), "{all}");
+    assert_eq!(
+        lines.last().map(String::as_str),
+        Some(omega_ui::BASED_ON),
+        "slot's credit is not the last line"
     );
+    assert!(omega_ui::BASED_ON.contains("SLOT BY BRANDON T. KOWALSKI"));
+}
+
+/// The colours a pixel of the sticker may be: clear, or one of the label's flat inks.
+const INKS: [[u8; 3]; 3] = [[0x23, 0x1f, 0x20], [0xff, 0xff, 0xff], [0x8a, 0x86, 0x87]];
+
+#[test]
+fn the_sticker_is_drawn_in_flat_colours_without_soft_edges() {
+    let face = omega_ui::sticker_face(&fields());
+    for (i, px) in face.rgba.chunks_exact(4).enumerate() {
+        let (x, y) = (i as u32 % face.w, i as u32 / face.w);
+        match px[3] {
+            0 => {}
+            255 => assert!(
+                INKS.contains(&[px[0], px[1], px[2]]),
+                "{x},{y} is {px:?}, between the label's colours"
+            ),
+            a => panic!("{x},{y} is part covered, at alpha {a}"),
+        }
+    }
 }
 
 #[test]
-fn the_sticker_fits_the_canvas_with_room_either_side() {
+fn the_sticker_is_its_face_at_twice_on_whole_art_pixels_above_the_bar() {
     let (x, y, w, h) = omega_ui::sticker_rect();
     let (cw, ch) = (omega_ui::out_w() as f32, omega_ui::out_h() as f32);
     assert!(x >= 20.0 && x + w <= cw - 20.0, "{x}+{w} on a {cw} canvas");
-    assert!(y >= 0.0 && y + h <= ch, "{y}+{h} on a {ch} canvas");
-    let printed = omega_ui::STICKER_W as f32 / omega_ui::STICKER_H as f32;
+    let bar_top = omega_ui::kit::bar::BarLayout::top(ch as u32);
     assert!(
-        (w / h - printed).abs() < 0.02,
-        "the sticker was squashed to {w}x{h}"
+        y >= 0.0 && y + h <= bar_top,
+        "{y}+{h} reaches the bar at {bar_top}"
     );
-    if cw >= 700.0 {
-        assert_eq!(
-            (w, h),
-            (omega_ui::STICKER_W as f32, omega_ui::STICKER_H as f32),
-            "a canvas with room shrank the sticker"
-        );
-    }
+    let face = omega_ui::sticker_face(&fields());
+    assert_eq!(
+        (w, h),
+        (face.w as f32 * 2.0, face.h as f32 * 2.0),
+        "the sticker is not its face at 2x"
+    );
+    assert!(
+        [x, y].iter().all(|v| v % 2.0 == 0.0),
+        "the sticker is off the art grid at {x},{y}"
+    );
 }
