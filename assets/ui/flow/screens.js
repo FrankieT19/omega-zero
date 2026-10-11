@@ -1,8 +1,9 @@
 /*
   What each of flow.html's screens does with a button: where its cursor goes, what its values
-  are, and which screen a row opens. player.js does the moving between them; this file only
-  answers each press with nothing, { go: <screen> } to go deeper or { back: true }. A screen whose
-  bar hint follows its cursor (Bluetooth's Y FORGET on a paired device) says it with hint().
+  are, and which screen a row opens. player.js does the moving between them, and opens the power
+  menu on any screen when POWER is held; this file only answers each press with nothing,
+  { go: <screen> } to go deeper or { back: true }. A screen whose bar hint follows its cursor
+  (Bluetooth's Y FORGET on a paired device) says it with hint().
 
   The settings that show on more than one screen (Wi-Fi, SSH, Bluetooth and its devices, the date,
   the backdrop, the bar's font) live once, in FlowScreens.model, and every screen showing one
@@ -164,6 +165,13 @@ window.FlowScreens = (() => {
       if (key === 'b') this.menu.settle();
       return super.press(key);
     }
+  }
+
+  // The screen after the power menu's choice, shown until the handheld goes down: nothing can be
+  // pressed.
+  class Going {
+    constructor(page) { this.page = page; }
+    press() {}
   }
 
   // The shelf, as far as these screens go: START to Settings, SELECT to Controls.
@@ -495,6 +503,9 @@ window.FlowScreens = (() => {
       datetime: new Picker(page('datetime')),
       background: new Menu(page('background')),
       about: new Still(page('about')),
+      power: new Menu(page('power')),
+      restarting: new Going(page('restarting')),
+      poweroff: new Going(page('poweroff')),
     };
 
     // what shows a setting, drawn again from the model
@@ -528,13 +539,18 @@ window.FlowScreens = (() => {
     return screens;
   }
 
-  // Each screen's parent, the one B goes back to.
+  // Each screen's parent, the one B goes back to. The power menu's is the screen POWER was held
+  // on, which player.js puts here as it opens it: the shelf until then.
   const PARENT = {
     settings: 'shelf', controls: 'shelf',
     network: 'settings', bluetooth: 'settings', labels: 'settings', datetime: 'settings',
     background: 'settings', about: 'settings',
     ssh: 'network', keyboard: 'network',
+    power: 'shelf', restarting: 'power', poweroff: 'power',
   };
 
-  return { model, set, onChange, build, PARENT, BT, bluetoothAs, bluetoothState };
+  // The screens after the power menu's choice, which have no bar: nothing can be pressed on them.
+  const GOING = ['restarting', 'poweroff'];
+
+  return { model, set, onChange, build, PARENT, GOING, BT, bluetoothAs, bluetoothState };
 })();
