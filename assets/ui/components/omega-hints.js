@@ -2,14 +2,14 @@
   <omega-hints>: a screen's keys on one line of the kit, on a ground of their own, for where the
   bottom bar's hints would sit on a picture: a title tab naming what they are for, then a well
   holding the keys, each its key in a small dark cap and then the word, as the bar draws its
-  hints. The save-state switcher stands one over a game's screenshot, just above the bar: SAVE,
-  Y DELETE, and X UNDO SAVE while the last save can still be undone.
+  hints. Put one just above the bar over a game or a photo, where the bar's own hints would be
+  hard to read.
 
-    <omega-hints label="SAVE" hint="Y DELETE | X UNDO SAVE"></omega-hints>
+    <omega-hints label="NETWORK" hint="X SCAN | Y FORGET"></omega-hints>
 
   label   the name in the tab, in capitals whatever case it is given in.
   hint    the keys, as omega-bar's hint: a key and what it does, the first word the key,
-          "Y DELETE"; more than one with a | between them, "Y DELETE | X UNDO SAVE".
+          "X SCAN"; more than one with a | between them, "X SCAN | Y FORGET".
 
   It is drawn as <omega-gauge>, with the keys in the well for its cells: 15 art pixels tall, as
   tall as the bottom bar; a panel's frame line round it, the tab with its title in the middle and

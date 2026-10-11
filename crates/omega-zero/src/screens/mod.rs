@@ -16,4 +16,3 @@ pub mod power;
 pub mod settings;
 pub mod shelf;
 pub mod ssh;
-pub mod switcher;

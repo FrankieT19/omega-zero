@@ -81,7 +81,7 @@ classic scripts, no build step, so it works from `file://`.
 <omega-toast label="SAVE STATE" text="State saved"></omega-toast>
 <omega-badge icon="fastforward" text="×4" lit></omega-badge>
 <omega-saves age="4 min ago" count="4" at="1"></omega-saves>
-<omega-hints label="SAVE" hint="Y DELETE | X UNDO SAVE"></omega-hints>
+<omega-hints label="NETWORK" hint="X SCAN | Y FORGET"></omega-hints>
 <omega-bar hint="Y RESET">
   <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
   <action-right slot="right" label="SETTINGS" hint="START"></action-right>
@@ -216,13 +216,9 @@ screenshot the size of the panel.
 
 The save-state switcher, MENU ×2 in a game, is drawn from the kit over the screenshot of the
 save it shows, which is drawn as the game is: the shelf's top bar, `<omega-saves>` at the top in
-the middle 8 art pixels under it, and the bar with B RETURN and A LOAD and nothing between them.
-Its other keys would sit on the screenshot there, so they stand on a line of their own,
-`<omega-hints label="SAVE">`, in the middle 4 art pixels above the tops of the bar's actions: Y
-DELETE and, while the last save or load can still be undone, X UNDO SAVE or X UNDO LOAD. The line
-keeps the room of its widest keys while the switcher is open, so when the undo runs out X goes
-and Y DELETE stays where it was. Left and Right move between the saves; the panel says how old
-the one shown is and lights its dot.
+the middle 8 art pixels under it, and the bar with B RETURN and A LOAD and nothing between them:
+a save state is saved and loaded, nothing more. Left and Right move between the saves; the panel
+says how old the one shown is and lights its dot.
 
 `<omega-hints>` is for any keys that would sit on a picture: it is `<omega-gauge>`'s chrome, the
 frame, the title tab and its slant, and the well, with the keys in the well drawn as

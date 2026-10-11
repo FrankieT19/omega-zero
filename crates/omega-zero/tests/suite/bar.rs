@@ -22,7 +22,6 @@ use omega_zero::label_sync::Account;
 use omega_zero::nav::SLIDE_MS;
 use omega_zero::screens::bar::SCAN;
 use omega_zero::screens::bar::{Actions, BarSet, SWAP};
-use omega_zero::screens::switcher::{DELETE, UNDO_SAVE};
 use omega_zero::wifi::{Saved, Seen, WifiJob, WifiJobs, WifiNews};
 use omega_zero::wifi_screen::{Sel, Typing, WifiScreen};
 use tempfile::TempDir;
@@ -791,8 +790,7 @@ fn the_save_states_have_return_and_load_and_the_game_none() {
     assert_eq!(a.bar_place(), None, "the bar stayed over the game");
 }
 
-/// The save states' bar has nothing between RETURN and LOAD, a save to undo or not: their keys,
-/// Y DELETE and X UNDO SAVE, stand on a line of their own over the game (switcher.rs).
+/// The save states' bar has nothing between RETURN and LOAD: saving and loading is all they do.
 #[test]
 fn nothing_is_between_return_and_load() {
     let d = tmp_root_with_carts(&["Emerald"]);
@@ -800,7 +798,6 @@ fn nothing_is_between_return_and_load() {
     a.apply_at(Action::SaveState, 1_000);
     a.apply_at(Action::Polaroids, 1_100);
     assert!(matches!(a.phase(), Phase::Polaroids { .. }));
-    assert_eq!(a.switcher_hints(), [DELETE, UNDO_SAVE]);
     assert!(a.bar_hints(a.phase()).is_empty(), "the bar has hints");
     assert!(a.bar_hints_shown().is_empty(), "the bar shows hints");
 }

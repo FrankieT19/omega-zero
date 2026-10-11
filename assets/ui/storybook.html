@@ -704,23 +704,20 @@
           its hints. It is drawn as <code>&lt;omega-gauge&gt;</code> with the keys in the well for
           its cells, 15 art pixels tall like the bar; their capitals stand on the title's rows, so
           each cap fills the well's inside from top to bottom, and the well shows 2 art pixels
-          either side of them. The save-state switcher stands one in the middle just above the
-          bar, over the game's screenshot: SAVE, Y DELETE, and X UNDO SAVE or X UNDO LOAD while the
-          last save or load can still be undone. Given a width, the well takes what is over, the
-          keys at its left: the switcher keeps the room of its widest keys while it is open, so Y
-          DELETE stays put when the undo runs out.</p>
+          either side of them. Put one just above the bar over a game or a photo, where the bar's
+          own hints would be hard to read. Given a width, the well takes what is over, the keys at
+          its left, so a line can keep the room of its widest keys as one comes and goes.</p>
         <div class="preview omega-backdrop">
-          <span class="tag">the switcher's, with a save or a load to undo, and with none</span>
+          <span class="tag">two keys, and one</span>
           <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
-            <omega-hints label="SAVE" hint="Y DELETE | X UNDO SAVE"></omega-hints>
-            <omega-hints label="SAVE" hint="Y DELETE | X UNDO LOAD"></omega-hints>
-            <omega-hints label="SAVE" hint="Y DELETE"></omega-hints>
+            <omega-hints label="NETWORK" hint="X SCAN | Y FORGET"></omega-hints>
+            <omega-hints label="NETWORK" hint="X SCAN"></omega-hints>
           </div>
           <div class="side">
             <figure>
-              <span class="tag">the undo run out, held as wide; none; three keys, one with no word</span>
+              <span class="tag">one key held as wide as two; none; three keys, one with no word</span>
               <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
-                <omega-hints label="SAVE" hint="Y DELETE" style="width: calc(176 * var(--u))"></omega-hints>
+                <omega-hints label="NETWORK" hint="X SCAN" style="width: calc(150 * var(--u))"></omega-hints>
                 <omega-hints label="KEYS"></omega-hints>
                 <omega-hints label="LABELS" hint="START FETCH | Y SIGN OUT | SELECT"></omega-hints>
               </div>
@@ -731,13 +728,13 @@
           <table>
             <tr><th>API</th><th>What it does</th></tr>
             <tr><td>label</td><td>The name in the tab, in capitals whatever case it is given in, lit in <code>--oz-cream</code>.</td></tr>
-            <tr><td>hint</td><td>The keys, as <code>&lt;omega-bar&gt;</code>'s: a key and what it does, the first word the key, <code>Y DELETE</code>; more than one with a <code>|</code> between them, <code>Y DELETE | X UNDO SAVE</code>. Each cap is <code>--oz-dark</code>, its letters and the word <code>--oz-cream</code>, 8 art pixels from one key to the next.</td></tr>
+            <tr><td>hint</td><td>The keys, as <code>&lt;omega-bar&gt;</code>'s: a key and what it does, the first word the key, <code>X SCAN</code>; more than one with a <code>|</code> between them, <code>X SCAN | Y FORGET</code>. Each cap is <code>--oz-dark</code>, its letters and the word <code>--oz-cream</code>, 8 art pixels from one key to the next.</td></tr>
             <tr><td>width</td><td>As wide as the tab and the keys need; a wider one gives the well the rest, the keys at its left.</td></tr>
             <tr><td>::part</td><td><code>frame</code>, <code>tab</code>, <code>label</code>, <code>slant</code>, <code>strip</code>, <code>well</code>, <code>hints</code>, <code>hint</code>, <code>key</code>, <code>word</code></td></tr>
           </table>
         </div>
-<pre><code>&lt;omega-hints label="SAVE" hint="Y DELETE | X UNDO SAVE"&gt;&lt;/omega-hints&gt;
-&lt;omega-hints label="SAVE" hint="Y DELETE" style="width: calc(176 * var(--u))"&gt;&lt;/omega-hints&gt;   &lt;!-- held as wide --&gt;</code></pre>
+<pre><code>&lt;omega-hints label="NETWORK" hint="X SCAN | Y FORGET"&gt;&lt;/omega-hints&gt;
+&lt;omega-hints label="NETWORK" hint="X SCAN" style="width: calc(150 * var(--u))"&gt;&lt;/omega-hints&gt;   &lt;!-- held as wide --&gt;</code></pre>
       </article>
 
       <article class="card wide">

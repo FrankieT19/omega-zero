@@ -11,11 +11,12 @@
 - The save states, MENU ×2 in a game, are drawn in the menus' pixel art. The shelf's top bar
   stands over the screenshot in place of a dark strip of their own; a SAVE STATES panel at the
   top in the middle says how long ago the save shown was made, with a dot for each save under
-  it, the one shown lit; and the bar along the bottom has B RETURN and A LOAD. Just above the
-  bar, in the middle, a line of its own titled SAVE holds Y DELETE and, while the last save or
-  load can still be undone, X UNDO SAVE or X UNDO LOAD, on a solid ground that reads over the
-  brightest game; it keeps its width when the undo runs out, so Y DELETE stays put. Nothing over
-  the screenshot is see-through any more.
+  it, the one shown lit; and the bar along the bottom has B RETURN and A LOAD. Nothing over the
+  screenshot is see-through any more.
+- Save states only save and load: Y no longer deletes the save shown, and X no longer undoes the
+  last save or load.
+- `<omega-hints>` joins the UI kit: a screen's keys on one line of the kit, on a ground of their
+  own, for where the bar's hints would sit on a picture.
 - The link screen (SELECT + MENU in a game) is drawn in the menus' kit: the theme's backdrop, a
   LINK panel with ROLE (HOST or JOIN, Left and Right swap it) and MODE (CABLE or WIRELESS,
   SELECT switches it where the game can), what is happening as a note under them, and the

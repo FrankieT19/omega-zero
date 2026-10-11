@@ -1,16 +1,13 @@
 //! The save-state switcher, MENU ×2 in a game: the screenshot of the save it shows, drawn through
 //! the game's pipeline where the game is, and over it, at the top in the middle under the top
 //! bar, the kit's SAVE STATES panel (kit/saves.rs) saying how old that save is and which of them
-//! it is, and in the middle just above the bottom bar the kit's hint line (kit/hints.rs) with
-//! its keys, Y DELETE and X UNDO SAVE, on a ground of their own. The top bar and the bottom bar,
-//! B RETURN and A LOAD with nothing between them, are the shelf's and the menus' own, which the
-//! app draws over it.
+//! it is. The top bar and the bottom bar, B RETURN and A LOAD with nothing between them, are the
+//! shelf's and the menus' own, which the app draws over it.
 
 use omega_gfx::{out_h, out_w, Draw, TexId};
 use omega_store::{parse_stamp, StateEntry};
 
 use crate::art;
-use crate::kit::action::TALL;
 use crate::kit::layout::screen_px;
 use crate::kit::pixel::quad;
 use crate::sprite::SPRITE_PX;
@@ -23,9 +20,6 @@ const BLANK: [u8; 3] = [0x3a, 0x3a, 0x3e];
 
 /// How far under the top bar the panel stands, in art pixels.
 const PANEL_GAP: u32 = 8;
-
-/// How far the line of keys stands above the tops of the bottom bar's actions, in art pixels.
-const KEYS_GAP: u32 = 4;
 
 pub struct PhotoFace {
     pub rgba: Vec<u8>,
@@ -55,8 +49,6 @@ pub struct Polaroids {
     faces: Vec<TexId>,
     /// The panel's face, uploaded, and its size in art pixels.
     panel: Option<(TexId, u32, u32)>,
-    /// The line of keys' face, uploaded, and its size in art pixels.
-    keys: Option<(TexId, u32, u32)>,
 }
 
 impl Polaroids {
@@ -66,7 +58,6 @@ impl Polaroids {
             index: 0,
             faces: Vec::new(),
             panel: None,
-            keys: None,
         }
     }
 
@@ -77,11 +68,6 @@ impl Polaroids {
     /// The SAVE STATES panel, `kit::saves::saves_face` uploaded as `tex`, `w` by `h` art pixels.
     pub fn set_panel_face(&mut self, tex: TexId, w: u32, h: u32) {
         self.panel = Some((tex, w, h));
-    }
-
-    /// The line of keys, `kit::hints::hint_line_face` uploaded as `tex`, `w` by `h` art pixels.
-    pub fn set_keys_face(&mut self, tex: TexId, w: u32, h: u32) {
-        self.keys = Some((tex, w, h));
     }
 
     pub fn is_empty(&self) -> bool {
@@ -110,17 +96,6 @@ impl Polaroids {
             .collect()
     }
 
-    pub fn remove_selected(&mut self) {
-        if self.index >= self.entries.len() {
-            return;
-        }
-        self.entries.remove(self.index);
-        if self.index < self.faces.len() {
-            self.faces.remove(self.index);
-        }
-        self.index = self.index.min(self.entries.len().saturating_sub(1));
-    }
-
     pub fn left(&mut self) {
         self.index = self.index.saturating_sub(1);
     }
@@ -129,16 +104,11 @@ impl Polaroids {
         self.index = (self.index + 1).min(self.entries.len().saturating_sub(1));
     }
 
-    /// The switcher over the game: the screenshot, then the panel and the line of keys once
-    /// they are made.
+    /// The switcher over the game: the screenshot, then the panel once it is made.
     pub fn draw(&self, out: &mut Vec<Draw>) {
         self.draw_photo(out);
         if let Some((tex, w, h)) = self.panel {
             let [x, y, w, h] = Self::panel_rect(w, h);
-            out.push(quad(tex, w, h, screen_px(x), screen_px(y)));
-        }
-        if let Some((tex, w, h)) = self.keys {
-            let [x, y, w, h] = Self::keys_rect(w, h);
             out.push(quad(tex, w, h, screen_px(x), screen_px(y)));
         }
     }
@@ -149,20 +119,6 @@ impl Polaroids {
         let across = out_w() / SPRITE_PX;
         let top = TOP_BAR_H as u32 / SPRITE_PX + PANEL_GAP;
         [across.saturating_sub(w) / 2, top, w, h]
-    }
-
-    /// Where a line of keys `w` by `h` art pixels goes, `[x, y, w, h]` in art pixels: across the
-    /// middle of the screen under the panel, rounded down to a whole art pixel, `KEYS_GAP` above
-    /// the tops of the bottom bar's actions, which at 640 it overlaps from above.
-    pub fn keys_rect(w: u32, h: u32) -> [u32; 4] {
-        let across = out_w() / SPRITE_PX;
-        let actions = (out_h() / SPRITE_PX).saturating_sub(TALL);
-        [
-            across.saturating_sub(w) / 2,
-            actions.saturating_sub(KEYS_GAP + h),
-            w,
-            h,
-        ]
     }
 
     fn draw_photo(&self, out: &mut Vec<Draw>) {

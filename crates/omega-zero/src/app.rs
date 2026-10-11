@@ -7,7 +7,7 @@ use omega_power::{Battery, Charge, LedState, LidPolicy, Power};
 use omega_retro::LinkChannel;
 use omega_store::{
     format_stamp, read_app_state, scan, write_app_state, AppState, BackdropStyle, Cart, Core,
-    Platform, StateEntry, StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, RING_MAX, VOLUME_MAX,
+    Platform, StateEntry, StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, VOLUME_MAX,
 };
 use omega_ui::kit::action::Font;
 use omega_ui::kit::fade::stepped;
@@ -72,8 +72,6 @@ const HEADPHONES_POLL_MS: Millis = 500;
 
 const BATTERY_LOW: u8 = 20;
 
-pub const UNDO_GRACE_MS: Millis = 30_000;
-
 pub const LINK_LOST_MS: Millis = 2000;
 
 const PLAY_HOLD_MS: Millis = 500;
@@ -113,16 +111,6 @@ const ALERT_HOLD: f32 = 0.45;
 const ALERT_GONE: f32 = 0.9;
 
 const CLOCK_FLOOR: i64 = 1_577_836_800;
-
-pub enum PendingUndo {
-    Save {
-        stamp: String,
-        evicted: Option<(String, Vec<u8>, Vec<u8>)>,
-    },
-    Load {
-        prior: Vec<u8>,
-    },
-}
 
 struct LinkSession {
     client_id: u16,
@@ -329,7 +317,6 @@ pub struct App {
     link: Option<LinkSession>,
     pub(crate) sfx: Option<Sfx>,
     pub(crate) polaroids: Option<Polaroids>,
-    pub(crate) pending: Option<(PendingUndo, Millis)>,
     pub(crate) clock_panel: Option<Lone>,
     pub(crate) settings_faces: Option<SettingsFaces>,
     pub(crate) about_modal: Option<Lone>,
@@ -472,7 +459,6 @@ impl App {
             link: None,
             sfx: None,
             polaroids: None,
-            pending: None,
             clock_panel: None,
             settings_faces: None,
             about_modal: None,
@@ -1188,8 +1174,6 @@ impl App {
                 Action::ShelfRight | Action::GbaDown(Btn::Right) => self.flick(Polaroids::right),
                 Action::GbaDown(Btn::A) => self.load_selected(),
                 Action::GbaDown(Btn::B) | Action::Polaroids => self.close_polaroids(),
-                Action::GbaDown(Btn::X) => self.undo(self.now()),
-                Action::GbaDown(Btn::Y) => self.delete_selected(),
                 _ => {}
             },
             Phase::About => self.about_input(action),
@@ -2234,7 +2218,6 @@ impl App {
         self.end_link();
         self.close_game_menu();
         self.flush_eject(&cart);
-        self.pending = None;
         self.refusal = None;
         self.refused_from = None;
         self.phase = Phase::Ejecting {
@@ -2583,7 +2566,6 @@ impl App {
 
     fn refuse_seated(&mut self) {
         self.close_game_menu();
-        self.pending = None;
         let caught = self.seat();
         let cart = match &mut self.phase {
             Phase::Playing { cart } => Some(std::mem::take(cart)),
@@ -2843,38 +2825,6 @@ impl App {
         }
     }
 
-    fn delete_selected(&mut self) {
-        let stamp = self
-            .polaroids
-            .as_ref()
-            .and_then(|p| p.selected())
-            .map(|e| e.stamp.clone());
-        let (Some(stamp), Some(ring)) = (stamp, self.ring()) else {
-            return;
-        };
-        if let Err(e) = ring.remove(&stamp) {
-            eprintln!("omega-zero: delete: {e}");
-            return;
-        }
-        if self.undo_targets(&stamp) {
-            self.pending = None;
-        }
-        let Some(p) = &mut self.polaroids else {
-            return;
-        };
-        p.remove_selected();
-        if p.is_empty() {
-            self.close_polaroids();
-        }
-    }
-
-    fn undo_targets(&self, stamp: &str) -> bool {
-        match self.pending.as_ref() {
-            Some((PendingUndo::Save { stamp: pending, .. }, _)) => pending == stamp,
-            _ => false,
-        }
-    }
-
     fn load_newest(&mut self) {
         let Some(newest) = self.entries().first().map(|e| e.state.clone()) else {
             return self.refuse();
@@ -2897,12 +2847,8 @@ impl App {
                 return false;
             }
         };
-        let prior = snapshot.state();
         snapshot.load(bytes);
         self.hud.toast(Toast::StateLoaded, self.now());
-        if let Some(prior) = prior {
-            self.pending = Some((PendingUndo::Load { prior }, self.now()));
-        }
         true
     }
 
@@ -2922,29 +2868,11 @@ impl App {
         };
         let thumb = snapshot.thumb().unwrap_or_default();
         let stamp = free_stamp(&ring, self.wall_secs());
-        let evicted = doomed(&ring);
         if let Err(e) = ring.push(&state, &thumb, &stamp) {
             eprintln!("omega-zero: save: {e}");
             return;
         }
         self.hud.toast(Toast::StateSaved, self.now());
-        self.pending = Some((PendingUndo::Save { stamp, evicted }, self.now()));
-    }
-
-    pub fn undo_available(&self, now: Millis) -> bool {
-        self.pending
-            .as_ref()
-            .is_some_and(|(_, at)| now.saturating_sub(*at) <= UNDO_GRACE_MS)
-    }
-
-    pub fn undo_label(&self) -> Option<&'static str> {
-        if !self.undo_available(self.now()) {
-            return None;
-        }
-        match self.pending.as_ref()?.0 {
-            PendingUndo::Save { .. } => Some("undo save"),
-            PendingUndo::Load { .. } => Some("undo load"),
-        }
     }
 
     /// What shows over the screen for a moment or while it lasts: the gauge, the toast and the
@@ -2960,44 +2888,6 @@ impl App {
 
     pub fn toast(&self) -> Option<Toast> {
         self.hud.said(self.now())
-    }
-
-    pub fn undo(&mut self, now: Millis) {
-        if !self.undo_available(now) {
-            self.pending = None;
-            return;
-        }
-        if matches!(&self.pending, Some((PendingUndo::Load { .. }, _))) && !self.may_load_state() {
-            return self.refuse();
-        }
-        let Some((what, _)) = self.pending.take() else {
-            return;
-        };
-        match what {
-            PendingUndo::Save { stamp, evicted } => self.undo_save(&stamp, evicted),
-            PendingUndo::Load { prior } => {
-                if let Some(snapshot) = &self.snapshot {
-                    snapshot.load(prior);
-                }
-            }
-        }
-        self.close_polaroids();
-    }
-
-    fn undo_save(&self, stamp: &str, evicted: Option<(String, Vec<u8>, Vec<u8>)>) {
-        let Some(ring) = self.ring() else {
-            return;
-        };
-        if let Err(e) = ring.remove(stamp) {
-            eprintln!("omega-zero: undo: {e}");
-            return;
-        }
-        let Some((stamp, state, thumb)) = evicted else {
-            return;
-        };
-        if let Err(e) = ring.push(&state, &thumb, &stamp) {
-            eprintln!("omega-zero: undo: {e}");
-        }
     }
 
     pub fn polaroid_entries(&self) -> &[StateEntry] {
@@ -3022,13 +2912,6 @@ impl App {
     pub fn set_polaroid_panel(&mut self, tex: TexId, w: u32, h: u32) {
         if let Some(p) = &mut self.polaroids {
             p.set_panel_face(tex, w, h);
-        }
-    }
-
-    /// The switcher's line of keys, uploaded as `tex`, `w` by `h` art pixels.
-    pub fn set_polaroid_keys(&mut self, tex: TexId, w: u32, h: u32) {
-        if let Some(p) = &mut self.polaroids {
-            p.set_keys_face(tex, w, h);
         }
     }
 }
@@ -3081,13 +2964,6 @@ fn system_secs() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
-}
-
-fn doomed(ring: &StateRing) -> Option<(String, Vec<u8>, Vec<u8>)> {
-    let entries = ring.list().ok()?;
-    let oldest = entries.get(RING_MAX - 1)?;
-    let (state, thumb) = ring.read(&oldest.stamp).ok()?;
-    Some((oldest.stamp.clone(), state, thumb))
 }
 
 fn free_stamp(ring: &StateRing, now: i64) -> String {

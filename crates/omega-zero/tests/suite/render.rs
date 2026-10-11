@@ -8,11 +8,9 @@ use omega_gfx::{
 };
 use omega_retro::{ButtonMask, MockCore, RetroCore};
 use omega_store::{colour_index, Core, Platform, StateRing};
-use omega_ui::kit::hints::hint_line_face;
 use omega_ui::kit::palette::palette;
 use omega_ui::kit::saves::{saves_face, saves_width};
 use omega_ui::{photo_face, Polaroids, UndoFace};
-use omega_zero::screens::switcher::{keys_width, DELETE, KEYS_TITLE, UNDO_SAVE};
 use omega_zero::thumb;
 use omega_zero::video_mode::{screen, VideoMode};
 
@@ -253,32 +251,4 @@ fn the_switchers_panel_is_its_face_at_twice_its_size() {
         off.len(),
         &off[..off.len().min(4)]
     );
-}
-
-/// The switcher's line of keys is its face at twice its size where `Polaroids::keys_rect` puts
-/// it, as wide as Y DELETE and X UNDO SAVE and held as wide with Y DELETE alone.
-#[test]
-fn the_switchers_keys_are_their_face_at_twice_its_size() {
-    let Some((_g, _s, mut c)) = compositor() else {
-        return;
-    };
-    let pal = palette(colour_index("amber").expect("amber"));
-    let both = keys_width(&[DELETE, UNDO_SAVE], 0);
-    for hints in [&[DELETE, UNDO_SAVE][..], &[DELETE][..]] {
-        let face = hint_line_face(both, KEYS_TITLE, hints, pal);
-        assert_eq!(face.w, both);
-        let tex = c.create_texture_nearest(face.w, face.h, &face.rgba);
-        let mut p = Polaroids::new(Vec::new());
-        p.set_keys_face(tex, face.w, face.h);
-        let frame = drawn(&mut c, &p);
-
-        let [x0, y0, _, _] = Polaroids::keys_rect(face.w, face.h);
-        let off = off_twice(&frame, &face, [x0, y0]);
-        assert!(
-            off.is_empty(),
-            "{hints:?}: the keys are off their face at {} pixels, first {:?}",
-            off.len(),
-            &off[..off.len().min(4)]
-        );
-    }
 }
