@@ -1,5 +1,4 @@
-//! Settings (settings_menu.rs) and what is left of the old settings list's text faces
-//! (quick_menu.rs).
+//! Settings (settings_menu.rs).
 
 use omega_gfx::{out_h, out_w};
 use omega_store::{parse_stamp, FF_SPEEDS};
@@ -8,27 +7,13 @@ use omega_ui::kit::modal::{modal_face, CUT};
 use omega_ui::kit::palette::{palette, Palette};
 use omega_ui::kit::row::ROW_H;
 use omega_ui::{
-    date_time_text, quick_caret_face, quick_value_face, settings_frame, settings_panels,
-    settings_row_face, settings_row_rects, settings_row_width, settings_title_face, ClockPicker,
-    QuickValue, RowShown, SettingsBaked, SettingsGroup, SettingsRow, UndoFace, MENU_PAD,
+    date_time_text, settings_frame, settings_panels, settings_row_face, settings_row_rects,
+    settings_row_width, settings_title_face, ClockPicker, QuickValue, RowShown, SettingsBaked,
+    SettingsGroup, SettingsRow, UndoFace,
 };
 
 const NIGHT: u8 = 0;
 const AMBER: u8 = 7;
-
-fn inked(f: &UndoFace, x: u32, y: u32) -> bool {
-    f.rgba[((y * f.w + x) * 4 + 3) as usize] > 128
-}
-
-fn ink_columns(f: &UndoFace) -> (u32, u32) {
-    let cols: Vec<u32> = (0..f.w)
-        .filter(|&x| (0..f.h).any(|y| inked(f, x, y)))
-        .collect();
-    (
-        *cols.first().expect("an empty face"),
-        *cols.last().expect("an empty face"),
-    )
-}
 
 /// `face`'s pixel at (`x`, `y`): its colour, or None where it is clear.
 fn px(face: &UndoFace, x: u32, y: u32) -> Option<[u8; 3]> {
@@ -447,28 +432,6 @@ fn the_palette_tints_every_face() {
 }
 
 #[test]
-fn the_text_faces_left_for_the_old_lists_sit_menu_pad_in() {
-    for f in [
-        quick_value_face("Off", false),
-        quick_value_face(QuickValue::Speed6.text(), true),
-        quick_value_face("SEP 15 16:35", true),
-    ] {
-        let (first, last) = ink_columns(&f);
-        let right = f.w - 1 - MENU_PAD;
-        assert!(
-            (MENU_PAD..MENU_PAD + 4).contains(&first),
-            "ink starts at {first} of {}",
-            f.w
-        );
-        assert!(
-            (right - 4..=right).contains(&last),
-            "ink ends at {last} of {}",
-            f.w
-        );
-    }
-}
-
-#[test]
 fn the_fast_forward_row_offers_the_four_ceilings_the_card_can_hold() {
     assert_eq!(FF_SPEEDS, [2, 3, 4, 6]);
     assert_eq!(
@@ -591,30 +554,4 @@ fn a_picker_for_a_set_clock_starts_at_the_local_time_and_its_offset() {
         "the picker does not show the minute it was opened in"
     );
     assert!(p.text().starts_with("2026-09-15 16:35"), "{}", p.text());
-}
-
-#[test]
-fn a_value_is_grey_until_its_row_is_in_hand() {
-    let inkiest = |lit| {
-        let f = quick_value_face("4×", lit);
-        f.rgba
-            .chunks(4)
-            .max_by_key(|p| p[3])
-            .map(|p| [p[0], p[1], p[2]])
-            .expect("an empty face")
-    };
-    assert_eq!(inkiest(true), [0xf6, 0xf4, 0xef]);
-    assert_eq!(inkiest(false), [0x9a, 0x9a, 0xa4]);
-}
-
-#[test]
-fn the_arrows_are_faces_the_height_of_a_value() {
-    for right in [false, true] {
-        let caret = quick_caret_face(right);
-        assert!(
-            caret.w > 0 && caret.rgba.chunks(4).any(|p| p[3] > 0),
-            "an empty arrow"
-        );
-        assert_eq!(caret.h, quick_value_face("On", true).h);
-    }
 }

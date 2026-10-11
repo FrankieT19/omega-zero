@@ -20,7 +20,6 @@ mod keyboard;
 mod kit;
 mod kit_layout;
 mod label;
-mod legend;
 mod letters;
 mod link_art;
 mod network;

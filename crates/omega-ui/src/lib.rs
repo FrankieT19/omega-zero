@@ -75,16 +75,13 @@ pub use link_art::{
     PLUG_H, PLUG_TIP_X, PLUG_W, PORT_H, PORT_W,
 };
 pub use plate::{
-    arrows_hint_face, arrows_hint_width, cap_width, centred_hints, hint_face, hint_quad, hint_row,
-    hint_width, title_face, word_cap_top, word_face, word_width, Hint, UndoFace, ARROW_GAP, CAP,
-    CAP_GAP, HINT_EDGE, HINT_GAP, HINT_H, LEGEND_GAP, TITLE_H, TITLE_W,
+    arrows_hint_face, arrows_hint_width, cap_width, hint_face, hint_quad, hint_row, hint_width,
+    title_face, word_cap_top, word_face, word_width, Hint, UndoFace, ARROW_GAP, CAP, CAP_GAP,
+    HINT_EDGE, HINT_GAP, HINT_H, TITLE_H, TITLE_W,
 };
 pub use polaroids::{photo_face, PhotoFace, Polaroids, DOT, LEGEND, PHOTO_H, PHOTO_W};
 pub use power_menu::PowerChoice;
-pub use quick_menu::{
-    menu_face, quick_caret_face, quick_value_face, MENU_H, MENU_INK, MENU_PAD, QUICK_EDGE,
-    QUICK_PITCH,
-};
+pub use quick_menu::{menu_face, MENU_H, MENU_INK, MENU_PAD};
 pub use refusal::Refusal;
 pub use settings_menu::{
     configs_in, settings_frame, settings_panels, settings_row_face, settings_row_rects,

@@ -121,25 +121,15 @@ pub fn draw_gauge(
         });
     }
 
-    if percent.w > 0 {
-        let px = x + FIGURE_AT;
-        let py = y - word_cap_top();
-        out.push(match percent.face {
-            Some(tex) => Draw::Tex {
-                x: px,
-                y: py,
-                w: percent.w as f32,
-                h: HINT_H as f32,
-                tex,
-                alpha: 1.0,
-            },
-            None => Draw::Rect {
-                x: px,
-                y: py,
-                w: percent.w as f32,
-                h: HINT_H as f32,
-                colour: [1.0, 1.0, 1.0, 0.08],
-            },
+    // a figure not printed yet leaves its room empty
+    if let (true, Some(tex)) = (percent.w > 0, percent.face) {
+        out.push(Draw::Tex {
+            x: x + FIGURE_AT,
+            y: y - word_cap_top(),
+            w: percent.w as f32,
+            h: HINT_H as f32,
+            tex,
+            alpha: 1.0,
         });
     }
 }
