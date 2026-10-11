@@ -4,7 +4,7 @@
 use crate::plate::UndoFace;
 use crate::text;
 
-pub(crate) const MENU_PX: f32 = 27.0;
+pub(crate) const MENU_PX: f32 = 18.0;
 const MENU_MIN_PX: f32 = 18.0;
 pub const MENU_H: u32 = 40;
 pub const MENU_PAD: u32 = 18;

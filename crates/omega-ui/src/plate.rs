@@ -21,9 +21,9 @@ const INK: [u8; 3] = [0xf6, 0xf4, 0xef];
 const CAP_INK: [u8; 3] = [0x1a, 0x19, 0x17];
 const KEY_PX: f32 = 18.0;
 const LABEL_PX: f32 = 18.0;
-const LABEL_MIN_PX: f32 = 9.0;
+const LABEL_MIN_PX: f32 = 18.0;
 const TITLE_PX: f32 = 18.0;
-const TITLE_MIN_PX: f32 = 9.0;
+const TITLE_MIN_PX: f32 = 18.0;
 
 pub struct UndoFace {
     pub rgba: Vec<u8>,
