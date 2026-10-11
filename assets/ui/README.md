@@ -33,7 +33,8 @@ assets/ui/
     ├── omega-button.js    <omega-button>    a page's link or button, drawn as the bar's pill
     ├── omega-screen.js    <omega-screen>    a screenshot in a handheld's bezel
     ├── omega-card.js      <omega-card>      a feature: an icon, a title and a few lines
-    └── omega-code.js      <omega-code>      lines to read or type exactly, scrolled in a box
+    ├── omega-code.js      <omega-code>      lines to read or type exactly, scrolled in a box
+    └── omega-tabs.js      <omega-tabs>      a page's tabs, drawn as a row of panel titles
 ```
 
 ## Using it
@@ -75,15 +76,25 @@ classic scripts, no build step, so it works from `file://`.
 
 ## Pages around the menus
 
-The last four components are for pages about omega-zero rather than its screens: the site
+The last five components are for pages about omega-zero rather than its screens: the site
 (`site/`) is drawn with them and the rest of the kit. Each holds the page's own element, so the
 words, links, headings and alt text stay real HTML: `<omega-button>` a link or button in the
 bar's pill, lit on hover and focus, with a ring for keyboard focus; `<omega-screen>` a screenshot
 in a handheld's bezel, 2×2 art pixels kept 2×2 at its own size; `<omega-card>` a feature, its icon
 an 11×11 sprite (`cart`, `chip`, `rewind`, `link`, `window`, `gamepad`, `wifi`, `bluetooth`,
 `theme`) beside a slotted title; `<omega-code>` a `<pre>` in a dark box that scrolls sideways
-instead of the page, with a label and a COPY key if asked. They mark how they draw what they hold
-`!important`, so a page's own rules for links, headings and `<pre>` stay off it.
+instead of the page, with a label and a COPY key if asked; `<omega-tabs>` a row of links drawn as
+panel titles, each tab 12 art pixels tall with the panel's slanted end, wrapping into rows on a
+narrow page. They mark how they draw what they hold `!important`, so a page's own rules for
+links, headings and `<pre>` stay off it.
+
+`<omega-tabs>` is an ARIA tablist: each link becomes a tab and the part of the page it links to
+its tabpanel, every part but the one shown hidden; Left and Right (round from the ends), Home and
+End move between tabs and show the one moved to, and a click, Enter or Space shows the one
+pressed. With `hash` the URL's hash follows the tab shown, none for the first, and the tab
+follows the hash, so `index.html#install` opens on INSTALL, the back button goes back a tab, and a
+link to something inside a part shows its tab and scrolls to it. Each change sends `omega-tab`.
+With scripts off the links stay links and every part shows, one under the other.
 
 `site/kit` is a link to this folder (and `site/logo` to `assets/logo`), so `site/index.html`
 opens from disk like the storybook; `.github/workflows/pages.yml` copies `site/` with the links

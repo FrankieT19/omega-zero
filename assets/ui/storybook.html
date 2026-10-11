@@ -25,6 +25,7 @@
 <script src="components/omega-screen.js"></script>
 <script src="components/omega-card.js"></script>
 <script src="components/omega-code.js"></script>
+<script src="components/omega-tabs.js"></script>
 <style>
   /* the page around the components: omega-zero's site colours */
   :root {
@@ -736,6 +737,66 @@ System/       omega-zero itself</pre></omega-code>
   &lt;h3 slot="title"&gt;The shelf&lt;/h3&gt;
   &lt;p&gt;Solid carts in their own plastics, with real label scans.&lt;/p&gt;
 &lt;/omega-card&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-tabs&gt;</h3><code>components/omega-tabs.js</code></header>
+        <p class="dim">A page's tabs, drawn as a row of panel titles: each tab the dark title tab of
+          an <code>&lt;omega-panel&gt;</code> with its slanted end, on the bright strip, the stripe
+          line under the row and the panel's edge line round it. The tab shown is an active panel's
+          title, the tab colour and a cream word; the others are dark with a dim word, cream under
+          the pointer. The tabs are the page's own links, each to the part it shows, so with scripts
+          off they are links to parts all shown one under the other. It is an ARIA tablist: Left and
+          Right move to the tab before or after and show it, Home and End the first and last; a
+          click, Enter or Space shows the tab pressed; keyboard focus underlines the word. Narrower
+          than its tabs, it wraps them into rows, each on its own strip.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">three tabs, each showing the panel it links to (click, or Tab to one and use the arrows)</span>
+          <omega-tabs label="Tabs example">
+            <a href="#tabs-shelf">SHELF</a>
+            <a href="#tabs-settings">SETTINGS</a>
+            <a href="#tabs-theme">THEME</a>
+          </omega-tabs>
+          <omega-panel id="tabs-shelf" label="SHELF" active style="flex: none">
+            <omega-row label="CART" value="EMERALD"></omega-row>
+            <omega-row label="CORE" value="MGBA"></omega-row>
+          </omega-panel>
+          <omega-panel id="tabs-settings" label="SETTINGS" active style="flex: none">
+            <omega-row label="FAST FORWARD" value="6X"></omega-row>
+            <omega-row label="RUMBLE" value="ON"></omega-row>
+          </omega-panel>
+          <omega-panel id="tabs-theme" label="THEME" active style="flex: none">
+            <omega-row label="COLOUR" value="NIGHT"></omega-row>
+            <omega-row label="FONT" value="BOLD"></omega-row>
+          </omega-panel>
+          <span class="tag">narrower than its tabs: they wrap into rows (buttons, no panels)</span>
+          <div style="width: calc(150 * var(--u)); max-width: 100%">
+            <omega-tabs label="Wrapping example">
+              <button type="button">HOME</button>
+              <button type="button">SCREENS</button>
+              <button type="button">INSTALL</button>
+              <button type="button">DEVICES</button>
+              <button type="button">CREDITS</button>
+            </omega-tabs>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>slot</td><td>The tabs: <code>&lt;a href="#part"&gt;</code>s (or <code>&lt;button&gt;</code>s with <code>aria-controls</code>), their words in capitals. Each part named becomes a tabpanel, hidden but for the one shown.</td></tr>
+            <tr><td>label</td><td>What the tabs are, for a screen reader (<code>aria-label</code>).</td></tr>
+            <tr><td>hash</td><td>The URL's hash follows the tab shown (none for the first) and the tab follows the hash: links to <code>#part</code>, the back button, and links to something inside a part, which is scrolled to.</td></tr>
+            <tr><td>select(i)</td><td>Shows tab <code>i</code>, an index or a part's id; <code>index</code> is the one shown.</td></tr>
+            <tr><td>omega-tab</td><td>The event each change sends, from the first tab shown: <code>detail</code> has <code>index</code>, <code>id</code>, <code>tab</code> and <code>panel</code>.</td></tr>
+            <tr><td>::part</td><td><code>bar</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-tabs label="omega-zero" hash&gt;
+  &lt;a href="#home"&gt;HOME&lt;/a&gt;
+  &lt;a href="#install"&gt;INSTALL&lt;/a&gt;
+&lt;/omega-tabs&gt;
+&lt;section id="home"&gt;…&lt;/section&gt;
+&lt;section id="install"&gt;…&lt;/section&gt;</code></pre>
       </article>
 
     </div>

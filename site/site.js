@@ -1,6 +1,8 @@
 /*
-  What moves on omega-zero's site: the screens' picker, the Theme panel, and the bottom bar's two
-  actions. The page reads and works without scripts, every screen shown one under the other.
+  What moves on omega-zero's site: the screens' picker and how it advances by itself, the loops,
+  the Theme panel, and the bottom bar's two actions. The tabs are <omega-tabs>'s own. The page
+  reads and works without scripts: every part shown one under the other, every screen too, and
+  each loop as its poster with the browser's own controls.
 */
 (() => {
   // What the Theme panel was last left at, kept in this browser only; nothing breaks without it.
@@ -14,12 +16,16 @@
   };
   // 'IN GAME' as 'In game', for a name read aloud
   const spoken = label => label[0] + label.slice(1).toLowerCase();
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  const shown = () => document.visibilityState === 'visible';
 
   // ---- the screens: a row for each, lit for the one the handheld shows ----
   // A tab list down the SCREENS panel; Up and Down (or Left and Right) move through it, as the
   // cursor does on the handheld, and the screen follows.
+  const viewer = document.querySelector('.viewer');
   const picker = document.querySelector('.picker');
   const shots = [...document.querySelectorAll('.shot')];
+  let current = 0;
   const tabs = shots.map((shot, i) => {
     const tab = document.createElement('button');
     tab.type = 'button';
@@ -39,6 +45,7 @@
   });
 
   function show(i, focus = false) {
+    current = i;
     shots.forEach((shot, j) => shot.classList.toggle('on', i === j));
     tabs.forEach((tab, j) => {
       tab.setAttribute('aria-selected', String(i === j));
@@ -60,6 +67,101 @@
   });
   show(0);
   document.querySelector('.shots').classList.add('ready');
+
+  // ---- the screens advance by themselves ----
+  // The next one every few seconds while SCREENS is the tab shown and on screen. The pointer over
+  // it or the focus in it holds it; any press holds it a while longer, and PAUSE stops it until
+  // PLAY. Nothing advances while the system asks for less motion.
+  const ADVANCE = 3500;
+  const HOLD = 6000;
+  const toggle = document.querySelector('.auto-toggle');
+  const toggleBox = toggle.closest('.auto-buttons');
+  let stopped = false;
+  let hovered = false;
+  let inView = false;
+  let heldUntil = 0;
+  let next = performance.now() + ADVANCE;
+  const hold = () => { heldUntil = performance.now() + HOLD; };
+  const running = () => !still.matches && !stopped && shown() && inView && !viewer.closest('[hidden]')
+    && !hovered && !viewer.contains(document.activeElement) && performance.now() >= heldUntil;
+  setInterval(() => {
+    const now = performance.now();
+    if (!running()) {
+      next = Math.max(next, now + ADVANCE);
+      return;
+    }
+    if (now >= next) {
+      show((current + 1) % shots.length);
+      next = now + ADVANCE;
+    }
+  }, 250);
+  viewer.addEventListener('pointerenter', () => { hovered = true; });
+  viewer.addEventListener('pointerleave', () => { hovered = false; hold(); });
+  viewer.addEventListener('focusout', hold);
+  for (const type of ['pointerdown', 'keydown', 'wheel']) viewer.addEventListener(type, hold, { passive: true });
+  new IntersectionObserver(([entry]) => { inView = entry.isIntersecting; }).observe(viewer);
+  toggle.addEventListener('click', () => {
+    stopped = !stopped;
+    toggle.textContent = stopped ? 'PLAY' : 'PAUSE';
+    toggle.setAttribute('aria-pressed', String(stopped));
+  });
+  // the button only where the screens can move at all
+  const offerToggle = () => { toggleBox.hidden = still.matches; };
+  still.addEventListener('change', offerToggle);
+  offerToggle();
+
+  // ---- the loops ----
+  // Muted, looping and inline; each plays while it is on screen and stops when it is not (a tab
+  // not shown is not on screen), and loads only once it is first seen. A poster given as
+  // data-poster is fetched only once its loop comes near the screen. Under reduced motion each
+  // stays its poster unless pressed. A click, Enter or Space pauses one or plays it again.
+  const loops = [...document.querySelectorAll('video.clip')];
+  const near = new IntersectionObserver(entries => {
+    for (const { target, isIntersecting } of entries) {
+      if (!isIntersecting) continue;
+      target.poster = target.dataset.poster;
+      near.unobserve(target);
+    }
+  }, { rootMargin: '600px 0px' });
+  for (const video of loops) if (video.dataset.poster && !video.poster) near.observe(video);
+  const visible = new Set();
+  const chosen = new Map(); // a loop pressed: true to play, false to stay paused
+  function update(video) {
+    const wanted = chosen.get(video) ?? !still.matches;
+    if (visible.has(video) && wanted && shown()) {
+      video.preload = 'auto';
+      video.autoplay = true;
+      video.play().catch(() => { /* not allowed or not loaded yet; the poster stays */ });
+    } else if (!video.paused) {
+      video.pause();
+    }
+  }
+  const watch = new IntersectionObserver(entries => {
+    for (const { target, isIntersecting } of entries) {
+      if (isIntersecting) visible.add(target);
+      else visible.delete(target);
+      update(target);
+    }
+  });
+  for (const video of loops) {
+    video.muted = true;
+    video.removeAttribute('controls');
+    video.tabIndex = 0;
+    const press = () => {
+      chosen.set(video, video.paused);
+      update(video);
+    };
+    video.addEventListener('click', press);
+    video.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      press();
+    });
+    watch.observe(video);
+  }
+  const updateAll = () => loops.forEach(update);
+  still.addEventListener('change', updateAll);
+  document.addEventListener('visibilitychange', updateAll);
 
   // ---- the bottom bar ----
   // Its actions are links here, so the bar does not pair them itself: they are given the room
@@ -83,7 +185,6 @@
   // and a click anywhere else on it steps forward), Up and Down move to the row above or below.
   // The row under the cursor, the focused or pointed-at one, is lit.
   const backdrops = [...document.querySelectorAll('.omega-backdrop')];
-  const still = matchMedia('(prefers-reduced-motion: reduce)');
   const SETTINGS = {
     style: {
       values: OmegaBackdrop.STYLES,
