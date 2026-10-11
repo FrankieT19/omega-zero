@@ -21,6 +21,7 @@
 <script src="components/omega-row.js"></script>
 <script src="components/omega-list-row.js"></script>
 <script src="components/omega-bar.js"></script>
+<script src="components/omega-gauge.js"></script>
 <script src="components/omega-button.js"></script>
 <script src="components/omega-screen.js"></script>
 <script src="components/omega-card.js"></script>
@@ -153,7 +154,10 @@
   .outlined omega-row::part(row), .outlined omega-row::part(label), .outlined omega-row::part(caret-left),
   .outlined omega-row::part(value), .outlined omega-row::part(caret-right), .outlined omega-row::part(opens),
   .outlined omega-bar::part(bar), .outlined omega-bar::part(middle), .outlined omega-bar::part(hints),
-  .outlined omega-bar::part(key), .outlined omega-bar::part(word) {
+  .outlined omega-bar::part(key), .outlined omega-bar::part(word),
+  .outlined omega-gauge::part(tab), .outlined omega-gauge::part(label), .outlined omega-gauge::part(slant),
+  .outlined omega-gauge::part(strip), .outlined omega-gauge::part(well), .outlined omega-gauge::part(cells),
+  .outlined omega-gauge::part(icon) {
     outline: 1px dashed var(--area); outline-offset: -1px;
   }
 
@@ -518,6 +522,50 @@
 
 &lt;omega-list-row label="8BitDo SN30 Pro" value="CONNECTED" device="gamepad"&gt;&lt;/omega-list-row&gt;
 &lt;omega-list-row label="Mi Smart Band 4" device="other"&gt;&lt;/omega-list-row&gt;   &lt;!-- found only: no value --&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-gauge&gt;</h3><code>components/omega-gauge.js</code></header>
+        <p class="dim">A level on one line, like Mega Man Zero's life gauge: a title tab naming it, then
+          a well of cells, as many lit as the level reaches, and an icon at its end. It is a panel's
+          header with the strip beside the tab made the gauge, 15 art pixels tall like the bottom bar,
+          so it sits with the menus and on its own over a game: the volume, the brightness, the blue
+          light and the rewind left. One cell to a step reads best, 9 for a level of 0 to 9; 20 cells
+          of 5% each for 0 to 100. The cells stand on the title's capitals' rows.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">the four over a game, and the volume muted</span>
+          <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
+            <omega-gauge label="VOLUME" value="55" max="100" cells="20" icon="volume"></omega-gauge>
+            <omega-gauge label="BRIGHTNESS" value="6" max="9" cells="9" icon="brightness"></omega-gauge>
+            <omega-gauge label="BLUE LIGHT" value="3" max="9" cells="9" icon="bluelight"></omega-gauge>
+            <omega-gauge label="REWIND" value="70" max="100" cells="20" icon="rewind"></omega-gauge>
+            <omega-gauge label="VOLUME" value="0" max="100" cells="20" icon="muted"></omega-gauge>
+          </div>
+          <div class="side">
+            <figure>
+              <span class="tag">empty, full, no icon, headphones</span>
+              <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
+                <omega-gauge label="LEVEL" value="0" max="9" cells="9"></omega-gauge>
+                <omega-gauge label="LEVEL" value="9" max="9" cells="9"></omega-gauge>
+                <omega-gauge label="VOLUME" value="35" max="100" cells="20" icon="headphones"></omega-gauge>
+                <omega-gauge label="SPEED" value="4" max="8" cells="8" icon="fastforward"></omega-gauge>
+              </div>
+            </figure>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>label</td><td>The name in the tab, in capitals whatever case it is given in, lit in <code>--oz-cream</code>.</td></tr>
+            <tr><td>value</td><td>The level, from 0 to <code>max</code>. Default 0.</td></tr>
+            <tr><td>max</td><td>The level the gauge is full at. Default 100.</td></tr>
+            <tr><td>cells</td><td>How many cells the well has. Lit cells are <code>round(value / max × cells)</code> from the left, in <code>--oz-label</code>; the rest in <code>--oz-plate</code>. Default 20.</td></tr>
+            <tr><td>icon</td><td>A 7×7 sprite after the cells, in <code>--oz-cream</code>: <code>volume</code>, <code>muted</code>, <code>headphones</code>, <code>brightness</code>, <code>bluelight</code>, <code>rewind</code>, <code>fastforward</code>. None without it.</td></tr>
+            <tr><td>::part</td><td><code>gauge</code>, <code>tab</code>, <code>label</code>, <code>slant</code>, <code>strip</code>, <code>well</code>, <code>cells</code>, <code>icon</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-gauge label="VOLUME" value="55" max="100" cells="20" icon="volume"&gt;&lt;/omega-gauge&gt;
+&lt;omega-gauge label="BRIGHTNESS" value="6" max="9" cells="9" icon="brightness"&gt;&lt;/omega-gauge&gt;</code></pre>
       </article>
 
       <article class="card wide">

@@ -28,6 +28,7 @@ assets/ui/
     ├── omega-row.js       <omega-row>       one setting in a panel, lit under the cursor
     ├── omega-list-row.js  <omega-list-row>  a Wi-Fi network or Bluetooth device in a list
     ├── omega-bar.js       <omega-bar>       the bottom bar: two actions, key hints between them
+    ├── omega-gauge.js     <omega-gauge>     a level on one line: a title tab, then cells and an icon
     ├── action-left.js     <action-left>     the bottom bar's left action
     ├── action-right.js    <action-right>    the same, mirrored
     ├── omega-button.js    <omega-button>    a page's link or button, drawn as the bar's pill
@@ -55,6 +56,7 @@ classic scripts, no build step, so it works from `file://`.
 <script src="components/action-left.js"></script>
 <script src="components/action-right.js"></script>
 <script src="components/omega-bar.js"></script>
+<script src="components/omega-gauge.js"></script>
 
 <div class="omega-backdrop" data-style="plates" data-moving></div>  <!-- Grid without data-style -->
 
@@ -66,6 +68,7 @@ classic scripts, no build step, so it works from `file://`.
     <omega-list-row label="8BitDo SN30 Pro" value="CONNECTED" device="gamepad"></omega-list-row>
   </omega-panel>
 </omega-modal>
+<omega-gauge label="VOLUME" value="55" max="100" cells="20" icon="volume"></omega-gauge>
 <omega-bar hint="Y RESET">
   <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
   <action-right slot="right" label="SETTINGS" hint="START"></action-right>
@@ -206,6 +209,10 @@ These are what make it look like one thing. Keep to them when changing or adding
 - **Each area is its own div**, named with `part` so a page can reach it with `::part()`.
 - **Space is even.** Text gets the same room above as below inside its box; a title starts from
   its tab's left edge.
+- **One exception: the GAME BOY ADVANCE band round a game.** On the real console that strip is a
+  label printed in high resolution, and the band imitates it, so it keeps the look of a
+  high-resolution print and is never redrawn as pixel art. Everything else on screen is pixel art
+  on this grid.
 
 ## Adding a component
 
