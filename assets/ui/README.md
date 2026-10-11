@@ -72,7 +72,7 @@ classic scripts, no build step, so it works from `file://`.
 ## Screens and slides
 
 `flow.html` puts every menu screen together from the kit (the shelf, Settings and everything
-under it, CONTROLS) and moves between them with the slides the device draws: 280 ms,
+under it, CONTROLS, the power menu and the screens after it) and moves between them with the slides the device draws: 280 ms,
 smootherstep, every frame on whole art pixels. It is the approved reference for the Rust screens.
 Open it from disk like the storybook. What Rust draws itself (the carts, the slot, the top bar,
 the About sticker) is a flat placeholder.
@@ -88,6 +88,7 @@ Walk it with the keyboard or the buttons under the screen:
 | Y | `Y` |
 | START | `Enter` |
 | SELECT | `Space` or right `Shift` |
+| POWER, held | `P` |
 
 The sidebar jumps straight to a screen, sets Settings > Theme and the panel size, and has
 **slow motion ×5** and **step one frame**, which holds a slide and moves it a frame at a time.
@@ -115,13 +116,19 @@ disconnects; Y forgets a paired device. The bar says `X SCAN` while the radio is
 "Bluetooth is off.". Settings' BLUETOOTH row shows the connected device's name in capitals,
 else ON or OFF.
 
+Holding POWER opens POWER on any screen, a lone panel like THEME's with RESTART and POWER OFF,
+deeper from the screen it was held on, which its B goes back to. A on either row goes deeper to
+the screen shown until the handheld goes down: RESTART saying "Restarting…" or POWER OFF saying
+"Turning off…", a note on its own as SSH's. Nothing can be pressed there, so the whole bar sinks
+away as it slides in, `even(p·38)` down, as it does on the device when a cart goes in.
+
 The URL's hash says what is shown, and the page keeps it up to date as you walk, so a link or a
 headless Chrome screenshot lands on the same frame:
 
 | Key | Values |
 |---|---|
-| `screen` | `shelf`, `settings`, `controls`, `network`, `ssh`, `keyboard`, `bluetooth`, `labels`, `datetime`, `background` (THEME), `about` |
-| `from` | slide into `screen` from this one, deeper or back as the tree has it; `dir=in` or `dir=out` forces the way |
+| `screen` | `shelf`, `settings`, `controls`, `network`, `ssh`, `keyboard`, `bluetooth`, `labels`, `datetime`, `background` (THEME), `about`, `power` (POWER held), `restarting`, `poweroff` |
+| `from` | slide into `screen` from this one, deeper or back as the tree has it; `dir=in` or `dir=out` forces the way. For `power`, the screen POWER was held on (the shelf when there is none) |
 | `t` | with `from`: hold the slide at this time, 0 to 1 |
 | `size` | `640x480` (default), `720x480`, `720x720` |
 | `colour` | `night` (default), `slate`, `navy`, `teal`, `green`, `plum`, `crimson`, `amber` |

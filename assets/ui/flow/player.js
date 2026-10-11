@@ -17,7 +17,10 @@
     The bottom bar never leaves. When its actions change (shelf and menus), the old ones sink out
       of the screen over p 0 to 0.5 and the new ones rise into place over p 0.5 to 1; between two
       menus they stay put. Its hint changes with the screen, and its font the moment Theme's FONT
-      does.
+      does. Only on the screen after the power menu's choice, where nothing can be pressed, does
+      the whole bar sink away, dy = even(p·38), as it does on the device when a cart goes in.
+    Holding POWER (P) opens the power menu deeper from whatever screen is shown, and its B goes
+      back to that screen.
 
   Everything is placed with left and top in whole pixels, a frame at a time, from
   requestAnimationFrame: no transforms and no CSS transitions, so nothing ever lands between
@@ -47,18 +50,19 @@
     slot: screen.querySelector('.shelf-slot'),
   };
   const page = name => screen.querySelector(`.page[data-screen="${name}"]`);
-  const { model, PARENT } = FlowScreens;
+  const { model, PARENT, GOING } = FlowScreens;
   const screens = FlowScreens.build(screen);
 
   const NAMES = {
     shelf: 'Shelf', settings: 'Settings', network: 'Network', ssh: 'SSH', keyboard: 'Keyboard',
     bluetooth: 'Bluetooth', labels: 'Labels', datetime: 'Date & Time', background: 'Theme', about: 'About',
-    controls: 'Controls',
+    controls: 'Controls', power: 'Power', restarting: 'Restarting', poweroff: 'Power Off',
   };
-  // What the bottom bar shows: the shelf's actions, every menu's, and the key hints some menus add.
+  // What the bottom bar shows: the shelf's actions, every menu's, and the key hints some menus add;
+  // null on the screens after the power menu's choice, which have none.
   const SHELF_BAR = { left: ['CONTROLS', 'SELECT'], right: ['SETTINGS', 'START'] };
   const MENU_BAR = { left: ['RETURN', 'B'], right: ['CONFIRM', 'A'] };
-  const barOf = name => (name === 'shelf' ? SHELF_BAR : MENU_BAR);
+  const barOf = name => (name === 'shelf' ? SHELF_BAR : GOING.includes(name) ? null : MENU_BAR);
   const HINTS = { labels: 'START FETCH' };
   // The two screens that stand beside each other rather than one under the other: a slide
   // between them goes the mirror way. A slide from Settings to a screen under it, or from the
@@ -108,6 +112,10 @@
   function sinkActions(dy) {
     for (const action of actions) action.style.top = `${dy}px`;
   }
+  // The whole bar, hints and actions, `dy` pixels down out of the screen.
+  function dropBar(dy) {
+    bar.style.bottom = `${-dy}px`;
+  }
   // The screen's hint for where its cursor is, if it has one (screens.js), else the screen's own.
   function setHint(name) {
     const hint = screens[name].hint?.() ?? HINTS[name];
@@ -115,12 +123,13 @@
     else if (bar.getAttribute('hint') !== hint) bar.setAttribute('hint', hint);
   }
 
-  // A screen at rest, alone.
+  // A screen at rest, alone; one with no bar has it sunk away.
   function rest(name) {
     showOnly(name);
     place(name, 0, 0, 1);
-    setActions(barOf(name));
+    setActions(barOf(name) ?? MENU_BAR);
     sinkActions(0);
+    dropBar(barOf(name) ? 0 : SINK);
     setHint(name);
   }
 
@@ -136,10 +145,15 @@
     place(to, arriving, 1 - p, -sign);
     const [before, after] = [barOf(from), barOf(to)];
     let sunk = 0;
-    if (before === after) setActions(after);
+    let drop = 0;
+    // to a screen with no bar, the whole bar sinks away with the actions it had
+    if (!after) { setActions(before ?? MENU_BAR); drop = even(p * SINK); }
+    else if (!before) { setActions(after); drop = even((1 - p) * SINK); }
+    else if (before === after) setActions(after);
     else if (p < 0.5) { setActions(before); sunk = even((p / 0.5) * SINK); }
     else { setActions(after); sunk = even(((1 - p) / 0.5) * SINK); }
     sinkActions(sunk);
+    dropBar(drop);
     setHint(p < 0.5 ? from : to);
     readout(slide, p, leaving, arriving, sunk);
   }
@@ -180,9 +194,11 @@
     writeHash();
   }
 
-  // A screen at once, with the cursors up the tree on the rows that lead to it, as if walked.
+  // A screen at once, with the cursors up the tree on the rows that lead to it, as if walked: the
+  // power menu and the screens after it as if POWER were held on the shelf.
   function jump(name) {
     finish();
+    if (name === 'power' || GOING.includes(name)) PARENT.power = 'shelf';
     for (let child = name; PARENT[child]; child = PARENT[child]) screens[PARENT[child]].focus?.(child);
     state.current = name;
     rest(name);
@@ -193,6 +209,7 @@
 
   function press(key) {
     finish();
+    if (key === 'power') return holdPower();
     const answer = screens[state.current].press(key);
     if (answer?.go) go(answer.go, 'in');
     else if (answer?.back && PARENT[state.current]) go(PARENT[state.current], 'out');
@@ -200,6 +217,16 @@
       setHint(state.current);
       writeHash();
     }
+  }
+
+  // Holding POWER: the power menu, its cursor on RESTART, deeper from the screen shown, which its
+  // B goes back to. Nothing happens on the menu itself or after its choice.
+  function holdPower() {
+    if (state.current === 'power' || GOING.includes(state.current)) return;
+    PARENT.power = state.current;
+    screens.power.cursor = 0;
+    screens.power.light();
+    go('power', 'in');
   }
 
   // ---- whole pixels for what is centred ----
@@ -318,9 +345,11 @@
       setHint(to);
       return;
     }
+    jump(from);
+    // the power menu goes back to the screen it slid in from
+    if (to === 'power') PARENT.power = from;
     const dir = ['in', 'out'].includes(q.get('dir')) ? q.get('dir') :
       under(from, to) ? 'out' : 'in';
-    jump(from);
     // going deeper, the cursor on the row that opens the next screen
     if (dir === 'in') screens[from].focus?.(to);
     setRow(to, q.get('row'));
@@ -430,6 +459,7 @@
   const KEYS = {
     ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
     a: 'a', z: 'b', b: 'b', Escape: 'b', x: 'x', s: 'x', y: 'y', Enter: 'start', ' ': 'select',
+    p: 'power',
   };
   document.addEventListener('keydown', e => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;

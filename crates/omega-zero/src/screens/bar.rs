@@ -13,6 +13,11 @@
 //! A cart going in takes the whole bar down out of the screen with it, by the time it starts
 //! down into the slot; the bar stays away while the game is on and rises back as the cart comes
 //! out.
+//!
+//! The power menu has a menu's actions, swapped with those of the screen POWER was held on as
+//! it slides in and out. The screen after its choice has none, since nothing can be pressed:
+//! the whole bar sinks away with the actions it had as that screen slides in, as it does when a
+//! cart goes in.
 
 use omega_gfx::{out_h, Draw, TexId};
 use omega_ui::kit::action::Side;
@@ -23,6 +28,7 @@ use omega_ui::{ease, Millis, CATCH_OUT, SPRITE_PX};
 use crate::app::{App, Phase};
 use crate::core_picker::CorePicker;
 use crate::screens::labels::labels_hints;
+use crate::screens::power::PowerScreen;
 
 /// The core picker's one key beyond the bar's actions: Left and Right move the chip.
 pub const SWAP: Hint<'static> = Hint {
@@ -152,6 +158,9 @@ fn swapped(from: Option<Actions>, to: Option<Actions>, p: f32) -> Option<(Action
 impl App {
     /// Where the bar is now, or None when it is out of sight.
     pub fn bar_place(&self) -> Option<BarPlace> {
+        if self.power_shown() {
+            return self.power_bar_place();
+        }
         let now = self.now();
         let (actions, sink) = match (&self.slide, self.core_picker_shown()) {
             (Some(slide), _) => swapped(
@@ -178,13 +187,51 @@ impl App {
         })
     }
 
+    /// Where the bar is over a power screen, or through a slide to or from one: the menu's
+    /// actions swap with those of the screen POWER was held on, and the screen after the
+    /// choice, which has none, takes the whole bar down with the actions it had as it slides in.
+    fn power_bar_place(&self) -> Option<BarPlace> {
+        let now = self.now();
+        let slide = self.power_slide().map(|s| (s.from, s.progress(now)));
+        if let Some(PowerScreen::Going(_)) = self.power_screen() {
+            let (from, p) = slide?;
+            let actions = self.actions_over(from)?;
+            let drop = (p * SINK as f32).round() as u32;
+            return (drop < SINK).then_some(BarPlace {
+                actions,
+                sink: drop,
+                drop,
+            });
+        }
+        let to = self.actions_over(self.power_screen());
+        let (actions, sink) = match slide {
+            Some((from, p)) => swapped(self.actions_over(from), to, p)?,
+            None => (to?, 0),
+        };
+        Some(BarPlace {
+            actions,
+            sink,
+            drop: 0,
+        })
+    }
+
+    /// The actions the bar shows on `screen`, or with None on the screen POWER was held on.
+    fn actions_over(&self, screen: Option<PowerScreen>) -> Option<Actions> {
+        match screen {
+            None => actions_on(&self.phase),
+            Some(PowerScreen::Menu(_)) => Some(Actions::Menu),
+            Some(PowerScreen::Going(_)) => None,
+        }
+    }
+
     /// The keys `phase` has beyond its two actions, for between them: on Network X SCAN while
     /// Wi-Fi is on and Y FORGET on a saved network (`network_hints`), on Bluetooth X SCAN while
     /// the radio is on and Y FORGET on a paired device (`bluetooth_hints`), on Labels START FETCH
     /// or START STOP and Y SIGN OUT (`labels_bar_hints`'), and on the shelf, while the core picker
-    /// over it shows RETURN and CONFIRM, ◀▶ SWAP. They are asked of `phase` rather than the screen on show so a slide
-    /// can show the hints of the screen it leaves. A screen with more keys adds them here;
-    /// Settings and SSH have none, and the keyboard keeps its own line in its modal.
+    /// over it shows RETURN and CONFIRM, ◀▶ SWAP. They are asked of `phase` rather than the
+    /// screen on show so a slide can show the hints of the screen it leaves. A screen with more
+    /// keys adds them here; Settings and SSH have none, and the keyboard keeps its own line in
+    /// its modal.
     pub fn bar_hints(&self, phase: &Phase) -> Vec<Hint<'static>> {
         match phase {
             Phase::Shelf if self.picker_has_bar() => vec![SWAP],
@@ -205,8 +252,19 @@ impl App {
     }
 
     /// The hints the bar shows now: the screen's on show, and through a slide the leaving
-    /// screen's until halfway, the arriving one's after.
+    /// screen's until halfway, the arriving one's after. The power screens have none of their
+    /// own.
     pub fn bar_hints_shown(&self) -> Vec<Hint<'static>> {
+        if self.power_shown() {
+            let shown = match self.power_slide() {
+                Some(slide) if slide.progress(self.now()) < 0.5 => slide.from,
+                _ => self.power_screen(),
+            };
+            return match shown {
+                None => self.bar_hints(&self.phase),
+                Some(_) => Vec::new(),
+            };
+        }
         match &self.slide {
             Some(slide) if slide.progress(self.now()) < 0.5 => self.bar_hints(&slide.from),
             _ => self.bar_hints(&self.phase),

@@ -7,10 +7,11 @@
 <!--
   Every new omega-zero screen, put together from the kit, and a player that walks between them
   with the slides the device will draw: the shelf, Settings and everything under it, the
-  Controls panel. Open it straight from disk; it needs no server or build. The URL's hash picks
-  the screen, the panel size, the colour and any moment of a slide (see "The URL" on the page), so
-  a still of any of them can be taken with headless Chrome. The placeholders for what Rust draws
-  (the carts, the slot, the top bar, the About sticker) are flat on purpose.
+  Controls panel, and the power menu with the screens after it. Open it straight from disk; it
+  needs no server or build. The URL's hash picks the screen, the panel size, the colour and any
+  moment of a slide (see "The URL" on the page), so a still of any of them can be taken with
+  headless Chrome. The placeholders for what Rust draws (the carts, the slot, the top bar, the
+  About sticker) are flat on purpose.
 -->
 <link rel="stylesheet" href="foundation/fonts.css">
 <link rel="stylesheet" href="foundation/tokens.css">
@@ -41,7 +42,8 @@
       the slides between the two go the other way round: the shelf out to the left and Settings in
       from the right, and back again Settings out to the right and the shelf in from the left. The
       screens under Settings, and Controls, slide the usual way. The backdrop behind them never
-      moves with them, and the bottom bar never leaves.</p>
+      moves with them, and the bottom bar never leaves, but for the screen after the power menu's
+      choice, where nothing can be pressed and it sinks away.</p>
   </div>
 
   <div class="layout">
@@ -221,6 +223,28 @@
             </div>
           </section>
 
+          <!-- Holding POWER, on any screen: restart or power off. It opens deeper from the screen
+               it was held on, and B goes back there. -->
+          <section class="part page away" data-screen="power">
+            <omega-panel label="POWER" active class="lone small">
+              <omega-row label="RESTART" data-opens="restarting"></omega-row>
+              <omega-row label="POWER OFF" data-opens="poweroff"></omega-row>
+            </omega-panel>
+          </section>
+
+          <!-- POWER's choice, shown until the handheld goes down: nothing can be pressed, so the
+               bar sinks away -->
+          <section class="part page away" data-screen="restarting">
+            <omega-panel label="RESTART" active class="lone small going">
+              <p class="note">Restarting<i class="g ellipsis"></i></p>
+            </omega-panel>
+          </section>
+          <section class="part page away" data-screen="poweroff">
+            <omega-panel label="POWER OFF" active class="lone small going">
+              <p class="note">Turning off<i class="g ellipsis"></i></p>
+            </omega-panel>
+          </section>
+
           <omega-bar>
             <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
             <action-right slot="right" label="SETTINGS" hint="START"></action-right>
@@ -238,6 +262,7 @@
         <div class="meta">
           <button data-key="select">SELECT</button>
           <button data-key="start">START</button>
+          <button data-key="power" title="Holding POWER">POWER</button>
         </div>
         <div class="face">
           <button data-key="y">Y</button>
@@ -312,6 +337,7 @@
           <tr><td>Y</td><td><kbd>Y</kbd></td><td>Bluetooth: forget a paired device</td></tr>
           <tr><td>START</td><td><kbd>Enter</kbd></td><td>Shelf → Settings; Settings → shelf; keyboard: done</td></tr>
           <tr><td>SELECT</td><td><kbd>Space</kbd> <kbd>right Shift</kbd></td><td>Shelf → Controls</td></tr>
+          <tr><td>POWER, held</td><td><kbd>P</kbd></td><td>Any screen → the power menu; its A restarts or powers off, its B goes back to the screen it was held on</td></tr>
         </table>
       </div>
 
@@ -321,8 +347,8 @@
           slide, can be taken with headless Chrome. The page keeps it up to date as you walk.</p>
         <table>
           <tr><th>Key</th><th>What it does</th></tr>
-          <tr><td>screen</td><td><code>shelf</code>, <code>settings</code>, <code>controls</code>, <code>network</code>, <code>ssh</code>, <code>keyboard</code>, <code>bluetooth</code>, <code>labels</code>, <code>datetime</code>, <code>background</code> (Theme), <code>about</code></td></tr>
-          <tr><td>from</td><td>Slide into <code>screen</code> from this one, deeper or back as the tree has it (<code>dir=in</code> or <code>out</code> to force it).</td></tr>
+          <tr><td>screen</td><td><code>shelf</code>, <code>settings</code>, <code>controls</code>, <code>network</code>, <code>ssh</code>, <code>keyboard</code>, <code>bluetooth</code>, <code>labels</code>, <code>datetime</code>, <code>background</code> (Theme), <code>about</code>, <code>power</code> (holding POWER), <code>restarting</code>, <code>poweroff</code></td></tr>
+          <tr><td>from</td><td>Slide into <code>screen</code> from this one, deeper or back as the tree has it (<code>dir=in</code> or <code>out</code> to force it). For <code>power</code>, the screen POWER was held on, which its B goes back to (the shelf when there is none).</td></tr>
           <tr><td>t</td><td>With <code>from</code>: hold the slide at this time, 0 to 1 (eased into p).</td></tr>
           <tr><td>size</td><td><code>640x480</code> (default), <code>720x480</code>, <code>720x720</code></td></tr>
           <tr><td>colour</td><td><code>night</code> (default), <code>slate</code>, <code>navy</code>, <code>teal</code>, <code>green</code>, <code>plum</code>, <code>crimson</code>, <code>amber</code></td></tr>

@@ -10,7 +10,7 @@ flow="$(cd "$here/../../../../../assets/ui" && pwd)/flow.html"
 chrome="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 mkdir -p "$here/ref"
 
-for screen in controls background datetime labels; do
+for screen in controls background datetime labels power restarting poweroff; do
   for colour in night amber; do
     "$chrome" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
       --virtual-time-budget=3000 --window-size=640,480 \

@@ -1,8 +1,8 @@
-//! The lone panels, CONTROLS, THEME, DATE & TIME and LABELS, against flow.html: each
-//! panel's face is held to a screenshot of flow.html in Chrome (lone/ref/, made by
-//! lone/make-refs.sh from assets/ui/flow.html), pixel for pixel, in Night and in Amber. The
-//! screenshots are the whole 640x480 screen; a panel is in the middle of its page, which is the
-//! screen above the bottom bar.
+//! The lone panels, CONTROLS, THEME, DATE & TIME, LABELS, POWER and the screens after its
+//! choice, RESTART and POWER OFF, against flow.html: each panel's face is held to a screenshot
+//! of flow.html in Chrome (lone/ref/, made by lone/make-refs.sh from assets/ui/flow.html), pixel
+//! for pixel, in Night and in Amber. The screenshots are the whole 640x480 screen; a panel is in
+//! the middle of its page, which is the screen above the bottom bar.
 //!
 //! Set KIT_OUT to a folder to have each face written there as a PNG.
 
@@ -14,7 +14,7 @@ use omega_ui::kit::layout::{screen_px, BAR_U};
 use omega_ui::kit::palette::{palette, Palette};
 use omega_ui::kit::pixel::text_width;
 use omega_ui::kit::row::panel_height;
-use omega_ui::{out_h, out_w, ClockPicker, Draw, SettingsRow, TexId, UndoFace};
+use omega_ui::{out_h, out_w, ClockPicker, Draw, PowerChoice, SettingsRow, TexId, UndoFace};
 use omega_zero::app::App;
 use omega_zero::background_screen::{Backdrop, BackgroundScreen};
 use omega_zero::label_screen::{Labels, LabelsScreen};
@@ -28,6 +28,7 @@ use omega_zero::screens::controls::{
 };
 use omega_zero::screens::labels::{labels_face, labels_hints, NOTE_LINES};
 use omega_zero::screens::lone::{fitted, Lone, NOTE_X};
+use omega_zero::screens::power::{going_face, going_words, power_menu_face, NOTE_ALONE};
 
 /// The time flow.html's Date & Time shows: 2026-10-10 16:00 UTC.
 pub const FLOW_DATE: i64 = 1_791_648_000;
@@ -160,6 +161,67 @@ fn date_and_time_is_flows() {
         assert_eq!((face.w, face.h), (240, 49), "{name}");
         matches_flow(&face, &format!("datetime-{name}"), face.h, 0..face.h);
     }
+}
+
+/// The POWER menu as holding POWER opens it, its cursor on RESTART.
+#[test]
+fn the_power_menu_is_flows() {
+    for (colour, name) in colours() {
+        let face = power_menu_face(PowerChoice::Restart, palette(colour));
+        assert_eq!((face.w, face.h), (200, panel_height(2 * 13)), "{name}");
+        matches_flow(&face, &format!("power-{name}"), face.h, 0..face.h);
+    }
+}
+
+/// The screens after its choice: RESTART saying "Restarting…" and POWER OFF "Turning off…",
+/// each note on its own in the dim colour, as SSH's.
+#[test]
+fn the_screens_after_the_power_menus_choice_are_flows() {
+    for (choice, shot) in [
+        (PowerChoice::Restart, "restarting"),
+        (PowerChoice::PowerOff, "poweroff"),
+    ] {
+        for (colour, name) in colours() {
+            let face = going_face(choice, palette(colour));
+            assert_eq!((face.w, face.h), (200, panel_height(NOTE_ALONE)), "{name}");
+            matches_flow(&face, &format!("{shot}-{name}"), face.h, 0..face.h);
+        }
+    }
+    assert_eq!(
+        going_words(PowerChoice::Restart),
+        ("RESTART", "Restarting…")
+    );
+    assert_eq!(
+        going_words(PowerChoice::PowerOff),
+        ("POWER OFF", "Turning off…")
+    );
+}
+
+/// Moving the cursor to POWER OFF lights its row and puts out RESTART's, and nothing else.
+#[test]
+fn the_power_menus_cursor_lights_its_row() {
+    let pal = palette(0);
+    let (restart, off) = (
+        power_menu_face(PowerChoice::Restart, pal),
+        power_menu_face(PowerChoice::PowerOff, pal),
+    );
+    assert_eq!((restart.w, restart.h), (off.w, off.h));
+    let row_of = |i: usize| (i / 4) as u32 / restart.w;
+    let changed: Vec<u32> = restart
+        .rgba
+        .chunks(4)
+        .zip(off.rgba.chunks(4))
+        .enumerate()
+        .filter(|(_, (a, b))| a != b)
+        .map(|(i, _)| row_of(4 * i))
+        .collect();
+    assert!(!changed.is_empty(), "the cursor did not move");
+    // the well starts 18 down: RESTART's row is 18 to 30, POWER OFF's 31 to 43
+    assert!(
+        changed.iter().all(|y| (18..44).contains(y)),
+        "the cursor changed more than the two rows: {:?}",
+        changed.iter().min()..changed.iter().max()
+    );
 }
 
 fn labels(account: Option<Account>) -> Labels {

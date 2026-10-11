@@ -32,12 +32,13 @@ use crate::link_kind::{link_carried, link_kind, serial_option, LinkKind};
 use crate::link_radio::{radio_jobs, LinkRole, RadioJob, RadioJobs};
 use crate::link_screen::LinkSprites;
 use crate::link_start::{link_port, LinkFail, LinkProgress, LinkStarter, LinkStep};
-use crate::nav::{offsets, Dir, End, Offsets, Slide};
+use crate::nav::{offsets, Dir, End, Offsets, Slide, SLIDE_MS};
 use crate::persist::{self, Snapshot};
 use crate::screens::bar::BarFaces;
 use crate::screens::clock::clock_screen;
 use crate::screens::keyboard::typing_of;
 use crate::screens::lone::Lone;
+use crate::screens::power::{PowerScreen, PowerSlide};
 use crate::screens::ssh::SshScreen;
 use crate::ssh::{ssh_server, Ssh};
 use crate::video_mode::{self, VideoMode};
@@ -76,10 +77,10 @@ pub const LINK_LOST_MS: Millis = 2000;
 
 const PLAY_HOLD_MS: Millis = 500;
 
-const SHUTDOWN_SHOW_MS: Millis = 250;
-
-const POWER_MENU_PITCH: f32 = 44.0;
-const POWER_MENU_BAR_INSET: f32 = 4.0;
+/// How long the screen after the power menu's choice is drawn before omega-zero may restart or
+/// power off: its slide in, and a few frames at rest, so the frame left on the panel while the
+/// platform takes the handheld down is the still one.
+const SHUTDOWN_SHOW_MS: Millis = SLIDE_MS + 120;
 
 const PLATFORM_NAME_IN_MS: Millis = 200;
 const PLATFORM_NAME_HOLD_MS: Millis = 1200;
@@ -322,9 +323,13 @@ pub struct App {
     pub(crate) refusal: Option<Refusal>,
     pub(crate) refused_from: Option<f32>,
     pub(crate) alert_face: Option<TexId>,
-    pub(crate) shutdown_faces: Vec<(TexId, u32, u32)>,
-    pub(crate) power_menu: Option<usize>,
-    pub(crate) power_menu_faces: Vec<(TexId, u32, u32)>,
+    /// What holding POWER has put over the screen: its menu, or the screen after its choice.
+    pub(crate) power_screen: Option<PowerScreen>,
+    /// The slide to or from a power screen under way.
+    pub(crate) power_slide: Option<PowerSlide>,
+    /// The POWER menu's panel, and the one shown after its choice, once baked.
+    pub(crate) power_menu_panel: Option<Lone>,
+    pub(crate) going_panel: Option<Lone>,
     pub(crate) core_picker: Option<CorePicker>,
     pub(crate) core_board_face: Option<TexId>,
     pub(crate) core_lid_face: Option<TexId>,
@@ -470,9 +475,10 @@ impl App {
             refusal: None,
             refused_from: None,
             alert_face: None,
-            shutdown_faces: Vec::new(),
-            power_menu: None,
-            power_menu_faces: Vec::new(),
+            power_screen: None,
+            power_slide: None,
+            power_menu_panel: None,
+            going_panel: None,
             core_picker: None,
             core_board_face: None,
             core_lid_face: None,
@@ -758,9 +764,11 @@ impl App {
         });
     }
 
-    /// Ends the slide under way, if there is one, as though its time were up.
+    /// Ends the slide under way, if there is one, as though its time were up: between two
+    /// screens, or to or from a power screen.
     pub fn finish_slide(&mut self) {
         self.slide = None;
+        self.power_slide = None;
     }
 
     /// The move between screens under way.
@@ -1039,10 +1047,6 @@ impl App {
         }
     }
 
-    pub fn power_menu(&self) -> Option<usize> {
-        self.power_menu
-    }
-
     pub fn core_picker(&self) -> Option<Core> {
         self.core_picker.map(|p| p.seat())
     }
@@ -1136,12 +1140,15 @@ impl App {
 
     pub fn apply(&mut self, action: Action) {
         self.press_ends_boot_fade(action);
-        if self.power_menu.is_some() {
-            match action {
+        match self.power_screen {
+            Some(PowerScreen::Menu(_)) => match action {
                 Action::LidClose => return self.doze(),
                 Action::LidOpen => return self.wake(),
-                _ => return self.power_menu_input(action),
-            }
+                _ => return self.power_input(action),
+            },
+            // nothing can be pressed while the handheld goes down
+            Some(PowerScreen::Going(_)) => return,
+            None => {}
         }
         match action {
             Action::LidClose => return self.doze(),
@@ -1600,6 +1607,9 @@ impl App {
         if self.slide.as_ref().is_some_and(|s| s.over(now)) {
             self.slide = None;
         }
+        if self.power_slide.is_some_and(|s| s.over(now)) {
+            self.power_slide = None;
+        }
         let mut touched = false;
         let next = match &mut self.phase {
             Phase::Inserting {
@@ -1864,34 +1874,9 @@ impl App {
     }
 
     pub fn draw(&self, out: &mut Vec<Draw>) {
-        if let Some(index) = self.power_menu {
-            self.draw_power_menu(index, out);
-            return;
-        }
-        if self.shutting_down() {
-            out.push(Draw::Rect {
-                x: 0.0,
-                y: 0.0,
-                w: out_w() as f32,
-                h: out_h() as f32,
-                colour: [0.0, 0.0, 0.0, 1.0],
-            });
-            let which = if self.restarting {
-                PowerChoice::Restart
-            } else {
-                PowerChoice::PowerOff
-            };
-            if let Some((tex, w, h)) = self.shutdown_faces.get(which.index()).copied() {
-                out.push(Draw::Tex {
-                    x: ((out_w() - w) / 2) as f32,
-                    y: ((out_h() - h) / 2) as f32,
-                    w: w as f32,
-                    h: h as f32,
-                    tex,
-                    alpha: 1.0,
-                });
-            }
-            return;
+        // the power screens stand over whatever POWER was held on
+        if self.power_shown() {
+            return self.draw_power(out);
         }
         // the backdrop never moves: the screens slide over it
         if backdrop_under(&self.phase) {
@@ -1924,7 +1909,7 @@ impl App {
 
     /// Draws `phase`, a screen of a slide or the one shown, moved by `off`. A menu screen
     /// moves as one; the shelf moves its carts, its top bar and its slot each their own way.
-    fn draw_screen(&self, phase: &Phase, off: Offsets, out: &mut Vec<Draw>) {
+    pub(crate) fn draw_screen(&self, phase: &Phase, off: Offsets, out: &mut Vec<Draw>) {
         let start = out.len();
         match phase {
             Phase::Shelf => return self.draw_shelf(off, out),
@@ -2049,14 +2034,6 @@ impl App {
         self.alert_face = Some(face);
     }
 
-    pub fn set_shutdown_faces(&mut self, faces: Vec<(TexId, u32, u32)>) {
-        self.shutdown_faces = faces;
-    }
-
-    pub fn set_power_menu_faces(&mut self, faces: Vec<(TexId, u32, u32)>) {
-        self.power_menu_faces = faces;
-    }
-
     pub fn set_core_board_faces(&mut self, board: TexId, lid: TexId) {
         self.core_board_face = Some(board);
         self.core_lid_face = Some(lid);
@@ -2102,22 +2079,6 @@ impl App {
 
     pub fn link_sprites_ready(&self) -> bool {
         self.link_sprites.is_some()
-    }
-
-    fn draw_power_menu(&self, index: usize, out: &mut Vec<Draw>) {
-        out.push(Draw::Rect {
-            x: 0.0,
-            y: 0.0,
-            w: out_w() as f32,
-            h: out_h() as f32,
-            colour: omega_ui::opening(),
-        });
-        draw_menu_rows(
-            &self.power_menu_faces,
-            Some(index),
-            centred_top(self.power_menu_faces.len()),
-            out,
-        );
     }
 
     pub(crate) fn core_picker_shown(&self) -> Option<CorePicker> {
@@ -2466,46 +2427,6 @@ impl App {
         }
     }
 
-    fn open_power_menu(&mut self) {
-        if self.power_menu.is_some() {
-            return;
-        }
-        if self.link_active() {
-            return self.refuse();
-        }
-        self.flush_resume();
-        self.power_menu = Some(0);
-    }
-
-    fn power_menu_input(&mut self, action: Action) {
-        let Some(index) = self.power_menu else {
-            return;
-        };
-        let last = PowerChoice::ALL.len() - 1;
-        match action {
-            Action::GbaDown(Btn::Up) => {
-                self.power_menu = Some(if index == 0 { last } else { index - 1 })
-            }
-            Action::GbaDown(Btn::Down) => {
-                self.power_menu = Some(if index >= last { 0 } else { index + 1 })
-            }
-            Action::GbaDown(Btn::B) => self.power_menu = None,
-            Action::GbaDown(Btn::A) => {
-                self.power_menu = None;
-                self.close_game_menu();
-                match PowerChoice::ALL[index] {
-                    PowerChoice::Restart => {
-                        self.restarting = true;
-                        self.act_at = self.now() + SHUTDOWN_SHOW_MS;
-                        self.set_led(LedState::Off);
-                    }
-                    PowerChoice::PowerOff => self.begin_power_off(),
-                }
-            }
-            _ => {}
-        }
-    }
-
     fn open_core_picker(&mut self) {
         let Some(root) = self.root.clone() else {
             return;
@@ -2807,7 +2728,7 @@ impl App {
     }
 
     fn poll_link(&mut self) {
-        if self.power_menu.is_some() {
+        if self.power_screen.is_some() {
             return;
         }
         let Some(mut starting) = self.starting.take() else {
@@ -2857,8 +2778,10 @@ impl App {
         }
     }
 
-    fn begin_power_off(&mut self) {
-        if self.powering_off {
+    /// Powers off once the screen saying so has slid in, ending a link session first. Once the
+    /// handheld is going down, either way, nothing changes that.
+    pub(crate) fn begin_power_off(&mut self) {
+        if self.shutting_down() {
             return;
         }
         if self.link_active() {
@@ -2868,6 +2791,19 @@ impl App {
         self.powering_off = true;
         self.act_at = self.now() + SHUTDOWN_SHOW_MS;
         self.set_led(LedState::Off);
+        self.show_going(PowerChoice::PowerOff);
+    }
+
+    /// Restarts once the screen saying so has slid in.
+    pub(crate) fn begin_restart(&mut self) {
+        if self.shutting_down() {
+            return;
+        }
+        self.close_game_menu();
+        self.restarting = true;
+        self.act_at = self.now() + SHUTDOWN_SHOW_MS;
+        self.set_led(LedState::Off);
+        self.show_going(PowerChoice::Restart);
     }
 
     pub fn on_battery(&mut self, b: Battery) {
@@ -3252,7 +3188,7 @@ fn up(level: u8, step: u8, max: u8) -> u8 {
 
 /// Whether the backdrop is drawn under `phase`: under the shelf and every menu, and under a
 /// cart going in or coming out, but not under a game, nor a cart resumed at boot.
-fn backdrop_under(phase: &Phase) -> bool {
+pub(crate) fn backdrop_under(phase: &Phase) -> bool {
     !matches!(
         phase,
         Phase::Playing { .. }
@@ -3288,37 +3224,4 @@ fn free_stamp(ring: &StateRing, now: i64) -> String {
         stamp = format_stamp(secs);
     }
     stamp
-}
-
-fn centred_top(rows: usize) -> f32 {
-    (out_h() as f32 - POWER_MENU_PITCH * rows as f32) / 2.0
-}
-
-fn draw_menu_rows(
-    faces: &[(TexId, u32, u32)],
-    index: Option<usize>,
-    top: f32,
-    out: &mut Vec<Draw>,
-) {
-    for (row, (tex, w, h)) in faces.iter().copied().enumerate() {
-        let y = top + POWER_MENU_PITCH * row as f32;
-        let x = ((out_w() as f32 - w as f32) / 2.0).round();
-        if index == Some(row) {
-            out.push(Draw::Rect {
-                x,
-                y: y + POWER_MENU_BAR_INSET,
-                w: w as f32,
-                h: POWER_MENU_PITCH - 2.0 * POWER_MENU_BAR_INSET,
-                colour: omega_ui::edge(),
-            });
-        }
-        out.push(Draw::Tex {
-            x,
-            y: y + (POWER_MENU_PITCH - h as f32) / 2.0,
-            w: w as f32,
-            h: h as f32,
-            tex,
-            alpha: 1.0,
-        });
-    }
 }

@@ -55,6 +55,7 @@ mod platform;
 mod play;
 mod polaroids;
 mod power;
+mod power_screens;
 mod refusal;
 mod render;
 mod render_bar;

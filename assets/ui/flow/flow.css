@@ -235,6 +235,9 @@ omega-panel.hug { flex: none; }
   width: calc(100% - var(--u)); height: var(--u); background: var(--oz-frame-hi);
 }
 
+/* The screen after the power menu's choice: its note on its own, as SSH's offline one */
+.going .note { margin-top: calc(4 * var(--u)); padding-bottom: calc(5 * var(--u)); }
+
 /* Labels */
 .labels-panel { width: calc(280 * var(--u)); }
 .labels-panel .note { margin-top: calc(4 * var(--u)); padding-bottom: calc(2 * var(--u)); }
