@@ -6,7 +6,7 @@ use omega_ui::{
     LID_SHADOW_H, LID_SHADOW_W, LID_TURN, ROM_H, ROM_W, ROM_X, ROM_Y, SHADOW_H, SHADOW_W,
     SLIDE_SHARE, SLIDE_UP, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W,
 };
-use omega_ui::{slot_top, stage_x, stage_y, TOP_BAR_H};
+use omega_ui::{out_h, stage_x, stage_y, BAR_H, TOP_BAR_H};
 
 fn cart(stem: &str, code: &str) -> Cart {
     Cart {
@@ -187,8 +187,8 @@ fn the_open_cart_starts_as_the_shelf_cart_and_lands_where_the_mockup_has_it() {
     );
     assert_eq!(
         shelf.y + shelf.h / 2.0,
-        (stage_y() + TOP_BAR_H + slot_top()) / 2.0,
-        "not centred between the top bar and the slot on the bottom bar"
+        (stage_y() + TOP_BAR_H + out_h() as f32 - BAR_H) / 2.0,
+        "not centred between the bar across the top and the bar across the bottom"
     );
     assert_eq!(board_at(0.0), shelf_cart());
     let (x, y) = mock(174.0, 140.0);

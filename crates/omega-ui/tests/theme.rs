@@ -1,15 +1,13 @@
 use omega_store::Theme;
 use omega_ui::{
-    draw_empty_slot, edge, housing, link_face, opening, recess, set_theme, ChromeColours, Draw,
-    Link, HUD_INK, LINK_OFF, LINK_ON,
+    edge, housing, link_face, set_theme, ChromeColours, Draw, Link, Links, Printed, TopBar,
+    HUD_INK, LINK_OFF, LINK_ON,
 };
 
 #[test]
 fn the_card_s_palette_is_what_reaches_the_screen() {
     let t = Theme {
         housing: [0x11, 0x22, 0x33],
-        recess: [0x44, 0x55, 0x66],
-        opening: [0x77, 0x88, 0x99],
         edge: [0xaa, 0xbb, 0xcc],
     };
     // the widgets that still draw in the theme's greys take it from the one set at boot
@@ -22,14 +20,21 @@ fn the_card_s_palette_is_what_reaches_the_screen() {
         ]
     };
     assert_eq!(hex(housing()), t.housing);
-    assert_eq!(hex(recess()), t.recess);
-    assert_eq!(hex(opening()), t.opening);
     assert_eq!(hex(edge()), t.edge);
 
-    // the slot is handed it, as the app hands it a card's theme over the palette
+    // the top bar is handed it, as the app hands it a card's theme over the palette
     let themed = ChromeColours::themed(&t);
     let mut out = Vec::new();
-    draw_empty_slot(&themed, &mut out);
+    TopBar {
+        colours: themed,
+        links: Links::default(),
+        faces: None,
+        clock: Printed::default(),
+        battery: None,
+        percent: Printed::default(),
+        bolt: None,
+    }
+    .draw(&mut out);
     let has = |c: [f32; 4]| {
         out.iter().any(|d| match *d {
             Draw::Rect { colour, .. } => (0..3).all(|i| (colour[i] - c[i]).abs() < 0.001),
@@ -38,12 +43,10 @@ fn the_card_s_palette_is_what_reaches_the_screen() {
     };
     for (c, set, name) in [
         (themed.housing, housing(), "housing"),
-        (themed.recess, recess(), "recess"),
-        (themed.opening, opening(), "opening"),
         (themed.edge, edge(), "edge"),
     ] {
-        assert_eq!(c, set, "the slot's {name} is not the theme's");
-        assert!(has(c), "the slot is not drawn in the theme's {name}");
+        assert_eq!(c, set, "the top bar's {name} is not the theme's");
+        assert!(has(c), "the top bar is not drawn in the theme's {name}");
     }
 }
 

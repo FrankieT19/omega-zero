@@ -1,7 +1,7 @@
 use omega_gfx::BACKDROP;
 use omega_ui::{
-    edge, gb_table_shells, gba_shell_for, housing, opening, shell_presets, table_keys,
-    DEFAULT_SHELL, DMG_SHELL, DUAL_MODE_SHELL, GB_CLEAR_SHELL,
+    edge, gb_table_shells, gba_shell_for, housing, shell_presets, table_keys, DEFAULT_SHELL,
+    DMG_SHELL, DUAL_MODE_SHELL, GB_CLEAR_SHELL,
 };
 
 fn distance(a: [u8; 3], b: [f32; 4]) -> u32 {
@@ -57,11 +57,7 @@ fn every_chrome_band_is_visible_against_its_neighbour() {
         "the housing vanishes into the backdrop"
     );
     assert!(
-        d(opening(), housing()) > 40.0,
-        "the opening vanishes into the housing"
-    );
-    assert!(
-        d(edge(), opening()) > 60.0,
-        "the lip vanishes into the opening"
+        d(edge(), housing()) > 60.0,
+        "the top bar's rule vanishes into its housing"
     );
 }
