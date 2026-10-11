@@ -5,9 +5,10 @@ use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_ui::{
     arrows_hint_face, badge_face, bezel_mark_face, cart_face, cart_mesh, cart_shadow, chip_face,
-    chip_shadow_face, gb_cart_shadow, hint_face, icon_face, mark_height, mark_rect, menu_face, rim,
-    socket_face, toast_face, wallpaper_face, CartMeshes, CartModel, GbShell, Icon, LinkBadge,
-    Toast, UndoFace, ALERT_PX, BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
+    chip_shadow_face, gb_cart_shadow, hint_face, icon_face, lid_shadow_face, mark_height,
+    mark_rect, menu_face, rim, socket_face, toast_face, wallpaper_face, CartFace, CartMeshes,
+    CartModel, GbShell, Icon, LinkBadge, Toast, UndoFace, ALERT_PX, BEZEL_FILL, HUD_ICON_PX,
+    HUD_INK, LEGEND,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
@@ -217,27 +218,21 @@ impl Frontend {
         let alert = icon_face(Icon::Alert, ALERT_PX, ALERT_INK);
         let alert = compositor.create_texture(alert.w, alert.h, &alert.rgba);
         self.session.app_mut().set_alert_face(alert);
+        // the core picker's parts are pixel art, a texel to an art pixel, kept sharp at 2x
+        let mut sprite = |f: CartFace| compositor.create_texture_nearest(f.w, f.h, &f.rgba);
         let sockets = omega_store::Core::ALL
             .iter()
-            .map(|c| {
-                let f = socket_face(*c);
-                compositor.create_texture(f.w, f.h, &f.rgba)
-            })
+            .map(|c| sprite(socket_face(*c)))
             .collect();
         let chips = omega_store::Core::ALL
             .iter()
-            .map(|c| {
-                let f = chip_face(Some(*c));
-                compositor.create_texture(f.w, f.h, &f.rgba)
-            })
+            .map(|c| sprite(chip_face(Some(*c))))
             .collect();
-        let blank = chip_face(None);
-        let blank = compositor.create_texture(blank.w, blank.h, &blank.rgba);
-        let shadow = chip_shadow_face();
-        let shadow = compositor.create_texture(shadow.w, shadow.h, &shadow.rgba);
+        let blank = sprite(chip_face(None));
+        let shadows = [sprite(chip_shadow_face()), sprite(lid_shadow_face())];
         self.session
             .app_mut()
-            .set_core_part_faces(sockets, chips, blank, shadow);
+            .set_core_part_faces(sockets, chips, blank, shadows);
         let roles = menu_faces(compositor, LinkRow::ALL.iter().map(|r| r.text()));
         self.session.app_mut().set_link_menu_faces(roles);
         if let Some(linked) = menu_faces(compositor, ["Linked"].into_iter()).pop() {

@@ -10,8 +10,8 @@ use omega_retro::ButtonMask;
 use omega_store::{write_app_state, AppState, Cart, Core, Platform};
 use omega_ui::{
     board_at, grown, lid_at, lid_from, on_board, opening, shelf_cart_at, Draw, Icon, Placed, TexId,
-    BOARD_W, CART_H, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, LID_TURN, SLIDE_UP, SOCKET_H,
-    SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
+    BOARD_W, CART_H, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, LID_SHADOW_H, LID_SHADOW_W, LID_TURN,
+    SLIDE_UP, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
 };
 use omega_ui::{stage_x, stage_y};
 use omega_zero::app::{App, Phase, EJECT_S, INSERT_S, SEATED_AT};
@@ -1090,6 +1090,7 @@ struct PickerFaces {
     chips: [TexId; 2],
     blank: TexId,
     shadow: TexId,
+    lid_shadow: TexId,
 }
 
 fn fake_boot_faces(app: &mut App) -> PickerFaces {
@@ -1101,8 +1102,14 @@ fn fake_boot_faces(app: &mut App) -> PickerFaces {
         chips: [id(904), id(905)],
         blank: id(906),
         shadow: id(907),
+        lid_shadow: id(908),
     };
-    app.set_core_part_faces(f.sockets.to_vec(), f.chips.to_vec(), f.blank, f.shadow);
+    app.set_core_part_faces(
+        f.sockets.to_vec(),
+        f.chips.to_vec(),
+        f.blank,
+        [f.shadow, f.lid_shadow],
+    );
     f
 }
 
@@ -1195,46 +1202,32 @@ fn alpha_of(out: &[Draw], want: TexId) -> Option<f32> {
     })
 }
 
+/// `px` on whole art pixels, as the picker puts its parts down.
+fn even(px: f32) -> f32 {
+    (px / 2.0).round() * 2.0
+}
+
+/// Where a part `w` by `h` art pixels with its top left at `u, v` on the board is drawn.
+fn part_at(board: Placed, u: f32, v: f32, w: u32, h: u32) -> [f32; 4] {
+    let px = board.w / BOARD_W as f32;
+    let (x, y) = on_board(board, u, v);
+    [even(x), even(y), w as f32 * px, h as f32 * px]
+}
+
 fn assert_parts_on_board(out: &[Draw], f: &PickerFaces, board: Placed, when: &str) {
-    let zoom = board.w / BOARD_W as f32;
     for (i, socket) in f.sockets.iter().enumerate() {
-        let (x, y) = on_board(board, SOCKET_U[i], SOCKET_V);
         let (_, at) = tex_at(out, *socket).unwrap_or_else(|| panic!("a socket is missing {when}"));
         assert!(
             near(
                 at,
-                [
-                    x.round(),
-                    y.round(),
-                    SOCKET_W as f32 * zoom,
-                    SOCKET_H as f32 * zoom
-                ]
+                part_at(board, SOCKET_U[i], SOCKET_V, SOCKET_W, SOCKET_H)
             ),
             "socket {i} at {at:?} {when}"
         );
     }
-    let (cx, cy) = on_board(board, CHIP_U[0], CHIP_V);
-    let want_chip = grown(
-        Placed {
-            x: cx,
-            y: cy,
-            w: CHIP_W as f32 * zoom,
-            h: CHIP_H as f32 * zoom,
-        },
-        TURN_PAD as f32 * zoom,
-    );
-    let (_, chip, _) =
-        turned_at(out, f.chips[0]).unwrap_or_else(|| panic!("no seated chip {when}"));
+    let (_, chip) = tex_at(out, f.chips[0]).unwrap_or_else(|| panic!("no seated chip {when}"));
     assert!(
-        near(
-            chip,
-            [
-                want_chip.x.round(),
-                want_chip.y.round(),
-                want_chip.w,
-                want_chip.h
-            ]
-        ),
+        near(chip, part_at(board, CHIP_U[0], CHIP_V, CHIP_W, CHIP_H)),
         "the chip is not riding the board {when}: {chip:?}"
     );
 }
@@ -1304,40 +1297,24 @@ fn the_open_cart_rests_over_the_shelf_with_its_lid_turned() {
     assert!(board_i > mouth, "the board is drawn under the shelf");
 
     for (i, socket) in f.sockets.iter().enumerate() {
-        let (x, y) = on_board(rest, SOCKET_U[i], SOCKET_V);
         let (_, at) = tex_at(&out, *socket).expect("a socket is missing");
         assert!(
-            near(at, [x.round(), y.round(), SOCKET_W as f32, SOCKET_H as f32]),
+            near(at, part_at(rest, SOCKET_U[i], SOCKET_V, SOCKET_W, SOCKET_H)),
             "socket {i} at {at:?}"
+        );
+        assert_eq!(
+            [at[2], at[3]],
+            [2.0 * SOCKET_W as f32, 2.0 * SOCKET_H as f32],
+            "socket {i} is not its face at 2x"
         );
     }
 
-    let (chip_i, chip, chip_turn) =
-        turned_at(&out, f.chips[0]).expect("the chip is not seated in mGBA");
-    assert_eq!(chip_turn, 0.0, "a seated chip is tipped");
-    let (cx, cy) = on_board(rest, CHIP_U[0], CHIP_V);
-    let want_chip = grown(
-        Placed {
-            x: cx,
-            y: cy,
-            w: CHIP_W as f32,
-            h: CHIP_H as f32,
-        },
-        TURN_PAD as f32,
-    );
+    let (chip_i, chip) = tex_at(&out, f.chips[0]).expect("the chip is not seated in mGBA");
     assert!(
-        near(
-            chip,
-            [
-                want_chip.x.round(),
-                want_chip.y.round(),
-                want_chip.w,
-                want_chip.h
-            ]
-        ),
+        near(chip, part_at(rest, CHIP_U[0], CHIP_V, CHIP_W, CHIP_H)),
         "the seated chip is not in mGBA's socket: {chip:?}"
     );
-    assert!(turned_at(&out, f.blank).is_none(), "a blank chip at rest");
+    assert!(tex_at(&out, f.blank).is_none(), "a blank chip at rest");
 
     let (lid_rest, turn) = lid_at(1.0);
     let want = grown(lid_rest, TURN_PAD as f32 * lid_rest.w / CART_W as f32);
@@ -1349,13 +1326,27 @@ fn the_open_cart_rests_over_the_shelf_with_its_lid_turned() {
     assert_eq!((lid_turn, turn), (LID_TURN, LID_TURN));
     assert!(lid_i > chip_i, "the chip is drawn over the lid");
 
-    let shadows = tex_all(&out, f.shadow);
+    assert!(
+        tex_all(&out, f.shadow).is_empty(),
+        "a seated chip casts a shadow"
+    );
+    let shadows = tex_all(&out, f.lid_shadow);
     assert_eq!(
         shadows.len(),
         1,
-        "expected the lid's shadow alone, got {shadows:?}"
+        "expected the lid's shadow, got {shadows:?}"
     );
     let (shadow_i, s) = shadows[0];
+    assert_eq!(
+        alpha_of(&out, f.lid_shadow),
+        Some(1.0),
+        "the lid's shadow is faded at rest"
+    );
+    assert_eq!(
+        [s[2], s[3]],
+        [2.0 * LID_SHADOW_W as f32, 2.0 * LID_SHADOW_H as f32],
+        "the lid's shadow is not its face at 2x"
+    );
     let (sx, sy) = (stage_x(), stage_y());
     assert!(
         (s[0] + s[2] / 2.0 - (360.0 + sx)).abs() < 0.01
@@ -1377,16 +1368,18 @@ fn the_sockets_and_the_seated_chip_rest_on_whole_pixels() {
     let_it_open(&mut app);
     let out = frame(&app);
 
-    let whole = |r: [f32; 4]| r[0].fract() == 0.0 && r[1].fract() == 0.0;
+    let whole = |r: [f32; 4]| r[0] % 2.0 == 0.0 && r[1] % 2.0 == 0.0;
     for (i, socket) in f.sockets.iter().enumerate() {
         let (_, at) = tex_at(&out, *socket).expect("a socket is missing");
-        assert!(whole(at), "socket {i} is off the pixel grid at {at:?}");
+        assert!(whole(at), "socket {i} is off the art grid at {at:?}");
     }
-    let (_, chip, _) = turned_at(&out, f.chips[0]).expect("the chip is not seated in mGBA");
+    let (_, chip) = tex_at(&out, f.chips[0]).expect("the chip is not seated in mGBA");
     assert!(
         whole(chip),
-        "the seated chip is off the pixel grid at {chip:?}"
+        "the seated chip is off the art grid at {chip:?}"
     );
+    let (_, board) = tex_at(&out, f.board).expect("no board");
+    assert!(whole(board), "the board is off the art grid at {board:?}");
 }
 
 #[test]
@@ -1422,23 +1415,14 @@ fn the_seated_chip_moves_to_the_socket_it_hopped_to() {
     let_it_hop(&mut app);
     let out = frame(&app);
 
-    let (x, y) = on_board(board_at(1.0), CHIP_U[1], CHIP_V);
-    let want = grown(
-        Placed {
-            x,
-            y,
-            w: CHIP_W as f32,
-            h: CHIP_H as f32,
-        },
-        TURN_PAD as f32,
-    );
-    let (_, chip, _) = turned_at(&out, f.chips[1]).expect("the chip did not land in gpSP");
+    let want = part_at(board_at(1.0), CHIP_U[1], CHIP_V, CHIP_W, CHIP_H);
+    let (_, chip) = tex_at(&out, f.chips[1]).expect("the chip did not land in gpSP");
     assert!(
-        near(chip, [want.x.round(), want.y.round(), want.w, want.h]),
+        near(chip, want),
         "the gpSP chip is not in gpSP's socket: {chip:?}"
     );
     assert!(
-        turned_at(&out, f.chips[0]).is_none(),
+        tex_at(&out, f.chips[0]).is_none(),
         "mGBA's chip is still drawn once the hop lands in gpSP"
     );
 }
@@ -1536,19 +1520,28 @@ fn the_highlighted_cart_becomes_the_lid_rather_than_a_second_cart() {
 }
 
 #[test]
-fn mid_hop_the_chip_is_blank_tipped_and_off_the_board() {
+fn mid_hop_the_chip_is_blank_level_and_off_the_board() {
     let (_d, mut app) = on_shelf(&["Emerald", "Zzz"]);
     let f = fake_picker_faces(&mut app);
     app.apply(Action::GbaDown(Btn::X));
     let_it_open(&mut app);
-    let (_, seated, _) = turned_at(&frame(&app), f.chips[0]).expect("no seated chip");
+    let (_, seated) = tex_at(&frame(&app), f.chips[0]).expect("no seated chip");
 
     app.apply(Action::GbaDown(Btn::Right));
     app.update(0.09);
     let out = frame(&app);
-    let (_, flying, tip) = turned_at(&out, f.blank).expect("no chip in flight");
-    assert!(tip > 0.0, "a chip heading right does not lean right");
+    let parts = [f.blank, f.shadow, f.sockets[0], f.sockets[1]];
+    assert!(
+        !out.iter()
+            .any(|d| matches!(d, Draw::Turned { tex, .. } if parts.contains(tex))),
+        "a part of the board is turned off the grid mid-hop"
+    );
+    let (_, flying) = tex_at(&out, f.blank).expect("no chip in flight");
     assert!(flying[1] < seated[1], "the chip is not off the board");
+    assert!(
+        flying[0] % 2.0 == 0.0 && flying[1] % 2.0 == 0.0,
+        "the chip in flight is off the art grid at {flying:?}"
+    );
     let board = board_at(1.0);
     let left = on_board(board, CHIP_U[0], CHIP_V).0 + CHIP_W as f32 / 2.0;
     let right = on_board(board, CHIP_U[1], CHIP_V).0 + CHIP_W as f32 / 2.0;
@@ -1557,13 +1550,15 @@ fn mid_hop_the_chip_is_blank_tipped_and_off_the_board() {
         mid > left && mid < right,
         "the flying chip is not between the sockets: {mid} not in ({left}, {right})"
     );
-    assert_eq!(
-        tex_all(&out, f.shadow).len(),
-        2,
-        "nothing under the chip in flight, beside the lid's own shadow"
+    let shadows = tex_all(&out, f.shadow);
+    assert_eq!(shadows.len(), 1, "nothing under the chip in flight");
+    let (_, s) = shadows[0];
+    assert!(
+        s[0] % 2.0 == 0.0 && s[1] % 2.0 == 0.0,
+        "the chip's shadow is off the art grid at {s:?}"
     );
     assert!(
-        f.chips.iter().all(|c| turned_at(&out, *c).is_none()),
+        f.chips.iter().all(|c| tex_at(&out, *c).is_none()),
         "a named chip is drawn mid-hop"
     );
     for socket in f.sockets {
@@ -1581,12 +1576,13 @@ fn the_chip_alone_shakes_when_refused() {
     app.apply(Action::GbaDown(Btn::Left));
     let after = frame(&app);
 
-    let (_, still, _) = turned_at(&before, f.chips[0]).unwrap();
-    let (_, shaken, _) = turned_at(&after, f.chips[0]).unwrap();
+    let (_, still) = tex_at(&before, f.chips[0]).unwrap();
+    let (_, shaken) = tex_at(&after, f.chips[0]).unwrap();
     assert_ne!(still[0], shaken[0], "the chip did not move");
+    assert_eq!(shaken[0] % 2.0, 0.0, "the chip shook off the art grid");
     let rest = |out: &[Draw]| -> Vec<Draw> {
         out.iter()
-            .filter(|d| !matches!(d, Draw::Turned { tex, .. } if *tex == f.chips[0]))
+            .filter(|d| !matches!(d, Draw::Tex { tex, .. } if *tex == f.chips[0]))
             .copied()
             .collect()
     };
@@ -1791,11 +1787,11 @@ fn arrows_pressed_while_the_cart_waits_move_nothing() {
     let_it_open(&mut app);
     let out = frame(&app);
     assert!(
-        turned_at(&out, f.chips[0]).is_some(),
+        tex_at(&out, f.chips[0]).is_some(),
         "the chip is not seated in mGBA once the cart is open"
     );
     assert!(
-        turned_at(&out, f.chips[1]).is_none(),
+        tex_at(&out, f.chips[1]).is_none(),
         "the chip opened in gpSP"
     );
 }

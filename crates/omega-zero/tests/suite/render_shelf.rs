@@ -9,7 +9,7 @@ use omega_input::{Action, Btn};
 use omega_store::{write_app_state, AppState, Core, Platform};
 use omega_ui::{
     board_face, cart_face, cart_shadow, chip_face, chip_shadow_face, clean_label, gb_cart_shadow,
-    label_colour, padded, socket_face, ChromeColours, GbShell, TURN_PAD,
+    label_colour, lid_shadow_face, padded, socket_face, ChromeColours, GbShell, TURN_PAD,
 };
 use omega_zero::app::App;
 use tempfile::TempDir;
@@ -63,7 +63,9 @@ fn upload_faces(app: &mut App, c: &mut Compositor) {
     let blank = tex(c, blank.w, blank.h, &blank.rgba);
     let chip_shadow = chip_shadow_face();
     let chip_shadow = tex(c, chip_shadow.w, chip_shadow.h, &chip_shadow.rgba);
-    app.set_core_part_faces(sockets, chips, blank, chip_shadow);
+    let lid_shadow = lid_shadow_face();
+    let lid_shadow = tex(c, lid_shadow.w, lid_shadow.h, &lid_shadow.rgba);
+    app.set_core_part_faces(sockets, chips, blank, [chip_shadow, lid_shadow]);
 
     let highlighted = app.selected_stem().map(str::to_string);
     let Some(cart) = app

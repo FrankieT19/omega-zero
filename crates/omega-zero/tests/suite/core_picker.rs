@@ -23,7 +23,7 @@ fn it_opens_over_the_open_time_and_then_rests() {
 fn the_chip_starts_seated_in_the_carts_own_core() {
     let chip = opened(Core::Gpsp, 0).chip(0);
     assert_eq!(chip.seated, Some(Core::Gpsp));
-    assert_eq!((chip.across, chip.lift, chip.tip), (1.0, 0.0, 0.0));
+    assert_eq!((chip.across, chip.lift), (1.0, 0.0));
 }
 
 #[test]
@@ -36,7 +36,6 @@ fn right_from_mgba_hops_blank_and_lands_named_in_gpsp() {
     assert_eq!(mid.seated, None, "the chip wears a name in flight");
     assert!((mid.across - 0.5).abs() < 0.01, "across {}", mid.across);
     assert!((mid.lift - 1.0).abs() < 0.01, "lift {}", mid.lift);
-    assert!(mid.tip > 0.0, "a chip moving right should lean right");
 
     let landed = p.chip(500 + HOP_MS);
     assert_eq!(landed.seated, Some(Core::Gpsp));

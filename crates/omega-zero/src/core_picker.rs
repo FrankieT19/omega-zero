@@ -1,5 +1,5 @@
 use omega_store::Core;
-use omega_ui::{ease, Millis, Refusal, CHIP_TIP};
+use omega_ui::{ease, Millis, Refusal};
 
 pub const SLIDE_MS: Millis = 160;
 pub const LIFT_MS: Millis = 260;
@@ -26,7 +26,6 @@ pub enum Outcome {
 pub struct Chip {
     pub across: f32,
     pub lift: f32,
-    pub tip: f32,
     pub seated: Option<Core>,
     pub shake: f32,
 }
@@ -149,12 +148,10 @@ impl CorePicker {
         match (self.hop, self.hop_progress(now)) {
             (Some(hop), Some(q)) => {
                 let rightward = hop.from == Core::Mgba;
-                let lean = if rightward { 1.0 } else { -1.0 };
                 let arc = (std::f32::consts::PI * q).sin();
                 Chip {
                     across: if rightward { ease(q) } else { 1.0 - ease(q) },
                     lift: arc,
-                    tip: lean * CHIP_TIP * arc,
                     seated: None,
                     shake,
                 }
@@ -162,7 +159,6 @@ impl CorePicker {
             _ => Chip {
                 across: self.seat.index() as f32,
                 lift: 0.0,
-                tip: 0.0,
                 seated: Some(self.seat),
                 shake,
             },

@@ -1,9 +1,10 @@
 use omega_store::{Cart, Core, Platform};
 use omega_ui::{
-    board_at, board_face, chip_face, chip_shadow_face, gba_shell_for, lid_at, lift_of, on_board,
-    padded, rom_marking, rom_marking_face, shelf_cart, slide_of, socket_face, CartFace, Placed,
-    BOARD_H, BOARD_W, CART_H, CHIP_H, CHIP_W, DEFAULT_SHELL, LID_TURN, ROM_H, ROM_W, SHADOW_H,
-    SHADOW_W, SLIDE_SHARE, SLIDE_UP, SOCKET_H, SOCKET_W, TURN_PAD,
+    board_at, board_face, chip_face, chip_shadow_face, gba_shell_for, lid_at, lid_shadow_face,
+    lift_of, on_board, padded, rom_marking, rom_marking_face, shelf_cart, slide_of, socket_face,
+    CartFace, Placed, BOARD_H, BOARD_W, CART_H, CHIP_H, CHIP_U, CHIP_V, CHIP_W, DEFAULT_SHELL,
+    LID_SHADOW_H, LID_SHADOW_W, LID_TURN, ROM_H, ROM_W, ROM_X, ROM_Y, SHADOW_H, SHADOW_W,
+    SLIDE_SHARE, SLIDE_UP, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W,
 };
 use omega_ui::{slot_top, stage_x, stage_y, TOP_BAR_H};
 
@@ -81,34 +82,40 @@ fn the_marking_is_drawn_and_stays_on_the_chip() {
 #[test]
 fn the_cell_carries_no_print() {
     let face = board_face(&cart(EMERALD, "BPEE"));
-    let dark = (50..69)
-        .flat_map(|y| (307..326).map(move |x| (x, y)))
-        .filter(|&(x, y)| (x as i32 - 316).pow(2) + (y as i32 - 59).pow(2) <= 81)
+    let dark = (24..37)
+        .flat_map(|y| (146..159).map(move |x| (x, y)))
+        .filter(|&(x, y)| (x as i32 - 152).pow(2) + (y as i32 - 30).pow(2) <= 30)
         .filter(|&(x, y)| rgb(&face, x, y)[0] < 150)
         .count();
-    assert_eq!(dark, 0, "the cell still has {dark} dark pixels of print");
+    assert_eq!(dark, 0, "the cell has {dark} dark pixels of print");
 }
 
 #[test]
-fn the_board_is_the_size_it_is_shown_at() {
+fn the_board_is_drawn_a_texel_to_an_art_pixel() {
     let face = board_face(&cart(EMERALD, "BPEE"));
     assert_eq!((face.w, face.h), (BOARD_W, BOARD_H));
-    assert_eq!((BOARD_W, BOARD_H), (372, 209));
+    assert_eq!((BOARD_W, BOARD_H), (186, 104));
+    let rest = board_at(1.0);
+    assert_eq!(
+        (rest.w, rest.h),
+        (372.0, 208.0),
+        "the board does not rest at 2x"
+    );
 }
 
 #[test]
 fn the_back_shell_is_the_carts_own_plastic() {
     let emerald = board_face(&cart(EMERALD, "BPEE"));
     assert!(
-        near(rgb(&emerald, 14, 70), gba_shell_for("BPEE").colour),
-        "Emerald's wall is {:?}",
-        rgb(&emerald, 14, 70)
+        near(rgb(&emerald, 5, 70), gba_shell_for("BPEE").colour),
+        "Emerald's rim is {:?}",
+        rgb(&emerald, 5, 70)
     );
     let unknown = board_face(&cart("Homebrew", ""));
     assert!(
-        near(rgb(&unknown, 14, 70), DEFAULT_SHELL.colour),
-        "an unknown cart's wall is {:?}",
-        rgb(&unknown, 14, 70)
+        near(rgb(&unknown, 5, 70), DEFAULT_SHELL.colour),
+        "an unknown cart's rim is {:?}",
+        rgb(&unknown, 5, 70)
     );
 }
 
@@ -116,14 +123,54 @@ fn the_back_shell_is_the_carts_own_plastic() {
 fn the_board_itself_is_drawn() {
     let face = board_face(&cart(EMERALD, "BPEE"));
     assert!(
-        near(rgb(&face, 310, 108), [0x3a, 0x9a, 0x3c]),
+        near(rgb(&face, 128, 45), [0x3a, 0x9a, 0x3c]),
         "the board is {:?}",
-        rgb(&face, 310, 108)
+        rgb(&face, 128, 45)
     );
 }
 
 fn alpha(face: &CartFace, x: u32, y: u32) -> u8 {
     face.rgba[((y * face.w + x) * 4 + 3) as usize]
+}
+
+/// Every pixel of a pixel-art face is there or not: no edge is part covered.
+fn assert_flat(face: &CartFace, what: &str) {
+    for (i, px) in face.rgba.chunks_exact(4).enumerate() {
+        assert!(
+            px[3] == 0 || px[3] == 255,
+            "{what} is part covered at {},{}: alpha {}",
+            i as u32 % face.w,
+            i as u32 / face.w,
+            px[3]
+        );
+    }
+}
+
+#[test]
+fn every_face_of_the_picker_is_drawn_without_soft_edges() {
+    assert_flat(&board_face(&cart(EMERALD, "BPEE")), "the board");
+    assert_flat(&rom_marking_face(EMERALD), "the marking");
+    for core in Core::ALL {
+        assert_flat(&socket_face(core), "a socket");
+        assert_flat(&chip_face(Some(core)), "a chip");
+    }
+    assert_flat(&chip_face(None), "the blank chip");
+    assert_flat(&chip_shadow_face(), "the chip's shadow");
+    assert_flat(&lid_shadow_face(), "the lid's shadow");
+}
+
+#[test]
+fn the_marking_is_printed_on_the_rom_chip() {
+    let face = board_face(&cart(EMERALD, "BPEE"));
+    let ink = [0xbd, 0xbd, 0xbd];
+    let inked = (ROM_Y..ROM_Y + ROM_H)
+        .flat_map(|y| (ROM_X..ROM_X + ROM_W).map(move |x| (x, y)))
+        .filter(|&(x, y)| rgb(&face, x, y) == ink)
+        .count();
+    assert!(
+        inked > 100,
+        "the ROM chip carries {inked} pixels of marking"
+    );
 }
 
 /// A point on the 720x480 mockup, where it lands on this canvas.
@@ -151,7 +198,7 @@ fn the_open_cart_starts_as_the_shelf_cart_and_lands_where_the_mockup_has_it() {
             x,
             y,
             w: 372.0,
-            h: 209.0
+            h: 208.0
         }
     );
     assert_eq!(board_at(1.7), board_at(1.0), "an overshoot kept growing");
@@ -223,64 +270,67 @@ fn the_lift_starts_where_the_slide_ends() {
 }
 
 #[test]
-fn board_units_land_on_the_panel_at_one_and_a_half_times() {
+fn the_boards_art_pixels_land_on_the_panel_at_twice() {
     let board = board_at(1.0);
     assert_eq!(on_board(board, 0.0, 0.0), mock(174.0, 140.0));
-    assert_eq!(on_board(board, 240.0, 135.0), mock(546.0, 349.0));
+    assert_eq!(on_board(board, 186.0, 104.0), mock(546.0, 348.0));
+    let (x, y) = on_board(board, 1.0, 1.0);
+    assert_eq!((x - board.x, y - board.y), (2.0, 2.0));
 }
 
 #[test]
-fn a_socket_names_its_core_at_half_strength() {
-    for core in Core::ALL {
-        let face = socket_face(core);
-        assert_eq!((face.w, face.h), (SOCKET_W, SOCKET_H));
-        let strongest = (12..34)
-            .flat_map(|y| (16..48).map(move |x| (x, y)))
-            .map(|(x, y)| alpha(&face, x, y))
-            .max()
-            .unwrap();
+fn the_sockets_and_the_chip_sit_on_whole_art_pixels_of_the_board() {
+    let whole = |v: f32| v.fract() == 0.0;
+    for i in 0..2 {
         assert!(
-            (60..=150).contains(&strongest),
-            "{core:?}'s name is at alpha {strongest}"
+            whole(SOCKET_U[i]) && whole(CHIP_U[i]),
+            "socket {i} is off the grid"
         );
+        assert!(
+            SOCKET_U[i] < CHIP_U[i] && CHIP_U[i] + CHIP_W as f32 <= SOCKET_U[i] + SOCKET_W as f32,
+            "the chip overhangs socket {i}"
+        );
+        assert!(SOCKET_U[i] + SOCKET_W as f32 <= BOARD_W as f32);
     }
-}
-
-#[test]
-fn a_partly_covered_socket_edge_pixel_keeps_the_outline_inks_brightness() {
-    let face = socket_face(Core::Mgba);
-    let (r, a) = (6..(face.h - 6))
-        .find_map(|y| {
-            let i = ((y * face.w) * 4) as usize;
-            let a = face.rgba[i + 3];
-            (a > 0 && a < 255).then(|| (face.rgba[i], a))
-        })
-        .expect("no partly covered pixel on the socket's left edge");
+    assert!(whole(SOCKET_V) && whole(CHIP_V));
+    assert!(SOCKET_V < CHIP_V && CHIP_V + CHIP_H as f32 <= SOCKET_V + SOCKET_H as f32);
     assert!(
-        r > 200,
-        "the outline ink darkened at partial coverage: R={r} at alpha={a}"
+        SOCKET_U[0] + SOCKET_W as f32 <= SOCKET_U[1],
+        "the sockets overlap"
     );
 }
 
 #[test]
-fn the_chip_is_padded_clear_on_every_side() {
+fn a_socket_prints_its_cores_name_in_flat_half_strength_ink() {
+    // the silkscreen's colour halfway to the board's
+    let ink = [0x94, 0xc7, 0x91];
+    let printed = |core: Core| -> Vec<(u32, u32)> {
+        let face = socket_face(core);
+        assert_eq!((face.w, face.h), (SOCKET_W, SOCKET_H));
+        (0..face.h)
+            .flat_map(|y| (0..face.w).map(move |x| (x, y)))
+            .filter(|&(x, y)| alpha(&face, x, y) == 255 && rgb(&face, x, y) == ink)
+            .collect()
+    };
+    let (mgba, gpsp) = (printed(Core::Mgba), printed(Core::Gpsp));
+    assert!(
+        mgba.len() > 20 && gpsp.len() > 20,
+        "a socket's name is barely there"
+    );
+    assert_ne!(mgba, gpsp, "both sockets print the same name");
+}
+
+#[test]
+fn the_chip_is_level_and_needs_no_room_to_turn() {
     for core in [None, Some(Core::Mgba), Some(Core::Gpsp)] {
         let face = chip_face(core);
+        assert_eq!((face.w, face.h), (CHIP_W, CHIP_H));
+        assert_eq!(alpha(&face, 0, 0), 0, "{core:?}'s pins reach its corner");
         assert_eq!(
-            (face.w, face.h),
-            (CHIP_W + 2 * TURN_PAD, CHIP_H + 2 * TURN_PAD)
+            alpha(&face, 0, CHIP_H / 2),
+            255,
+            "{core:?}'s body does not reach its side"
         );
-        for y in 0..face.h {
-            for x in 0..face.w {
-                let ring = x < TURN_PAD
-                    || y < TURN_PAD
-                    || x >= face.w - TURN_PAD
-                    || y >= face.h - TURN_PAD;
-                if ring {
-                    assert_eq!(alpha(&face, x, y), 0, "{core:?} is not clear at {x},{y}");
-                }
-            }
-        }
     }
 }
 
@@ -317,11 +367,30 @@ fn padding_moves_nothing() {
 }
 
 #[test]
-fn the_shadow_is_darkest_in_the_middle_and_gone_at_the_corners() {
-    let s = chip_shadow_face();
-    assert_eq!((s.w, s.h), (SHADOW_W, SHADOW_H));
-    assert!(alpha(&s, SHADOW_W / 2, SHADOW_H / 2) > alpha(&s, SHADOW_W / 8, SHADOW_H / 2));
-    assert_eq!(alpha(&s, 0, 0), 0);
+fn a_shadow_is_a_checker_of_black_with_its_corners_clear() {
+    for (s, (w, h)) in [
+        (chip_shadow_face(), (SHADOW_W, SHADOW_H)),
+        (lid_shadow_face(), (LID_SHADOW_W, LID_SHADOW_H)),
+    ] {
+        assert_eq!((s.w, s.h), (w, h));
+        for y in 0..h {
+            for x in 0..w {
+                if alpha(&s, x, y) == 0 {
+                    continue;
+                }
+                assert_eq!(rgb(&s, x, y), [0, 0, 0], "a shadow pixel is not black");
+                assert_eq!((x + y) % 2, 0, "{x},{y} is off the checker");
+            }
+        }
+        for (x, y) in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)] {
+            assert_eq!(alpha(&s, x, y), 0, "a shadow's corner {x},{y} is inked");
+        }
+        let middle = (0..w).filter(|&x| alpha(&s, x, h / 2) == 255).count() as u32;
+        assert!(
+            middle >= w / 2 - 1,
+            "a shadow's middle row is a half shade: {middle} of {w}"
+        );
+    }
 }
 
 #[test]

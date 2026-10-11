@@ -8,6 +8,11 @@
   dither. The one you are on sways twenty degrees either way, seen from closer than before, so
   its side and the step under a GBA cart's grip show. The cart going into the slot and the core
   picker's lid are the same model. A cart is one draw instead of up to seventeen.
+- The core picker is pixel art on the 2-pixel grid: the open cart in its own plastic, the board,
+  the ROM chip marked with the game's title, the sockets and the chip, with outlines and flat
+  colours. The title and the cores' names are in Pixel Code at its own size and spacing. The
+  chip hops between the sockets a pixel at a time, level, and the shadows under it and under
+  the lid are checker dither.
 - On the shelf the volume, brightness and blue light bar sits under the top bar instead of
   over it.
 - A bar along the bottom of the shelf: SELECT CONTROLS on the left, START SETTINGS on the
