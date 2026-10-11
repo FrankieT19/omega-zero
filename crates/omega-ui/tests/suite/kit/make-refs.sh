@@ -102,14 +102,13 @@ shoot bar-confirm-320 320 19 'c=bar&w=320&right=CONFIRM&right-hint=A'
 shoot bar-shelf-thin-320 320 19 'c=bar&w=320&font=thin&left=CONTROLS&left-hint=SELECT&right=SETTINGS&right-hint=START'
 shoot bar-menu-thin-320 320 19 'c=bar&w=320&font=thin&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET'
 
-# the save-state switcher's: its bar, B RETURN and A LOAD, with Y DELETE and X UNDO SAVE between
-# them or Y DELETE alone; its keys on a line of their own, SAVE with Y DELETE and X UNDO SAVE or
-# X UNDO LOAD, or Y DELETE alone, as wide as it needs or held as wide as both; and its panel, as
-# wide as the title, the dots or the date, or held wider
+# the save-state switcher's: its bar, B RETURN and A LOAD with nothing between them; its keys on a
+# line of their own above it, SAVE with Y DELETE and X UNDO SAVE or X UNDO LOAD, or Y DELETE alone,
+# as wide as it needs or held as wide as both; and its panel, as wide as the title, the dots or the
+# date, or held wider
 for w in 320 360; do
-  shoot bar-switcher-$w $w 19 "c=bar&w=$w&left=RETURN&left-hint=B&right=LOAD&right-hint=A&hint=Y%20DELETE%20%7C%20X%20UNDO%20SAVE"
+  shoot bar-switcher-$w $w 19 "c=bar&w=$w&left=RETURN&left-hint=B&right=LOAD&right-hint=A"
 done
-shoot bar-switcher-delete-320 320 19 'c=bar&w=320&left=RETURN&left-hint=B&right=LOAD&right-hint=A&hint=Y%20DELETE'
 shoot hints-switcher 176 15 'c=hints&label=SAVE&hint=Y%20DELETE%20%7C%20X%20UNDO%20SAVE'
 shoot hints-switcher-load 176 15 'c=hints&label=SAVE&hint=Y%20DELETE%20%7C%20X%20UNDO%20LOAD'
 shoot hints-switcher-delete 103 15 'c=hints&label=SAVE&hint=Y%20DELETE'

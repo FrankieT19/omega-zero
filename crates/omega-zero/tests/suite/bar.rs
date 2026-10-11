@@ -21,7 +21,8 @@ use omega_zero::label_screen::LabelsScreen;
 use omega_zero::label_sync::Account;
 use omega_zero::nav::SLIDE_MS;
 use omega_zero::screens::bar::SCAN;
-use omega_zero::screens::bar::{Actions, BarSet, DELETE, SWAP, UNDO_SAVE};
+use omega_zero::screens::bar::{Actions, BarSet, SWAP};
+use omega_zero::screens::switcher::{DELETE, UNDO_SAVE};
 use omega_zero::wifi::{Saved, Seen, WifiJob, WifiJobs, WifiNews};
 use omega_zero::wifi_screen::{Sel, Typing, WifiScreen};
 use tempfile::TempDir;
@@ -790,16 +791,16 @@ fn the_save_states_have_return_and_load_and_the_game_none() {
     assert_eq!(a.bar_place(), None, "the bar stayed over the game");
 }
 
-/// Y DELETE and X UNDO SAVE fit between RETURN and LOAD, at 640 as at 720.
+/// The save states' bar has nothing between RETURN and LOAD, a save to undo or not: their keys,
+/// Y DELETE and X UNDO SAVE, stand on a line of their own over the game (switcher.rs).
 #[test]
-fn delete_and_undo_fit_between_return_and_load() {
-    let (_d, a) = on_shelf();
-    let room = a.bar_faces().unwrap().sets[Actions::Switcher.index()]
-        .layout
-        .hints[2];
-    let wide = omega_ui::kit::bar::hints_width(&[DELETE, UNDO_SAVE]);
-    assert!(
-        wide + 8 <= room,
-        "the hints are {wide} wide in a room {room} wide"
-    );
+fn nothing_is_between_return_and_load() {
+    let d = tmp_root_with_carts(&["Emerald"]);
+    let mut a = common::app_playing_in(d.path(), "Emerald");
+    a.apply_at(Action::SaveState, 1_000);
+    a.apply_at(Action::Polaroids, 1_100);
+    assert!(matches!(a.phase(), Phase::Polaroids { .. }));
+    assert_eq!(a.switcher_hints(), [DELETE, UNDO_SAVE]);
+    assert!(a.bar_hints(a.phase()).is_empty(), "the bar has hints");
+    assert!(a.bar_hints_shown().is_empty(), "the bar shows hints");
 }

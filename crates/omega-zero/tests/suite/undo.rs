@@ -3,7 +3,8 @@ use crate::common;
 use common::{app_playing_in, app_playing_with, tmp_root_with_carts, CoreSnapshot};
 use omega_input::{Action, Btn};
 use omega_store::{Core, Platform, StateRing};
-use omega_zero::screens::bar::{DELETE, UNDO_LOAD, UNDO_SAVE};
+use omega_ui::kit::hints::hint_line_width;
+use omega_zero::screens::switcher::{keys_width, DELETE, KEYS_TITLE, UNDO_LOAD, UNDO_SAVE};
 
 #[test]
 fn undoing_a_save_removes_it_and_restores_the_evicted_entry() {
@@ -140,9 +141,13 @@ fn the_undo_is_offered_only_over_the_switcher_and_only_while_it_stands() {
     assert!(a.bar_hints_shown().is_empty(), "the game has hints");
 
     a.apply_at(Action::Polaroids, 4_000);
-    assert_eq!(a.bar_hints_shown(), [DELETE, UNDO_SAVE]);
+    assert_eq!(a.switcher_hints(), [DELETE, UNDO_SAVE]);
+    assert!(
+        a.bar_hints_shown().is_empty(),
+        "the switcher's keys are between the bar's actions"
+    );
     a.tick_ms(40_000);
-    assert_eq!(a.bar_hints_shown(), [DELETE], "the undo outlived the offer");
+    assert_eq!(a.switcher_hints(), [DELETE], "the undo outlived the offer");
 }
 
 #[test]
@@ -152,5 +157,23 @@ fn the_switcher_offers_to_undo_a_load_as_a_load() {
     a.apply_at(Action::SaveState, 1_000);
     a.apply_at(Action::LoadState, 2_000);
     a.apply_at(Action::Polaroids, 3_000);
-    assert_eq!(a.bar_hints_shown(), [DELETE, UNDO_LOAD]);
+    assert_eq!(a.switcher_hints(), [DELETE, UNDO_LOAD]);
+}
+
+/// The switcher's line of keys keeps the room of its widest keys while it is open: when the undo
+/// runs out it is as wide as with X UNDO SAVE on it, so standing in the middle it does not move.
+/// It opens as wide as its keys need.
+#[test]
+fn the_switchers_line_keeps_its_widest_room_while_it_is_open() {
+    let both = keys_width(&[DELETE, UNDO_SAVE], 0);
+    assert_eq!(both, hint_line_width(KEYS_TITLE, &[DELETE, UNDO_SAVE]));
+    assert_eq!(
+        keys_width(&[DELETE], both),
+        both,
+        "the line moved as X went"
+    );
+    assert_eq!(keys_width(&[DELETE, UNDO_LOAD], both), both);
+    let alone = keys_width(&[DELETE], 0);
+    assert_eq!(alone, hint_line_width(KEYS_TITLE, &[DELETE]));
+    assert!(alone < both, "Y DELETE alone opens as wide as both");
 }

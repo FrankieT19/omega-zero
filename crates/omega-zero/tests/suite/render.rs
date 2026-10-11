@@ -8,9 +8,11 @@ use omega_gfx::{
 };
 use omega_retro::{ButtonMask, MockCore, RetroCore};
 use omega_store::{colour_index, Core, Platform, StateRing};
+use omega_ui::kit::hints::hint_line_face;
 use omega_ui::kit::palette::palette;
 use omega_ui::kit::saves::{saves_face, saves_width};
-use omega_ui::{photo_face, Polaroids};
+use omega_ui::{photo_face, Polaroids, UndoFace};
+use omega_zero::screens::switcher::{keys_width, DELETE, KEYS_TITLE, UNDO_SAVE};
 use omega_zero::thumb;
 use omega_zero::video_mode::{screen, VideoMode};
 
@@ -196,6 +198,37 @@ fn the_switcher_magnifies_its_screenshot_without_resampling_it() {
     );
 }
 
+/// Where the frame is not `face` at twice its size with its top left at art pixel (`x0`, `y0`):
+/// each opaque art pixel a 2x2 block of exactly its colour, nothing blended. As (x, y).
+fn off_twice(frame: &[u8], face: &UndoFace, [x0, y0]: [u32; 2]) -> Vec<(usize, usize)> {
+    let mut off = Vec::new();
+    for ty in 0..face.h as usize {
+        for tx in 0..face.w as usize {
+            let t = (ty * face.w as usize + tx) * 4;
+            if face.rgba[t + 3] != 0xff {
+                continue;
+            }
+            let want = [face.rgba[t], face.rgba[t + 1], face.rgba[t + 2]];
+            for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                let (x, y) = ((x0 as usize + tx) * 2 + dx, (y0 as usize + ty) * 2 + dy);
+                if px(frame, x, y) != want {
+                    off.push((x, y));
+                }
+            }
+        }
+    }
+    off
+}
+
+/// `p` drawn alone on a fresh frame, and the frame read back.
+fn drawn(c: &mut Compositor, p: &Polaroids) -> Vec<u8> {
+    let mut out = Vec::new();
+    p.draw(&mut out);
+    c.begin_frame();
+    c.draw_list(&out);
+    c.read_frame()
+}
+
 /// The switcher's SAVE STATES panel on the panel is its face at twice its size: each art pixel
 /// a 2x2 block of exactly its colour where `Polaroids::panel_rect` puts it, nothing blended.
 #[test]
@@ -210,33 +243,42 @@ fn the_switchers_panel_is_its_face_at_twice_its_size() {
     let tex = c.create_texture_nearest(face.w, face.h, &face.rgba);
     let mut p = Polaroids::new(Vec::new());
     p.set_panel_face(tex, face.w, face.h);
-    let mut out = Vec::new();
-    p.draw(&mut out);
-    c.begin_frame();
-    c.draw_list(&out);
-    let frame = c.read_frame();
+    let frame = drawn(&mut c, &p);
 
     let [x0, y0, _, _] = Polaroids::panel_rect(face.w, face.h);
-    let mut off = Vec::new();
-    for ty in 0..face.h as usize {
-        for tx in 0..face.w as usize {
-            let t = (ty * face.w as usize + tx) * 4;
-            if face.rgba[t + 3] != 0xff {
-                continue;
-            }
-            let want = [face.rgba[t], face.rgba[t + 1], face.rgba[t + 2]];
-            for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
-                let (x, y) = ((x0 as usize + tx) * 2 + dx, (y0 as usize + ty) * 2 + dy);
-                if px(&frame, x, y) != want {
-                    off.push((x, y));
-                }
-            }
-        }
-    }
+    let off = off_twice(&frame, &face, [x0, y0]);
     assert!(
         off.is_empty(),
         "the panel is off its face at {} pixels, first {:?}",
         off.len(),
         &off[..off.len().min(4)]
     );
+}
+
+/// The switcher's line of keys is its face at twice its size where `Polaroids::keys_rect` puts
+/// it, as wide as Y DELETE and X UNDO SAVE and held as wide with Y DELETE alone.
+#[test]
+fn the_switchers_keys_are_their_face_at_twice_its_size() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let pal = palette(colour_index("amber").expect("amber"));
+    let both = keys_width(&[DELETE, UNDO_SAVE], 0);
+    for hints in [&[DELETE, UNDO_SAVE][..], &[DELETE][..]] {
+        let face = hint_line_face(both, KEYS_TITLE, hints, pal);
+        assert_eq!(face.w, both);
+        let tex = c.create_texture_nearest(face.w, face.h, &face.rgba);
+        let mut p = Polaroids::new(Vec::new());
+        p.set_keys_face(tex, face.w, face.h);
+        let frame = drawn(&mut c, &p);
+
+        let [x0, y0, _, _] = Polaroids::keys_rect(face.w, face.h);
+        let off = off_twice(&frame, &face, [x0, y0]);
+        assert!(
+            off.is_empty(),
+            "{hints:?}: the keys are off their face at {} pixels, first {:?}",
+            off.len(),
+            &off[..off.len().min(4)]
+        );
+    }
 }
