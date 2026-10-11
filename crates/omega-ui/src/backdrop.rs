@@ -83,14 +83,16 @@ pub fn backdrop_speed(style: BackdropStyle) -> f64 {
     }
 }
 
-/// How far left a pattern has drifted `ms` milliseconds in, in whole pixels so its lines stay
-/// sharp, starting over each period.
+/// How far left a pattern has drifted `ms` milliseconds in, in whole art pixels (`ART` screen
+/// pixels at a time) so its pixels stay on the grid the rest of the UI is drawn on, starting
+/// over each period.
 pub fn backdrop_shift(style: BackdropStyle, moving: bool, ms: u64) -> u32 {
     if !moving || !style.moves() {
         return 0;
     }
     let moved = ms as f64 / 1000.0 * backdrop_speed(style);
-    (moved.floor() as u64 % backdrop_period(style) as u64) as u32
+    let art = (moved / ART as f64).floor() as u64 * ART as u64;
+    (art % backdrop_period(style) as u64) as u32
 }
 
 /// `base` lifted toward white by `lift`, or sunk toward black by as much when it is below 0.
