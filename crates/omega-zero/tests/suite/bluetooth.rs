@@ -285,7 +285,7 @@ fn the_desktops_radio_holds_flows_devices() {
             "8BitDo SN30 Pro",
             "WH-1000XM4",
             "Keychron K3",
-            "4C:4C:6B:1A:80:D3"
+            "Mi Smart Band 4"
         ]
     );
     assert_eq!(
@@ -297,6 +297,14 @@ fn the_desktops_radio_holds_flows_devices() {
             DeviceKind::Other
         ]
     );
+
+    // the devices only found are forgotten once discovery stops, as bluetoothd forgets them
+    sim.ask(BluetoothJob::Scan(false));
+    let Some(BluetoothNews::Status(s)) = sim.news().pop() else {
+        panic!("no status after discovery stopped");
+    };
+    let names: Vec<&str> = s.devices.iter().map(Device::shown).collect();
+    assert_eq!(names, ["8BitDo SN30 Pro", "WH-1000XM4"]);
 }
 
 #[test]

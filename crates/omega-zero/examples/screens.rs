@@ -243,6 +243,13 @@ wait 30
 settle
 wait 30
 shot bluetooth
+tap x
+wait 10
+settle
+shot bluetooth-looking
+wait 730
+settle
+shot bluetooth-found
 tap down
 wait 10
 tap down
