@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Everything around the shelf is on the menus' 2-pixel grid: the slot's edges and its scoop, the
+  slot's name in the menus' type and the theme's dim colour, the top bar's clock, figure and
+  "ssh" (drawn bold the kit's way), and a generated label's title, now always Pixel Code at its
+  own size. A cart the core turns away comes out under a pixel-art warning sign in the theme's
+  colour. The background drifts two pixels at a time, a refused cart shakes a whole pixel at a
+  time, and the boot logo fades into the shelf in four steps.
 - The save states, MENU ×2 in a game, are drawn in the menus' pixel art. The shelf's top bar
   stands over the screenshot in place of a dark strip of their own; a SAVE STATES panel at the
   top in the middle says how long ago the save shown was made, with a dot for each save under

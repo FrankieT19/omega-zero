@@ -46,10 +46,9 @@ pub const GB_LABEL_H: u32 = gb_label_panel(GB_CART_W, GB_CART_H).3 - GB_LABEL_Y;
 
 const PAD: u32 = 10;
 const MAX_LINES: usize = 3;
-/// A generated label's title is set in Pixel Code at a whole number of art pixels (two of the
-/// face's pixels) to one of the face's: two (36 px) when it fits the label in up to three lines,
-/// else one (18 px). Never 27 px, an art pixel and a half.
-const MAX_PX: f32 = 36.0;
+/// A generated label's title is set in Pixel Code at one art pixel (two of the face's pixels) to
+/// one of the face's, the size every word in the UI is set at, on up to three lines.
+const MAX_PX: f32 = 18.0;
 const MIN_PX: f32 = 18.0;
 
 const RIM: u32 = (4 * CART_W + SEATED_W / 2) / SEATED_W;

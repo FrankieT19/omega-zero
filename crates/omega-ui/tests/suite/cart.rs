@@ -640,11 +640,10 @@ fn the_clear_shell_lightens_at_its_rim_and_the_plain_one_does_not() {
     }
 }
 
-/// A generated label's title is set at two art pixels (four of the label's) to one of Pixel
-/// Code's when it fits, and at one when it does not: never at one and a half (27 px), so each
-/// of the face's pixels is a whole number of art pixels across and down.
+/// A generated label's title is set at one art pixel (two of the label's) to one of Pixel Code's,
+/// short or long, as every word in the UI is: never at one and a half (27 px) or two.
 #[test]
-fn a_generated_title_is_set_on_whole_art_pixels() {
+fn a_generated_title_is_set_one_art_pixel_to_a_face_pixel() {
     let gba = |stem: &str| {
         let d = tmp_root();
         std::fs::write(d.path().join(format!("Games/GBA/{stem}.gba")), [0u8; 8]).unwrap();
@@ -661,11 +660,11 @@ fn a_generated_title_is_set_on_whole_art_pixels() {
     };
     let long = "Supercalifragilisticexpialidocious Anniversary Edition";
     for (stem, (face, [lx, ly, lw, lh]), face_px) in [
-        ("Zelda", gba("Zelda"), 4),
-        ("Minish Cap", gba("Minish Cap"), 4),
+        ("Zelda", gba("Zelda"), 2),
+        ("Minish Cap", gba("Minish Cap"), 2),
         ("Pokemon Emerald Version", gba("Pokemon Emerald Version"), 2),
         (long, gba(long), 2),
-        ("Tetris", gb("Tetris"), 4),
+        ("Tetris", gb("Tetris"), 2),
         ("Links Awakening", gb("Links Awakening"), 2),
     ] {
         let bg = label_colour(stem);
