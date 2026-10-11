@@ -24,6 +24,7 @@ mod legend;
 mod letters;
 mod link_art;
 mod network;
+mod opening;
 mod palette;
 mod plate;
 mod polaroids;

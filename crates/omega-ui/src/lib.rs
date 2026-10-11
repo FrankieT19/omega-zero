@@ -14,6 +14,7 @@ mod keyboard;
 pub mod kit;
 mod link_art;
 pub mod network;
+mod opening;
 mod plate;
 mod polaroids;
 mod power_menu;
@@ -74,6 +75,7 @@ pub use link_art::{
     ADAPTER_BASE_X, ADAPTER_BASE_Y, ADAPTER_H, ADAPTER_W, ARROW_H, ARROW_W, CLICKS_H, CLICKS_W,
     PLUG_H, PLUG_TIP_X, PLUG_W, PORT_H, PORT_W,
 };
+pub use opening::{opening_line, OPENING_ADVANCE, OPENING_PITCH, OPENING_RISE};
 pub use plate::{
     arrows_hint_face, arrows_hint_width, cap_width, centred_hints, hint_face, hint_quad, hint_row,
     hint_width, title_face, word_cap_top, word_face, word_face_in, word_tail, word_width, Hint,

@@ -6,9 +6,14 @@
   right. The slot sits a bar higher to make room for it.
 - Game Boy carts stand at 80% of their size on the shelf and grow to full size as they go into
   the slot.
-- The boot logo fades into the shelf. The shelf's first frames show the same logo, where the
-  handheld drew it, and it fades out over half a second to the shelf already moving under it.
-  Any button ends the fade at once. A boot back into a game, or to the clock, cuts as before.
+- An opening after Mega Man X5's NOM ENGINEER WORK SYSTEM boot screen, told about the handheld
+  it runs on. omega-zero's first frames show the boot logo where the handheld drew it, and it
+  fades to black. Then a terminal fades in, in X5's wide mint letters and its beeps: the model,
+  the memory counted up, the H700, the Mali-G31, the battery and its charge, a login as root,
+  `>omega -boot -a` typed out and three files read. After ten seconds it fades out and the shelf
+  fades in. Any button cuts it short, and that press does nothing on the shelf. Once the
+  shelf shows through, a press ends the opening at once and works as usual. POWER and the lid
+  end it at once. A boot back into a game, or to the clock, cuts as before.
 - START on the shelf opens Settings, a window in the style of Mega Man Zero's menus, in place of
   the old quick menu. CONFIGS holds Fast Forward (2X, 3X, 4X or 6X), Fast Forward Sound, Colour
   Correction, Rumble and Labels; GENERAL holds Date & Time, Network, Theme and About.
