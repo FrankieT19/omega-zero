@@ -45,12 +45,17 @@
 - The top bar lights Wi-Fi and ssh within a second of a network being joined, and puts them out
   as quickly when it is lost. After boot they stayed dark until a menu was opened.
 - Bluetooth, under Network in Settings, on handhelds that have it. Its screen switches it on and
-  off and, while it is on, lists the devices paired, then those it finds while the screen is
-  open. A pairs with a new device and connects it, connects a paired one, or disconnects one
-  connected; Y forgets a paired one. Settings names the device connected. The card remembers
-  whether Bluetooth is on, bringing it up at boot, and the top bar lights its icon while it is.
-  Pairing asks nothing on screen, which most gamepads and headphones take. Game sound over
-  Bluetooth headphones and Bluetooth gamepads as controllers are still to come.
+  off and, while it is on, lists the devices paired, then those a look finds. A pairs with a new
+  device and connects it, connects a paired one, or disconnects one connected; Y forgets a
+  paired one. Settings names the device connected. The card remembers whether Bluetooth is on,
+  bringing it up at boot, and the top bar lights its icon while it is. Pairing asks nothing on
+  screen, which most gamepads and headphones take. Game sound over Bluetooth headphones and
+  Bluetooth gamepads as controllers are still to come.
+- The Bluetooth screen looks for devices only when asked: it opens on the paired devices and
+  "Press X to look for devices.", and X SCAN looks for 12 seconds, saying "Looking for devices…"
+  while the devices it finds join the list, which keeps them until the screen is left. Devices
+  are listed by name: one found that gives none, most often a beacon nobody can pair with, is
+  left out rather than shown by its address.
 
 ### For developers
 
