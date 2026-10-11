@@ -2,21 +2,9 @@ use std::sync::OnceLock;
 
 use crate::text;
 
+/// How tall a line of the old text path is, from the top of its face to the bottom.
 pub const HINT_H: u32 = 24;
-pub const CAP: u32 = 20;
-const CAP_PAD: u32 = 4;
-const CAP_MAX_W: f32 = 80.0;
-
-pub const CAP_GAP: u32 = 5;
-const EDGE: u32 = 2;
-pub const HINT_EDGE: u32 = EDGE;
-const LABEL_MAX_W: f32 = 200.0;
-
-const INK: [u8; 3] = [0xf6, 0xf4, 0xef];
-const CAP_INK: [u8; 3] = [0x1a, 0x19, 0x17];
-const KEY_PX: f32 = 18.0;
 const LABEL_PX: f32 = 18.0;
-const LABEL_MIN_PX: f32 = 18.0;
 
 pub struct UndoFace {
     pub rgba: Vec<u8>,
@@ -24,54 +12,7 @@ pub struct UndoFace {
     pub h: u32,
 }
 
-pub fn cap_width(key: &str) -> u32 {
-    let Some(font) = text::label_font() else {
-        return CAP;
-    };
-    let layout = text::fit(font, key, CAP_MAX_W, 1, KEY_PX, KEY_PX);
-    let ink = layout
-        .lines
-        .iter()
-        .map(|l| text::line_width(font, l, layout.px, layout.tracking))
-        .fold(0.0, f32::max);
-    CAP.max(ink.ceil() as u32 + 2 * CAP_PAD)
-}
-
-pub fn hint_width(key: &str, label: &str) -> u32 {
-    cap_width(key) + CAP_GAP + band_width(label) + EDGE
-}
-
-pub fn hint_face(key: &str, label: &str) -> UndoFace {
-    let w = hint_width(key, label);
-    let mut rgba = vec![0u8; (w * HINT_H * 4) as usize];
-
-    let cap_w = cap_width(key);
-    let mut cap = Vec::with_capacity((cap_w * CAP * 4) as usize);
-    for _ in 0..cap_w * CAP {
-        cap.extend_from_slice(&[INK[0], INK[1], INK[2], 255]);
-    }
-    if let Some(font) = text::label_font() {
-        let layout = text::fit(font, key, cap_w as f32, 1, KEY_PX, KEY_PX);
-        text::draw_centred(&mut cap, cap_w, CAP, &layout, CAP_INK);
-    }
-    blit(&mut rgba, w, &cap, cap_w, CAP, 0, (HINT_H - CAP) / 2);
-
-    let text_w = band_width(label);
-    let mut band = vec![0u8; (text_w * HINT_H * 4) as usize];
-    if let Some(font) = text::label_font() {
-        let layout = text::fit(font, label, text_w as f32, 1, LABEL_PX, LABEL_MIN_PX);
-        text::draw_centred(&mut band, text_w, HINT_H, &layout, INK);
-    }
-    blit(&mut rgba, w, &band, text_w, HINT_H, cap_w + CAP_GAP, 0);
-
-    UndoFace { rgba, w, h: HINT_H }
-}
-
-pub fn word_width(text: &str) -> u32 {
-    band_width(text)
-}
-
-/// How far below the top of a `word_face` its capitals and figures start.
+/// How far below the top of a line of the old text path its capitals and figures start.
 pub fn word_cap_top() -> f32 {
     static TOP: OnceLock<f32> = OnceLock::new();
     *TOP.get_or_init(|| {
@@ -79,35 +20,4 @@ pub fn word_cap_top() -> f32 {
             .map(|font| text::cap_top(font, HINT_H, LABEL_PX))
             .unwrap_or(0.0)
     })
-}
-
-pub fn word_face(text: &str) -> UndoFace {
-    let w = word_width(text);
-    let mut rgba = vec![0u8; (w * HINT_H * 4) as usize];
-    if let Some(font) = text::label_font() {
-        let layout = text::fit(font, text, w as f32, 1, LABEL_PX, LABEL_MIN_PX);
-        text::draw_centred(&mut rgba, w, HINT_H, &layout, INK);
-    }
-    UndoFace { rgba, w, h: HINT_H }
-}
-
-fn band_width(label: &str) -> u32 {
-    let Some(font) = text::label_font() else {
-        return LABEL_MAX_W as u32;
-    };
-    let layout = text::fit(font, label, LABEL_MAX_W, 1, LABEL_PX, LABEL_MIN_PX);
-    let ink = layout
-        .lines
-        .iter()
-        .map(|l| text::line_width(font, l, layout.px, layout.tracking))
-        .fold(0.0, f32::max);
-    (ink.ceil() as u32).clamp(1, LABEL_MAX_W as u32)
-}
-
-pub(crate) fn blit(dst: &mut [u8], dst_w: u32, src: &[u8], src_w: u32, src_h: u32, x: u32, y: u32) {
-    for row in 0..src_h {
-        let from = ((row * src_w) * 4) as usize;
-        let to = (((y + row) * dst_w + x) * 4) as usize;
-        dst[to..to + (src_w * 4) as usize].copy_from_slice(&src[from..from + (src_w * 4) as usize]);
-    }
 }

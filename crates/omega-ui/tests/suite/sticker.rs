@@ -49,7 +49,6 @@ fn the_compliance_block_is_the_credits() {
         "GPSP",
         "BASEOS BY PVAIBHAV",
         "PIXEL CODE",
-        "NERD",
         "LCD3X",
         "CLAUDE",
     ] {

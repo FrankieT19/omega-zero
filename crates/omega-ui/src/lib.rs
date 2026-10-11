@@ -9,7 +9,6 @@ mod clock;
 mod draw;
 mod footer;
 mod hud;
-mod icon;
 mod keyboard;
 pub mod kit;
 pub mod link_art;
@@ -61,7 +60,6 @@ pub use footer::Printed;
 pub use hud::{
     CornerBadge, FfState, Gauge, Hud, HudFace, HudKind, LinkBadge, Millis, HUD_INK, HUD_MS, MARGIN,
 };
-pub use icon::{icon_box, icon_face, Icon};
 pub use keyboard::{
     bottom_label, field_face, key_box, key_label, key_on, key_rect, keyboard_place, keyboard_title,
     keys_face, lit_key_face, row_len, window_face, Key, Keyboard, KeyboardFaces, KeyboardLook,
@@ -70,10 +68,7 @@ pub use keyboard::{
 };
 pub use kit::badge::BadgeIcon;
 pub use kit::gauge::GaugeIcon;
-pub use plate::{
-    cap_width, hint_face, hint_width, word_cap_top, word_face, word_width, UndoFace, CAP, CAP_GAP,
-    HINT_EDGE, HINT_H,
-};
+pub use plate::{word_cap_top, UndoFace, HINT_H};
 pub use polaroids::{photo_face, PhotoFace, Polaroids, PHOTO_H, PHOTO_W};
 pub use power_menu::PowerChoice;
 pub use refusal::Refusal;

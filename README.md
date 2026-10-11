@@ -111,8 +111,8 @@ omega-zero is made by **Otávio ([@oauramos](https://github.com/oauramos))**.
 - [BaseOS](https://github.com/pvaibhav/BaseOS) by pvaibhav.
 - Emulation by [mGBA](https://mgba.io) (MPL-2.0) and [gpSP](https://github.com/libretro/gpsp)
   (GPL-2.0). Their licences, patches and gpSP's source ship in `System/licenses/`.
-- Type is [Pixel Code](https://github.com/qwerasd205/PixelCode) by Qwerasd (SIL OFL 1.1) and the
-  [Nerd Fonts](https://www.nerdfonts.com) symbols. The LCD mask is derived from GigaHerz's LCD3x.
+- Type is [Pixel Code](https://github.com/qwerasd205/PixelCode) by Qwerasd (SIL OFL 1.1); every
+  icon is drawn as pixel art. The LCD mask is derived from GigaHerz's LCD3x.
 - Cart labels come from [ScreenScraper](https://www.screenscraper.fr), fetched with your own
   account.
 
