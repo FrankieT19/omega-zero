@@ -115,7 +115,9 @@ deploy)
 	done
 	on sync
 	echo "copied, rebooting $host"
-	on "(sleep 1; reboot) > /dev/null 2>&1 &"
+	# Wi-Fi down first, as omega-zero's own restart does: the RTL8821CS's driver can hang the
+	# kernel's shutdown when it is taken down from up after scanning for networks
+	on "(sleep 1; for n in /sys/class/net/*/wireless; do n=\${n%/wireless}; ifconfig \${n##*/} down; done; sleep 1; reboot) > /dev/null 2>&1 &"
 	# The launcher writes a line to the session log as it starts omega-zero. A console that is
 	# back but turns the password away three times running has had a new one given to root: the
 	# first omega-zero to run on a card with no ssh_password does that as it starts.

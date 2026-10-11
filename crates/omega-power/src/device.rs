@@ -441,6 +441,31 @@ fn headphones_in(gpio: &str) -> bool {
         .is_some_and(|(_, state)| state.split_whitespace().nth(1) == Some("hi"))
 }
 
+/// Takes every Wi-Fi interface and the Bluetooth controller down before the machine is taken down.
+/// The RTL8821CS's driver can hang the kernel's own shutdown, and so the reboot or the power off,
+/// when it is taken down from up after it has scanned for networks, as Settings > Network does;
+/// taken down here first, from user space, with a moment to settle, it never has.
+fn quiet_radios() {
+    let names: Vec<String> = fs::read_dir("/sys/class/net")
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|entry| entry.path().join("wireless").exists())
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .collect();
+    for name in &names {
+        let _ = Command::new("ifconfig")
+            .args([name.as_str(), "down"])
+            .status();
+    }
+    if Path::new("/sys/class/bluetooth/hci0").exists() {
+        let _ = Command::new("hciconfig").args(["hci0", "down"]).status();
+    }
+    if !names.is_empty() {
+        std::thread::sleep(Duration::from_secs(1));
+    }
+}
+
 impl Platform for DevicePlatform {
     fn headphones(&self) -> bool {
         fs::read_to_string(self.sysfs.join("kernel/debug/gpio")).is_ok_and(|g| headphones_in(&g))
@@ -508,6 +533,7 @@ impl Platform for DevicePlatform {
 
     fn restart(&mut self) -> ! {
         self.breadcrumb("restart: reached omega-zero, about to sync");
+        quiet_radios();
         let _ = Command::new("sync").status();
         self.breadcrumb("restart: sync returned, about to signal init");
         let _ = Command::new("reboot").status();
@@ -517,6 +543,7 @@ impl Platform for DevicePlatform {
 
     fn poweroff(&mut self) -> ! {
         self.breadcrumb("poweroff: reached omega-zero, about to sync");
+        quiet_radios();
         let _ = Command::new("sync").status();
         self.breadcrumb("poweroff: sync returned, about to signal init");
         let _ = Command::new("poweroff").status();
