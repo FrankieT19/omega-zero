@@ -84,6 +84,7 @@ Walk it with the keyboard or the buttons under the screen:
 | D-pad | arrows |
 | A | `X` or `A` |
 | B | `Z`, `B` or `Esc` |
+| X | `S` |
 | Y | `Y` |
 | START | `Enter` |
 | SELECT | `Space` or right `Shift` |
@@ -91,6 +92,13 @@ Walk it with the keyboard or the buttons under the screen:
 The sidebar jumps straight to a screen, sets Settings > Theme and the panel size, and has
 **slow motion ×5** and **step one frame**, which holds a slide and moves it a frame at a time.
 A key pressed during a slide finishes it, then does what it does.
+
+Settings > Network never looks for networks on its own. AVAILABLE NETWORKS lists what is known
+without a scan, the network joined (Home, CONNECTED, with no bars or padlock), and the note says
+"Press X to look for networks.". X looks once: "Looking for networks…" for a moment, then every
+network found with its bars and padlock, which stay until the next scan's answer or until
+Network is left. The bar says `X SCAN` while Wi-Fi is on, and `X SCAN` `Y FORGET` on the network
+joined. With Wi-Fi off the list is empty and the note says "Wi-Fi is off.".
 
 Settings > Bluetooth is a modal like Network's: BLUETOOTH, its one row switching the radio ON
 or OFF with Left and Right, and DEVICES, each device it knows or finds while it is on, its name
@@ -114,7 +122,8 @@ headless Chrome screenshot lands on the same frame:
 | `colour` | `night` (default), `slate`, `navy`, `teal`, `green`, `plum`, `crimson`, `amber` |
 | `style`, `moving` | the backdrop, as Settings > Theme sets it: `style=plates`, `moving=0` |
 | `font` | `thin`: the bottom bar's labels in the thin font, as Settings > Theme > Font sets it |
-| `wifi` | `off`: SSH shows what it says offline, and the networks dim |
+| `wifi` | `off`: SSH shows what it says offline, and Network lists no networks |
+| `scan` | Network's scan: `none` (default, as it opens), `running` (looking, standing still) or `done` (the networks found) |
 | `bt` | Bluetooth: `on` (default) with four devices, `off`, `pairing` (the keyboard pairing, the cursor on it) or `empty` (nothing found yet) |
 | `row` | the cursor's row on `screen`, from 0 |
 | `slow` | `1`: slides at a fifth of their speed |
