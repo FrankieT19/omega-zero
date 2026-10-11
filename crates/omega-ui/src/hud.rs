@@ -1,38 +1,50 @@
+//! What shows over a game, the shelf or a menu for a moment, or while it lasts: a gauge for the
+//! level a button just moved (kit::gauge), a toast saying what just happened (kit::toast), and
+//! a badge in the corner while the game runs fast or is linked (kit::badge).
+//!
+//! The gauge or the toast stands centred at the top, `MARGIN` down, or that far under the bar
+//! across the top where one shows; a toast takes the gauge's place while it lasts. Each comes
+//! at once and goes in the even steps of kit::fade. The badge stays in the top right corner,
+//! level with a gauge's middle, for as long as what it says is so.
+//!
+//! The HUD only says what it shows. The frontend draws each face the first time it is asked for
+//! and again when the palette changes, and hands it back with `set_gauge_face`,
+//! `set_toast_face` and `set_badge_face`; a face is drawn only while the HUD still shows what
+//! it was drawn for.
+
 use omega_gfx::{out_w, Draw, TexId};
 use omega_store::{BLUE_LIGHT_MAX, BRIGHTNESS_MAX, VOLUME_MAX};
 
-use crate::icon::icon_box;
-use crate::toast::toast_rect;
-use crate::{Badge, Icon, Toast};
+use crate::kit::badge::{badge_face, BadgeIcon, BADGE_H};
+use crate::kit::fade::stepped;
+use crate::kit::gauge::{gauge_face, lit_cells, GaugeIcon, GAUGE_H};
+use crate::kit::palette::Palette;
+use crate::kit::pixel::quad;
+use crate::plate::UndoFace;
+use crate::sprite::SPRITE_PX;
+use crate::Toast;
 
 pub type Millis = u64;
 
 pub const HUD_MS: Millis = 1500;
 const FADE_MS: Millis = 250;
 
+/// The save-state switcher's dark bands across the top and the bottom of the screen: how tall
+/// they are and their colour. The HUD draws none.
 pub const PLATE_H: f32 = 40.0;
 pub(crate) const PLATE: [f32; 4] = [0.0, 0.0, 0.0, 0.72];
 
-pub const HUD_ICON_PX: f32 = 24.0;
+/// The white the save-state switcher prints in, and the top bar on a card whose theme sets the
+/// chrome.
 pub const HUD_INK: [u8; 3] = [0xf5, 0xf2, 0xef];
-const ICON_GAP: f32 = 10.0;
 
-const BADGE_MARGIN: f32 = 12.0;
+/// How far the gauge and the toast stand below the top of the screen, or below the bar across
+/// it, in screen pixels: two art pixels.
+pub const MARGIN: f32 = 4.0;
 
-pub fn badge_at(w: f32, h: f32) -> (f32, f32) {
-    (out_w() as f32 - BADGE_MARGIN - w, (PLATE_H - h) / 2.0)
-}
-
-const BAR_W: f32 = 320.0;
-const BAR_H: f32 = 6.0;
-const BAR_Y: f32 = (PLATE_H - BAR_H) / 2.0;
-const TRACK: [f32; 4] = [1.0, 1.0, 1.0, 0.18];
-const FILL: [f32; 4] = [
-    HUD_INK[0] as f32 / 255.0,
-    HUD_INK[1] as f32 / 255.0,
-    HUD_INK[2] as f32 / 255.0,
-    1.0,
-];
+/// How far the badge stands in from the right edge of the screen, in screen pixels: as far as
+/// it stands below the top.
+const BADGE_RIGHT: u32 = MARGIN as u32 + (GAUGE_H - BADGE_H) / 2 * SPRITE_PX;
 
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum HudKind {
@@ -44,16 +56,35 @@ pub enum HudKind {
 }
 
 impl HudKind {
-    pub fn icon(self, value: u8, muted: bool, headphones: bool) -> Icon {
+    /// The gauge's icon: the speaker, or the headphones while they are in, and either muted
+    /// as the speaker muted.
+    pub fn icon(self, muted: bool, headphones: bool) -> GaugeIcon {
         match self {
-            HudKind::Brightness => Icon::Brightness,
-            HudKind::BlueLight => Icon::BlueLight,
-            HudKind::Volume if headphones && muted => Icon::HeadphonesMuted,
-            HudKind::Volume if headphones => Icon::Headphones,
-            HudKind::Volume if muted => Icon::VolumeMuted,
-            HudKind::Volume if value == 0 => Icon::VolumeZero,
-            HudKind::Volume => Icon::Volume,
-            HudKind::Rewind => Icon::Rewind,
+            HudKind::Brightness => GaugeIcon::Brightness,
+            HudKind::BlueLight => GaugeIcon::BlueLight,
+            HudKind::Volume if muted => GaugeIcon::Muted,
+            HudKind::Volume if headphones => GaugeIcon::Headphones,
+            HudKind::Volume => GaugeIcon::Volume,
+            HudKind::Rewind => GaugeIcon::Rewind,
+        }
+    }
+
+    /// The name in the gauge's tab.
+    pub fn label(self) -> &'static str {
+        match self {
+            HudKind::Brightness => "BRIGHTNESS",
+            HudKind::BlueLight => "BLUE LIGHT",
+            HudKind::Volume => "VOLUME",
+            HudKind::Rewind => "REWIND",
+        }
+    }
+
+    /// How many cells the gauge has: one to a step for the levels of 0 to 9, one to 5% for
+    /// the volume and the rewind left.
+    pub fn cells(self) -> u32 {
+        match self {
+            HudKind::Brightness | HudKind::BlueLight => 9,
+            HudKind::Volume | HudKind::Rewind => 20,
         }
     }
 
@@ -67,6 +98,22 @@ impl HudKind {
     }
 }
 
+/// What a gauge shows: which level, how many of its cells are lit, and its icon.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct Gauge {
+    pub kind: HudKind,
+    pub lit: u32,
+    pub icon: GaugeIcon,
+}
+
+impl Gauge {
+    pub fn face(&self, pal: &Palette) -> UndoFace {
+        let cells = self.kind.cells();
+        let icon = Some(self.icon);
+        gauge_face(self.kind.label(), self.lit, cells, cells, icon, pal)
+    }
+}
+
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum FfState {
     #[default]
@@ -74,17 +121,6 @@ pub enum FfState {
     Held,
     Latched,
 }
-
-pub fn ff_badge(state: FfState) -> Option<Icon> {
-    match state {
-        FfState::Off => None,
-        FfState::Held => Some(Icon::FastForward),
-        FfState::Latched => Some(Icon::FastForwardLatched),
-    }
-}
-
-pub const LINK_HOST_INK: [u8; 3] = [0x8a, 0x74, 0xcf];
-pub const LINK_JOIN_INK: [u8; 3] = [0xb2, 0xb2, 0xb8];
 
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum LinkBadge {
@@ -96,33 +132,40 @@ pub enum LinkBadge {
     JoinedLost,
 }
 
-impl LinkBadge {
-    pub const FACES: [LinkBadge; 4] = [
-        LinkBadge::Hosting,
-        LinkBadge::Joined,
-        LinkBadge::HostingLost,
-        LinkBadge::JoinedLost,
-    ];
+/// What the badge in the corner says: fast forward, latched or held, and how fast; or the link,
+/// which outranks it.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum CornerBadge {
+    FastForward { latched: bool, speed: u8 },
+    Link(LinkBadge),
+}
 
-    pub fn face_index(self) -> Option<usize> {
-        LinkBadge::FACES.iter().position(|b| *b == self)
-    }
-
-    pub fn badge(self) -> Option<Badge> {
-        match self {
-            LinkBadge::Off => None,
-            LinkBadge::Hosting | LinkBadge::Joined => Some(Badge::Link),
-            LinkBadge::HostingLost | LinkBadge::JoinedLost => Some(Badge::LinkBroken),
+impl CornerBadge {
+    /// The badge as the kit draws it. Fast forward holds its speed, "×4", lit once latched; the
+    /// link is lit while hosting and dark when joined, and broken once it is lost.
+    pub fn face(&self, pal: &Palette) -> UndoFace {
+        match *self {
+            CornerBadge::FastForward { latched, speed } => {
+                badge_face(BadgeIcon::FastForward, &format!("×{speed}"), latched, pal)
+            }
+            CornerBadge::Link(link) => {
+                let icon = match link {
+                    LinkBadge::HostingLost | LinkBadge::JoinedLost => BadgeIcon::Unlinked,
+                    _ => BadgeIcon::Link,
+                };
+                let hosting = matches!(link, LinkBadge::Hosting | LinkBadge::HostingLost);
+                badge_face(icon, "", hosting, pal)
+            }
         }
     }
+}
 
-    pub fn colour(self) -> Option<[u8; 3]> {
-        match self {
-            LinkBadge::Off => None,
-            LinkBadge::Hosting | LinkBadge::HostingLost => Some(LINK_HOST_INK),
-            LinkBadge::Joined | LinkBadge::JoinedLost => Some(LINK_JOIN_INK),
-        }
-    }
+/// A face the frontend drew for the HUD: its texture, and its size in art pixels.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct HudFace {
+    pub tex: TexId,
+    pub w: u32,
+    pub h: u32,
 }
 
 #[derive(Default)]
@@ -134,24 +177,17 @@ pub struct Hud {
     muted: bool,
     headphones: bool,
     ff: FfState,
+    ff_speed: u8,
     said: Option<(Toast, Millis)>,
-    icons: Vec<TexId>,
-    toasts: Vec<TexId>,
     link: LinkBadge,
-    link_faces: Vec<TexId>,
+    gauge_face: Option<(Gauge, HudFace)>,
+    toast_face: Option<(Toast, HudFace)>,
+    badge_face: Option<(CornerBadge, HudFace)>,
 }
 
 impl Hud {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub fn set_icons(&mut self, icons: Vec<TexId>) {
-        self.icons = icons;
-    }
-
-    pub fn set_toasts(&mut self, toasts: Vec<TexId>) {
-        self.toasts = toasts;
     }
 
     pub fn toast(&mut self, toast: Toast, now: Millis) {
@@ -183,20 +219,34 @@ impl Hud {
         self.held = false;
     }
 
-    pub fn glyph(&self) -> Icon {
-        self.kind.icon(self.value, self.muted, self.headphones)
+    pub fn glyph(&self) -> GaugeIcon {
+        self.kind.icon(self.muted, self.headphones)
     }
 
     pub fn set_headphones(&mut self, on: bool) {
         self.headphones = on;
     }
 
-    pub fn badge(&self) -> Option<Icon> {
-        ff_badge(self.ff)
+    /// Fast forward as `ff`, at `speed` times.
+    pub fn set_ff(&mut self, ff: FfState, speed: u8) {
+        self.ff = ff;
+        self.ff_speed = speed;
     }
 
-    pub fn set_ff(&mut self, ff: FfState) {
-        self.ff = ff;
+    /// The badge fast forward shows, while it runs.
+    pub fn ff_badge(&self) -> Option<CornerBadge> {
+        let speed = self.ff_speed;
+        match self.ff {
+            FfState::Off => None,
+            FfState::Held => Some(CornerBadge::FastForward {
+                latched: false,
+                speed,
+            }),
+            FfState::Latched => Some(CornerBadge::FastForward {
+                latched: true,
+                speed,
+            }),
+        }
     }
 
     pub fn set_link(&mut self, badge: LinkBadge) {
@@ -207,8 +257,39 @@ impl Hud {
         self.link
     }
 
-    pub fn set_link_faces(&mut self, faces: Vec<TexId>) {
-        self.link_faces = faces;
+    /// The gauge last shown, while it shows and after: the face the frontend keeps drawn.
+    pub fn gauge(&self) -> Option<Gauge> {
+        self.shown_at?;
+        Some(Gauge {
+            kind: self.kind,
+            lit: lit_cells(self.value as u32, self.kind.max() as u32, self.kind.cells()),
+            icon: self.glyph(),
+        })
+    }
+
+    /// The toast last said, while it shows and after.
+    pub fn last_toast(&self) -> Option<Toast> {
+        self.said.map(|(t, _)| t)
+    }
+
+    /// The badge in the corner: the link's, or else fast forward's.
+    pub fn badge(&self) -> Option<CornerBadge> {
+        match self.link {
+            LinkBadge::Off => self.ff_badge(),
+            link => Some(CornerBadge::Link(link)),
+        }
+    }
+
+    pub fn set_gauge_face(&mut self, gauge: Gauge, face: HudFace) {
+        self.gauge_face = Some((gauge, face));
+    }
+
+    pub fn set_toast_face(&mut self, toast: Toast, face: HudFace) {
+        self.toast_face = Some((toast, face));
+    }
+
+    pub fn set_badge_face(&mut self, badge: CornerBadge, face: HudFace) {
+        self.badge_face = Some((badge, face));
     }
 
     pub fn visible(&self, now: Millis) -> bool {
@@ -219,117 +300,24 @@ impl Hud {
         self.draw_at(now, 0.0, out);
     }
 
-    /// The plate with its gauge or toast `top` pixels down the screen, under whatever bar
-    /// stands across the top; the badges keep to the corner.
+    /// The gauge or the toast `top` pixels down the screen, under whatever bar stands across
+    /// the top, and the badge in the corner.
     pub fn draw_at(&self, now: Millis, top: f32, out: &mut Vec<Draw>) {
-        let alpha = self.alpha(now);
-        let toast = self.toast_alpha(now);
-        let plate = out.len();
-        if alpha > 0.0 || toast > 0.0 {
-            out.push(Draw::Rect {
-                x: 0.0,
-                y: 0.0,
-                w: out_w() as f32,
-                h: PLATE_H,
-                colour: faded(PLATE, alpha.max(toast)),
-            });
+        let y = (top / 2.0).round() * 2.0 + MARGIN;
+        let toast = stepped(self.toast_alpha(now));
+        let gauge = stepped(self.alpha(now));
+        let toast_face = face_of(self.toast_face, self.last_toast());
+        let gauge_face = face_of(self.gauge_face, self.gauge());
+        if let (true, Some(face)) = (toast > 0.0, toast_face) {
+            out.push(faded(centred(face, y), toast));
+        } else if let (true, Some(face)) = (gauge > 0.0, gauge_face) {
+            out.push(faded(centred(face, y), gauge));
         }
-        if toast > 0.0 {
-            self.draw_toast(now, out);
-        } else if alpha > 0.0 {
-            self.draw_bar(alpha, out);
+        if let Some(face) = face_of(self.badge_face, self.badge()) {
+            let x = out_w().saturating_sub(BADGE_RIGHT + face.w * SPRITE_PX);
+            let y = MARGIN as u32 + (GAUGE_H - BADGE_H) / 2 * SPRITE_PX;
+            out.push(quad(face.tex, face.w, face.h, x as f32, y as f32));
         }
-        if top != 0.0 {
-            for d in &mut out[plate..] {
-                *d = d.shifted(0.0, top);
-            }
-        }
-        let link = self
-            .link
-            .face_index()
-            .and_then(|i| self.link_faces.get(i).copied());
-        let ff = ff_badge(self.ff).and_then(|i| self.icons.get(i.index()).copied());
-        if let Some(tex) = link.or(ff) {
-            self.place_badge(tex, out);
-        }
-    }
-
-    fn draw_bar(&self, alpha: f32, out: &mut Vec<Draw>) {
-        let x = (out_w() as f32 - BAR_W) / 2.0;
-        if let Some(tex) = self.icon() {
-            let (w, h) = icon_box(HUD_ICON_PX);
-            out.push(Draw::Tex {
-                x: x - ICON_GAP - w as f32,
-                y: (PLATE_H - h as f32) / 2.0,
-                w: w as f32,
-                h: h as f32,
-                tex,
-                alpha,
-            });
-        }
-        out.push(Draw::Rect {
-            x,
-            y: BAR_Y,
-            w: BAR_W,
-            h: BAR_H,
-            colour: faded(TRACK, alpha),
-        });
-        out.push(Draw::Rect {
-            x,
-            y: BAR_Y,
-            w: BAR_W * self.fraction(),
-            h: BAR_H,
-            colour: faded(FILL, alpha),
-        });
-    }
-
-    fn place_badge(&self, tex: TexId, out: &mut Vec<Draw>) {
-        let (w, h) = icon_box(HUD_ICON_PX);
-        let (w, h) = (w as f32, h as f32);
-        let (x, y) = badge_at(w, h);
-        out.push(Draw::Tex {
-            x,
-            y,
-            w,
-            h,
-            tex,
-            alpha: 1.0,
-        });
-    }
-
-    fn draw_toast(&self, now: Millis, out: &mut Vec<Draw>) {
-        let alpha = self.toast_alpha(now);
-        if alpha <= 0.0 {
-            return;
-        }
-        let Some(tex) = self
-            .said
-            .and_then(|(t, _)| self.toasts.get(t.index()))
-            .copied()
-        else {
-            return;
-        };
-        let (x, y, w, h) = toast_rect();
-        out.push(Draw::Tex {
-            x,
-            y,
-            w,
-            h,
-            tex,
-            alpha,
-        });
-    }
-
-    fn icon(&self) -> Option<TexId> {
-        self.icons.get(self.glyph().index()).copied()
-    }
-
-    fn fraction(&self) -> f32 {
-        let max = self.kind.max();
-        if max == 0 {
-            return 0.0;
-        }
-        self.value.min(max) as f32 / max as f32
     }
 
     fn alpha(&self, now: Millis) -> f32 {
@@ -350,14 +338,31 @@ impl Hud {
     }
 }
 
+/// `face` while it was drawn for what is shown now.
+fn face_of<K: PartialEq>(face: Option<(K, HudFace)>, shown: Option<K>) -> Option<HudFace> {
+    face.filter(|(k, _)| Some(k) == shown.as_ref())
+        .map(|(_, f)| f)
+}
+
+/// `face` across the middle of the screen, rounded to a whole art pixel, its top at `y`.
+fn centred(face: HudFace, y: f32) -> Draw {
+    let x = (out_w() / SPRITE_PX).saturating_sub(face.w) / 2 * SPRITE_PX;
+    quad(face.tex, face.w, face.h, x as f32, y)
+}
+
+fn faded(mut draw: Draw, by: f32) -> Draw {
+    if let Draw::Tex { alpha, .. } = &mut draw {
+        *alpha = by;
+    }
+    draw
+}
+
+/// How much of the gauge or the toast shows `now`, smoothly: all of it, then less over its last
+/// `FADE_MS`, and none from `HUD_MS` on. kit::fade::stepped moves it to its steps to draw.
 fn fade(shown: Millis, now: Millis) -> f32 {
     let age = now.saturating_sub(shown);
     if age >= HUD_MS {
         return 0.0;
     }
     ((HUD_MS - age) as f32 / FADE_MS as f32).min(1.0)
-}
-
-fn faded(colour: [f32; 4], alpha: f32) -> [f32; 4] {
-    [colour[0], colour[1], colour[2], colour[3] * alpha]
 }

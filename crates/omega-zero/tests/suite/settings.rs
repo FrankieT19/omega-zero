@@ -12,7 +12,7 @@ use omega_ui::kit::layout::modal_rect;
 use omega_ui::kit::palette::palette;
 use omega_ui::kit::row::ROW_H;
 use omega_ui::{
-    date_time_text, out_w, settings_frame, settings_row_rects, Draw, Icon, QuickValue,
+    date_time_text, out_w, settings_frame, settings_row_rects, Draw, HudFace, QuickValue,
     SettingsFaces, SettingsGroup, SettingsRow, TexId, SPRITE_PX,
 };
 use omega_zero::app::{App, Phase};
@@ -375,10 +375,6 @@ fn the_first_boot_clock_still_has_no_way_back() {
 #[test]
 fn brightness_and_volume_still_answer_over_settings() {
     let (d, mut a, _) = on_carousel();
-    let icons: Vec<TexId> = (0..Icon::ALL.len())
-        .map(|i| TexId::from_raw(700 + i))
-        .collect();
-    a.set_icon_faces(icons.clone());
     open_at(&mut a, SettingsRow::FastForward);
     let before = read_app_state(d.path());
     a.apply(Action::BrightnessUp);
@@ -393,11 +389,15 @@ fn brightness_and_volume_still_answer_over_settings() {
         Some(SettingsRow::FastForward),
         "a level moved the menu"
     );
+    let gauge = a.hud().gauge().expect("the level shows no gauge");
+    let tex = TexId::from_raw(700);
+    let face = HudFace { tex, w: 157, h: 15 };
+    a.hud_mut().set_gauge_face(gauge, face);
     let out = frame(&a);
     assert!(
         out.iter()
-            .any(|d| matches!(*d, Draw::Tex { tex, .. } if icons.contains(&tex))),
-        "the level's bar is not drawn over the menu"
+            .any(|d| matches!(*d, Draw::Tex { tex: t, .. } if t == tex)),
+        "the level's gauge is not drawn over the menu"
     );
 }
 

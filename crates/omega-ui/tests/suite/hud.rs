@@ -1,28 +1,60 @@
+use omega_ui::kit::badge::BADGE_H;
+use omega_ui::kit::gauge::GAUGE_H;
+use omega_ui::kit::palette::palette;
 use omega_ui::{
-    ff_badge, icon_box, icon_face, out_h, out_w, Badge, Draw, FfState, Hud, HudKind, Icon,
-    LinkBadge, TexId, HUD_ICON_PX, LINK_HOST_INK, LINK_JOIN_INK,
+    out_h, out_w, CornerBadge, Draw, FfState, Gauge, GaugeIcon, Hud, HudFace, HudKind, LinkBadge,
+    TexId, MARGIN, SPRITE_PX,
 };
 
-fn bottom_edge(d: &Draw) -> Option<f32> {
-    match *d {
-        Draw::Rect { y, h, .. }
-        | Draw::Tex { y, h, .. }
-        | Draw::Turned { y, h, .. }
-        | Draw::Spun { y, h, .. }
-        | Draw::Model { y, h, .. } => Some(y + h),
-        Draw::Game | Draw::Shot { .. } => None,
-    }
+const GAUGE_TEX: TexId = TexId::from_raw(700);
+const BADGE_TEX: TexId = TexId::from_raw(900);
+
+/// `h` given a face for the gauge it shows now, 157 art pixels wide as VOLUME's.
+fn with_gauge_face(h: &mut Hud) {
+    let gauge = h.gauge().expect("no gauge to draw a face for");
+    let face = HudFace {
+        tex: GAUGE_TEX,
+        w: 157,
+        h: GAUGE_H,
+    };
+    h.set_gauge_face(gauge, face);
 }
 
-fn fill(kind: HudKind, value: u8) -> f32 {
+/// `h` given a face for the badge it shows now, `w` art pixels wide.
+fn with_badge_face(h: &mut Hud, w: u32) {
+    let badge = h.badge().expect("no badge to draw a face for");
+    let face = HudFace {
+        tex: BADGE_TEX,
+        w,
+        h: BADGE_H,
+    };
+    h.set_badge_face(badge, face);
+}
+
+fn drawn(h: &Hud, now: u64, top: f32) -> Vec<Draw> {
+    let mut out = Vec::new();
+    h.draw_at(now, top, &mut out);
+    out
+}
+
+fn tex(out: &[Draw], tex: TexId) -> Option<(f32, f32, f32, f32, f32)> {
+    out.iter().find_map(|d| match *d {
+        Draw::Tex {
+            x,
+            y,
+            w,
+            h,
+            tex: t,
+            alpha,
+        } if t == tex => Some((x, y, w, h, alpha)),
+        _ => None,
+    })
+}
+
+fn lit(kind: HudKind, value: u8) -> u32 {
     let mut h = Hud::new();
     h.show(kind, value, false, 0);
-    let mut out = Vec::new();
-    h.draw(0, &mut out);
-    match out.last().expect("no bar in the list") {
-        Draw::Rect { w, .. } => *w,
-        _ => panic!("the bar must be a rect"),
-    }
+    h.gauge().expect("no gauge").lit
 }
 
 #[test]
@@ -35,87 +67,171 @@ fn hud_fades_after_1500ms() {
 
 #[test]
 fn nothing_shows_until_something_is_adjusted() {
-    assert!(!Hud::new().visible(0));
+    let h = Hud::new();
+    assert!(!h.visible(0));
+    assert_eq!(h.gauge(), None);
+    assert!(drawn(&h, 0, 0.0).is_empty());
 }
 
 #[test]
 fn volume_reads_against_100_not_the_nine_step_scale() {
-    let full = fill(HudKind::Brightness, 9);
-    assert!(
-        fill(HudKind::Volume, 9) < full * 0.2,
-        "volume 9 filled the bar, so it is being read against the brightness scale"
+    assert_eq!(lit(HudKind::Brightness, 9), 9, "brightness 9 is not full");
+    assert_eq!(
+        lit(HudKind::Volume, 9),
+        2,
+        "volume 9 is being read against the brightness scale"
     );
-    assert_eq!(fill(HudKind::Volume, 100), full);
+    assert_eq!(lit(HudKind::Volume, 100), 20);
+    assert_eq!(lit(HudKind::BlueLight, 3), 3);
+    assert_eq!(lit(HudKind::Rewind, 70), 14);
 }
 
 #[test]
-fn the_hud_sits_at_the_top_of_the_screen() {
+fn each_level_has_its_title_and_cells() {
+    let kinds = [
+        (HudKind::Volume, "VOLUME", 20),
+        (HudKind::Brightness, "BRIGHTNESS", 9),
+        (HudKind::BlueLight, "BLUE LIGHT", 9),
+        (HudKind::Rewind, "REWIND", 20),
+    ];
+    for (kind, label, cells) in kinds {
+        assert_eq!((kind.label(), kind.cells()), (label, cells), "{kind:?}");
+    }
+}
+
+#[test]
+fn the_gauge_stands_at_the_top_on_its_own_with_no_plate() {
     let mut h = Hud::new();
     h.show(HudKind::Volume, 50, false, 0);
-    let mut out = Vec::new();
-    h.draw(0, &mut out);
-    let lowest = out.iter().filter_map(bottom_edge).fold(0.0f32, f32::max);
+    with_gauge_face(&mut h);
+    let out = drawn(&h, 0, 0.0);
+    assert_eq!(out.len(), 1, "the gauge came with company: {out:?}");
+    let (_, y, _, gh, alpha) = tex(&out, GAUGE_TEX).expect("the gauge is not drawn");
+    assert_eq!(y, MARGIN, "the gauge is not at the top");
+    assert_eq!(gh, (GAUGE_H * SPRITE_PX) as f32, "not drawn at 2x");
+    assert_eq!(alpha, 1.0);
+    assert!(y + gh < out_h() as f32 / 2.0);
+}
+
+#[test]
+fn the_gauge_is_centred_on_the_art_grid() {
+    let mut h = Hud::new();
+    h.show(HudKind::Volume, 50, false, 0);
+    with_gauge_face(&mut h);
+    let (x, y, w, _, _) = tex(&drawn(&h, 0, 0.0), GAUGE_TEX).expect("no gauge");
+    assert_eq!(x % 2.0, 0.0, "x {x} is off the art grid");
+    assert_eq!(y % 2.0, 0.0, "y {y} is off the art grid");
     assert!(
-        lowest < out_h() as f32 / 2.0,
-        "hud reaches {lowest}, expected the top half"
+        (x + w / 2.0 - out_w() as f32 / 2.0).abs() <= 1.0,
+        "the gauge at {x} is not centred"
     );
 }
 
 #[test]
-fn the_hud_draws_a_dark_plate_behind_itself() {
+fn under_a_top_bar_the_gauge_stands_just_below_it_on_the_grid() {
+    let mut h = Hud::new();
+    h.show(HudKind::Volume, 50, false, 0);
+    with_gauge_face(&mut h);
+    let y = |top: f32| tex(&drawn(&h, 0, top), GAUGE_TEX).expect("no gauge").1;
+    assert_eq!(y(36.0), 36.0 + MARGIN);
+    let sliding = y(23.3);
+    assert_eq!(sliding % 2.0, 0.0, "{sliding} is off the grid mid-slide");
+    assert!((sliding - (23.3 + MARGIN)).abs() <= 1.0);
+}
+
+#[test]
+fn the_gauge_fades_out_in_four_even_steps() {
     let mut h = Hud::new();
     h.show(HudKind::Brightness, 5, false, 0);
-    let mut out = Vec::new();
-    h.draw(0, &mut out);
-    let plate = out.first().expect("nothing drawn");
-    let Draw::Rect { w, colour, .. } = plate else {
-        panic!("first draw is not the plate")
-    };
-    assert_eq!(*w, out_w() as f32, "the plate does not span the screen");
+    with_gauge_face(&mut h);
+    let mut seen = Vec::new();
+    for now in 0..1500 {
+        let alpha = tex(&drawn(&h, now, 0.0), GAUGE_TEX).map_or(0.0, |t| t.4);
+        assert!(
+            [0.0, 0.25, 0.5, 0.75, 1.0].contains(&alpha),
+            "{alpha} at {now} ms is between the steps"
+        );
+        if seen.last() != Some(&alpha) {
+            seen.push(alpha);
+        }
+    }
+    assert_eq!(seen, vec![1.0, 0.75, 0.5, 0.25, 0.0]);
+}
+
+#[test]
+fn a_face_drawn_for_another_level_is_never_shown() {
+    let mut h = Hud::new();
+    h.show(HudKind::Volume, 50, false, 0);
+    with_gauge_face(&mut h);
+    h.show(HudKind::Volume, 55, false, 10);
     assert!(
-        colour[0] < 0.2 && colour[1] < 0.2 && colour[2] < 0.2,
-        "the plate is not dark"
-    );
-    assert!(
-        colour[3] > 0.6,
-        "the plate is too transparent to give contrast"
+        tex(&drawn(&h, 10, 0.0), GAUGE_TEX).is_none(),
+        "the face of the level before was drawn for the level now"
     );
 }
 
 #[test]
 fn muted_volume_uses_the_muted_icon() {
-    assert_eq!(HudKind::Volume.icon(0, false, false), Icon::VolumeZero);
-    assert_eq!(HudKind::Volume.icon(0, true, false), Icon::VolumeMuted);
-    assert_eq!(HudKind::Volume.icon(40, true, false), Icon::VolumeMuted);
-    assert_eq!(HudKind::Volume.icon(40, false, false), Icon::Volume);
+    assert_eq!(HudKind::Volume.icon(false, false), GaugeIcon::Volume);
+    assert_eq!(HudKind::Volume.icon(true, false), GaugeIcon::Muted);
+    let mut h = Hud::new();
+    h.show(HudKind::Volume, 0, true, 0);
+    assert_eq!(
+        h.gauge().map(|g| (g.icon, g.lit)),
+        Some((GaugeIcon::Muted, 0))
+    );
 }
 
 #[test]
-fn the_rewind_bar_is_held_open_rather_than_fading() {
+fn volume_on_headphones_shows_headphones() {
+    assert_eq!(HudKind::Volume.icon(false, true), GaugeIcon::Headphones);
+    assert_eq!(
+        HudKind::Volume.icon(true, true),
+        GaugeIcon::Muted,
+        "muted headphones should say muted"
+    );
+    assert_eq!(HudKind::Brightness.icon(false, true), GaugeIcon::Brightness);
+    assert_eq!(HudKind::Rewind.icon(false, false), GaugeIcon::Rewind);
+}
+
+#[test]
+fn the_rewind_gauge_is_held_open_rather_than_fading() {
     let mut h = Hud::new();
     h.show(HudKind::Rewind, 80, false, 0);
+    with_gauge_face(&mut h);
     assert!(
         h.visible(60_000),
-        "the rewind bar timed out while still held"
+        "the rewind gauge timed out while still held"
+    );
+    assert_eq!(
+        tex(&drawn(&h, 60_000, 0.0), GAUGE_TEX).map(|t| t.4),
+        Some(1.0)
     );
     h.release_rewind();
     assert!(!h.visible(60_000));
 }
 
 #[test]
-fn an_empty_rewind_buffer_still_draws_an_empty_bar() {
+fn an_empty_rewind_buffer_still_draws_an_empty_gauge() {
     let mut h = Hud::new();
     h.show(HudKind::Rewind, 0, false, 0);
-    let mut out = Vec::new();
-    h.draw(0, &mut out);
+    assert_eq!(
+        h.gauge(),
+        Some(Gauge {
+            kind: HudKind::Rewind,
+            lit: 0,
+            icon: GaugeIcon::Rewind
+        })
+    );
+    with_gauge_face(&mut h);
     assert!(
-        out.len() >= 2,
-        "the track disappeared when the buffer emptied"
+        tex(&drawn(&h, 0, 0.0), GAUGE_TEX).is_some(),
+        "the gauge disappeared when the buffer emptied"
     );
 }
 
 #[test]
-fn releasing_rewind_leaves_a_level_bar_alone() {
+fn releasing_rewind_leaves_a_level_gauge_alone() {
     let mut h = Hud::new();
     h.show(HudKind::Volume, 50, false, 0);
     h.release_rewind();
@@ -123,131 +239,164 @@ fn releasing_rewind_leaves_a_level_bar_alone() {
 }
 
 #[test]
-fn held_and_latched_fast_forward_are_one_glyph_each_and_differ() {
-    let held = ff_badge(FfState::Held).expect("held draws nothing");
-    let latched = ff_badge(FfState::Latched).expect("latched draws nothing");
+fn held_and_latched_fast_forward_differ_and_carry_the_speed() {
+    let mut h = Hud::new();
+    h.set_ff(FfState::Held, 4);
+    let held = h.ff_badge().expect("held draws nothing");
+    h.set_ff(FfState::Latched, 4);
+    let latched = h.ff_badge().expect("latched draws nothing");
+    assert_eq!(
+        held,
+        CornerBadge::FastForward {
+            latched: false,
+            speed: 4
+        }
+    );
+    assert_eq!(
+        latched,
+        CornerBadge::FastForward {
+            latched: true,
+            speed: 4
+        }
+    );
+    let pal = palette(0);
     assert_ne!(
-        held, latched,
+        held.face(pal).rgba,
+        latched.face(pal).rgba,
         "the latch is indistinguishable from the hold"
     );
-    assert_eq!(ff_badge(FfState::Off), None);
+    h.set_ff(FfState::Off, 4);
+    assert_eq!(h.ff_badge(), None);
 }
 
 #[test]
-fn both_fast_forward_glyphs_share_one_box() {
-    let held = icon_face(Icon::FastForward, 18.0, [255, 255, 255]);
-    let latched = icon_face(Icon::FastForwardLatched, 18.0, [255, 255, 255]);
-    assert_eq!((held.w, held.h), (latched.w, latched.h));
-    assert_ne!(
-        held.rgba, latched.rgba,
-        "the two variants rasterise identically"
-    );
+fn each_speed_has_its_own_badge() {
+    let pal = palette(0);
+    let faces: Vec<_> = [2, 3, 4, 6]
+        .map(|speed| {
+            CornerBadge::FastForward {
+                latched: false,
+                speed,
+            }
+            .face(pal)
+        })
+        .into_iter()
+        .map(|f| f.rgba)
+        .collect();
+    for (i, a) in faces.iter().enumerate() {
+        for b in &faces[i + 1..] {
+            assert_ne!(a, b, "two speeds read the same");
+        }
+    }
 }
 
 #[test]
-fn the_badge_outlives_the_bar_timer_without_a_plate() {
+fn the_badge_outlives_the_gauge_timer_without_a_plate() {
     let mut h = Hud::new();
-    h.set_ff(FfState::Latched);
-    let mut out = Vec::new();
-    h.draw(60_000, &mut out);
-    assert!(
-        !out.iter()
-            .any(|d| matches!(d, Draw::Rect { w, .. } if *w == out_w() as f32)),
-        "the badge dragged the full width plate up with it"
-    );
-    assert!(
-        ff_badge(FfState::Latched).is_some(),
-        "the badge itself went away"
+    h.set_ff(FfState::Latched, 2);
+    with_badge_face(&mut h, 25);
+    let out = drawn(&h, 60_000, 0.0);
+    assert_eq!(out.len(), 1, "the badge came with company: {out:?}");
+    assert!(tex(&out, BADGE_TEX).is_some(), "the badge itself went away");
+}
+
+#[test]
+fn the_badge_sits_in_the_top_right_corner_on_the_grid() {
+    let mut h = Hud::new();
+    h.set_ff(FfState::Held, 4);
+    with_badge_face(&mut h, 25);
+    // the bar across the top never moves the badge
+    let (x, y, w, bh, _) = tex(&drawn(&h, 0, 36.0), BADGE_TEX).expect("no badge");
+    assert_eq!((w, bh), (50.0, 18.0), "not drawn at 2x");
+    assert_eq!((x % 2.0, y % 2.0), (0.0, 0.0), "off the art grid");
+    let right = out_w() as f32 - (x + w);
+    assert_eq!(right, y, "{right} from the right but {y} from the top");
+    assert_eq!(
+        y + bh / 2.0,
+        MARGIN + (GAUGE_H * SPRITE_PX) as f32 / 2.0,
+        "the badge is not level with a gauge's middle"
     );
 }
 
 #[test]
 fn the_badge_leaves_when_fast_forward_stops() {
     let mut h = Hud::new();
-    h.set_ff(FfState::Held);
-    h.set_ff(FfState::Off);
-    let mut out = Vec::new();
-    h.draw(0, &mut out);
-    assert!(out.is_empty(), "the plate outlived the fast forward");
-}
-
-#[test]
-fn the_ff_badge_draws_no_plate_but_the_bar_still_does() {
-    let full = |out: &Vec<Draw>| {
-        out.iter()
-            .filter(|d| matches!(d, Draw::Rect { w, .. } if *w == out_w() as f32))
-            .count()
-    };
-
-    let mut badge_only = Hud::new();
-    badge_only.set_ff(FfState::Held);
-    let mut out = Vec::new();
-    badge_only.draw(60_000, &mut out);
-    assert_eq!(
-        full(&out),
-        0,
-        "the badge is still drawing the full width plate"
+    h.set_ff(FfState::Held, 4);
+    with_badge_face(&mut h, 25);
+    h.set_ff(FfState::Off, 4);
+    assert_eq!(h.badge(), None);
+    assert!(
+        drawn(&h, 0, 0.0).is_empty(),
+        "the badge outlived the fast forward"
     );
-
-    let mut with_bar = Hud::new();
-    with_bar.show(HudKind::Volume, 50, false, 0);
-    let mut out = Vec::new();
-    with_bar.draw(0, &mut out);
-    assert_eq!(full(&out), 1, "the bar lost the plate it is read against");
-}
-
-fn badges() -> Vec<TexId> {
-    (0..4).map(|i| TexId::from_raw(900 + i)).collect()
-}
-
-#[test]
-fn the_link_badge_takes_the_fast_forward_corner_without_a_plate() {
-    let mut h = Hud::new();
-    h.set_link_faces(badges());
-    h.set_link(LinkBadge::Hosting);
-    let mut out = Vec::new();
-    h.draw(60_000, &mut out);
-    assert_eq!(out.len(), 1, "the badge came with company: {out:?}");
-    let (w, _) = icon_box(HUD_ICON_PX);
-    assert!(matches!(out[0], Draw::Tex { tex, x, .. }
-        if tex == TexId::from_raw(900) && x == out_w() as f32 - 12.0 - w as f32));
-}
-
-#[test]
-fn each_link_badge_has_its_own_face_and_off_has_none() {
-    assert_eq!(LinkBadge::Off.face_index(), None);
-    for (i, b) in LinkBadge::FACES.iter().enumerate() {
-        assert_eq!(b.face_index(), Some(i));
-    }
-    assert_eq!(LinkBadge::HostingLost.colour(), Some(LINK_HOST_INK));
-    assert_eq!(LinkBadge::JoinedLost.colour(), Some(LINK_JOIN_INK));
-    assert_eq!(LinkBadge::JoinedLost.badge(), Some(Badge::LinkBroken));
-    assert_eq!(LinkBadge::Hosting.badge(), Some(Badge::Link));
 }
 
 #[test]
 fn the_link_badge_outranks_fast_forward() {
     let mut h = Hud::new();
-    h.set_icons((0..10).map(TexId::from_raw).collect());
-    h.set_link_faces(badges());
-    h.set_ff(FfState::Latched);
+    h.set_ff(FfState::Latched, 4);
     h.set_link(LinkBadge::JoinedLost);
-    let mut out = Vec::new();
-    h.draw(0, &mut out);
-    let texes: Vec<TexId> = out
-        .iter()
-        .filter_map(|d| match d {
-            Draw::Tex { tex, .. } => Some(*tex),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(texes, vec![TexId::from_raw(903)]);
+    assert_eq!(h.badge(), Some(CornerBadge::Link(LinkBadge::JoinedLost)));
+    with_badge_face(&mut h, 11);
+    let out = drawn(&h, 0, 0.0);
+    assert_eq!(out.len(), 1);
+    assert!(tex(&out, BADGE_TEX).is_some());
 }
 
 #[test]
-fn volume_on_headphones_shows_headphones() {
-    assert_eq!(HudKind::Volume.icon(40, false, true), Icon::Headphones);
-    assert_eq!(HudKind::Volume.icon(0, false, true), Icon::Headphones);
-    assert_eq!(HudKind::Volume.icon(40, true, true), Icon::HeadphonesMuted);
-    assert_eq!(HudKind::Brightness.icon(4, false, true), Icon::Brightness);
+fn each_link_badge_looks_its_own_and_off_has_none() {
+    let mut h = Hud::new();
+    h.set_link(LinkBadge::Off);
+    assert_eq!(h.badge(), None);
+    let pal = palette(0);
+    let faces: Vec<_> = [
+        LinkBadge::Hosting,
+        LinkBadge::Joined,
+        LinkBadge::HostingLost,
+        LinkBadge::JoinedLost,
+    ]
+    .iter()
+    .map(|b| CornerBadge::Link(*b).face(pal).rgba)
+    .collect();
+    for (i, a) in faces.iter().enumerate() {
+        for b in &faces[i + 1..] {
+            assert_ne!(a, b, "two of the link's badges read the same");
+        }
+    }
+}
+
+#[test]
+fn hosting_and_joining_are_told_apart_by_the_palette() {
+    let pal = palette(7);
+    let has = |b: LinkBadge, colour: [u8; 3]| {
+        CornerBadge::Link(b)
+            .face(pal)
+            .rgba
+            .chunks(4)
+            .any(|p| p[3] == 255 && p[..3] == colour)
+    };
+    assert!(has(LinkBadge::Hosting, pal.frame), "hosting is not lit");
+    assert!(
+        has(LinkBadge::Joined, pal.dark),
+        "joined is not the dark cap"
+    );
+    assert!(!has(LinkBadge::Joined, pal.frame));
+}
+
+#[test]
+fn the_faces_follow_the_palette() {
+    let gauge = Gauge {
+        kind: HudKind::Volume,
+        lit: 10,
+        icon: GaugeIcon::Volume,
+    };
+    let (night, amber) = (palette(0), palette(7));
+    assert_ne!(gauge.face(night).rgba, gauge.face(amber).rgba);
+    let face = gauge.face(amber);
+    assert!(
+        face.rgba
+            .chunks(4)
+            .any(|p| p[3] == 255 && p[..3] == amber.label),
+        "the lit cells are not in the palette's label colour"
+    );
 }

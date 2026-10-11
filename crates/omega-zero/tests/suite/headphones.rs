@@ -5,7 +5,7 @@ use std::sync::atomic::Ordering;
 use common::{app_playing_with_jack, tmp_root_with_carts};
 use omega_input::Action;
 use omega_store::read_app_state;
-use omega_ui::Icon;
+use omega_ui::GaugeIcon;
 
 #[test]
 fn speaker_and_headphones_keep_their_own_volume() {
@@ -18,7 +18,7 @@ fn speaker_and_headphones_keep_their_own_volume() {
     a.tick_ms(at);
     assert_eq!(
         a.hud_icon(),
-        Icon::Headphones,
+        GaugeIcon::Headphones,
         "plugging in did not show headphones"
     );
     for _ in 0..3 {
@@ -38,7 +38,7 @@ fn speaker_and_headphones_keep_their_own_volume() {
         speaker,
         "the speaker came back at the headphone level"
     );
-    assert_eq!(a.hud_icon(), Icon::Volume);
+    assert_eq!(a.hud_icon(), GaugeIcon::Volume);
 
     jack.store(true, Ordering::Relaxed);
     let at = a.now() + 1_000;
@@ -64,7 +64,7 @@ fn muting_the_headphones_leaves_the_speaker_alone() {
     a.tick_ms(at);
     a.apply(Action::MuteToggle);
     assert_eq!(a.output_volume(), 0);
-    assert_eq!(a.hud_icon(), Icon::HeadphonesMuted);
+    assert_eq!(a.hud_icon(), GaugeIcon::Muted);
 
     jack.store(false, Ordering::Relaxed);
     let at = a.now() + 1_000;

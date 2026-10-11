@@ -4,10 +4,10 @@ use omega_gfx::{out_h, out_w, Bezel, Compositor, Draw, TexId};
 use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_ui::{
-    arrows_hint_face, badge_face, bezel_mark_face, cart_face, cart_mesh, cart_shadow, chip_face,
+    arrows_hint_face, bezel_mark_face, cart_face, cart_mesh, cart_shadow, chip_face,
     chip_shadow_face, gb_cart_shadow, hint_face, icon_face, mark_height, mark_rect, menu_face, rim,
-    socket_face, toast_face, wallpaper_face, CartMeshes, CartModel, GbShell, Icon, LinkBadge,
-    Toast, UndoFace, ALERT_PX, BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
+    socket_face, wallpaper_face, CartMeshes, CartModel, GbShell, Icon, UndoFace, ALERT_PX,
+    BEZEL_FILL, LEGEND,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
@@ -30,6 +30,7 @@ mod sync_bluetooth;
 mod sync_clock;
 mod sync_controls;
 mod sync_core_picker;
+mod sync_hud;
 mod sync_keyboard;
 mod sync_labels;
 mod sync_network;
@@ -47,6 +48,7 @@ use sync_bluetooth::{sync_bluetooth, BluetoothTexes};
 use sync_clock::{sync_clock, Clocks};
 use sync_controls::sync_controls;
 use sync_core_picker::sync_core_picker;
+use sync_hud::{sync_hud, HudTexes};
 use sync_keyboard::{sync_keyboard, KeyboardTexes};
 use sync_labels::sync_labels;
 use sync_network::{sync_network, NetworkTexes};
@@ -96,6 +98,8 @@ pub struct Frontend {
     power: PowerPanels,
     backdrop: BackdropTex,
     bar: BarTexes,
+    /// The gauge's, the toast's and the corner badge's faces.
+    hud: HudTexes,
     /// The boot logo's texture while it fades over the shelf.
     boot_logo: Option<TexId>,
 }
@@ -157,6 +161,7 @@ impl Frontend {
             power: PowerPanels::default(),
             backdrop: BackdropTex::default(),
             bar: BarTexes::default(),
+            hud: HudTexes::default(),
             boot_logo: None,
         }
     }
@@ -194,26 +199,6 @@ impl Frontend {
             })
             .collect();
         self.session.app_mut().set_faces(faces);
-        let icons = Icon::ALL
-            .iter()
-            .map(|i| {
-                let f = icon_face(*i, HUD_ICON_PX, HUD_INK);
-                compositor.create_texture(f.w, f.h, &f.rgba)
-            })
-            .collect();
-        self.session.app_mut().set_icon_faces(icons);
-        let link_badges = LinkBadge::FACES
-            .iter()
-            .map(|b| {
-                let (badge, ink) = (
-                    b.badge().expect("a face has a glyph"),
-                    b.colour().expect("and a colour"),
-                );
-                let f = badge_face(badge, HUD_ICON_PX, ink);
-                compositor.create_texture(f.w, f.h, &f.rgba)
-            })
-            .collect();
-        self.session.app_mut().set_link_badge_faces(link_badges);
         let alert = icon_face(Icon::Alert, ALERT_PX, ALERT_INK);
         let alert = compositor.create_texture(alert.w, alert.h, &alert.rgba);
         self.session.app_mut().set_alert_face(alert);
@@ -260,14 +245,6 @@ impl Frontend {
         self.session.app_mut().set_link_step_faces(steps);
         let fails = menu_faces(compositor, LinkFail::SHOWN.iter().map(|f| f.line()));
         self.session.app_mut().set_link_fail_faces(fails);
-        let toasts = Toast::ALL
-            .iter()
-            .map(|t| {
-                let f = toast_face(*t);
-                compositor.create_texture(f.w, f.h, &f.rgba)
-            })
-            .collect();
-        self.session.app_mut().set_toast_faces(toasts);
         let legend = legend_faces(compositor, &LEGEND);
         self.session.app_mut().set_legend_faces(legend);
         let shadow = cart_shadow();
@@ -345,6 +322,7 @@ impl Frontend {
         );
         sync_power(self.session.app_mut(), compositor, &mut self.power);
         sync_bar(self.session.app_mut(), compositor, &mut self.bar);
+        sync_hud(self.session.app_mut(), compositor, &mut self.hud);
         self.relabel(compositor);
         sync_core_picker(
             self.session.app_mut(),

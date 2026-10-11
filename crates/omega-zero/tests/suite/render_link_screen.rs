@@ -7,9 +7,10 @@ use std::sync::{Arc, Mutex};
 
 use omega_input::Action;
 use omega_store::Core;
+use omega_ui::kit::palette::palette;
 use omega_ui::{
-    arrows_hint_face, hint_face, link_art, menu_face, out_h, out_w, stage_x, stage_y, toast_face,
-    CartFace, Draw, TexId, Toast, UndoFace,
+    arrows_hint_face, hint_face, link_art, menu_face, out_h, out_w, stage_x, stage_y, CartFace,
+    Draw, HudFace, TexId, Toast, UndoFace,
 };
 use omega_zero::app::{GameMenu, LinkLegend, LinkRow};
 use omega_zero::link_kind::LinkKind;
@@ -412,11 +413,21 @@ fn the_connected_screen_shows_back_and_end_link() {
     );
 }
 
-fn toast_faces() -> Vec<(TexId, Face)> {
-    Toast::ALL
-        .iter()
-        .map(|t| (TexId::from_raw(800 + t.index()), toast_face(*t).into()))
-        .collect()
+const TOAST: TexId = TexId::from_raw(800);
+
+/// `t` as the frontend draws it for the HUD, doubled as it shows on the screen, two pixels to
+/// each of its art pixels.
+fn toast_face(t: Toast) -> Face {
+    let f = t.face(palette(0));
+    let (w, h) = (f.w * 2, f.h * 2);
+    let mut rgba = Vec::with_capacity((w * h * 4) as usize);
+    for y in 0..h {
+        for x in 0..w {
+            let at = (((y / 2) * f.w + x / 2) * 4) as usize;
+            rgba.extend_from_slice(&f.rgba[at..at + 4]);
+        }
+    }
+    Face { rgba, w, h }
 }
 
 fn banner_pixels(core: Core, title: &str, code: &str, name: &str) -> Vec<u8> {
@@ -429,37 +440,39 @@ fn banner_pixels(core: Core, title: &str, code: &str, name: &str) -> Vec<u8> {
     for _ in 0..120 {
         app.update(1.0 / 60.0);
     }
-    let faces = toast_faces();
-    app.set_toast_faces(faces.iter().map(|(t, _)| *t).collect());
     app.apply(Action::GameMenu);
     assert!(
         !app.game_menu_open(),
         "{code} on {core:?} opened a link screen instead of refusing"
     );
+    let said = app.hud().last_toast().expect("the refusal said nothing");
+    let face = toast_face(said);
+    let (w, h) = (face.w / 2, face.h / 2);
+    app.hud_mut()
+        .set_toast_face(said, HudFace { tex: TOAST, w, h });
     let mut out = Vec::new();
     app.draw(&mut out);
     let banner: Vec<Draw> = out
         .into_iter()
-        .filter(|d| matches!(*d, Draw::Tex { tex, .. } if faces.iter().any(|(t, _)| *t == tex)))
+        .filter(|d| matches!(*d, Draw::Tex { tex, .. } if tex == TOAST))
         .collect();
-    let px = composite(&banner, &faces);
+    let px = composite(&banner, &[(TOAST, face)]);
     dump(&px, name);
     px
 }
 
 fn banner_ink(t: Toast) -> usize {
-    let f: Face = toast_face(t).into();
+    let f = toast_face(t);
     let (w, h) = (f.w as f32, f.h as f32);
-    let tex = TexId::from_raw(1);
     let draw = Draw::Tex {
         x: 100.0,
         y: 20.0,
         w,
         h,
-        tex,
+        tex: TOAST,
         alpha: 1.0,
     };
-    ink(&composite(&[draw], &[(tex, f)]))
+    ink(&composite(&[draw], &[(TOAST, f)]))
 }
 
 #[test]

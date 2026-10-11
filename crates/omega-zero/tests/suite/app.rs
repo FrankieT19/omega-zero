@@ -9,8 +9,8 @@ use omega_input::{Action, Btn, RawEvent};
 use omega_retro::ButtonMask;
 use omega_store::{write_app_state, AppState, Cart, Core, Platform};
 use omega_ui::{
-    board_at, grown, lid_at, lid_from, on_board, opening, shelf_cart_at, Draw, Icon, Placed, TexId,
-    BOARD_W, CART_H, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, LID_TURN, SLIDE_UP, SOCKET_H,
+    board_at, grown, lid_at, lid_from, on_board, opening, shelf_cart_at, CornerBadge, Draw, Placed,
+    TexId, BOARD_W, CART_H, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, LID_TURN, SLIDE_UP, SOCKET_H,
     SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
 };
 use omega_ui::{stage_x, stage_y};
@@ -2043,9 +2043,11 @@ fn a_latched_fast_forward_does_not_outlive_the_cart() {
     s.feed([RawEvent::Down(Btn::R2)], 1150);
     s.feed([RawEvent::Up(Btn::R2)], 1200);
     let mut now = run(&mut s, 1200, 2);
-    assert_eq!(
-        s.app().ff_badge(),
-        Some(Icon::FastForwardLatched),
+    assert!(
+        matches!(
+            s.app().ff_badge(),
+            Some(CornerBadge::FastForward { latched: true, .. })
+        ),
         "the latch never took"
     );
     let deadline = Instant::now() + Duration::from_secs(10);

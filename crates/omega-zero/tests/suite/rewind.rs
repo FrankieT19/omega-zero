@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use omega_input::{Btn, Millis, RawEvent};
 use omega_store::{write_app_state, AppState};
-use omega_ui::Draw;
+use omega_ui::{Draw, HudFace, HudKind, TexId};
 use omega_zero::app::Phase;
 use omega_zero::rewind::{Rewind, RewindThread};
 use omega_zero::session::Session;
@@ -150,12 +150,21 @@ fn the_rewind_bar_is_up_while_l2_is_held_and_gone_once_it_is_let_go() {
     for _ in 0..200 {
         step(&mut s, &mut now, None);
     }
+    let gauge = s.app().hud().gauge().expect("no gauge while L2 is held");
+    assert_eq!(gauge.kind, HudKind::Rewind);
+    // the face the frontend draws for the gauge shown
+    let face = HudFace {
+        tex: TexId::from_raw(1),
+        w: 157,
+        h: 15,
+    };
+    s.app_mut().hud_mut().set_gauge_face(gauge, face);
     assert!(
         !drawn(&s).is_empty(),
-        "the rewind bar timed out while L2 was held"
+        "the rewind gauge timed out while L2 was held"
     );
     step(&mut s, &mut now, Some(RawEvent::Up(Btn::L2)));
-    assert!(drawn(&s).is_empty(), "the bar outlived the hold");
+    assert!(drawn(&s).is_empty(), "the gauge outlived the hold");
 }
 
 #[test]

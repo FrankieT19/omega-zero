@@ -14,10 +14,10 @@ use omega_ui::kit::action::Font;
 use omega_ui::{
     backdrop_shift, board_from, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease, grown,
     lid_at, lid_from, lift_of, on_board, posed_cart, posed_face, push_cart_side, shelf_cart_at,
-    CartMeshes, ChromeColours, ClockPicker, Draw, FfState, GbShell, Hud, HudKind, Icon,
-    KeyboardFaces, LinkBadge, LinkFaces, Links, Millis, Placed, Polaroids, PowerChoice, Refusal,
-    SettingsFaces, SettingsRow, Shelf, SlotChrome, TexId, Toast, CART_W, CHIP_H, CHIP_U, CHIP_V,
-    CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V,
+    CartMeshes, ChromeColours, ClockPicker, CornerBadge, Draw, FfState, GaugeIcon, GbShell, Hud,
+    HudKind, KeyboardFaces, LinkBadge, LinkFaces, Links, Millis, Placed, Polaroids, PowerChoice,
+    Refusal, SettingsFaces, SettingsRow, Shelf, SlotChrome, TexId, Toast, CART_W, CHIP_H, CHIP_U,
+    CHIP_V, CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V,
     SOCKET_W, TOP_BAR_H, TURN_PAD,
 };
 
@@ -969,10 +969,6 @@ impl App {
         self.hud.link()
     }
 
-    pub fn set_link_badge_faces(&mut self, faces: Vec<TexId>) {
-        self.hud.set_link_faces(faces);
-    }
-
     fn sync_link_badge(&mut self) {
         let badge = match &self.link {
             None => LinkBadge::Off,
@@ -1507,12 +1503,13 @@ impl App {
         self.hud.release_rewind();
     }
 
+    /// Fast forward as `ff`, its badge saying the speed Settings sets.
     pub fn set_ff(&mut self, ff: FfState) {
-        self.hud.set_ff(ff);
+        self.hud.set_ff(ff, self.state.ff_speed);
     }
 
-    pub fn ff_badge(&self) -> Option<Icon> {
-        self.hud.badge()
+    pub fn ff_badge(&self) -> Option<CornerBadge> {
+        self.hud.ff_badge()
     }
 
     pub fn blue_light(&self) -> u8 {
@@ -1567,7 +1564,7 @@ impl App {
         }
     }
 
-    pub fn hud_icon(&self) -> Icon {
+    pub fn hud_icon(&self) -> GaugeIcon {
         self.hud.glyph()
     }
 
@@ -3119,12 +3116,15 @@ impl App {
         }
     }
 
-    pub fn set_icon_faces(&mut self, faces: Vec<TexId>) {
-        self.hud.set_icons(faces);
+    /// What shows over the screen for a moment or while it lasts: the gauge, the toast and the
+    /// badge in the corner.
+    pub fn hud(&self) -> &Hud {
+        &self.hud
     }
 
-    pub fn set_toast_faces(&mut self, faces: Vec<TexId>) {
-        self.hud.set_toasts(faces);
+    /// The HUD, for the frontend to hand it the faces it asks for.
+    pub fn hud_mut(&mut self) -> &mut Hud {
+        &mut self.hud
     }
 
     pub fn toast(&self) -> Option<Toast> {

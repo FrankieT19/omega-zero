@@ -59,16 +59,18 @@ pub use clock::{clock_label, date_time_text, hhmm, ClockPicker, Field};
 pub use draw::{out_h, out_w, Draw, MeshId, TexId};
 pub use footer::Printed;
 pub use hud::{
-    badge_at, ff_badge, FfState, Hud, HudKind, LinkBadge, Millis, HUD_ICON_PX, HUD_INK, HUD_MS,
-    LINK_HOST_INK, LINK_JOIN_INK, PLATE_H,
+    CornerBadge, FfState, Gauge, Hud, HudFace, HudKind, LinkBadge, Millis, HUD_INK, HUD_MS, MARGIN,
+    PLATE_H,
 };
-pub use icon::{badge_face, icon_box, icon_face, Badge, Icon};
+pub use icon::{icon_box, icon_face, Icon};
 pub use keyboard::{
     bottom_label, field_face, key_box, key_label, key_on, key_rect, keyboard_place, keyboard_title,
     keys_face, lit_key_face, row_len, window_face, Key, Keyboard, KeyboardFaces, KeyboardLook,
     KeyboardPlace, KeyboardScreen, KeyboardStale, Layer, BOTTOM, FIELD_H, KEYS_H, KEYS_W, KEY_COLS,
     KEY_GAP, KEY_H, KEY_ROWS, KEY_W, MAX_TEXT,
 };
+pub use kit::badge::BadgeIcon;
+pub use kit::gauge::GaugeIcon;
 pub use link_art::{
     arcs, arrow_left_x, arrow_right_x, arrow_y, clicks_x, clicks_y, link_art, port_y, LinkArt,
     ADAPTER_BASE_X, ADAPTER_BASE_Y, ADAPTER_H, ADAPTER_W, ARROW_H, ARROW_W, CLICKS_H, CLICKS_W,
@@ -113,4 +115,4 @@ pub use sticker::{
     draw_sticker, head_rows, sticker_face, sticker_lines, sticker_rect, StickerFields, COPYRIGHT,
     CREDITS, DC, HOME, ORIGIN, STICKER_H, STICKER_W,
 };
-pub use toast::{toast_box, toast_face, toast_rect, Toast};
+pub use toast::Toast;

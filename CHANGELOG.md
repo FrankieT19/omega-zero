@@ -8,8 +8,15 @@
   dither. The one you are on sways twenty degrees either way, seen from closer than before, so
   its side and the step under a GBA cart's grip show. The cart going into the slot and the core
   picker's lid are the same model. A cart is one draw instead of up to seventeen.
-- On the shelf the volume, brightness and blue light bar sits under the top bar instead of
-  over it.
+- The volume, brightness, blue light and rewind show as a gauge drawn like the menus: the
+  level's name in a tab, then a cell for each step, lit as far as the level reaches, and its
+  icon, on the 2-pixel grid in the colours of Settings > Theme, with no dark band behind it. It
+  stands at the top of the screen, on the shelf just under the top bar, and fades out in four
+  steps. What just happened shows the same way, a small panel titled SAVE STATE, LINK or COLOUR
+  over "State saved", "Link ended", "Correction on" and the rest.
+- Fast forward's badge in the corner is a key cap holding ▶▶ and the speed, ×2 to ×6, lit
+  while it is latched. A link's badge shows a link, lit while hosting and dark when joined, and
+  broken once the other handheld is lost.
 - A bar along the bottom of the shelf: SELECT CONTROLS on the left, START SETTINGS on the
   right. The slot sits a bar higher to make room for it.
 - Game Boy carts stand at 80% of their size on the shelf and grow to full size as they go into

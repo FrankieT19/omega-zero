@@ -63,6 +63,7 @@ mod render_bluetooth;
 mod render_boot_logo;
 mod render_colour_correction;
 mod render_gb_palette;
+mod render_hud;
 mod render_keyboard;
 mod render_link_screen;
 mod render_lone;
