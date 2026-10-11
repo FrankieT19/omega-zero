@@ -3,6 +3,7 @@
 //! modal, so its faces are Network's kind and drawn the same way.
 
 use omega_input::Action;
+use omega_ui::kit::bar::Hint;
 use omega_ui::kit::layout::modal_rect;
 use omega_ui::kit::modal::modal_face;
 use omega_ui::kit::palette::Palette;
@@ -12,8 +13,9 @@ use omega_ui::{Draw, SettingsRow, UndoFace};
 
 use crate::app::{App, Phase};
 use crate::bluetooth::BluetoothJobs;
-use crate::bluetooth_screen::{Bluetooth, BluetoothView, Outcome, Summary, Watch};
+use crate::bluetooth_screen::{Bluetooth, BluetoothScreen, BluetoothView, Outcome, Summary, Watch};
 use crate::nav::Dir;
+use crate::screens::bar::{FORGET, SCAN};
 
 /// The modal's panels' titles, top first.
 pub const BLUETOOTH_TITLE: &str = "BLUETOOTH";
@@ -82,9 +84,9 @@ impl App {
         }
     }
 
-    /// How closely the radio is watched: the Bluetooth screen looks for devices, and Settings
-    /// names the one connected. Nothing else asks it anything: the top bar shows only whether
-    /// Bluetooth is on.
+    /// How closely the radio is watched: the Bluetooth screen lists the devices and looks for
+    /// more when X asks, and Settings names the one connected. Nothing else asks it anything: the
+    /// top bar shows only whether Bluetooth is on.
     pub fn bluetooth_watch(&self) -> Watch {
         match self.phase {
             Phase::Bluetooth(_) => Watch::Devices,
@@ -108,6 +110,14 @@ impl App {
             Phase::Bluetooth(screen) => screen.forgets(&self.bluetooth),
             _ => false,
         }
+    }
+
+    /// The keys the Bluetooth screen `screen` has beyond the bar's actions: X SCAN while
+    /// Bluetooth is on, and beside it Y FORGET on a device the handheld has paired.
+    pub(crate) fn bluetooth_hints(&self, screen: &BluetoothScreen) -> Vec<Hint<'static>> {
+        let scan = screen.scans(&self.bluetooth).then_some(SCAN);
+        let forget = screen.forgets(&self.bluetooth).then_some(FORGET);
+        scan.into_iter().chain(forget).collect()
     }
 
     pub fn set_bluetooth_jobs(&mut self, jobs: Box<dyn BluetoothJobs>) {

@@ -76,7 +76,7 @@
 <!-- flow.html's lone panels, as it has them (#screen=ssh, labels, controls). SSH's three ways
      are one each here, its rows straight in the panel: flow.html keeps them in a div it shows
      or hides, where omega-panel's ::slotted rule cannot reach them, so there they miss the
-     pixel every row reaches into a well's sides (its network list's rows, in .list, too). -->
+     pixel every row reaches into a well's sides (its network list, .list, reaches it itself). -->
 <template id="flow-ssh">
   <omega-panel label="SSH" active class="lone small ssh">
     <omega-row label="IP" value="192.168.1.20"></omega-row>

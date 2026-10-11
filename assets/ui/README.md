@@ -29,7 +29,11 @@ assets/ui/
     ├── omega-list-row.js  <omega-list-row>  a Wi-Fi network or Bluetooth device in a list
     ├── omega-bar.js       <omega-bar>       the bottom bar: two actions, key hints between them
     ├── action-left.js     <action-left>     the bottom bar's left action
-    └── action-right.js    <action-right>    the same, mirrored
+    ├── action-right.js    <action-right>    the same, mirrored
+    ├── omega-button.js    <omega-button>    a page's link or button, drawn as the bar's pill
+    ├── omega-screen.js    <omega-screen>    a screenshot in a handheld's bezel
+    ├── omega-card.js      <omega-card>      a feature: an icon, a title and a few lines
+    └── omega-code.js      <omega-code>      lines to read or type exactly, scrolled in a box
 ```
 
 ## Using it
@@ -69,10 +73,26 @@ classic scripts, no build step, so it works from `file://`.
 <script>OmegaPalette.apply('teal')</script>  <!-- Night unless told otherwise -->
 ```
 
+## Pages around the menus
+
+The last four components are for pages about omega-zero rather than its screens: the site
+(`site/`) is drawn with them and the rest of the kit. Each holds the page's own element, so the
+words, links, headings and alt text stay real HTML: `<omega-button>` a link or button in the
+bar's pill, lit on hover and focus, with a ring for keyboard focus; `<omega-screen>` a screenshot
+in a handheld's bezel, 2×2 art pixels kept 2×2 at its own size; `<omega-card>` a feature, its icon
+an 11×11 sprite (`cart`, `chip`, `rewind`, `link`, `window`, `gamepad`, `wifi`, `bluetooth`,
+`theme`) beside a slotted title; `<omega-code>` a `<pre>` in a dark box that scrolls sideways
+instead of the page, with a label and a COPY key if asked. They mark how they draw what they hold
+`!important`, so a page's own rules for links, headings and `<pre>` stay off it.
+
+`site/kit` is a link to this folder (and `site/logo` to `assets/logo`), so `site/index.html`
+opens from disk like the storybook; `.github/workflows/pages.yml` copies `site/` with the links
+followed, and that copy is what GitHub Pages serves, the storybook at `kit/storybook.html`.
+
 ## Screens and slides
 
 `flow.html` puts every menu screen together from the kit (the shelf, Settings and everything
-under it, CONTROLS) and moves between them with the slides the device draws: 280 ms,
+under it, CONTROLS, the power menu and the screens after it) and moves between them with the slides the device draws: 280 ms,
 smootherstep, every frame on whole art pixels. It is the approved reference for the Rust screens.
 Open it from disk like the storybook. What Rust draws itself (the carts, the slot, the top bar,
 the About sticker) is a flat placeholder.
@@ -82,40 +102,61 @@ Walk it with the keyboard or the buttons under the screen:
 | Button | Keys |
 |---|---|
 | D-pad | arrows |
-| A | `X` or `A` |
+| A | `A` |
 | B | `Z`, `B` or `Esc` |
+| X | `X` or `S` |
 | Y | `Y` |
 | START | `Enter` |
 | SELECT | `Space` or right `Shift` |
+| POWER, held | `P` |
 
 The sidebar jumps straight to a screen, sets Settings > Theme and the panel size, and has
 **slow motion ×5** and **step one frame**, which holds a slide and moves it a frame at a time.
 A key pressed during a slide finishes it, then does what it does.
 
+Settings > Network never looks for networks on its own. AVAILABLE NETWORKS lists what is known
+without a scan, the network joined (Home, CONNECTED, with no bars or padlock), and the note says
+"Press X to look for networks.". X looks once: "Looking for networks…" for a moment, then every
+network found with its bars and padlock, which stay until the next scan's answer or until
+Network is left. The bar says `X SCAN` while Wi-Fi is on, and `X SCAN` `Y FORGET` on the network
+joined. With Wi-Fi off the list is empty and the note says "Wi-Fi is off.".
+
 Settings > Bluetooth is a modal like Network's: BLUETOOTH, its one row switching the radio ON
-or OFF with Left and Right, and DEVICES, each device it knows or finds while it is on, its name
-in its own case (its address when it gives none), what it is to the handheld (CONNECTED,
-CONNECTING, PAIRING, PAIRED, or nothing for one only found) and its kind's icon
-(`<omega-list-row device>`). A on a found device pairs with it and connects (PAIRING, then
-CONNECTED), on a paired one connects and on a connected one disconnects; Y forgets a paired
-device, and the bar says `Y FORGET` while the cursor is on one. With nothing to list, a note
-says "Looking for devices…", or with the radio off "Bluetooth is off.". Settings' BLUETOOTH row
-shows the connected device's name in capitals, else ON or OFF.
+or OFF with Left and Right, and DEVICES, while it is on the devices paired, then those a look
+finds, each with its name in its own case, what it is to the handheld (CONNECTED, CONNECTING,
+PAIRING, PAIRED, or nothing for one only found) and its kind's icon
+(`<omega-list-row device>`). A device found that gives no name is never listed. Opening the
+screen looks for nothing: a note under the paired devices says "Press X to look for devices.",
+and X looks for a few seconds, the note saying "Looking for devices…" while what it finds joins
+the list, then stops by itself; a look that finds nothing says "No devices found.". What a look
+found stays until the screen is left. A on a found device pairs with it and connects (PAIRING,
+then CONNECTED), ending a look under way, on a paired one connects and on a connected one
+disconnects; Y forgets a paired device. The bar says `X SCAN` while the radio is on, and
+`X SCAN` `Y FORGET` while the cursor is on a paired device. With the radio off the note says
+"Bluetooth is off.". Settings' BLUETOOTH row shows the connected device's name in capitals,
+else ON or OFF.
+
+Holding POWER opens POWER on any screen, a lone panel like THEME's with RESTART and POWER OFF,
+deeper from the screen it was held on, which its B goes back to. A on either row goes deeper to
+the screen shown until the handheld goes down: RESTART saying "Restarting…" or POWER OFF saying
+"Turning off…", a note on its own as SSH's. Nothing can be pressed there, so the whole bar sinks
+away as it slides in, `even(p·38)` down, as it does on the device when a cart goes in.
 
 The URL's hash says what is shown, and the page keeps it up to date as you walk, so a link or a
 headless Chrome screenshot lands on the same frame:
 
 | Key | Values |
 |---|---|
-| `screen` | `shelf`, `settings`, `controls`, `network`, `ssh`, `keyboard`, `bluetooth`, `labels`, `datetime`, `background` (THEME), `about` |
-| `from` | slide into `screen` from this one, deeper or back as the tree has it; `dir=in` or `dir=out` forces the way |
+| `screen` | `shelf`, `settings`, `controls`, `network`, `ssh`, `keyboard`, `bluetooth`, `labels`, `datetime`, `background` (THEME), `about`, `power` (POWER held), `restarting`, `poweroff` |
+| `from` | slide into `screen` from this one, deeper or back as the tree has it; `dir=in` or `dir=out` forces the way. For `power`, the screen POWER was held on (the shelf when there is none) |
 | `t` | with `from`: hold the slide at this time, 0 to 1 |
 | `size` | `640x480` (default), `720x480`, `720x720` |
 | `colour` | `night` (default), `slate`, `navy`, `teal`, `green`, `plum`, `crimson`, `amber` |
 | `style`, `moving` | the backdrop, as Settings > Theme sets it: `style=plates`, `moving=0` |
 | `font` | `thin`: the bottom bar's labels in the thin font, as Settings > Theme > Font sets it |
-| `wifi` | `off`: SSH shows what it says offline, and the networks dim |
-| `bt` | Bluetooth: `on` (default) with four devices, `off`, `pairing` (the keyboard pairing, the cursor on it) or `empty` (nothing found yet) |
+| `wifi` | `off`: SSH shows what it says offline, and Network lists no networks |
+| `scan` | Network's scan: `none` (default, as it opens), `running` (looking, standing still) or `done` (the networks found) |
+| `bt` | Bluetooth: `on` (default) as the screen opens, before any look, with the two paired devices; `off`; `empty` (nothing paired, before any look); `looking` (a look under way, held, the keyboard found so far); `found` (after it, the band found too); or `pairing` (after it, the keyboard pairing, the cursor on it) |
 | `row` | the cursor's row on `screen`, from 0 |
 | `slow` | `1`: slides at a fifth of their speed |
 | `shot` | `1`: the screen alone at the window's top left, for screenshots |

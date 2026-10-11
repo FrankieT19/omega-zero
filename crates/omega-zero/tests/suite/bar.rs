@@ -13,15 +13,17 @@ use omega_ui::kit::action::{action_pair, Font, Side, BAR, RISE};
 use omega_ui::kit::bar::{bar_layout, BarLayout, Hint, SINK};
 use omega_ui::kit::palette::palette;
 use omega_ui::kit::pixel::quad;
+use omega_ui::Keyboard;
 use omega_ui::{out_h, out_w, ChromeColours, Draw, SettingsRow, TexId, SPRITE_PX, TOP_BAR_H};
 use omega_zero::app::{App, Phase, SEATED_AT};
 use omega_zero::core_picker::OPEN_MS;
 use omega_zero::label_screen::LabelsScreen;
 use omega_zero::label_sync::Account;
 use omega_zero::nav::SLIDE_MS;
+use omega_zero::screens::bar::SCAN;
 use omega_zero::screens::bar::{Actions, BarSet, SWAP};
 use omega_zero::wifi::{Saved, Seen, WifiJob, WifiJobs, WifiNews};
-use omega_zero::wifi_screen::{Sel, WifiScreen};
+use omega_zero::wifi_screen::{Sel, Typing, WifiScreen};
 use tempfile::TempDir;
 
 const SHELF_LEFT: usize = 800;
@@ -34,7 +36,7 @@ const SHELF_HINTS: usize = 850;
 const MENU_HINTS: usize = 851;
 const CONFIRM_HINTS: usize = 852;
 
-/// A radio that comes up hearing Home, a network it has saved, and Café, one it has not.
+/// A radio that comes up with Home saved, and whose scans hear Home and Café, one it has not.
 #[derive(Clone, Default)]
 struct Radio(Arc<Mutex<Vec<WifiNews>>>);
 
@@ -44,26 +46,28 @@ impl WifiJobs for Radio {
     }
 
     fn ask(&mut self, job: WifiJob) {
-        if job != WifiJob::Up {
-            return;
-        }
         let mut news = self.0.lock().unwrap();
-        news.push(WifiNews::Started(true));
-        news.push(WifiNews::Seen(
-            [("Home", -48), ("Café", -60)]
-                .map(|(ssid, rssi)| Seen {
-                    ssid: ssid.as_bytes().to_vec(),
-                    rssi,
-                    secured: true,
-                })
-                .to_vec(),
-        ));
-        news.push(WifiNews::Saved(vec![Saved {
-            id: 1,
-            ssid: b"Home".to_vec(),
-            current: false,
-            refused: false,
-        }]));
+        match job {
+            WifiJob::Up => {
+                news.push(WifiNews::Started(true));
+                news.push(WifiNews::Saved(vec![Saved {
+                    id: 1,
+                    ssid: b"Home".to_vec(),
+                    current: false,
+                    refused: false,
+                }]));
+            }
+            WifiJob::Scan => news.push(WifiNews::Seen(
+                [("Home", -48), ("Café", -60)]
+                    .map(|(ssid, rssi)| Seen {
+                        ssid: ssid.as_bytes().to_vec(),
+                        rssi,
+                        secured: true,
+                    })
+                    .to_vec(),
+            )),
+            _ => {}
+        }
     }
 
     fn news(&mut self) -> Vec<WifiNews> {
@@ -469,16 +473,37 @@ fn network_at(ssid: &str) -> Phase {
 }
 
 #[test]
-fn a_saved_network_under_the_cursor_puts_y_forget_on_the_bar() {
+fn network_puts_x_scan_on_the_bar_and_y_forget_beside_it_on_a_saved_network() {
     let (_d, mut a) = on_shelf();
     a.tick_ms(1_000);
     assert!(
         a.wifi().entries().iter().any(|e| e.saved.is_some()),
         "the radio saved nothing"
     );
-    assert_eq!(a.bar_hints(&network_at("Home")), [hint("Y", "FORGET")]);
-    assert_eq!(a.bar_hints(&network_at("Café")), []);
-    assert_eq!(a.bar_hints(&Phase::Network(WifiScreen::default())), []);
+    assert_eq!(SCAN, hint("X", "SCAN"));
+    assert_eq!(
+        a.bar_hints(&network_at("Home")),
+        [hint("X", "SCAN"), hint("Y", "FORGET")]
+    );
+    assert_eq!(a.bar_hints(&network_at("Café")), [hint("X", "SCAN")]);
+    assert_eq!(
+        a.bar_hints(&Phase::Network(WifiScreen::default())),
+        [hint("X", "SCAN")]
+    );
+    let typing = Phase::Network(WifiScreen {
+        typing: Some(Typing {
+            ssid: "Café".as_bytes().to_vec(),
+            replace: None,
+            keys: Keyboard::default(),
+            refused: false,
+        }),
+        ..WifiScreen::default()
+    });
+    assert_eq!(
+        a.bar_hints(&typing),
+        [],
+        "hints over the passphrase's keyboard"
+    );
     assert_eq!(a.bar_hints(&Phase::Shelf), []);
 }
 
@@ -521,15 +546,12 @@ fn the_bars_hints_change_halfway_through_a_slide() {
         a.network_forgets(),
         "the cursor never reached a saved network"
     );
-    assert_eq!(a.bar_hints_shown(), [hint("Y", "FORGET")]);
+    let network = [hint("X", "SCAN"), hint("Y", "FORGET")];
+    assert_eq!(a.bar_hints_shown(), network);
     let start: Millis = 30_000;
     a.apply_at(Action::GbaDown(Btn::B), start);
     a.tick_ms(start + SLIDE_MS / 4);
-    assert_eq!(
-        a.bar_hints_shown(),
-        [hint("Y", "FORGET")],
-        "Network's hint left early"
-    );
+    assert_eq!(a.bar_hints_shown(), network, "Network's hints left early");
     a.tick_ms(start + 3 * SLIDE_MS / 4);
     assert_eq!(a.bar_hints_shown(), [], "Settings kept Network's hint");
 }

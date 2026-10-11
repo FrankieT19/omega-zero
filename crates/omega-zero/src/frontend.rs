@@ -6,8 +6,8 @@ use omega_power::{Platform, Power};
 use omega_ui::{
     arrows_hint_face, badge_face, bezel_mark_face, cart_face, cart_shadow, chip_face,
     chip_shadow_face, gb_cart_shadow, hint_face, icon_face, mark_height, mark_rect, menu_face, rim,
-    socket_face, toast_face, wallpaper_face, GbShell, Icon, LinkBadge, PowerChoice, Toast,
-    UndoFace, ALERT_PX, BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
+    socket_face, toast_face, wallpaper_face, GbShell, Icon, LinkBadge, Toast, UndoFace, ALERT_PX,
+    BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
@@ -33,6 +33,7 @@ mod sync_core_picker;
 mod sync_keyboard;
 mod sync_labels;
 mod sync_network;
+mod sync_power;
 mod sync_settings;
 mod sync_ssh;
 mod sync_switcher;
@@ -49,6 +50,7 @@ use sync_core_picker::sync_core_picker;
 use sync_keyboard::{sync_keyboard, KeyboardTexes};
 use sync_labels::sync_labels;
 use sync_network::{sync_network, NetworkTexes};
+use sync_power::{sync_power, PowerPanels};
 use sync_settings::{sync_settings, SettingsTexes};
 use sync_ssh::{sync_ssh, SshTexes};
 use sync_switcher::{sync_switcher, Faces, Switcher};
@@ -90,6 +92,8 @@ pub struct Frontend {
     labels: Baked<(ListView, u8)>,
     controls: Baked<u8>,
     background: Baked<(ListView, u8)>,
+    /// The POWER menu's panel and the one shown after its choice.
+    power: PowerPanels,
     backdrop: BackdropTex,
     bar: BarTexes,
     /// The boot logo's texture while it fades over the shelf.
@@ -150,6 +154,7 @@ impl Frontend {
             labels: Baked::default(),
             controls: Baked::default(),
             background: Baked::default(),
+            power: PowerPanels::default(),
             backdrop: BackdropTex::default(),
             bar: BarTexes::default(),
             boot_logo: None,
@@ -212,25 +217,6 @@ impl Frontend {
         let alert = icon_face(Icon::Alert, ALERT_PX, ALERT_INK);
         let alert = compositor.create_texture(alert.w, alert.h, &alert.rgba);
         self.session.app_mut().set_alert_face(alert);
-        let lines = PowerChoice::ALL
-            .iter()
-            .map(|c| {
-                let f = menu_face(match c {
-                    PowerChoice::Restart => "Restarting",
-                    PowerChoice::PowerOff => "Powering Down",
-                });
-                (compositor.create_texture(f.w, f.h, &f.rgba), f.w, f.h)
-            })
-            .collect();
-        self.session.app_mut().set_shutdown_faces(lines);
-        let menu = PowerChoice::ALL
-            .iter()
-            .map(|c| {
-                let f = menu_face(c.text());
-                (compositor.create_texture(f.w, f.h, &f.rgba), f.w, f.h)
-            })
-            .collect();
-        self.session.app_mut().set_power_menu_faces(menu);
         let sockets = omega_store::Core::ALL
             .iter()
             .map(|c| {
@@ -351,6 +337,7 @@ impl Frontend {
             &mut self.backdrop,
             &mut self.background,
         );
+        sync_power(self.session.app_mut(), compositor, &mut self.power);
         sync_bar(self.session.app_mut(), compositor, &mut self.bar);
         self.relabel(compositor);
         sync_core_picker(

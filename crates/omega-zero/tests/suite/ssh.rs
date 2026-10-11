@@ -597,7 +597,7 @@ fn how_closely_the_radio_is_watched_follows_the_screen() {
     assert_eq!(r.a.wifi_watch(), Watch::Status, "on Settings");
     r.press(Btn::B);
     r.open_ssh();
-    assert_eq!(r.a.wifi_watch(), Watch::Status, "on SSH");
+    assert_eq!(r.a.wifi_watch(), Watch::Networks, "on SSH, under Network");
     r.press(Btn::B);
     r.press(Btn::B);
     while r.a.settings_row() != Some(SettingsRow::Labels) {

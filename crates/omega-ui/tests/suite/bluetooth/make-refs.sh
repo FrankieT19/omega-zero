@@ -7,13 +7,18 @@
 #
 #   crates/omega-ui/tests/suite/bluetooth/make-refs.sh
 #
-# Each ref is named flow-bluetooth-<state>-<canvas>.png, in Night, <state> being flow.html's #bt=:
-#   on        the radio on, its row lit, and the four devices: 8BitDo SN30 Pro CONNECTED (gamepad),
-#             WH-1000XM4 PAIRED (audio), Keychron K3 (keyboard) and 4C:4C:6B:1A:80:D3 (other),
-#             both found only
-#   off       the radio off, its row lit, and the note "Bluetooth is off."
-#   pairing   the four devices with Keychron K3 PAIRING, the cursor on it
-#   empty     the radio on, its row lit, nothing found yet: the note "Looking for devices…"
+# Each ref is named flow-bluetooth-<state>-<canvas>.png, in Night, <state> being flow.html's #bt=;
+# the radio's row is lit in each but pairing:
+#   on        the screen as it opens, before any look: the radio on and the two paired devices,
+#             8BitDo SN30 Pro CONNECTED (gamepad) and WH-1000XM4 PAIRED (audio), then the note
+#             "Press X to look for devices."
+#   off       the radio off, and the note "Bluetooth is off."
+#   empty     the radio on, nothing paired, before any look: "Press X to look for devices." alone
+#   looking   a look under way: the paired devices, Keychron K3 (keyboard) found so far, and the
+#             note "Looking for devices…"
+#   found     after the look: the paired devices, then Keychron K3 and Mi Smart Band 4 (other),
+#             found only, and no note
+#   pairing   after the look, with Keychron K3 PAIRING, the cursor on it
 # Needs python3 with Pillow.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -49,7 +54,7 @@ EOF
 }
 
 for canvas in 640x480 720x480 720x720; do
-  for state in on off pairing empty; do
+  for state in on off empty looking found pairing; do
     shoot "$canvas" "$state"
   done
 done

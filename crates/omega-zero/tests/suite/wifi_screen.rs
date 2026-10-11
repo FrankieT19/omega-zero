@@ -5,9 +5,16 @@ use std::sync::{Arc, Mutex};
 use common::{app_booting_at, tmp_root_with_carts, CLOCK_IS_SET};
 use omega_input::{Action, Btn, Millis};
 use omega_store::{read_app_state, write_app_state, AppState};
+use omega_ui::kit::bar::Hint;
+use omega_ui::kit::palette::palette;
+use omega_ui::kit::text::text_face;
 use omega_ui::network::networks_shown;
+use omega_ui::network::{network_chrome, NOTE_IN};
+use omega_ui::Layer;
 use omega_ui::SettingsRow;
 use omega_zero::app::{App, Phase};
+use omega_zero::screens::bar::FORGET;
+use omega_zero::screens::bar::SCAN;
 use omega_zero::wifi::{
     Saved, Seen, Status, WifiJob, WifiJobs, WifiNews, GLANCE_MS, JOIN_TIMEOUT_MS,
 };
@@ -123,21 +130,24 @@ impl Rig {
         );
     }
 
-    /// Opens the Network screen with Wi-Fi on and these networks heard.
+    /// Opens the Network screen with Wi-Fi on and these networks saved, and X's scan hearing
+    /// these.
     fn on_with(&mut self, seen: &[(&str, i32, bool)], saved: &[(u32, &str)]) {
+        self.on_saved(saved);
+        self.radio.forget_asked();
+        self.press(Btn::X);
+        assert_eq!(self.radio.asked(), [WifiJob::Scan], "X did not scan");
+        self.radio.say(heard(seen));
+        self.tick(16);
+        self.radio.forget_asked();
+    }
+
+    /// Opens the Network screen with Wi-Fi on and these networks saved, before any scan.
+    fn on_saved(&mut self, saved: &[(u32, &str)]) {
         self.open_wifi();
         if !self.a.wifi().enabled() {
             self.press(Btn::A);
         }
-        self.radio.say(WifiNews::Seen(
-            seen.iter()
-                .map(|(s, rssi, secured)| Seen {
-                    ssid: s.as_bytes().to_vec(),
-                    rssi: *rssi,
-                    secured: *secured,
-                })
-                .collect(),
-        ));
         self.radio.say(WifiNews::Saved(
             saved
                 .iter()
@@ -201,6 +211,28 @@ impl Rig {
             Lit::Setting(_) => None,
         }
     }
+}
+
+/// What a scan heard: these networks, each with its signal and whether it has a lock.
+fn heard(seen: &[(&str, i32, bool)]) -> WifiNews {
+    WifiNews::Seen(
+        seen.iter()
+            .map(|(s, rssi, secured)| Seen {
+                ssid: s.as_bytes().to_vec(),
+                rssi: *rssi,
+                secured: *secured,
+            })
+            .collect(),
+    )
+}
+
+/// How many scans the radio was asked for.
+fn scans(radio: &Radio) -> usize {
+    radio
+        .asked()
+        .iter()
+        .filter(|job| **job == WifiJob::Scan)
+        .count()
 }
 
 /// `n` networks in reach, the first strongest, all locked.
@@ -277,7 +309,7 @@ fn a_handheld_that_left_wifi_on_brings_it_up_at_boot() {
 }
 
 #[test]
-fn the_screen_looks_for_networks_and_the_menu_only_asks_how_it_is_joined() {
+fn the_screen_and_the_menu_only_ask_how_it_is_joined() {
     let mut r = Rig::with(
         AppState {
             wifi: true,
@@ -309,10 +341,299 @@ fn the_screen_looks_for_networks_and_the_menu_only_asks_how_it_is_joined() {
     r.radio.forget_asked();
     r.press(Btn::A);
     r.tick(16);
-    assert!(
-        r.radio.asked().contains(&WifiJob::Scan),
-        "the screen did not look"
+    assert_eq!(
+        r.radio.asked(),
+        [],
+        "opening the screen asked for more than the status already asked"
     );
+}
+
+/// The Network screen opened and left open asks for the status as Settings does, and never for
+/// a scan: a scan ties the radio up, and only X asks for one.
+#[test]
+fn opening_network_never_scans() {
+    let mut r = Rig::with(
+        AppState {
+            wifi: true,
+            ..AppState::default()
+        },
+        Radio::default(),
+    );
+    r.open_wifi();
+    r.radio.forget_asked();
+    let mut refreshes = 0;
+    for _ in 0..60 {
+        for job in r.radio.asked() {
+            assert_ne!(job, WifiJob::Scan, "the open screen scanned");
+            if job == WifiJob::Refresh {
+                refreshes += 1;
+                r.radio.say(joined("Home", Some("192.168.1.20")));
+                r.radio.say(WifiNews::Saved(Vec::new()));
+            }
+        }
+        r.radio.forget_asked();
+        r.tick(16);
+        r.tick(1_000);
+    }
+    assert!(refreshes > 10, "the status was not kept fresh: {refreshes}");
+    assert_eq!(r.status(), ["Press X to look for networks."]);
+}
+
+#[test]
+fn x_scans_once_and_only_x_scans_again() {
+    let mut r = Rig::new();
+    r.on_saved(&[]);
+    r.radio.forget_asked();
+    r.press(Btn::X);
+    assert_eq!(r.radio.asked(), [WifiJob::Scan]);
+    assert_eq!(r.status(), ["Looking for networks…"]);
+    r.radio
+        .say(heard(&[("Home", -48, true), ("Café", -60, false)]));
+    r.tick(16);
+    assert_eq!(r.names(), ["Home", "Café"]);
+    assert_eq!(r.status(), ["Not connected. Pick a network to join."]);
+    // a minute on, its status kept fresh, it has not looked again
+    for _ in 0..60 {
+        r.radio.say(WifiNews::Saved(Vec::new()));
+        r.tick(1_000);
+    }
+    assert_eq!(scans(&r.radio), 1, "it scanned again by itself");
+    assert_eq!(r.names(), ["Home", "Café"], "what it found went away");
+    r.radio.forget_asked();
+    r.press(Btn::X);
+    assert_eq!(
+        r.radio.asked(),
+        [WifiJob::Scan],
+        "X again did not look again"
+    );
+    r.radio.say(heard(&[("Café", -50, false)]));
+    r.tick(16);
+    assert_eq!(
+        r.names(),
+        ["Café"],
+        "the second scan did not replace the first"
+    );
+}
+
+#[test]
+fn x_does_nothing_while_a_scan_runs_or_with_wifi_off() {
+    let mut r = Rig::new();
+    r.open_wifi();
+    r.press(Btn::X);
+    assert_eq!(r.radio.asked(), [], "X scanned with Wi-Fi off");
+    assert_eq!(r.status(), ["Wi-Fi is off."]);
+    r.press(Btn::A);
+    r.radio.forget_asked();
+    r.press(Btn::X);
+    r.press(Btn::X);
+    r.tick(16);
+    r.press(Btn::X);
+    assert_eq!(scans(&r.radio), 1, "X asked again mid-scan");
+    r.radio.say(heard(&[("Home", -48, true)]));
+    r.tick(16);
+    r.press(Btn::X);
+    assert_eq!(scans(&r.radio), 2, "X after the answer did not look again");
+}
+
+#[test]
+fn x_scan_shows_on_the_bar_with_wifi_on_and_y_forget_beside_it_on_a_saved_network() {
+    assert_eq!(
+        SCAN,
+        Hint {
+            key: "X",
+            word: "SCAN",
+        }
+    );
+    let mut r = Rig::new();
+    r.open_wifi();
+    r.a.finish_slide();
+    assert_eq!(r.a.bar_hints_shown(), [], "X SCAN with Wi-Fi off");
+    r.press(Btn::A);
+    assert_eq!(r.a.bar_hints_shown(), [SCAN]);
+    r.press(Btn::X);
+    assert_eq!(r.a.bar_hints_shown(), [SCAN], "the hint left mid-scan");
+    r.radio.say(heard(&[
+        ("Home", -48, true),
+        ("Café", -60, false),
+        ("Attic", -80, true),
+    ]));
+    r.radio.say(WifiNews::Saved(vec![Saved {
+        id: 2,
+        ssid: b"Home".to_vec(),
+        current: false,
+        refused: false,
+    }]));
+    r.tick(16);
+    r.go_to("Home");
+    assert_eq!(
+        r.a.bar_hints_shown(),
+        [SCAN, FORGET],
+        "not side by side on a saved network"
+    );
+    r.go_to("Café");
+    assert_eq!(r.a.bar_hints_shown(), [SCAN]);
+    // the keyboard keeps its own keys, X among them for SHIFT
+    r.go_to("Attic");
+    r.press(Btn::A);
+    r.a.finish_slide();
+    assert!(r.a.network_typing().is_some(), "no keyboard");
+    assert_eq!(
+        r.a.bar_hints_shown(),
+        [],
+        "the bar's hints over the keyboard"
+    );
+    r.radio.forget_asked();
+    r.press(Btn::X);
+    assert_eq!(r.radio.asked(), [], "the keyboard's X scanned");
+    assert_eq!(
+        r.a.network_typing().unwrap().keys.layer,
+        Layer::Upper,
+        "X did not shift"
+    );
+}
+
+#[test]
+fn before_a_scan_the_list_holds_the_network_joined_and_the_saved_ones() {
+    let mut r = Rig::new();
+    r.on_saved(&[(0, "Home"), (4, "Cabin")]);
+    r.radio.say(joined("Home", Some("192.168.1.20")));
+    r.tick(16);
+    let line = |name: &str, value| NetworkLine {
+        name: name.into(),
+        value,
+        signal: None,
+        lock: false,
+    };
+    assert_eq!(
+        r.view().networks,
+        [
+            line("Home", Some("CONNECTED")),
+            line("Cabin", Some("SAVED"))
+        ],
+        "a network showed a signal no scan heard"
+    );
+    assert_eq!(r.status(), ["Press X to look for networks."]);
+    assert_eq!(scans(&r.radio), 0);
+}
+
+#[test]
+fn the_network_the_status_names_is_listed_though_nothing_saved_names_it() {
+    let mut r = Rig::new();
+    r.on_saved(&[]);
+    r.radio.say(joined("Home", None));
+    r.tick(16);
+    assert_eq!(r.names(), ["Home"]);
+    assert_eq!(r.view().networks[0].value, Some("CONNECTED"));
+    assert_eq!(r.status(), ["Waiting for an address…"]);
+    r.radio.say(joined("Home", Some("192.168.1.20")));
+    r.tick(16);
+    assert_eq!(r.status(), ["Press X to look for networks."]);
+}
+
+#[test]
+fn leaving_the_screen_scans_no_more_and_coming_back_starts_without_what_it_found() {
+    let mut r = Rig::new();
+    let home = || {
+        WifiNews::Saved(vec![Saved {
+            id: 0,
+            ssid: b"Home".to_vec(),
+            current: false,
+            refused: false,
+        }])
+    };
+    r.on_with(&[("Home", -48, true), ("Café", -60, false)], &[(0, "Home")]);
+    assert_eq!(r.names(), ["Home", "Café"]);
+    // left with a scan under way: it finishes, and what it found is for nobody
+    r.press(Btn::X);
+    r.press(Btn::B);
+    assert_eq!(r.a.settings_row(), Some(SettingsRow::Network));
+    r.radio.say(heard(&[("Upstairs", -40, true)]));
+    r.tick(16);
+    r.radio.forget_asked();
+    for _ in 0..60 {
+        r.radio.say(home());
+        r.tick(1_000);
+    }
+    assert_eq!(scans(&r.radio), 0, "Settings scanned");
+    r.press(Btn::A);
+    assert!(matches!(r.a.phase(), Phase::Network(_)));
+    assert_eq!(r.names(), ["Home"], "came back to what an old scan found");
+    assert_eq!(r.view().networks[0].signal, None);
+    assert_eq!(r.status(), ["Press X to look for networks."]);
+    for _ in 0..60 {
+        r.radio.say(home());
+        r.tick(1_000);
+    }
+    assert_eq!(scans(&r.radio), 0, "coming back scanned");
+}
+
+#[test]
+fn the_ssh_screen_under_network_keeps_what_the_scan_found() {
+    let mut r = Rig::new();
+    r.on_with(&[("Home", -48, true), ("Café", -60, false)], &[]);
+    r.press(Btn::Down);
+    r.press(Btn::Down);
+    assert_eq!(r.sel(), Sel::Ssh);
+    r.press(Btn::Left);
+    r.press(Btn::A);
+    assert!(matches!(r.a.phase(), Phase::Ssh(_)), "{:?}", r.a.phase());
+    r.tick(5_000);
+    r.press(Btn::B);
+    assert!(matches!(r.a.phase(), Phase::Network(_)));
+    assert_eq!(r.names(), ["Home", "Café"]);
+    assert_eq!(scans(&r.radio), 0);
+}
+
+#[test]
+fn wifi_switched_off_mid_scan_drops_what_it_finds() {
+    let mut r = Rig::new();
+    r.on_saved(&[]);
+    r.press(Btn::X);
+    r.press(Btn::Left);
+    assert!(!r.a.wifi().enabled());
+    r.radio.say(heard(&[("Home", -48, true)]));
+    r.tick(16);
+    assert!(!r.a.wifi().scanning(), "the scan's answer did not end it");
+    r.press(Btn::Right);
+    r.tick(16);
+    assert!(r.names().is_empty(), "{:?}", r.names());
+    assert_eq!(r.status(), ["Press X to look for networks."]);
+}
+
+#[test]
+fn a_scan_that_hears_nothing_says_so() {
+    let mut r = Rig::new();
+    r.on_with(&[], &[]);
+    assert!(r.names().is_empty());
+    assert_eq!(r.status(), ["No networks found. Press X to look again."]);
+}
+
+/// Every note the Network screen says fits the list's panel at the narrowest canvas, with its
+/// room in from the well's side either side.
+#[test]
+fn every_note_fits_the_list() {
+    let notes = [
+        "This handheld has no Wi-Fi.",
+        "Wi-Fi is off.",
+        "The Wi-Fi radio did not start.",
+        "Looking for networks…",
+        "Press X to look for networks.",
+        "No networks found. Press X to look again.",
+        "Not connected. Pick a network to join.",
+        "Waiting for an address…",
+        "Wrong passphrase?",
+    ];
+    let pal = palette(0);
+    let well = network_chrome(3, pal).wells[1];
+    for note in notes {
+        let face = text_face(note, pal.dim);
+        assert!(
+            face.w + NOTE_IN * 2 <= well[2],
+            "{note:?} is {} wide in a well {} wide",
+            face.w,
+            well[2]
+        );
+    }
 }
 
 #[test]
@@ -588,15 +909,16 @@ fn a_list_longer_than_its_panel_scrolls_a_whole_row_at_a_time() {
 }
 
 #[test]
-fn with_nothing_heard_yet_it_says_it_is_looking() {
+fn before_a_scan_it_says_to_press_x_and_while_it_scans_that_it_is_looking() {
     let mut r = Rig::new();
-    r.on_with(&[], &[]);
+    r.on_saved(&[]);
+    assert!(r.names().is_empty());
+    assert_eq!(r.status(), ["Press X to look for networks."]);
+    r.press(Btn::X);
     assert_eq!(r.status(), ["Looking for networks…"]);
-    r.radio.say(WifiNews::Seen(vec![Seen {
-        ssid: b"Home".to_vec(),
-        rssi: -50,
-        secured: true,
-    }]));
+    r.tick(5_000);
+    assert_eq!(r.status(), ["Looking for networks…"]);
+    r.radio.say(heard(&[("Home", -50, true)]));
     r.tick(16);
     assert_eq!(r.status(), ["Not connected. Pick a network to join."]);
 }

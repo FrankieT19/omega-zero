@@ -1,19 +1,25 @@
 //! The Network modal and the SSH panel: where flow.html puts their panels, rows and notes, how
 //! many networks the list shows and how it scrolls, and the one face the modal is baked as.
+//! flow.html's Network screen (#screen=network), as network/make-refs.sh screenshots it in each
+//! #scan= state, is put together here from the kit's faces and held to the screenshots pixel for
+//! pixel.
 
 use omega_gfx::{out_h, out_w};
 use omega_ui::kit::layout::{modal_rect, page, PANEL_CHROME_H};
+use omega_ui::kit::list_row::{list_row_face, ListRow};
 use omega_ui::kit::modal::modal_face;
-use omega_ui::kit::palette::palette;
+use omega_ui::kit::palette::{palette, Palette};
 use omega_ui::kit::panel::{panel_face, title_face};
-use omega_ui::kit::row::{row_rect, row_width, ROW_H};
+use omega_ui::kit::row::{row_face, row_rect, row_width, Row, ROW_H};
+use omega_ui::kit::text::text_face;
 use omega_ui::network::{
     network_chrome, network_panels, network_row_widths, network_title, network_window,
     networks_shown, ssh_chrome, ssh_rect, NetworkFaces, SshFaces, AVAILABLE_TITLE, NOTE_IN,
     NOTE_TOP, SSH_W,
 };
-use omega_ui::{Draw, TexId};
+use omega_ui::{Draw, TexId, UndoFace};
 
+const NIGHT: u8 = 0;
 const AMBER: u8 = 7;
 
 #[test]
@@ -226,5 +232,164 @@ fn ssh_draws_its_lines_then_its_note_in_the_middle_of_the_page() {
         // the note's line ends 2 above the well's bottom under rows, 5 on its own
         let foot = if lines == 0 { 5 } else { 2 };
         assert_eq!(note_y + 10 + foot, wy + wh, "{lines} lines");
+    }
+}
+
+/// A network in flow.html's list: its name, what it is to the handheld, its bars and padlock.
+fn listed(
+    label: &'static str,
+    value: Option<&'static str>,
+    signal: Option<u8>,
+    lock: bool,
+) -> ListRow<'static> {
+    ListRow {
+        label,
+        value,
+        signal,
+        lock,
+        device: None,
+        lit: false,
+        dim: false,
+    }
+}
+
+/// Each of flow.html's #scan= states, as its ref is named: the networks listed and the note
+/// under them. Before a scan, and during one, the list holds the network joined alone with no
+/// bars or padlock; the scan done, the three it found.
+fn scan_states() -> [(&'static str, Vec<ListRow<'static>>, Option<&'static str>); 3] {
+    let home = listed("Home", Some("CONNECTED"), None, false);
+    [
+        ("none", vec![home], Some("Press X to look for networks.")),
+        ("running", vec![home], Some("Looking for networks…")),
+        (
+            "done",
+            vec![
+                listed("Home", Some("CONNECTED"), Some(3), true),
+                listed("Café Wi-Fi", None, Some(2), false),
+                listed("Upstairs 5G", None, Some(1), true),
+            ],
+            None,
+        ),
+    ]
+}
+
+/// `top` laid over `under` with its top left at (`x`, `y`), where it is not clear.
+fn over(under: &mut UndoFace, top: &UndoFace, x: u32, y: u32) {
+    for ty in 0..top.h {
+        for tx in 0..top.w {
+            let from = ((ty * top.w + tx) * 4) as usize;
+            if top.rgba[from + 3] == 0 {
+                continue;
+            }
+            let to = (((y + ty) * under.w + x + tx) * 4) as usize;
+            under.rgba[to..to + 4].copy_from_slice(&top.rgba[from..from + 4]);
+        }
+    }
+}
+
+/// The modal as flow.html shows it with Wi-Fi on, the cursor on WI-FI: NETWORK's three rows,
+/// `networks` in the list and `note` under them.
+fn network_composed(networks: &[ListRow], note: Option<&str>, pal: &Palette) -> UndoFace {
+    let chrome = network_chrome(3, pal);
+    let mut art = chrome.face;
+    let [tx, ty, _, _] = chrome.titles[0];
+    over(&mut art, &network_title(0, pal), tx, ty);
+    let settings = [("WI-FI", true), ("NETWORK TIME", false), ("SSH", false)];
+    for (i, (label, lit)) in settings.into_iter().enumerate() {
+        let row = Row {
+            label,
+            value: Some("ON"),
+            lit,
+            carets: true,
+            opens: false,
+            dim: false,
+        };
+        let [x, y, w, _] = row_rect(chrome.wells[0], i as u32);
+        over(&mut art, &row_face(w, &row, pal), x, y);
+    }
+    for (i, row) in networks.iter().enumerate() {
+        let [x, y, w, _] = row_rect(chrome.wells[1], i as u32);
+        over(&mut art, &list_row_face(w, row, pal), x, y);
+    }
+    if let Some(note) = note {
+        let [x, y, _, _] = chrome.wells[1];
+        let below = networks.len() as u32 * ROW_H + NOTE_TOP;
+        over(&mut art, &text_face(note, pal.dim), x + NOTE_IN, y + below);
+    }
+    art
+}
+
+fn read_png(path: &str) -> UndoFace {
+    let file = std::fs::File::open(path).unwrap_or_else(|e| panic!("{path}: {e}"));
+    let mut decoder = png::Decoder::new(std::io::BufReader::new(file));
+    decoder.set_transformations(png::Transformations::normalize_to_color8());
+    let mut reader = decoder.read_info().expect("a PNG");
+    let mut buf = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buf).expect("its pixels");
+    buf.truncate(info.buffer_size());
+    let rgba = match info.color_type.samples() {
+        4 => buf,
+        _ => buf
+            .chunks(3)
+            .flat_map(|p| [p[0], p[1], p[2], 255])
+            .collect(),
+    };
+    UndoFace {
+        rgba,
+        w: info.width,
+        h: info.height,
+    }
+}
+
+fn write(path: &str, face: &UndoFace) {
+    let f = std::fs::File::create(path).unwrap();
+    let mut e = png::Encoder::new(std::io::BufWriter::new(f), face.w, face.h);
+    e.set_color(png::ColorType::Rgba);
+    e.set_depth(png::BitDepth::Eight);
+    e.write_header()
+        .unwrap()
+        .write_image_data(&face.rgba)
+        .unwrap();
+}
+
+/// `face`'s pixel at (`x`, `y`): its colour, or None where it is clear.
+fn colour_at(face: &UndoFace, x: u32, y: u32) -> Option<[u8; 3]> {
+    let i = ((y * face.w + x) * 4) as usize;
+    (face.rgba[i + 3] != 0).then(|| [face.rgba[i], face.rgba[i + 1], face.rgba[i + 2]])
+}
+
+/// Every #scan= state at this canvas is flow.html's to the art pixel, wherever the modal is
+/// drawn (its cut corners show the backdrop, which the faces leave clear). Set NETWORK_OUT to a
+/// folder to have each composed modal written there.
+#[test]
+fn network_before_during_and_after_a_scan_is_flows_pixel_for_pixel() {
+    let canvas = format!("{}x{}", out_w(), out_h());
+    let pal = palette(NIGHT);
+    for (scan, networks, note) in scan_states() {
+        let name = format!("flow-network-{scan}-{canvas}");
+        let ours = network_composed(&networks, note, pal);
+        if let Ok(dir) = std::env::var("NETWORK_OUT") {
+            write(&format!("{dir}/{name}.png"), &ours);
+        }
+        let path = format!(
+            "{}/tests/suite/network/ref/{name}.png",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let shot = read_png(&path);
+        assert_eq!((ours.w, ours.h), (shot.w, shot.h), "{name}'s size");
+        let off: Vec<_> = (0..ours.h)
+            .flat_map(|y| (0..ours.w).map(move |x| (x, y)))
+            .filter_map(|(x, y)| {
+                let c = colour_at(&ours, x, y)?;
+                let want = colour_at(&shot, x, y).expect("an opaque screenshot");
+                (c != want).then_some((x, y, c, want))
+            })
+            .collect();
+        assert!(
+            off.is_empty(),
+            "{name}: {} art pixels differ from flow.html's, first (x, y, ours, Chrome's) {:?}",
+            off.len(),
+            &off[..off.len().min(8)]
+        );
     }
 }

@@ -1,12 +1,13 @@
-//! The Bluetooth screen, opened from Settings: switching Bluetooth on and off, and the devices
-//! in reach, which it pairs with, connects, disconnects and forgets.
+//! The Bluetooth screen, opened from Settings: switching Bluetooth on and off, the devices paired,
+//! and those in reach once X has looked for them, which it pairs with, connects, disconnects and
+//! forgets.
 
 use omega_input::{Action, Btn, Millis};
 use omega_ui::network::{network_window, networks_shown};
 
 use crate::bluetooth::{
-    BluetoothJob, BluetoothJobs, BluetoothNews, Device, DeviceKind, Fail, Status, REFRESH_MS,
-    SCAN_MS,
+    BluetoothJob, BluetoothJobs, BluetoothNews, Device, DeviceKind, Fail, Status, LOOK_MS,
+    REFRESH_MS,
 };
 use crate::wifi_screen::SettingLine;
 
@@ -22,7 +23,8 @@ pub enum Watch {
     Idle,
     /// Something on screen names the device connected: the status is kept fresh.
     Status,
-    /// The Bluetooth screen is open: devices are looked for too.
+    /// The Bluetooth screen is open: X may look for devices, and what a look finds is kept until
+    /// it is left.
     Devices,
 }
 
@@ -52,7 +54,7 @@ pub enum DeviceState {
     Connecting,
     Pairing,
     Paired,
-    /// Found by discovery and never paired.
+    /// Found by a look and never paired.
     Found,
 }
 
@@ -60,7 +62,7 @@ pub enum DeviceState {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Entry {
     pub mac: String,
-    /// Its name in its own case, or its address when it gave none.
+    /// Its name in its own case, or the address of a paired device with no name.
     pub name: String,
     pub kind: DeviceKind,
     pub paired: bool,
@@ -85,10 +87,15 @@ pub struct Bluetooth {
     /// The note, and until when it is said.
     note: Option<(Note, Millis)>,
     refreshing: bool,
-    /// Discovery was asked for, and not stopped since.
-    scanning: bool,
     refresh_at: Millis,
-    scan_at: Millis,
+    /// Until when the look under way discovers devices.
+    looking: Option<Millis>,
+    /// X has looked for devices since the screen was opened.
+    looked: bool,
+    /// Every device a look has found with a name, until the screen is left. bluetoothd forgets
+    /// a device only found within half a minute of discovery stopping, while the list still
+    /// offers it; the script looks for it again to pair with it.
+    found: Vec<Device>,
 }
 
 impl Bluetooth {
@@ -100,9 +107,10 @@ impl Bluetooth {
             doing: None,
             note: None,
             refreshing: false,
-            scanning: false,
             refresh_at: 0,
-            scan_at: 0,
+            looking: None,
+            looked: false,
+            found: Vec::new(),
         }
     }
 
@@ -129,6 +137,11 @@ impl Bluetooth {
             .map(|(mac, what, _)| (mac.as_str(), *what))
     }
 
+    /// A look for devices is under way.
+    pub fn looking(&self) -> bool {
+        self.looking.is_some()
+    }
+
     /// At boot: brings Bluetooth up if it was left on. The radio comes up on the worker thread,
     /// so the first frame never waits for it.
     pub fn start(&mut self, enabled: bool) {
@@ -145,20 +158,64 @@ impl Bluetooth {
         self.enabled = on;
         self.note = None;
         self.doing = None;
+        // a switch lets the looks go; going down stops a discovery under way too
+        self.unlook();
         if on {
             self.jobs.ask(BluetoothJob::Up);
             self.refresh_at = now;
-            self.scan_at = now;
         } else {
             self.jobs.ask(BluetoothJob::Down);
-            self.scanning = false;
             self.status = Status::default();
         }
     }
 
-    fn ask(&mut self, mac: &str, doing: Doing, now: Millis) {
-        if !self.enabled || self.doing.is_some() {
+    /// X: one look for devices, discovery on for `LOOK_MS` and then off. Nothing while a look is
+    /// under way, while Bluetooth is off, or while a device pairs or connects, which a discovery
+    /// would only slow down. What an earlier look found and bluetoothd has since forgotten goes.
+    pub fn look(&mut self, now: Millis) {
+        let busy = matches!(self.doing(), Some((_, Doing::Pairing | Doing::Connecting)));
+        if !self.enabled || self.looking.is_some() || busy {
             return;
+        }
+        if matches!(self.note(), Some(Note::NoPair(_) | Note::NoConnect(_))) {
+            self.note = None;
+        }
+        self.looking = Some(now + LOOK_MS);
+        self.looked = true;
+        self.found.clear();
+        self.remember();
+        self.jobs.ask(BluetoothJob::Scan(true));
+    }
+
+    /// Lets the looks go, as the screen is left or Bluetooth switched: the devices they found are
+    /// offered no more.
+    fn unlook(&mut self) {
+        self.looking = None;
+        self.looked = false;
+        self.found.clear();
+    }
+
+    /// Keeps every device the status has found with a name, while the screen has looked.
+    fn remember(&mut self) {
+        if !self.looked {
+            return;
+        }
+        for d in &self.status.devices {
+            if d.paired || d.name.is_empty() {
+                continue;
+            }
+            match self.found.iter_mut().find(|known| known.mac == d.mac) {
+                Some(known) => *known = d.clone(),
+                None => self.found.push(d.clone()),
+            }
+        }
+    }
+
+    /// Asks a job for device `mac`, unless Bluetooth is off or another is under way: whether it
+    /// did.
+    fn ask(&mut self, mac: &str, doing: Doing, now: Millis) -> bool {
+        if !self.enabled || self.doing.is_some() {
+            return false;
         }
         self.note = None;
         self.doing = Some((mac.to_string(), doing, now));
@@ -168,11 +225,15 @@ impl Bluetooth {
             Doing::Disconnecting => BluetoothJob::Disconnect(mac.to_string()),
             Doing::Forgetting => BluetoothJob::Forget(mac.to_string()),
         });
+        true
     }
 
-    /// Pairs with a device found, then trusts and connects it.
+    /// Pairs with a device found, then trusts and connects it. The script stops a look under way
+    /// first, as discovery slows a pairing down, and the look is over.
     pub fn pair(&mut self, mac: &str, now: Millis) {
-        self.ask(mac, Doing::Pairing, now);
+        if self.ask(mac, Doing::Pairing, now) {
+            self.looking = None;
+        }
     }
 
     pub fn connect(&mut self, mac: &str, now: Millis) {
@@ -194,13 +255,14 @@ impl Bluetooth {
             self.doing = Some((mac.to_string(), Doing::Forgetting, now));
         }
         self.status.devices.retain(|d| d.mac != mac);
+        self.found.retain(|d| d.mac != mac);
         self.jobs.ask(BluetoothJob::Forget(mac.to_string()));
     }
 
     /// Takes what the radio has said since the last tick, lets a note that has been said long
-    /// enough go, and asks again whatever is being watched: the status for a screen that names
-    /// the device connected, and discovery while the Bluetooth screen is open, stopped once it
-    /// is left.
+    /// enough go, ends a look that has looked long enough or whose screen is left, and keeps the
+    /// status fresh for a screen that names the device connected or lists the devices. Nothing
+    /// ever looks for devices by itself.
     pub fn tick(&mut self, now: Millis, watch: Watch) {
         for news in self.jobs.news() {
             self.take(news, now);
@@ -225,18 +287,13 @@ impl Bluetooth {
         if !self.enabled {
             return;
         }
-        // discovery first, so a status asked in the same tick already lists what it finds
-        match watch {
-            Watch::Devices if !self.scanning || now >= self.scan_at => {
-                self.scanning = true;
-                self.scan_at = now + SCAN_MS;
-                self.jobs.ask(BluetoothJob::Scan(true));
-            }
-            Watch::Idle | Watch::Status if self.scanning => {
-                self.scanning = false;
-                self.jobs.ask(BluetoothJob::Scan(false));
-            }
-            _ => {}
+        let left = watch < Watch::Devices;
+        if self.looking.is_some_and(|until| left || now >= until) {
+            self.looking = None;
+            self.jobs.ask(BluetoothJob::Scan(false));
+        }
+        if left {
+            self.unlook();
         }
         if watch >= Watch::Status && !self.refreshing && now >= self.refresh_at {
             self.refreshing = true;
@@ -261,6 +318,7 @@ impl Bluetooth {
                 self.refresh_at = now + REFRESH_MS;
                 if self.enabled {
                     self.status = status;
+                    self.remember();
                 }
             }
             BluetoothNews::Done { job, result } => {
@@ -278,10 +336,6 @@ impl Bluetooth {
                 else {
                     return;
                 };
-                // a pairing stops discovery while it lasts: it is asked for again at once
-                if doing == Doing::Pairing {
-                    self.scan_at = now;
-                }
                 let name = self.name_of(&asked);
                 let note = match (doing, result) {
                     (_, Ok(())) => return,
@@ -301,6 +355,7 @@ impl Bluetooth {
         self.status
             .devices
             .iter()
+            .chain(&self.found)
             .find(|d| d.mac == mac)
             .map_or(mac, Device::shown)
             .to_string()
@@ -319,17 +374,28 @@ impl Bluetooth {
     }
 
     /// The devices to offer, while Bluetooth is on: the paired ones first, those connected
-    /// leading, then the ones found, those with a name before those without, each by name. A
-    /// device being forgotten is gone already, whatever a status from before says.
+    /// leading, then those the looks since the screen was opened have found with a name, each
+    /// by name. A device only found is offered while a job is under way for it, too. A device
+    /// being forgotten is gone already, whatever a status from before says.
     pub fn entries(&self) -> Vec<Entry> {
         if !self.enabled {
             return Vec::new();
         }
         let forgetting = |d: &Device| self.doing() == Some((d.mac.as_str(), Doing::Forgetting));
-        let mut out: Vec<Entry> = self
+        let doing = |d: &Device| self.doing().is_some_and(|(mac, _)| mac == d.mac);
+        let mut shown: Vec<&Device> = self
             .status
             .devices
             .iter()
+            .filter(|d| d.paired || doing(d))
+            .collect();
+        for d in &self.found {
+            if !shown.iter().any(|s| s.mac == d.mac) {
+                shown.push(d);
+            }
+        }
+        let mut out: Vec<Entry> = shown
+            .into_iter()
             .filter(|d| !forgetting(d))
             .map(|d| Entry {
                 mac: d.mac.clone(),
@@ -339,18 +405,11 @@ impl Bluetooth {
                 state: self.state_of(d),
             })
             .collect();
-        let named = |mac: &str| {
-            self.status
-                .devices
-                .iter()
-                .any(|d| d.mac == mac && !d.name.is_empty())
-        };
         out.sort_by_cached_key(|e| {
             let rank = match e.state {
                 DeviceState::Connected => 0,
                 _ if e.paired => 1,
-                _ if named(&e.mac) => 2,
-                _ => 3,
+                _ => 2,
             };
             (rank, e.name.to_lowercase(), e.mac.clone())
         });
@@ -372,8 +431,8 @@ impl Bluetooth {
     }
 
     /// The notes under the devices, a line each, short enough for the list's panel at 640x480:
-    /// that Bluetooth is off, why a pairing or a connection went wrong, or that devices are
-    /// being looked for while none has been found.
+    /// that Bluetooth is off, why a pairing or a connection went wrong, that devices are being
+    /// looked for, that X looks for them while the screen has not, or that a look found none.
     pub fn notes(&self) -> Vec<String> {
         if !self.present() {
             return vec!["This handheld has no Bluetooth.".into()];
@@ -387,8 +446,14 @@ impl Bluetooth {
             Some(Note::NoConnect(name)) => return vec![said("Could not connect to ", name)],
             None => {}
         }
-        if self.entries().is_empty() {
+        if self.looking() {
             return vec!["Looking for devices…".into()];
+        }
+        if !self.looked {
+            return vec!["Press X to look for devices.".into()];
+        }
+        if self.found.is_empty() {
+            return vec!["No devices found.".into()];
         }
         Vec::new()
     }
@@ -444,7 +509,7 @@ pub enum Outcome {
 /// A device in the DEVICES list, as a kit list row shows it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeviceLine {
-    /// Its name, in its own case, or its address.
+    /// Its name, in its own case, or the address of a paired device with no name.
     pub name: String,
     /// What it is to the handheld: CONNECTED, CONNECTING, PAIRING or PAIRED; nothing for a
     /// device only found.
@@ -527,6 +592,7 @@ impl BluetoothScreen {
                     bt.forget(&e.mac, now);
                 }
             }
+            Action::GbaDown(Btn::X) => bt.look(now),
             _ => {}
         }
         let rows = self.rows(bt);
@@ -537,6 +603,11 @@ impl BluetoothScreen {
     /// Whether Y forgets the device under the cursor: one paired, connected, connecting or not.
     pub fn forgets(&self, bt: &Bluetooth) -> bool {
         self.entry(bt).is_some_and(|e| e.paired)
+    }
+
+    /// Whether the bar offers X for a look: while Bluetooth is on, looking already or not.
+    pub fn scans(&self, bt: &Bluetooth) -> bool {
+        bt.enabled()
     }
 
     /// What the modal shows.

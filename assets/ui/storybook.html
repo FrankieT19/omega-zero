@@ -21,6 +21,10 @@
 <script src="components/omega-row.js"></script>
 <script src="components/omega-list-row.js"></script>
 <script src="components/omega-bar.js"></script>
+<script src="components/omega-button.js"></script>
+<script src="components/omega-screen.js"></script>
+<script src="components/omega-card.js"></script>
+<script src="components/omega-code.js"></script>
 <style>
   /* the page around the components: omega-zero's site colours */
   :root {
@@ -150,6 +154,18 @@
   .outlined omega-bar::part(bar), .outlined omega-bar::part(middle), .outlined omega-bar::part(hints),
   .outlined omega-bar::part(key), .outlined omega-bar::part(word) {
     outline: 1px dashed var(--area); outline-offset: -1px;
+  }
+
+  /* the cards of the components for pages: buttons in a row, a screen at its own size and a
+     smaller one, cards in columns a whole number of art pixels wide */
+  .preview .buttons { display: flex; flex-wrap: wrap; gap: calc(6 * var(--u)); }
+  .preview .screens { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+  .preview .screens figure { margin: 0; display: grid; gap: 8px; min-width: 0; max-width: 100%; }
+  .screen-own { width: calc(340 * var(--u)); max-width: 100%; }
+  .screen-small { width: calc(160 * var(--u)); max-width: 100%; }
+  .card-grid {
+    display: grid; gap: calc(2 * var(--u));
+    grid-template-columns: repeat(auto-fill, min(100%, calc(150 * var(--u))));
   }
 </style>
 </head>
@@ -466,7 +482,7 @@
                 <omega-list-row label="8BitDo SN30 Pro" value="CONNECTED" device="gamepad"></omega-list-row>
                 <omega-list-row label="WH-1000XM4" value="PAIRED" device="audio" lit></omega-list-row>
                 <omega-list-row label="Keychron K3" value="PAIRING" device="keyboard"></omega-list-row>
-                <omega-list-row label="4C:4C:6B:1A:80:D3" device="other"></omega-list-row>
+                <omega-list-row label="Mi Smart Band 4" device="other"></omega-list-row>
               </omega-panel>
             </figure>
             <figure>
@@ -500,7 +516,7 @@
 &lt;omega-list-row label="Café Guest" signal="2"&gt;&lt;/omega-list-row&gt;
 
 &lt;omega-list-row label="8BitDo SN30 Pro" value="CONNECTED" device="gamepad"&gt;&lt;/omega-list-row&gt;
-&lt;omega-list-row label="4C:4C:6B:1A:80:D3" device="other"&gt;&lt;/omega-list-row&gt;   &lt;!-- no name: its MAC --&gt;</code></pre>
+&lt;omega-list-row label="Mi Smart Band 4" device="other"&gt;&lt;/omega-list-row&gt;   &lt;!-- found only: no value --&gt;</code></pre>
       </article>
 
       <article class="card wide">
@@ -581,6 +597,145 @@
   &lt;action-left slot="left" label="RETURN" hint="B"&gt;&lt;/action-left&gt;
   &lt;action-right slot="right" label="CONFIRM" hint="A"&gt;&lt;/action-right&gt;
 &lt;/omega-bar&gt;</code></pre>
+      </article>
+
+      <article class="card">
+        <header><h3>&lt;omega-button&gt;</h3><code>components/omega-button.js</code></header>
+        <p class="dim">A link or a button drawn as the bottom bar's button pill, both its ends
+          rounded: for pages around the menus, like the site. The link or button is the page's own,
+          put inside it, so it keeps its text, its focus and what it does, and it covers the whole
+          pill. 15 art pixels tall, 6 dark pixels either side of the word's ink. On hover and while
+          it has focus it is lit, as a row under the cursor; keyboard focus also draws a cream ring
+          a pixel clear of it (Tab to one to see it).</p>
+        <div class="preview omega-backdrop" style="justify-items: start">
+          <span class="tag">plain, and primary</span>
+          <div class="buttons">
+            <omega-button><a href="#components">WIKI</a></omega-button>
+            <omega-button primary><a href="#components">DOWNLOAD</a></omega-button>
+          </div>
+          <span class="tag">lit: hovered, focused or given lit</span>
+          <div class="buttons">
+            <omega-button lit><a href="#components">WIKI</a></omega-button>
+            <omega-button primary lit><a href="#components">DOWNLOAD</a></omega-button>
+          </div>
+          <span class="tag">a button</span>
+          <omega-button><button type="button">COPY</button></omega-button>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>slot</td><td>The <code>&lt;a&gt;</code> or <code>&lt;button&gt;</code>, its word in capitals. Keep the page's own link rules (an underline) off it: they win over the component's.</td></tr>
+            <tr><td>primary</td><td>The page's main action: the inside in <code>--oz-frame-hi</code>, the word in <code>--oz-dark</code>.</td></tr>
+            <tr><td>lit</td><td>Drawn as under the cursor: the inside in <code>--oz-tab</code> (<code>--oz-cream</code> when primary), as on hover and focus.</td></tr>
+            <tr><td>::part</td><td><code>pill</code>, <code>ring</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-button primary&gt;&lt;a href="…/releases/latest"&gt;DOWNLOAD&lt;/a&gt;&lt;/omega-button&gt;
+&lt;omega-button&gt;&lt;button type="button"&gt;COPY&lt;/button&gt;&lt;/omega-button&gt;</code></pre>
+      </article>
+
+      <article class="card">
+        <header><h3>&lt;omega-code&gt;</h3><code>components/omega-code.js</code></header>
+        <p class="dim">Lines to read or type exactly, like a card's folders or a command: a dark box
+          inside an edge line with its corner pixels left out, the lines in cream on lines of 12
+          art pixels, kept as written and scrolled sideways inside the box when one is too long, so
+          the page never scrolls. The lines are the page's own <code>&lt;pre&gt;</code>. A label
+          along the top names them; <code>copy</code> adds a key that puts them on the
+          clipboard.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">label</span>
+          <omega-code label="THE CARD"><pre>Games/GBA/    your GBA games
+Saves/        saves
+System/       omega-zero itself</pre></omega-code>
+          <span class="tag">label and copy</span>
+          <omega-code label="TERMINAL" copy><pre>ssh root@rg35xxsp.local</pre></omega-code>
+          <span class="tag">neither, one line longer than the box</span>
+          <omega-code><pre>task deploy:wifi PROFILE=device-dev   # builds in seconds, copies it over SSH, reboots</pre></omega-code>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>slot</td><td>A <code>&lt;pre&gt;</code> with the lines.</td></tr>
+            <tr><td>label</td><td>What the lines are, in <code>--oz-dim</code> along the top, an edge line under it.</td></tr>
+            <tr><td>copy</td><td>A COPY key at the top right; it puts the lines on the clipboard and says COPIED.</td></tr>
+            <tr><td>::part</td><td><code>code</code>, <code>top</code>, <code>label</code>, <code>copy</code>, <code>lines</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-code label="TERMINAL" copy&gt;&lt;pre&gt;ssh root@rg35xxsp.local&lt;/pre&gt;&lt;/omega-code&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-screen&gt;</h3><code>components/omega-screen.js</code></header>
+        <p class="dim">A picture of a screen in a handheld's bezel: the shell (a dark outline, a rim
+          in the frame colour, the plate colour), the black bezel with its corner pixels left out,
+          and the glass's edge line round the picture, which is the page's own image or video, so it
+          keeps its alt text. The bezel is 10 art pixels each side, so a 640×480 screenshot at its
+          own size makes a 680×500 screen and omega-zero's 2×2 art pixels stay 2×2. The picture is
+          a whole number of pixels tall, pixelated at its own size or bigger and smoothed smaller.
+          <code>led</code> lights the power light under the picture.</p>
+        <div class="preview omega-backdrop">
+          <div class="screens">
+            <figure>
+              <span class="tag">led, at its own size: the boot logo</span>
+              <omega-screen led class="screen-own"><img src="../logo/bootlogo-pixel-640x480.png" width="640" height="480" alt="omega-zero's boot logo over the grid"></omega-screen>
+            </figure>
+            <figure>
+              <span class="tag">smaller, smoothed</span>
+              <omega-screen class="screen-small"><img src="../logo/bootlogo-pixel-640x480.png" width="640" height="480" alt="omega-zero's boot logo over the grid"></omega-screen>
+            </figure>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>slot</td><td>An <code>&lt;img&gt;</code>, <code>&lt;picture&gt;</code> or <code>&lt;video&gt;</code>, with its own width and height. The screen is as wide as the page makes it; set its width from outside.</td></tr>
+            <tr><td>led</td><td>The power light, lit, under the picture's bottom left corner; the bezel's bottom 4 pixels deeper for it.</td></tr>
+            <tr><td>::part</td><td><code>shell</code>, <code>bezel</code>, <code>glass</code>, <code>led</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-screen led&gt;
+  &lt;img src="media/shelf.png" alt="The shelf…" width="640" height="480"&gt;
+&lt;/omega-screen&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-card&gt;</h3><code>components/omega-card.js</code></header>
+        <p class="dim">One thing told about in a few lines, like a feature: its icon in a dark box,
+          its title beside it and its text under both, inside an edge line with its corner pixels
+          left out. The title and the text are the page's own, so a title can be a real heading. The
+          icons are sprites 11 art pixels square in the middle of a 17-pixel box, in the palette's
+          colours; the theme icon is the palette's four lightest steps, which the Colour turns. In a
+          panel's well, or straight on the backdrop.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">every icon, and none, in a panel</span>
+          <omega-panel label="HIGHLIGHTS" active style="flex: none">
+            <div class="card-grid">
+              <omega-card icon="cart"><h4 slot="title">cart</h4><p>A Game Boy cart, its label and ridges.</p></omega-card>
+              <omega-card icon="chip"><h4 slot="title">chip</h4><p>A chip, its pins on every side.</p></omega-card>
+              <omega-card icon="rewind"><h4 slot="title">rewind</h4><p>Two heads pointing back.</p></omega-card>
+              <omega-card icon="link"><h4 slot="title">link</h4><p>Two arrows, there and back.</p></omega-card>
+              <omega-card icon="window"><h4 slot="title">window</h4><p>A menu window, its title tab and a lit row.</p></omega-card>
+              <omega-card icon="gamepad"><h4 slot="title">gamepad</h4><p>The d-pad's cross, two buttons, the grips.</p></omega-card>
+              <omega-card icon="wifi"><h4 slot="title">wifi</h4><p>Two arcs over the dot.</p></omega-card>
+              <omega-card icon="bluetooth"><h4 slot="title">bluetooth</h4><p>The Bluetooth rune.</p></omega-card>
+              <omega-card icon="theme"><h4 slot="title">theme</h4><p>The palette's four lightest steps.</p></omega-card>
+              <omega-card><h4 slot="title">No icon</h4><p>The title from the left.</p><p>A second paragraph, half a line down.</p></omega-card>
+            </div>
+          </omega-panel>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>icon</td><td><code>cart</code>, <code>chip</code>, <code>rewind</code>, <code>link</code>, <code>window</code>, <code>gamepad</code>, <code>wifi</code>, <code>bluetooth</code> or <code>theme</code>. Without one (or with one not known) there is no box.</td></tr>
+            <tr><td>slot="title"</td><td>The title, a heading: in capitals, in <code>--oz-cream</code>, its capitals on the box's middle rows. Keep its <code>font-weight</code> at 400.</td></tr>
+            <tr><td>slot</td><td>The text: paragraphs on lines of 14 art pixels, in <code>--oz-label</code>, half a line apart.</td></tr>
+            <tr><td>::part</td><td><code>card</code>, <code>icon</code>, <code>title</code>, <code>text</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-card icon="cart"&gt;
+  &lt;h3 slot="title"&gt;The shelf&lt;/h3&gt;
+  &lt;p&gt;Solid carts in their own plastics, with real label scans.&lt;/p&gt;
+&lt;/omega-card&gt;</code></pre>
       </article>
 
     </div>

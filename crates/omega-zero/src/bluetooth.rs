@@ -15,9 +15,13 @@ pub use omega_ui::kit::list_row::DeviceKind;
 
 /// While the Bluetooth screen or Settings, which names the device connected, is open.
 pub const REFRESH_MS: Millis = 2_000;
-/// How often discovery is asked for again while the Bluetooth screen is open. The script lets
-/// each last a minute, so one a frontend that has gone left running stops by itself.
-pub const SCAN_MS: Millis = 30_000;
+/// How long one look for devices lasts, X on the Bluetooth screen to its discovery turned off.
+/// The controller looks over LE for 5.12 s, then over classic Bluetooth for 5.12 s, and only then
+/// asks the classic devices it found their names: one round, and the names after it. On the
+/// handheld every device in reach turned up within 2 s, and a TV's name came between 10 and 12 s
+/// in, so a look much shorter would miss it. The script stops a discovery by itself after 20 s,
+/// should the frontend be gone.
+pub const LOOK_MS: Millis = 12_000;
 
 /// The tools the script drives, each looked for in the system's own folders.
 const TOOLS: [&str; 4] = ["rtk_hciattach", "hciconfig", "bluetoothctl", "systemctl"];
@@ -31,7 +35,8 @@ const DAEMON_DIRS: [&str; 2] = ["/usr/libexec/bluetooth", "/usr/lib/bluetooth"];
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Device {
     pub mac: String,
-    /// Its name, in its own case; empty for a device that gave none.
+    /// Its name, in its own case: the one it gave, else the alias it was given. Empty for a
+    /// paired device with neither; the script leaves out a device only found with neither.
     pub name: String,
     pub kind: DeviceKind,
     pub paired: bool,
@@ -332,9 +337,10 @@ fn work(root: &Path, job: BluetoothJob) -> Vec<BluetoothNews> {
             Vec::new()
         }
         BluetoothJob::Refresh => Vec::new(),
+        // the status after discovery is turned off has the names that came in last
         BluetoothJob::Scan(on) => {
             status_code(root, &["scan", if *on { "on" } else { "off" }]);
-            return Vec::new();
+            Vec::new()
         }
         BluetoothJob::Pair(mac)
         | BluetoothJob::Connect(mac)
@@ -358,9 +364,10 @@ fn work(root: &Path, job: BluetoothJob) -> Vec<BluetoothNews> {
 }
 
 /// A radio for the desktop and the tests, with flow.html's devices in reach: two paired, the
-/// gamepad connecting by itself whenever Bluetooth comes up, and two more found while
-/// discovering. A pair or a connect takes two refreshes, so the screen shows it under way; a
-/// device forgotten is gone for good.
+/// gamepad connecting by itself whenever Bluetooth comes up, and two more found at once while
+/// discovering and forgotten once it stops, as bluetoothd forgets them soon after. A pair or a
+/// connect takes two refreshes, so the screen shows it under way; a device forgotten is gone for
+/// good.
 pub struct SimBluetooth {
     enabled: bool,
     discovering: bool,
@@ -397,7 +404,12 @@ impl Default for SimBluetooth {
                     DeviceKind::Keyboard,
                     false,
                 ),
-                device("4C:4C:6B:1A:80:D3", "", DeviceKind::Other, false),
+                device(
+                    "C8:0F:10:4D:7A:25",
+                    "Mi Smart Band 4",
+                    DeviceKind::Other,
+                    false,
+                ),
             ],
             pending: None,
             news: Vec::new(),
