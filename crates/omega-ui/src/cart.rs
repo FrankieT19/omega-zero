@@ -46,9 +46,11 @@ pub const GB_LABEL_H: u32 = gb_label_panel(GB_CART_W, GB_CART_H).3 - GB_LABEL_Y;
 
 const PAD: u32 = 10;
 const MAX_LINES: usize = 3;
-const MAX_PX: f32 = LABEL_H as f32 / (MAX_LINES as f32 * 1.36);
-const GB_MAX_PX: f32 = (GB_LABEL_H - 2 * PAD) as f32 / MAX_LINES as f32;
-const MIN_PX: f32 = 9.0;
+/// A generated label's title is set in Pixel Code at a whole number of art pixels (two of the
+/// face's pixels) to one of the face's: two (36 px) when it fits the label in up to three lines,
+/// else one (18 px). Never 27 px, an art pixel and a half.
+const MAX_PX: f32 = 36.0;
+const MIN_PX: f32 = 18.0;
 
 const RIM: u32 = (4 * CART_W + SEATED_W / 2) / SEATED_W;
 const GB_RIM: u32 = (7 * GB_CART_W + SEATED_W / 2) / SEATED_W;
@@ -66,7 +68,6 @@ struct Spec {
     mask: &'static [u8],
     depth: &'static [u8],
     detail: &'static Detail,
-    max_px: f32,
     max_h: f32,
     rim: u32,
     board: Board,
@@ -115,8 +116,7 @@ fn spec(shape: Shape) -> Spec {
             mask: cart_mask(),
             depth: cart_depth(),
             detail: detail_mask(),
-            max_px: MAX_PX,
-            max_h: f32::INFINITY,
+            max_h: (LABEL_H - 2 * PAD) as f32,
             rim: RIM,
             board: Board {
                 x: (0.135, 0.875),
@@ -133,7 +133,6 @@ fn spec(shape: Shape) -> Spec {
             mask: gb_cart_mask(shell),
             depth: gb_cart_depth(shell),
             detail: gb_detail_mask(shell),
-            max_px: GB_MAX_PX,
             max_h: (GB_LABEL_H - 2 * PAD) as f32,
             rim: GB_RIM,
             board: Board {
@@ -470,7 +469,7 @@ fn generated_label(s: &Spec, title: &str) -> Vec<u8> {
             (lw - 2 * PAD) as f32,
             s.max_h,
             MAX_LINES,
-            s.max_px,
+            MAX_PX,
             MIN_PX,
         );
         text::draw_centred(&mut rgba, lw, lh, &layout, ink(bg));
