@@ -2,6 +2,7 @@
 
 pub mod action;
 pub mod bar;
+pub mod fade;
 pub mod layout;
 pub mod list_row;
 pub mod modal;
