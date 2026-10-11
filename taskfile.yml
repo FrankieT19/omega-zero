@@ -170,9 +170,18 @@ tasks:
 
   bootlogos:
     desc: >-
-      Render the boot logos in card/System from assets/logo/omega-zero-logo.html, one per panel
-      so the grid behind the logo stays whole. STYLE=smooth for the drawn-straight version
-      instead of pixel art (needs Google Chrome and ImageMagick)
+      Render the boot images in card/System, one per panel: an old PC's BIOS screen after
+      Award's, in the opening's letters, with the logo assets/logo/bioslogo.sh made (run it again
+      after the logo changes; it needs ImageMagick)
+    cmds:
+      - cargo run -q -p omega-zero --example bootscreens -- card/System
+
+  bootlogos:logo:
+    desc: >-
+      Render the boot images in card/System as they were before the BIOS screen: the logo from
+      assets/logo/omega-zero-logo.html over the shelf's grid, one per panel so the grid stays
+      whole. STYLE=smooth for the drawn-straight version instead of pixel art (needs Google
+      Chrome and ImageMagick)
     vars:
       STYLE: '{{.STYLE | default "pixel"}}'
       LOGO_WIDTH: 414

@@ -367,12 +367,17 @@ impl Opening {
     }
 }
 
-/// Where the terminal's first letter stands: the terminal in the middle of the canvas, on the
-/// screen pixels' even grid.
+/// Where the terminal's first letter stands on a `w` by `h` screen: the terminal in the middle
+/// of it, on the screen pixels' even grid. The top of its capitals, not of the line's face.
+pub fn terminal_origin(w: u32, h: u32) -> (u32, u32) {
+    let x = w.saturating_sub(COLS * OPENING_ADVANCE) / 2;
+    let y = h.saturating_sub(LINES * OPENING_PITCH) / 2;
+    (x & !1, y & !1)
+}
+
 fn origin() -> (f32, f32) {
-    let x = out_w().saturating_sub(COLS * OPENING_ADVANCE) / 2;
-    let y = out_h().saturating_sub(LINES * OPENING_PITCH) / 2;
-    ((x & !1) as f32, (y & !1) as f32)
+    let (x, y) = terminal_origin(out_w(), out_h());
+    (x as f32, y as f32)
 }
 
 impl App {

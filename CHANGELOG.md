@@ -6,8 +6,13 @@
   right. The slot sits a bar higher to make room for it.
 - Game Boy carts stand at 80% of their size on the shelf and grow to full size as they go into
   the slot.
+- The handheld starts on an old PC's BIOS screen, after Award's, in place of the logo: the
+  OmegaZero BIOS, "An Anbernic Ally", oauramos Software Inc., the H700, a memory test, BaseOS's
+  Plug and Play Extension and Press START to enter SETTINGS, with the OmegaZero logo in 16
+  colours where Award put its Energy Star. It is set in the opening's letters, where its
+  terminal prints. `task bootlogos` renders it; `task bootlogos:logo` renders the old logo.
 - An opening after Mega Man X5's NOM ENGINEER WORK SYSTEM boot screen, told about the handheld
-  it runs on. omega-zero's first frames show the boot logo where the handheld drew it, and it
+  it runs on. omega-zero's first frames show the boot screen where the handheld drew it, and it
   fades to black. Then a terminal fades in, in X5's wide mint letters and its beeps: the model,
   the memory counted up, the H700, the Mali-G31, the battery and its charge, a login as root,
   `>omega -boot -a` typed out and three files read. After ten seconds it fades out and the shelf
