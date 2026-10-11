@@ -29,6 +29,7 @@ assets/ui/
     ├── omega-list-row.js  <omega-list-row>  a Wi-Fi network or Bluetooth device in a list
     ├── omega-bar.js       <omega-bar>       the bottom bar: two actions, key hints between them
     ├── omega-gauge.js     <omega-gauge>     a level on one line: a title tab, then cells and an icon
+    ├── omega-link.js      <omega-link>      the link screen's art: the port, the plug, the adapter …
     ├── action-left.js     <action-left>     the bottom bar's left action
     ├── action-right.js    <action-right>    the same, mirrored
     ├── omega-button.js    <omega-button>    a page's link or button, drawn as the bar's pill
@@ -181,6 +182,21 @@ flow.html#screen=network&from=settings&t=0.5&colour=amber&shot=1
 
 is Settings halfway through sliding out to the right for Network, in Amber, ready for a
 screenshot the size of the panel.
+
+## The link screen
+
+SELECT + MENU in a game opens the link screen over it, drawn in the kit like the menus: the
+backdrop, a lone LINK panel at the top with ROLE (HOST or JOIN, lit with its carets while the
+player picks) and MODE (CABLE or WIRELESS), and under them, as a note, what is happening
+("Looking for the other player", "Nobody arrived", "Linked"); the art between it and the bar; and
+the bar, B RETURN and A LINK while picking with SELECT MODE (where the game can switch) and
+◀▶ SWAP between them, B CANCEL while linking, A OK when it failed, B RETURN and A END LINK over a
+link under way. `<omega-link>` draws the art one piece at a time: the port's strip along the
+bottom under the bar, the plug on its cable running up behind the panel, the wireless adapter and
+its radio arcs, and the clicks of a plug going home. The device moves them a whole art pixel at a
+time: the plug drops into the port and lifts out of it, a failed link shakes it a pixel either
+way, and the arcs pulse in the four steps of a fade. The plug and the adapter keep their own
+colours, the plug the purple of the real GBA link cable; everything else follows the palette.
 
 ## The rules
 
