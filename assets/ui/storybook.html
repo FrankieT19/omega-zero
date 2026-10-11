@@ -25,6 +25,7 @@
 <script src="components/omega-toast.js"></script>
 <script src="components/omega-badge.js"></script>
 <script src="components/omega-saves.js"></script>
+<script src="components/omega-link.js"></script>
 <script src="components/omega-button.js"></script>
 <script src="components/omega-screen.js"></script>
 <script src="components/omega-card.js"></script>
@@ -173,6 +174,9 @@
   .preview .screens figure { margin: 0; display: grid; gap: 8px; min-width: 0; max-width: 100%; }
   .screen-own { width: calc(340 * var(--u)); max-width: 100%; }
   .screen-small { width: calc(160 * var(--u)); max-width: 100%; }
+  /* the link screen's art, its pieces placed in art pixels as the screen places them */
+  .link-scene { position: relative; max-width: 100%; }
+  .link-scene > omega-link { position: absolute; }
   .card-grid {
     display: grid; gap: calc(2 * var(--u));
     grid-template-columns: repeat(auto-fill, min(100%, calc(150 * var(--u))));
@@ -766,6 +770,66 @@
   &lt;action-left slot="left" label="RETURN" hint="B"&gt;&lt;/action-left&gt;
   &lt;action-right slot="right" label="CONFIRM" hint="A"&gt;&lt;/action-right&gt;
 &lt;/omega-bar&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-link&gt;</h3><code>components/omega-link.js</code></header>
+        <p class="dim">The art of the link screen a game opens with SELECT + MENU, one piece at a
+          time: the link port along the console's top edge, the GBA link cable's plug on its cable,
+          the wireless adapter, the radio arcs it calls out with and the clicks of a plug going
+          home. The screen moves them, a whole art pixel at a time: the plug drops into the port and
+          lifts out of it, a failed link shakes it a pixel either way, and the arcs pulse in the four
+          steps of a fade. The plug and the adapter are real things and keep their own colours, the
+          plug the purple of the real cable (the joiner's end grey, wider, with the socket a third
+          player's cable goes into); the port, the arcs and the clicks follow the palette.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">the host's plug and the joiner's on their cable, and the adapter</span>
+          <div class="link-scene" style="width: calc(200 * var(--u)); height: calc(70 * var(--u))">
+            <omega-link piece="cable" length="14" style="left: calc(12 * var(--u)); top: 0"></omega-link>
+            <omega-link piece="plug" role="host" style="left: 0; top: calc(14 * var(--u))"></omega-link>
+            <omega-link piece="cable" length="14" style="left: calc(57 * var(--u)); top: 0"></omega-link>
+            <omega-link piece="plug" role="join" style="left: calc(42 * var(--u)); top: calc(14 * var(--u))"></omega-link>
+            <omega-link piece="adapter" style="left: calc(100 * var(--u)); top: calc(10 * var(--u))"></omega-link>
+          </div>
+          <div class="side">
+            <figure>
+              <span class="tag">a plug home in the port, and its clicks</span>
+              <div class="link-scene" style="width: calc(120 * var(--u)); height: calc(84 * var(--u))">
+                <omega-link piece="cable" length="14" style="left: calc(57 * var(--u)); top: 0"></omega-link>
+                <omega-link piece="plug" role="host" style="left: calc(45 * var(--u)); top: calc(14 * var(--u))"></omega-link>
+                <omega-link piece="port" width="120" height="28" style="left: 0; top: calc(56 * var(--u))"></omega-link>
+                <omega-link piece="clicks" style="left: calc(34 * var(--u)); top: calc(46 * var(--u))"></omega-link>
+              </div>
+            </figure>
+            <figure>
+              <span class="tag">the adapter on the port, calling out</span>
+              <div class="link-scene" style="width: calc(180 * var(--u)); height: calc(76 * var(--u))">
+                <omega-link piece="port" width="180" height="24" style="left: 0; top: calc(52 * var(--u))"></omega-link>
+                <omega-link piece="adapter" style="left: calc(50 * var(--u)); top: calc(8 * var(--u))"></omega-link>
+                <omega-link piece="arc" ring="0" style="left: calc(134 * var(--u)); top: calc(23 * var(--u))"></omega-link>
+                <omega-link piece="arc" ring="1" style="left: calc(140 * var(--u)); top: calc(19 * var(--u))"></omega-link>
+                <omega-link piece="arc" ring="2" style="left: calc(146 * var(--u)); top: calc(15 * var(--u))"></omega-link>
+                <omega-link piece="arc" ring="0" side="left" style="left: calc(41 * var(--u)); top: calc(23 * var(--u))"></omega-link>
+                <omega-link piece="arc" ring="1" side="left" style="left: calc(33 * var(--u)); top: calc(19 * var(--u))"></omega-link>
+                <omega-link piece="arc" ring="2" side="left" style="left: calc(25 * var(--u)); top: calc(15 * var(--u))"></omega-link>
+              </div>
+            </figure>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>piece</td><td><code>plug</code> (default), <code>cable</code>, <code>port</code>, <code>adapter</code>, <code>arc</code> or <code>clicks</code>.</td></tr>
+            <tr><td>role</td><td>The plug's end of the cable: <code>host</code> (default), 30 art pixels wide and purple, or <code>join</code>, 36 wide and grey. Both are 54 tall, their tip the bottom 12, 18 wide in the middle.</td></tr>
+            <tr><td>length</td><td>The cable's length in art pixels; it is 6 wide and goes on the neck's middle. Default 20.</td></tr>
+            <tr><td>width, height</td><td>The port's strip: as wide as the screen, from its top edge to the screen's bottom, under the bar. Its lit edge and stripe in <code>--oz-frame</code> and <code>--oz-stripe</code>, the rest <code>--oz-well</code>, the opening in the middle <code>--oz-dark</code> with five pins in <code>--oz-frame-hi</code>. Defaults 160 and 36.</td></tr>
+            <tr><td>ring, side</td><td>Which radio arc, <code>0</code> (5 by 14) to <code>2</code> (9 by 30), and which side of the adapter, <code>right</code> (default) or <code>left</code>. In <code>--oz-cream</code>, two pixels thick.</td></tr>
+            <tr><td>::part</td><td><code>art</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-link piece="plug" role="host"&gt;&lt;/omega-link&gt;
+&lt;omega-link piece="port" width="320" height="36"&gt;&lt;/omega-link&gt;
+&lt;omega-link piece="arc" ring="2" side="left"&gt;&lt;/omega-link&gt;</code></pre>
       </article>
 
       <article class="card">

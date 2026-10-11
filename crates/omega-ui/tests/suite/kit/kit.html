@@ -20,6 +20,7 @@
     kit.html?c=gauge&label=VOLUME&value=55&max=100&cells=20&icon=volume
     kit.html?c=toast&label=SAVE%20STATE&text=State%20saved
     kit.html?c=badge&icon=fastforward&text=%C3%974&lit
+    kit.html?c=link&piece=plug&role=join                 a piece of the link screen's art
 
   An action takes its label, font, hint and room. row and list-row take omega-row's and
   omega-list-row's attributes, bar omega-bar's hint and font and its two actions' words and hints
@@ -57,6 +58,7 @@
 <script src="../../../../../assets/ui/components/omega-toast.js"></script>
 <script src="../../../../../assets/ui/components/omega-badge.js"></script>
 <script src="../../../../../assets/ui/components/omega-saves.js"></script>
+<script src="../../../../../assets/ui/components/omega-link.js"></script>
 <script src="../../../../../assets/ui/flow/art.js"></script>
 <style>
   :root { --u: 1px; }
@@ -234,6 +236,10 @@
     const el = document.createElement(`omega-${c}`);
     attrs(el, ['label', 'value', 'max', 'cells', 'icon', 'text'], ['lit']);
     kit.append(el);
+  } else if (c === 'link') {
+    const link = document.createElement('omega-link');
+    attrs(link, ['piece', 'role', 'length', 'width', 'height', 'ring', 'side'], []);
+    kit.append(link);
   } else if (c === 'flow') {
     flowStyles();
     kit.append(document.getElementById(`flow-${q.get('screen')}`).content.cloneNode(true));

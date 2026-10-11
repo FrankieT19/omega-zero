@@ -32,6 +32,7 @@ assets/ui/
     ├── omega-toast.js     <omega-toast>     what just happened: a lone panel's tab and one line
     ├── omega-badge.js     <omega-badge>     what a game is doing: a key cap, a sprite and a word
     ├── omega-saves.js     <omega-saves>     which save state the switcher shows: its age, a dot each
+    ├── omega-link.js      <omega-link>      the link screen's art: the port, the plug, the adapter …
     ├── action-left.js     <action-left>     the bottom bar's left action
     ├── action-right.js    <action-right>    the same, mirrored
     ├── omega-button.js    <omega-button>    a page's link or button, drawn as the bar's pill
@@ -208,6 +209,21 @@ save it shows, which is drawn as the game is: the shelf's top bar, `<omega-saves
 the middle 8 art pixels under it, and the bar with B RETURN and A LOAD, Y DELETE between them
 and, while the last save or load can still be undone, X UNDO SAVE or X UNDO LOAD. Left and Right
 move between the saves; the panel says how old the one shown is and lights its dot.
+
+## The link screen
+
+SELECT + MENU in a game opens the link screen over it, drawn in the kit like the menus: the
+backdrop, a lone LINK panel at the top with ROLE (HOST or JOIN, lit with its carets while the
+player picks) and MODE (CABLE or WIRELESS), and under them, as a note, what is happening
+("Looking for the other player", "Nobody arrived", "Linked"); the art between it and the bar; and
+the bar, B RETURN and A LINK while picking with SELECT MODE (where the game can switch) and
+◀▶ SWAP between them, B CANCEL while linking, A OK when it failed, B RETURN and A END LINK over a
+link under way. `<omega-link>` draws the art one piece at a time: the port's strip along the
+bottom under the bar, the plug on its cable running up behind the panel, the wireless adapter and
+its radio arcs, and the clicks of a plug going home. The device moves them a whole art pixel at a
+time: the plug drops into the port and lifts out of it, a failed link shakes it a pixel either
+way, and the arcs pulse in the four steps of a fade. The plug and the adapter keep their own
+colours, the plug the purple of the real GBA link cable; everything else follows the palette.
 
 ## The rules
 

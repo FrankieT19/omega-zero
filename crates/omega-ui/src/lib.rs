@@ -12,12 +12,11 @@ mod hud;
 mod icon;
 mod keyboard;
 pub mod kit;
-mod link_art;
+pub mod link_art;
 pub mod network;
 mod plate;
 mod polaroids;
 mod power_menu;
-mod quick_menu;
 mod refusal;
 mod settings_menu;
 mod shelf;
@@ -70,18 +69,12 @@ pub use keyboard::{
 };
 pub use kit::badge::BadgeIcon;
 pub use kit::gauge::GaugeIcon;
-pub use link_art::{
-    arcs, arrow_left_x, arrow_right_x, arrow_y, clicks_x, clicks_y, link_art, port_y, LinkArt,
-    ADAPTER_BASE_X, ADAPTER_BASE_Y, ADAPTER_H, ADAPTER_W, ARROW_H, ARROW_W, CLICKS_H, CLICKS_W,
-    PLUG_H, PLUG_TIP_X, PLUG_W, PORT_H, PORT_W,
-};
 pub use plate::{
-    arrows_hint_face, arrows_hint_width, cap_width, hint_face, hint_width, word_cap_top, word_face,
-    word_width, UndoFace, ARROW_GAP, CAP, CAP_GAP, HINT_EDGE, HINT_H,
+    cap_width, hint_face, hint_width, word_cap_top, word_face, word_width, UndoFace, CAP, CAP_GAP,
+    HINT_EDGE, HINT_H,
 };
 pub use polaroids::{photo_face, PhotoFace, Polaroids, PHOTO_H, PHOTO_W};
 pub use power_menu::PowerChoice;
-pub use quick_menu::{menu_face, MENU_H, MENU_INK, MENU_PAD};
 pub use refusal::Refusal;
 pub use settings_menu::{
     configs_in, settings_frame, settings_panels, settings_row_face, settings_row_rects,

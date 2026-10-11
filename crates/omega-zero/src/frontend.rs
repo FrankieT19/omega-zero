@@ -4,18 +4,14 @@ use omega_gfx::{out_h, out_w, Bezel, Compositor, Draw, TexId};
 use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_ui::{
-    arrows_hint_face, bezel_mark_face, cart_face, cart_mesh, cart_shadow, chip_face,
-    chip_shadow_face, gb_cart_shadow, hint_face, mark_height, mark_rect, menu_face, rim,
-    socket_face, wallpaper_face, CartMeshes, CartModel, GbShell, UndoFace, BEZEL_FILL,
+    bezel_mark_face, cart_face, cart_mesh, cart_shadow, chip_face, chip_shadow_face,
+    gb_cart_shadow, mark_height, mark_rect, rim, socket_face, wallpaper_face, CartMeshes,
+    CartModel, GbShell, UndoFace, BEZEL_FILL,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
-use crate::app::LinkRow;
 use crate::face_builder::FaceBuilder;
 use crate::frontend::faces::upload_nearest;
-use crate::link_art_builder::LinkArtBuilder;
-use crate::link_screen::{LinkSprites, Sprite};
-use crate::link_start::{LinkFail, LinkStep};
 use crate::list_view::ListView;
 use crate::session::Session;
 use crate::wallpaper;
@@ -32,6 +28,7 @@ mod sync_core_picker;
 mod sync_hud;
 mod sync_keyboard;
 mod sync_labels;
+mod sync_link;
 mod sync_network;
 mod sync_power;
 mod sync_settings;
@@ -50,6 +47,7 @@ use sync_core_picker::sync_core_picker;
 use sync_hud::{sync_hud, HudTexes};
 use sync_keyboard::{sync_keyboard, KeyboardTexes};
 use sync_labels::sync_labels;
+use sync_link::{sync_link, LinkTexes};
 use sync_network::{sync_network, NetworkTexes};
 use sync_power::{sync_power, PowerPanels};
 use sync_settings::{sync_settings, SettingsTexes};
@@ -66,8 +64,8 @@ pub struct Frontend {
     draws: Vec<Draw>,
     polaroid_texes: Vec<TexId>,
     faces: FaceBuilder,
-    link_art: LinkArtBuilder,
-    link_art_done: bool,
+    /// The link screen's art, LINK panel and bar.
+    link: LinkTexes,
     core_asked: Option<String>,
     core_board_tex: Option<TexId>,
     core_lid_tex: Option<TexId>,
@@ -131,8 +129,7 @@ impl Frontend {
             draws: Vec::new(),
             polaroid_texes: Vec::new(),
             faces: FaceBuilder::spawn(),
-            link_art: LinkArtBuilder::spawn(),
-            link_art_done: false,
+            link: LinkTexes::default(),
             core_asked: None,
             core_board_tex: None,
             core_lid_tex: None,
@@ -213,28 +210,6 @@ impl Frontend {
         self.session
             .app_mut()
             .set_core_part_faces(sockets, chips, blank, shadow);
-        let roles = menu_faces(compositor, LinkRow::ALL.iter().map(|r| r.text()));
-        self.session.app_mut().set_link_menu_faces(roles);
-        if let Some(linked) = menu_faces(compositor, ["Linked"].into_iter()).pop() {
-            self.session.app_mut().set_link_linked_face(linked);
-        }
-        let legend = [
-            hint_face("B", "Cancel"),
-            hint_face("SELECT", "Mode"),
-            arrows_hint_face("Swap"),
-            hint_face("A", "Link"),
-            hint_face("A", "OK"),
-            hint_face("B", "Back"),
-            hint_face("A", "End Link"),
-        ]
-        .into_iter()
-        .map(|f| (compositor.create_texture(f.w, f.h, &f.rgba), f.w))
-        .collect();
-        self.session.app_mut().set_link_legend_faces(legend);
-        let steps = menu_faces(compositor, LinkStep::ALL.iter().map(|s| s.line()));
-        self.session.app_mut().set_link_step_faces(steps);
-        let fails = menu_faces(compositor, LinkFail::SHOWN.iter().map(|f| f.line()));
-        self.session.app_mut().set_link_fail_faces(fails);
         let shadow = cart_shadow();
         let id = compositor.create_texture(shadow.w, shadow.h, &shadow.rgba);
         self.session.app_mut().set_cart_shadow(id);
@@ -321,36 +296,7 @@ impl Frontend {
             &mut self.core_lid_tex,
             &mut self.core_built,
         );
-        if !self.link_art_done {
-            if let Some(art) = self.link_art.take() {
-                let mut up = |f: &omega_ui::CartFace| Sprite {
-                    tex: compositor.create_texture(f.w, f.h, &f.rgba),
-                    w: f.w,
-                    h: f.h,
-                };
-                let sprites = LinkSprites {
-                    port: up(&art.port),
-                    plug_host: up(&art.plug_host),
-                    plug_join: up(&art.plug_join),
-                    adapter: up(&art.adapter),
-                    arcs_right: [
-                        up(&art.arcs_right[0]),
-                        up(&art.arcs_right[1]),
-                        up(&art.arcs_right[2]),
-                    ],
-                    arcs_left: [
-                        up(&art.arcs_left[0]),
-                        up(&art.arcs_left[1]),
-                        up(&art.arcs_left[2]),
-                    ],
-                    clicks: up(&art.clicks),
-                    arrow_left: up(&art.arrow_left),
-                    arrow_right: up(&art.arrow_right),
-                };
-                self.session.app_mut().set_link_sprites(sprites);
-                self.link_art_done = true;
-            }
-        }
+        sync_link(self.session.app_mut(), compositor, &mut self.link);
         sync_switcher(
             self.session.app_mut(),
             compositor,
@@ -531,10 +477,10 @@ impl Frontend {
         self.session.core_settling()
     }
 
-    /// Whether the worker threads have handed back all they were asked for: the link art, and
-    /// the core picker's faces for the cart the shelf is on. compose takes them in.
+    /// Whether the worker threads have handed back all they were asked for: the core picker's
+    /// faces for the cart the shelf is on. compose takes them in.
     pub fn settled(&self) -> bool {
-        self.link_art_done && self.core_asked == self.core_built && !self.core_settling()
+        self.core_asked == self.core_built && !self.core_settling()
     }
 
     pub fn advance_at(&mut self, input: &mut dyn InputSource, now: Millis, dt: f32) {
@@ -562,16 +508,4 @@ impl Frontend {
     pub fn poweroff(&mut self) {
         self.session.app_mut().poweroff();
     }
-}
-
-fn menu_faces<'a>(
-    compositor: &mut Compositor,
-    labels: impl Iterator<Item = &'a str>,
-) -> Vec<(TexId, u32, u32)> {
-    labels
-        .map(|label| {
-            let f = menu_face(label);
-            (compositor.create_texture(f.w, f.h, &f.rgba), f.w, f.h)
-        })
-        .collect()
 }

@@ -9,16 +9,20 @@ use std::time::{Duration, Instant};
 use omega_input::{Action, Btn, Millis, RawEvent};
 use omega_retro::{ButtonMask, LinkChannel};
 use omega_store::{write_app_state, AppState, Core, Platform};
-use omega_ui::{arrows_hint_face, hint_face, opening, out_h, out_w, Draw, TexId, Toast, HINT_EDGE};
+use omega_ui::kit::action::Side;
+use omega_ui::{out_h, out_w, Draw, TexId, Toast, SPRITE_PX};
 use omega_zero::app::{
-    App, GameMenu, LinkLegend, LinkRow, Phase, LINKED_HOLD_MS, LINK_LOST_MS, UNPLUG_HOLD_MS,
+    App, GameMenu, LinkRow, Phase, LINKED_HOLD_MS, LINK_LOST_MS, UNPLUG_HOLD_MS,
 };
 use omega_zero::emu::{CoreState, EmuHandle, Speed};
 use omega_zero::link_kind::LinkKind;
 use omega_zero::link_net::{Cancel, TcpLink};
 use omega_zero::link_radio::{LinkRole, RadioJob, RadioJobs};
+use omega_zero::link_screen::{LinkActions, LinkView, MODE};
 use omega_zero::link_start::{LinkFail, LinkStarter, LinkStep};
 use omega_zero::persist::{self, Snapshot};
+use omega_zero::screens::bar::SWAP;
+use omega_zero::screens::lone::Lone;
 use omega_zero::session::Session;
 use tempfile::TempDir;
 
@@ -64,14 +68,6 @@ fn settle(app: &mut App) {
         std::thread::sleep(Duration::from_millis(1));
         assert!(Instant::now() < deadline, "the overlay never left Working");
     }
-}
-
-fn fake_roles(app: &mut App) -> Vec<(TexId, u32, u32)> {
-    let faces: Vec<(TexId, u32, u32)> = (0..LinkRow::ALL.len())
-        .map(|i| (TexId::from_raw(700 + i), 120 + 40 * i as u32, 40))
-        .collect();
-    app.set_link_menu_faces(faces.clone());
-    faces
 }
 
 #[test]
@@ -478,24 +474,55 @@ fn a_peer_ending_the_link_unplugs_on_this_device_too() {
 }
 
 #[test]
-fn the_link_screen_draws_its_role_over_the_game() {
+fn the_link_screen_draws_its_panel_over_the_backdrop_in_place_of_the_game() {
     let (mut app, _d) = playing_on(Core::Gpsp);
-    let roles = fake_roles(&mut app);
+    let panel = Lone {
+        tex: TexId::from_raw(700),
+        w: 200,
+        h: 49,
+    };
+    app.set_link_panel(panel);
     app.apply(Action::GameMenu);
+    assert_eq!(
+        app.link_view(),
+        Some(LinkView {
+            role: LinkRow::Host,
+            kind: LinkKind::Cable,
+            picking: true,
+            status: None,
+        })
+    );
     let mut out = Vec::new();
     app.draw(&mut out);
-    let scrim = out
+    let ground = out
         .iter()
-        .position(|d| {
-            matches!(*d, Draw::Rect { w, h, colour, .. }
-        if w == out_w() as f32 && h == out_h() as f32 && colour == opening())
+        .position(|d| match *d {
+            Draw::Rect { w, h, .. } | Draw::Tex { w, h, .. } => {
+                w >= out_w() as f32 && h == out_h() as f32
+            }
+            _ => false,
         })
-        .expect("the screen drew no ground over the game");
-    let host = out
+        .expect("the screen drew no backdrop over the game");
+    let (at, x, y, w) = out
         .iter()
-        .position(|d| matches!(*d, Draw::Tex { tex, .. } if tex == roles[0].0))
-        .expect("HOST never reached the frame");
-    assert!(host > scrim);
+        .enumerate()
+        .find_map(|(i, d)| match *d {
+            Draw::Tex { tex, x, y, w, .. } if tex == panel.tex => Some((i, x, y, w)),
+            _ => None,
+        })
+        .expect("the LINK panel never reached the frame");
+    assert!(at > ground, "the panel is under the backdrop");
+    let px = SPRITE_PX as f32;
+    assert_eq!(w, 200.0 * px, "the panel is not drawn at 2x");
+    assert_eq!(
+        x + w / 2.0,
+        out_w() as f32 / 2.0,
+        "the panel is not in the middle"
+    );
+    assert!(
+        x % px == 0.0 && y % px == 0.0,
+        "the panel is off the art grid"
+    );
 }
 
 fn session_playing_on_gpsp() -> (Session, TempDir, Millis) {
@@ -747,11 +774,10 @@ fn fake_link_sprites() -> omega_zero::link_screen::LinkSprites {
         plug_host: s(2),
         plug_join: s(3),
         adapter: s(4),
+        cable: s(5),
         arcs_right: [s(7), s(8), s(9)],
         arcs_left: [s(10), s(11), s(12)],
         clicks: s(13),
-        arrow_left: s(14),
-        arrow_right: s(15),
     }
 }
 
@@ -1214,57 +1240,65 @@ fn a_switch_is_refused_over_a_resume_the_core_would_not_take() {
 }
 
 #[test]
-fn pick_names_cancel_mode_swap_and_link_across_the_strip() {
+fn pick_offers_return_and_link_with_mode_and_swap_between_them() {
     let (mut app, _d) = playing_on(Core::Gpsp);
-    let width = |k: LinkLegend| match k {
-        LinkLegend::Cancel => hint_face("B", "Cancel").w,
-        LinkLegend::Mode => hint_face("SELECT", "Mode").w,
-        LinkLegend::Swap => arrows_hint_face("Swap").w,
-        LinkLegend::Link => hint_face("A", "Link").w,
-        LinkLegend::Ok => hint_face("A", "OK").w,
-        LinkLegend::Back => hint_face("B", "Back").w,
-        LinkLegend::EndLink => hint_face("A", "End Link").w,
-    };
-    let faces: Vec<(TexId, u32)> = LinkLegend::ALL
-        .iter()
-        .map(|k| (TexId::from_raw(900 + k.index()), width(*k)))
-        .collect();
-    app.set_link_legend_faces(faces.clone());
     app.apply(Action::GameMenu);
-    let mut out = Vec::new();
-    app.draw(&mut out);
-    let mut keys: Vec<(f32, f32, LinkLegend)> = out
-        .iter()
-        .filter_map(|d| match *d {
-            Draw::Tex { x, w, tex, .. } => LinkLegend::ALL
-                .iter()
-                .find(|k| faces[k.index()].0 == tex)
-                .map(|k| (x, w, *k)),
-            _ => None,
-        })
-        .collect();
-    keys.sort_by(|a, b| a.0.total_cmp(&b.0));
+    assert_eq!(app.link_bar_shown(), Some((LinkActions::Pick, 0)));
+    assert_eq!(LinkActions::Pick.action(Side::Left), ("RETURN", "B"));
+    assert_eq!(LinkActions::Pick.action(Side::Right), ("LINK", "A"));
+    assert_eq!(app.link_hints(), vec![MODE, SWAP]);
+}
+
+#[test]
+fn each_link_screen_has_the_actions_todays_legend_had() {
+    let actions = |a: LinkActions| (a.action(Side::Left), a.action(Side::Right));
+    assert_eq!(actions(LinkActions::Working), (("CANCEL", "B"), ("", "")));
     assert_eq!(
-        keys.iter().map(|k| k.2).collect::<Vec<_>>(),
-        [
-            LinkLegend::Cancel,
-            LinkLegend::Mode,
-            LinkLegend::Swap,
-            LinkLegend::Link
-        ],
+        actions(LinkActions::Linked),
+        (("RETURN", "B"), ("END LINK", "A"))
     );
-    let left = keys[0].0;
-    let (x, w, _) = keys[keys.len() - 1];
-    let right = x + w - HINT_EDGE as f32;
-    println!(
-        "pick legend: faces {:?} wide, drawn from x {left} to {right} of {}",
-        keys.iter().map(|k| k.1).collect::<Vec<_>>(),
-        out_w()
+    assert_eq!(actions(LinkActions::Failed), (("", ""), ("OK", "A")));
+    assert_eq!(actions(LinkActions::Idle), (("", ""), ("", "")));
+    let of = |m| LinkActions::of(m);
+    assert_eq!(
+        of(GameMenu::Linked {
+            role: LinkRow::Host,
+            worked: 0,
+            since: 0,
+            opened: true
+        }),
+        LinkActions::Linked
     );
+    assert_eq!(
+        of(GameMenu::Linked {
+            role: LinkRow::Host,
+            worked: 0,
+            since: 0,
+            opened: false
+        }),
+        LinkActions::Idle
+    );
+}
+
+#[test]
+fn linking_sinks_picks_actions_and_raises_its_own() {
+    let menu = |since| GameMenu::Working {
+        role: LinkRow::Host,
+        step: LinkStep::Waiting,
+        since,
+    };
+    let at = |t| omega_zero::link_screen::link_bar_place(menu(1000), t);
+    assert_eq!(
+        at(1000),
+        (LinkActions::Pick, 0),
+        "the swap did not start at rest"
+    );
+    let (shown, sink) = at(1080);
     assert!(
-        left >= 0.0 && right <= out_w() as f32,
-        "the legend runs off the strip: {left}..{right}"
+        shown == LinkActions::Pick && sink > 0,
+        "pick's actions did not sink: {shown:?} {sink}"
     );
+    assert_eq!(at(1000 + 280), (LinkActions::Working, 0));
 }
 
 fn counter(s: &Session) -> u64 {
@@ -1564,47 +1598,24 @@ fn a_game_boy_cart_links_on_mgba_and_is_refused_on_gpsp() {
 }
 
 #[test]
-fn the_pick_legend_names_mode_only_where_the_hardware_can_be_switched() {
-    let faces: Vec<(TexId, u32)> = LinkLegend::ALL
-        .iter()
-        .map(|k| (TexId::from_raw(900 + k.index()), 40))
-        .collect();
-    let mode = faces[LinkLegend::Mode.index()].0;
-    let drawn = |app: &App| {
-        let mut out = Vec::new();
-        app.draw(&mut out);
-        out
-    };
-
+fn the_pick_bar_names_mode_only_where_the_hardware_can_be_switched() {
     let (mut app, _d) = playing_on(Core::Gpsp);
-    app.set_link_legend_faces(faces.clone());
     app.apply(Action::GameMenu);
     assert!(
-        drawn(&app)
-            .iter()
-            .any(|d| matches!(*d, Draw::Tex { tex, .. } if tex == mode)),
+        app.link_hints().contains(&MODE),
         "a cart whose hardware can be switched did not offer SELECT"
     );
 
     let d = common::tmp_root_with_carts(&["Zzz"]);
     common::write_retail_header(&d, "Mario Golf", "MARIO GOLF", "BMGE");
     let mut app = seated_on_gpsp(&d);
-    app.set_link_legend_faces(faces.clone());
     app.apply(Action::GameMenu);
-    let out = drawn(&app);
-    assert!(
-        !out.iter()
-            .any(|d| matches!(*d, Draw::Tex { tex, .. } if tex == mode)),
+    assert_eq!(
+        app.link_hints(),
+        vec![SWAP],
         "the screen offered SELECT over a game gpSP links the same either way"
     );
-    for k in [LinkLegend::Cancel, LinkLegend::Swap, LinkLegend::Link] {
-        let want = faces[k.index()].0;
-        assert!(
-            out.iter()
-                .any(|d| matches!(*d, Draw::Tex { tex, .. } if tex == want)),
-            "{k:?} left the legend along with Mode"
-        );
-    }
+    assert_eq!(app.link_bar_shown(), Some((LinkActions::Pick, 0)));
 }
 
 #[derive(Clone, Default)]

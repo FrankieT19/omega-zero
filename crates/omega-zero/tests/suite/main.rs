@@ -41,7 +41,6 @@ mod label_screen;
 mod label_sync;
 mod led;
 mod levels;
-mod link_art_builder;
 mod link_kind;
 mod link_screen;
 mod link_session;
