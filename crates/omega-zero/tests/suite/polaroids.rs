@@ -3,6 +3,7 @@ use crate::common;
 use common::{app_playing_in, app_playing_with, tmp_root_with_carts, StubSnapshot};
 use omega_input::{Action, Btn};
 use omega_store::{Cart, Core, Platform, StateRing};
+use omega_ui::{out_h, out_w, Draw, TOP_BAR_H};
 use omega_zero::app::{App, Phase};
 
 fn app_playing(stem: &str) -> App {
@@ -148,6 +149,40 @@ fn load_state_takes_the_newest_entry_without_the_switcher() {
         Some(&[2u8; 16][..])
     );
     assert!(matches!(a.phase(), Phase::Playing { .. }));
+}
+
+/// The save states show the shelf's top bar over their screenshot, in its colours, and nothing
+/// see through, once the toast the save put up has gone.
+#[test]
+fn the_save_states_stand_under_the_shelfs_top_bar() {
+    let d = tmp_root_with_carts(&["Emerald"]);
+    let mut a = app_playing_in(d.path(), "Emerald");
+    a.apply_at(Action::SaveState, 1_000);
+    a.apply_at(Action::Polaroids, 1_100);
+    a.tick_ms(10_000);
+    let mut out = Vec::new();
+    a.draw(&mut out);
+    let housing = a.chrome_colours().housing;
+    let photo = out
+        .iter()
+        .position(|d| matches!(*d, Draw::Rect { y: 0.0, h, .. } if h == out_h() as f32))
+        .expect("no screenshot");
+    let bar = out
+        .iter()
+        .position(|d| {
+            matches!(*d, Draw::Rect { x: 0.0, y: 0.0, w, h, colour }
+                if w == out_w() as f32 && h == TOP_BAR_H - 2.0 && colour == housing)
+        })
+        .expect("no top bar");
+    assert!(photo < bar, "the top bar is under the screenshot");
+    assert!(
+        out.iter().all(|d| match *d {
+            Draw::Rect { colour, .. } => colour[3] == 1.0,
+            Draw::Tex { alpha, .. } => alpha == 1.0,
+            _ => true,
+        }),
+        "something over the save states is see through"
+    );
 }
 
 #[test]
