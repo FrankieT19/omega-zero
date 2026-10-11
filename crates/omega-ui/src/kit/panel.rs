@@ -72,7 +72,13 @@ fn slant() -> Vec<String> {
 
 /// How wide the tab is with `title` in it: `TAB_W`, or as wide as the title and its room.
 pub fn tab_width(title: &str) -> u32 {
-    TAB_W.max(1 + 2 * TAB_PAD + text_width(title))
+    tab_width_at(title, TAB_W)
+}
+
+/// How wide the tab is with `title` in it when it is given `min`, as omega-panel is given
+/// `--omega-tab-width`: `min`, or as wide as the title and its room; 0 keeps it to the title.
+pub fn tab_width_at(title: &str, min: u32) -> u32 {
+    min.max(1 + 2 * TAB_PAD + text_width(title))
 }
 
 /// `title` alone, as a panel's tab shows it: Pixel Code in the active panel's cream or the
@@ -93,6 +99,19 @@ pub fn title_face(title: &str, active: bool, pal: &Palette) -> UndoFace {
 /// A panel `w` by `h` art pixels titled `title`, its title light when `active` (the section the
 /// cursor is in) and dimmed when not.
 pub fn panel_face(w: u32, h: u32, title: &str, active: bool, pal: &Palette) -> PanelFace {
+    panel_face_at(w, h, title, active, TAB_W, pal)
+}
+
+/// The same panel, its tab given `tab_min` as omega-panel is given `--omega-tab-width` (see
+/// [`tab_width_at`]).
+pub fn panel_face_at(
+    w: u32,
+    h: u32,
+    title: &str,
+    active: bool,
+    tab_min: u32,
+    pal: &Palette,
+) -> PanelFace {
     let mut face = blank(w, h);
     let (wi, hi) = (w as i32, h as i32);
     nine_slice(
@@ -109,7 +128,7 @@ pub fn panel_face(w: u32, h: u32, title: &str, active: bool, pal: &Palette) -> P
     fill(&mut face, [1, HEADER as i32, wi - 2, 1], pal.stripe);
 
     // the tab, outlined in the frame colour on every side but its slanted one
-    let tab = tab_width(title) as i32;
+    let tab = tab_width_at(title, tab_min) as i32;
     let rows = ROWS as i32;
     fill(&mut face, [1, 1, tab, rows], pal.tab);
     fill(&mut face, [1, 1, tab, 1], pal.frame);

@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use omega_input::{Btn, Millis, RawEvent};
 use omega_store::{write_app_state, AppState};
-use omega_ui::Icon;
+use omega_ui::CornerBadge;
 use omega_zero::app::Phase;
 use omega_zero::session::Session;
 
@@ -89,6 +89,6 @@ fn step(s: &mut Session, now: &mut Millis, ev: Option<RawEvent>) {
     s.update(1.0 / 60.0);
 }
 
-fn badge(s: &Session) -> Option<Icon> {
+fn badge(s: &Session) -> Option<CornerBadge> {
     s.app().ff_badge()
 }

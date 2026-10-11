@@ -18,6 +18,31 @@ fn the_shake_decays_and_ends() {
     assert!(!r.active(1_400), "the refusal outlives its own shake");
 }
 
+/// The shake moves what it shakes a whole art pixel at a time, never one screen pixel or part
+/// of one, so it stays on the grid as it swings.
+#[test]
+fn the_shake_moves_a_whole_art_pixel_at_a_time() {
+    let r = Refusal::started(0);
+    let mut seen = Vec::new();
+    for t in 0..400 {
+        let x = r.offset(t);
+        assert_eq!(
+            x.rem_euclid(2.0),
+            0.0,
+            "{x} px at {t} ms is off the art grid"
+        );
+        if !seen.contains(&(x as i32)) {
+            seen.push(x as i32);
+        }
+    }
+    seen.sort();
+    assert_eq!(
+        seen,
+        [-6, -4, -2, 0, 2, 4, 6],
+        "the shake swings by other steps"
+    );
+}
+
 #[test]
 fn the_shake_crosses_where_it_started() {
     let r = Refusal::started(0);

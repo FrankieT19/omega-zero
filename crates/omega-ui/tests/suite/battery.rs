@@ -176,6 +176,28 @@ fn the_capsule_lands_on_whole_pixels() {
     }
 }
 
+/// A figure not printed yet leaves its room empty: no translucent plate stands in for it.
+#[test]
+fn a_figure_with_no_face_yet_draws_nothing() {
+    let mut out = Vec::new();
+    draw_gauge(
+        24.0,
+        400.0,
+        at(68, Charge::Discharging),
+        percent_face(),
+        None,
+        HUD_INK,
+        &mut out,
+    );
+    assert!(
+        out.iter().all(|d| match *d {
+            Draw::Rect { colour, .. } => colour[3] == 1.0,
+            _ => false,
+        }),
+        "something stands in for the figure: {out:?}"
+    );
+}
+
 #[test]
 fn no_reading_draws_nothing() {
     let mut out = Vec::new();
@@ -196,7 +218,6 @@ fn the_capsule_and_its_fill_are_drawn_in_the_ink_they_are_handed() {
         ink,
         &mut out,
     );
-    // the figure has no face here, so it stands as a faint placeholder; the rest is ink
     let solid: Vec<[f32; 4]> = out
         .iter()
         .filter_map(|d| match *d {

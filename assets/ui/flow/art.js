@@ -1,6 +1,6 @@
 /*
-  The art flow.html draws itself: placeholders for what Rust draws on the device (the shelf's carts,
-  the top bar's icons, the About sticker), the keyboard's keys, and the arrows the Controls panel
+  The art flow.html draws itself: placeholders for what Rust draws on the device (the shelf's carts
+  and the top bar's icons), the keyboard's keys, and the arrows the Controls panel
   needs and the … a note may end with, which fonts.css's Pixel Code, cut to Latin-1, has no letter
   for (◀ ▶ ▲ ▼ …). Like the kit's components, every shape is a sprite written as rows of colour
   keys (see foundation/pixel.js), shown at one art pixel to --u, in the --oz-* colours palette.js
@@ -55,8 +55,6 @@ window.FlowArt = (() => {
   // pixel left out around the key's face. The lit key has a bright face.
   const KEY = ['.k', 'kt'];
   const KEY_LIT = ['.k', 'kH'];
-  // The About plate (the sticker Rust draws): a cream card with its corners cut by two pixels.
-  const PLATE = ['..k', '.kc', 'kcc'];
 
   // Rows with every '#' in the colour key `key`.
   const ink = (rows, key) => rows.map(row => row.replaceAll('#', key));
@@ -107,7 +105,6 @@ window.FlowArt = (() => {
     set('battery', ink(BATTERY, 'c'));
     set('key', mirror(KEY));
     set('key-lit', mirror(KEY_LIT));
-    set('plate', mirror(PLATE));
     set('cart-lit', cart(CART_LIT.w, CART_LIT.h, CART_LIT));
     set('cart-side', cart(CART_SIDE.w, CART_SIDE.h, CART_SIDE));
   }

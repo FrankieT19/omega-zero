@@ -6,21 +6,73 @@ use omega_store::Theme;
 
 use crate::cart::{cart_box, label_colour, label_text, CART_W, SEATED_W};
 use crate::footer::Printed;
-use crate::icon::icon_box;
 use crate::kit::palette::Palette;
-use crate::plate::HINT_H;
+use crate::kit::pixel::{keyed, ACCENT, CAP};
+use crate::kit::text::{text_face, AIR, WORD_H};
+use crate::plate::UndoFace;
 use crate::shelf::{foot_y, shelf_box, shelf_scale};
 use crate::spin::{self, Pose};
 use crate::sprite::SPRITE_PX;
 use crate::status_bar::{LINK_OFF, LINK_ON};
 
-/// The alert shown on a refused cart as it comes back out, sized to the cart, which now
-/// keeps its shelf size in the slot.
-pub const ALERT_PX: f32 = 66.0;
+/// The alert shown on a refused cart as it comes back out: a warning sign drawn a pixel at a
+/// time on the art grid, its sides a pixel out for every one and a half down, in the frame's
+/// bright colour (`H`) ruled in the dark one (`k`), its mark in the dark one too. 62 by 50
+/// screen pixels, as big as the sign the cart's label carried before.
+#[rustfmt::skip]
+const ALERT: [&str; 25] = [
+    "...............k...............",
+    "..............kHk..............",
+    "..............kHk..............",
+    ".............kHHHk.............",
+    "............kHHHHHk............",
+    "............kHHHHHk............",
+    "...........kHHHHHHHk...........",
+    "..........kHHHHHHHHHk..........",
+    "..........kHHHHHHHHHk..........",
+    ".........kHHHHkkkHHHHk.........",
+    "........kHHHHHkkkHHHHHk........",
+    "........kHHHHHkkkHHHHHk........",
+    ".......kHHHHHHkkkHHHHHHk.......",
+    "......kHHHHHHHkkkHHHHHHHk......",
+    "......kHHHHHHHkkkHHHHHHHk......",
+    ".....kHHHHHHHHkkkHHHHHHHHk.....",
+    "....kHHHHHHHHHkkkHHHHHHHHHk....",
+    "....kHHHHHHHHHHHHHHHHHHHHHk....",
+    "...kHHHHHHHHHHHHHHHHHHHHHHHk...",
+    "..kHHHHHHHHHHHkkkHHHHHHHHHHHk..",
+    "..kHHHHHHHHHHHkkkHHHHHHHHHHHk..",
+    ".kHHHHHHHHHHHHkkkHHHHHHHHHHHHk.",
+    "kHHHHHHHHHHHHHHHHHHHHHHHHHHHHHk",
+    "kHHHHHHHHHHHHHHHHHHHHHHHHHHHHHk",
+    "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+];
+
+/// The alert's size in art pixels.
+pub const ALERT_W: u32 = ALERT[0].len() as u32;
+pub const ALERT_H: u32 = ALERT.len() as u32;
+
+/// The alert in `pal`, one texel to an art pixel, to upload NEAREST.
+pub fn alert_face(pal: &Palette) -> UndoFace {
+    keyed(&ALERT, pal)
+}
 
 /// How much larger the slot is drawn than the one a seated-size cart went into: a cart keeps
 /// the size it has on the shelf all the way in, so the slot is built around that size.
 const K: f32 = CART_W as f32 / SEATED_W as f32;
+
+/// One art pixel on the screen. Every edge of the slot lands on a whole one.
+const ART: f32 = SPRITE_PX as f32;
+
+/// `px` moved onto the art grid: to the nearest whole art pixel, a half rounded down. The slot
+/// is the seated slot K times larger, which puts some of its edges between art pixels (K is
+/// 1.5); each moves to the grid, so it is drawn within a pixel of where K puts it.
+const fn on_grid(px: f32) -> f32 {
+    let art = px / ART;
+    let whole = art as i32 - (art < 0.0 && art != (art as i32) as f32) as i32;
+    let up = (art - whole as f32 > 0.5) as i32;
+    (whole + up) as f32 * ART
+}
 
 /// The band that holds the slot, standing on the bar across the bottom.
 pub const MOUTH_H: f32 = 80.0;
@@ -40,36 +92,51 @@ fn band_y() -> f32 {
     slot_top()
 }
 
-pub const MOUTH_W: f32 = CART_W as f32 + 14.0 * K;
-const SLIT_H: f32 = 9.0 * K;
+// How far below the top of the band each of the slot's edges is, on the grid: the lip, the
+// slit's top and bottom (where the scoop starts), the bottom of the bay and of the scoop, and
+// the scoop's rim under it. A cart sits in the slot from `SEATED_TOP` down.
+pub const LIP_H: f32 = on_grid(2.0 * K);
+const SLIT_TOP: f32 = on_grid(7.0 * K);
+const SLIT_BOTTOM: f32 = on_grid(16.0 * K);
+const RECESS_BOTTOM: f32 = on_grid(44.0 * K);
+const RIM_BOTTOM: f32 = on_grid(46.0 * K);
+const SEATED_TOP: f32 = on_grid(6.0 * K);
+
+// Half of each width, on the grid, so the slot stands on whole art pixels either side of the
+// middle: the slit, the bay round it and the scoop under it.
+const MOUTH_HALF: f32 = on_grid((CART_W as f32 + 14.0 * K) / 2.0);
+const BAY_HALF: f32 = on_grid((CART_W as f32 + 32.0 * K) / 2.0);
+const SCOOP_HALF: f32 = on_grid((CART_W as f32 + 14.0 * K) * 0.88 / 2.0);
+
+pub const MOUTH_W: f32 = 2.0 * MOUTH_HALF;
+const SLIT_H: f32 = SLIT_BOTTOM - SLIT_TOP;
 fn mouth_x() -> f32 {
-    (out_w() as f32 - MOUTH_W) / 2.0
+    cx() - MOUTH_HALF
 }
 fn slit_y() -> f32 {
-    bay_y() + 5.0 * K
+    band_y() + SLIT_TOP
 }
 
-pub const LIP_H: f32 = 2.0 * K;
-
-const BAY_W: f32 = MOUTH_W + 18.0 * K;
+const BAY_W: f32 = 2.0 * BAY_HALF;
 fn bay_x() -> f32 {
-    (out_w() as f32 - BAY_W) / 2.0
+    cx() - BAY_HALF
 }
 fn bay_y() -> f32 {
     band_y() + LIP_H
 }
-const SCOOP_W: f32 = MOUTH_W * 0.88;
+const SCOOP_W: f32 = 2.0 * SCOOP_HALF;
 fn scoop_d() -> f32 {
-    RECESS_H - (scoop_y() - bay_y())
+    RECESS_BOTTOM - SLIT_BOTTOM
 }
 fn scoop_y() -> f32 {
-    slit_y() + SLIT_H
+    band_y() + SLIT_BOTTOM
 }
 
-const RECESS_H: f32 = 42.0 * K;
-const RIM_W: f32 = 2.0 * K;
+const RECESS_H: f32 = RECESS_BOTTOM - LIP_H;
+const RIM_W: f32 = RIM_BOTTOM - RECESS_BOTTOM;
+/// The middle of the screen, on the grid.
 fn cx() -> f32 {
-    out_w() as f32 / 2.0
+    on_grid(out_w() as f32 / 2.0)
 }
 const SCOOP_FLAT: f32 = 4.0;
 
@@ -187,7 +254,7 @@ fn lip_y() -> f32 {
 }
 
 fn seated_y() -> f32 {
-    bay_y() + 4.0 * K
+    band_y() + SEATED_TOP
 }
 
 fn catch_at(foot: f32, seated_foot: f32) -> f32 {
@@ -300,12 +367,12 @@ impl SlotChrome<'_> {
             }
         }
 
+        // in the middle of the cart, to the nearest art pixel, as the cart moves between them
         if let Some((tex, alpha)) = self.alert {
-            let (w, h) = icon_box(ALERT_PX);
-            let (w, h) = (w as f32, h as f32);
+            let (w, h) = ((ALERT_W * SPRITE_PX) as f32, (ALERT_H * SPRITE_PX) as f32);
             out.push(Draw::Tex {
-                x: x + (cw - w) / 2.0,
-                y: y + (ch - h) / 2.0,
+                x: on_grid(x + (cw - w) / 2.0),
+                y: on_grid(y + (ch - h) / 2.0),
                 w,
                 h,
                 tex,
@@ -386,31 +453,47 @@ fn front_bands(c: &ChromeColours, mut band: impl FnMut(f32, f32, f32, f32, [f32;
     });
 }
 
+/// The scoop's curve as spans of columns one art pixel wide, each as deep as the curve is in
+/// its middle, to the nearest art pixel, so the curve steps an art pixel at a time.
 fn for_each_scoop_span(mut span: impl FnMut(f32, f32, f32)) {
     let hw = SCOOP_W / 2.0;
-    let depth = |x: f32| scoop_d() * (1.0 - (x.abs() / hw).powf(SCOOP_FLAT)).max(0.0);
+    let depth = |x: f32| {
+        let curve = scoop_d() * (1.0 - ((x + ART / 2.0).abs() / hw).powf(SCOOP_FLAT)).max(0.0);
+        on_grid(curve)
+    };
     let mut x = -hw;
     while x < hw {
-        let d = depth(x + 0.5).round();
+        let d = depth(x);
         let start = x;
-        while x < hw && depth(x + 0.5).round() == d {
-            x += 1.0;
+        while x < hw && depth(x) == d {
+            x += ART;
         }
         span(cx() + start, x - start, d);
     }
 }
 
+/// The shelf's name, or the letter it jumped to, as the slot prints it in its hole: Pixel
+/// Code's capitals a face pixel to an art pixel, in the palette's dim colour, to upload NEAREST.
+pub fn slot_name_face(name: &str, pal: &Palette) -> UndoFace {
+    text_face(&name.to_uppercase(), pal.dim)
+}
+
+/// `name`, a `slot_name_face` `name.w` art pixels wide, in the slot's hole at `alpha`: its ink
+/// in the middle of the screen and its capitals in the middle of the hole, each to the nearest
+/// art pixel, at two screen pixels to one of its own.
 pub fn draw_slot_name(name: Printed, alpha: f32, out: &mut Vec<Draw>) {
     let (Some(tex), true) = (name.face, alpha > 0.0) else {
         return;
     };
-    let (w, h) = (name.w as f32, HINT_H as f32);
+    let ink = name.w.saturating_sub(AIR) as f32 * ART;
     let hole = scoop_y() + scoop_d() - slit_y();
+    let caps = CAP as f32 * ART;
+    let caps_top = on_grid(slit_y() + (hole - caps) / 2.0);
     out.push(Draw::Tex {
-        x: cx() - w / 2.0,
-        y: slit_y() + (hole - h) / 2.0,
-        w,
-        h,
+        x: on_grid(cx() - ink / 2.0),
+        y: caps_top - ACCENT as f32 * ART,
+        w: name.w as f32 * ART,
+        h: WORD_H as f32 * ART,
         tex,
         alpha,
     });

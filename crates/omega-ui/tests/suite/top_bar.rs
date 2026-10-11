@@ -1,24 +1,33 @@
 use omega_power::{Battery, Charge};
 use omega_ui::kit::palette::{palette, rgba, Palette};
+use omega_ui::kit::pixel::{letters, ACCENT, ADVANCE, CAP};
+use omega_ui::kit::text::{text_face, AIR, WORD_H};
 use omega_ui::{
-    bolt_face, gauge_width, link_face, out_w, word_cap_top, word_face, word_face_in, word_tail,
-    ChromeColours, Draw, Link, LinkFaces, Links, Printed, TexId, TopBar, UndoFace, CELL_PX,
-    GAUGE_H, LINK_OFF, LINK_ON, TOP_BAR_H,
+    bolt_face, link_face, out_w, ChromeColours, Draw, Link, LinkFaces, Links, Printed, TexId,
+    TopBar, UndoFace, CELL, CELL_PX, FIGURE_AT, GAUGE_H, LINK_OFF, LINK_ON, SPRITE_PX, TOP_BAR_H,
 };
 
 const MARGIN: f32 = 24.0;
 
+/// One art pixel on the screen.
+const PX: f32 = SPRITE_PX as f32;
+
+/// The clock's and the figure's faces: "16:00" and "100%", 6 art pixels a letter.
+const CLOCK_W: u32 = 30;
+const FIGURE_W: u32 = 24;
+
+/// Every item's faces, in art pixels: the icons a cell square, ssh a word cut to its ink.
 fn faces() -> LinkFaces {
-    let pair = |base: usize| {
+    let pair = |base: usize, w: u32| {
         [
-            (TexId::from_raw(base), 20, 24),
-            (TexId::from_raw(base + 1), 20, 24),
+            (TexId::from_raw(base), w, CELL),
+            (TexId::from_raw(base + 1), w, CELL),
         ]
     };
     LinkFaces {
-        wifi: pair(10),
-        bluetooth: pair(20),
-        ssh: pair(30),
+        wifi: pair(10, CELL),
+        bluetooth: pair(20, CELL),
+        ssh: pair(30, 20),
     }
 }
 
@@ -29,9 +38,9 @@ fn bar(links: Links, battery: Option<Battery>, bolt: Option<TexId>) -> Vec<Draw>
         colours: ChromeColours::default(),
         links,
         faces: Some(&faces),
-        clock: Printed::new(TexId::from_raw(1), 40),
+        clock: Printed::new(TexId::from_raw(1), CLOCK_W),
         battery,
-        percent: Printed::new(TexId::from_raw(2), 30),
+        percent: Printed::new(TexId::from_raw(2), FIGURE_W),
         bolt,
     }
     .draw(&mut out);
@@ -56,18 +65,20 @@ fn drawn(out: &[Draw], id: usize) -> bool {
     tex_x(out, id).is_some()
 }
 
+/// The clock's ink is in the middle, as near as whole art pixels allow, and the figure's ink
+/// ends at the right margin, with the gauge in the room left of it.
 #[test]
 fn the_clock_sits_in_the_middle_and_the_battery_ends_at_the_right_margin() {
     let out = bar(Links::default(), battery(Charge::Discharging), None);
     let (a, b) = tex_x(&out, 1).expect("no clock");
-    let ink_middle = (a + b - word_tail()) / 2.0;
+    let ink_middle = (a + b - AIR as f32 * PX) / 2.0;
     assert!(
-        (ink_middle - out_w() as f32 / 2.0).abs() <= 0.5,
+        (ink_middle - out_w() as f32 / 2.0).abs() <= PX / 2.0,
         "the clock's ink is centred on {ink_middle}"
     );
-    let (_, percent_end) = tex_x(&out, 2).expect("no figure");
+    let (figure, percent_end) = tex_x(&out, 2).expect("no figure");
     assert_eq!(
-        percent_end - word_tail(),
+        percent_end - AIR as f32 * PX,
         out_w() as f32 - MARGIN,
         "the figure's ink does not end at the margin"
     );
@@ -78,11 +89,50 @@ fn the_clock_sits_in_the_middle_and_the_battery_ends_at_the_right_margin() {
             _ => None,
         })
         .fold(f32::MAX, f32::min);
-    let figure = Printed::new(TexId::from_raw(2), 30);
     assert!(
-        leftmost_gauge >= out_w() as f32 - MARGIN - gauge_width(figure),
+        leftmost_gauge >= figure - FIGURE_AT,
         "the gauge starts at {leftmost_gauge}, left of the room it was given"
     );
+}
+
+/// Every face on the bar is drawn at two screen pixels to one of its art pixels, on even screen
+/// pixels, so none of it is scaled smooth or set half an art pixel off.
+#[test]
+fn every_face_on_the_bar_is_drawn_whole_on_the_art_grid() {
+    let out = bar(
+        Links {
+            wifi: true,
+            bluetooth: Some(true),
+            ssh: true,
+        },
+        battery(Charge::Charging),
+        Some(TexId::from_raw(3)),
+    );
+    let faces = faces();
+    let words = [(1, CLOCK_W, WORD_H), (2, FIGURE_W, WORD_H), (3, CELL, CELL)]
+        .map(|(id, w, h)| (TexId::from_raw(id), w, h));
+    let mut all = [faces.wifi, faces.bluetooth, faces.ssh].concat();
+    all.extend(words);
+    let size = |tex: TexId| -> (u32, u32) {
+        let (_, w, h) = all.iter().find(|f| f.0 == tex).expect("a face");
+        (*w, *h)
+    };
+    let mut drawn = 0;
+    for d in &out {
+        if let Draw::Tex {
+            x, y, w, h, tex, ..
+        } = *d
+        {
+            let (fw, fh) = size(tex);
+            assert_eq!((w, h), (fw as f32 * PX, fh as f32 * PX), "{d:?} is scaled");
+            assert!(
+                [x, y].iter().all(|v| v.rem_euclid(PX) == 0.0),
+                "{d:?} is off the art grid"
+            );
+            drawn += 1;
+        }
+    }
+    assert_eq!(drawn, 6, "not every face drew: {out:?}");
 }
 
 #[test]
@@ -229,7 +279,7 @@ fn inked_rows(face: &omega_ui::UndoFace) -> Vec<u32> {
 
 #[test]
 fn every_icon_is_one_square_cell_of_pixel_art() {
-    let cell = CELL_PX as u32;
+    let cell = CELL;
     let white = ChromeColours::default();
     for face in [
         link_face(Link::Wifi, true, &white),
@@ -254,14 +304,16 @@ fn every_icon_is_one_square_cell_of_pixel_art() {
 #[test]
 fn words_stand_exactly_as_tall_as_the_icons() {
     let ssh = link_face(Link::Ssh, true, &ChromeColours::default());
-    assert_eq!(ssh.h, CELL_PX as u32, "ssh is not as tall as the icons");
-    let figure = word_face("100%");
-    let rows = inked_rows(&figure);
-    assert_eq!(
-        (rows[0] as f32, rows[rows.len() - 1] as f32 + 1.0),
-        (word_cap_top(), word_cap_top() + CELL_PX),
-        "the figure's ink does not fill one cell below its cap top"
-    );
+    assert_eq!(ssh.h, CELL, "ssh is not as tall as the icons");
+    for word in ["100%", "16:00"] {
+        let rows = inked_rows(&text_face(word, LINK_ON));
+        assert_eq!(
+            (rows[0], rows[rows.len() - 1] + 1),
+            (ACCENT as u32, (ACCENT + CAP) as u32),
+            "{word}'s ink does not fill one cell below its cap top"
+        );
+        assert_eq!(CAP as u32, CELL, "the capitals are not a cell tall");
+    }
 }
 
 #[test]
@@ -277,7 +329,7 @@ fn every_item_stands_in_the_same_band() {
     );
     let top = |d: &Draw| match *d {
         Draw::Tex { y, tex, .. } if [1, 2].map(TexId::from_raw).contains(&tex) => {
-            Some(y + word_cap_top())
+            Some(y + ACCENT as f32 * PX)
         }
         Draw::Tex { y, h, .. } => Some(y + (h - CELL_PX) / 2.0),
         _ => None,
@@ -315,7 +367,7 @@ fn the_bar_is_drawn_in_the_colours_it_is_handed() {
             colours,
             links: Links::default(),
             faces: Some(&faces),
-            clock: Printed::new(TexId::from_raw(1), 40),
+            clock: Printed::new(TexId::from_raw(1), CLOCK_W),
             battery: None,
             percent: Printed::default(),
             bolt: None,
@@ -337,12 +389,25 @@ fn the_bar_is_drawn_in_the_colours_it_is_handed() {
     assert_ne!(night, amber, "the bar looks the same in Night and Amber");
 }
 
+/// ssh is drawn bold the kit's way, not in Pixel Code's own bold: each letter of the plain face
+/// drawn again a pixel to its right, every pixel solid.
 #[test]
 fn ssh_is_bolder_than_the_plain_face() {
     let face = link_face(Link::Ssh, true, &ChromeColours::default());
-    let solid = face.rgba.chunks(4).filter(|p| p[3] > 200).count();
-    assert!(solid > 60, "only {solid} solid pixels: ssh is not bold");
-    assert!(face.h <= TOP_BAR_H as u32);
+    let solid = face.rgba.chunks(4).filter(|p| p[3] == 255).count();
+    let plain: usize = letters("ssh", ADVANCE)
+        .iter()
+        .map(|r| r.bytes().filter(|&b| b == b'#').count())
+        .sum();
+    assert!(
+        solid > plain * 3 / 2,
+        "{solid} solid pixels to the plain face's {plain}: ssh is not bold"
+    );
+    assert!(
+        face.rgba.chunks(4).all(|p| p[3] == 0 || p[3] == 255),
+        "ssh has soft edges"
+    );
+    assert!(face.h * SPRITE_PX <= TOP_BAR_H as u32);
 }
 
 fn colour(name: &str) -> &'static Palette {
@@ -390,11 +455,11 @@ fn the_bar_prints_in_the_palettes_cream_and_what_is_off_in_its_plate() {
             [pal.cream],
             "{name}: the bolt"
         );
-        let clock = word_face_in("16:00", colours.ink);
+        let clock = text_face("16:00", colours.ink);
         assert_eq!(inks(&clock), [pal.cream], "{name}: the clock");
         assert_eq!(
             coverage(&clock),
-            coverage(&word_face("16:00")),
+            coverage(&text_face("16:00", LINK_ON)),
             "{name}: the clock changes shape with its ink"
         );
 
@@ -404,9 +469,9 @@ fn the_bar_prints_in_the_palettes_cream_and_what_is_off_in_its_plate() {
             colours,
             links: Links::default(),
             faces: Some(&faces),
-            clock: Printed::new(TexId::from_raw(1), 40),
+            clock: Printed::new(TexId::from_raw(1), CLOCK_W),
             battery: battery(Charge::Discharging),
-            percent: Printed::new(TexId::from_raw(2), 30),
+            percent: Printed::new(TexId::from_raw(2), FIGURE_W),
             bolt: None,
         }
         .draw(&mut out);

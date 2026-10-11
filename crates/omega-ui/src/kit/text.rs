@@ -30,3 +30,11 @@ pub fn text_face(text: &str, colour: [u8; 3]) -> UndoFace {
     }
     face
 }
+
+/// How many art pixels tall a line of `text_face` is: the capitals' rows with the accents' over
+/// them and the descenders' under them.
+pub const WORD_H: u32 = (ACCENT + CAP + DESCENT) as u32;
+
+/// The clear column every letter keeps on its right inside its `ADVANCE`, the last letter's
+/// included: a `text_face`'s ink ends this far short of its right edge.
+pub const AIR: u32 = 1;

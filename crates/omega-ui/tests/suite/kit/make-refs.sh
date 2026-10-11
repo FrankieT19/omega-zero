@@ -102,6 +102,26 @@ shoot bar-confirm-320 320 19 'c=bar&w=320&right=CONFIRM&right-hint=A'
 shoot bar-shelf-thin-320 320 19 'c=bar&w=320&font=thin&left=CONTROLS&left-hint=SELECT&right=SETTINGS&right-hint=START'
 shoot bar-menu-thin-320 320 19 'c=bar&w=320&font=thin&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET'
 
+# the save-state switcher's: its bar, B RETURN and A LOAD with nothing between them; its keys on a
+# line of their own above it, SAVE with Y DELETE and X UNDO SAVE or X UNDO LOAD, or Y DELETE alone,
+# as wide as it needs or held as wide as both; and its panel, as wide as the title, the dots or the
+# date, or held wider
+for w in 320 360; do
+  shoot bar-switcher-$w $w 19 "c=bar&w=$w&left=RETURN&left-hint=B&right=LOAD&right-hint=A"
+done
+shoot hints-switcher 176 15 'c=hints&label=SAVE&hint=Y%20DELETE%20%7C%20X%20UNDO%20SAVE'
+shoot hints-switcher-load 176 15 'c=hints&label=SAVE&hint=Y%20DELETE%20%7C%20X%20UNDO%20LOAD'
+shoot hints-switcher-delete 103 15 'c=hints&label=SAVE&hint=Y%20DELETE'
+shoot hints-switcher-held 176 15 'c=hints&label=SAVE&hint=Y%20DELETE&w=176'
+# keys on a line: none, a label in lower case and three keys, the last with no word
+shoot hints-empty 56 15 'c=hints&label=KEYS'
+shoot hints-three 235 15 'c=hints&label=keys&hint=START%20FETCH%20%7C%20Y%20SIGN%20OUT%20%7C%20SELECT'
+shoot saves-just-now 90 41 'c=saves&age=Just%20now'
+shoot saves-four 90 41 'c=saves&age=4%20min%20ago&count=4&at=1'
+shoot saves-ten 90 41 'c=saves&age=3%20hr%20ago&count=10&at=9'
+shoot saves-date 108 41 'c=saves&age=2026-08-08%2020%3A00&count=3&at=2'
+shoot saves-held 108 41 'c=saves&w=108&age=Just%20now&count=2'
+
 # lines of text as flow.html sets them, the Controls panel's arrows as flow/art.js draws them
 shoot text-sftp 144 11 'c=text&tone=dim&text=SFTP%20uses%20the%20same%20login'
 shoot text-offline 162 11 'c=text&tone=dim&text=Join%20a%20Wi-Fi%20network%20first.'
@@ -120,3 +140,44 @@ shoot flow-ssh-offline 200 42 'c=flow&screen=ssh-offline'
 shoot flow-ssh-switched-off 200 42 'c=flow&screen=ssh-switched-off'
 shoot flow-labels 280 75 'c=flow&screen=labels'
 shoot flow-controls 304 157 'c=flow&screen=controls'
+
+# the gauges over a game, each with its icon, and one without; 20 cells for 0 to 100, 9 for 0 to 9
+shoot gauge-volume 157 15 'c=gauge&label=VOLUME&value=55&max=100&cells=20&icon=volume'
+shoot gauge-muted 157 15 'c=gauge&label=VOLUME&value=0&max=100&cells=20&icon=muted'
+shoot gauge-headphones 157 15 'c=gauge&label=VOLUME&value=35&max=100&cells=20&icon=headphones'
+shoot gauge-brightness 137 15 'c=gauge&label=BRIGHTNESS&value=6&max=9&cells=9&icon=brightness'
+shoot gauge-bluelight 137 15 'c=gauge&label=BLUE%20LIGHT&value=3&max=9&cells=9&icon=bluelight'
+shoot gauge-rewind 157 15 'c=gauge&label=REWIND&value=70&max=100&cells=20&icon=rewind'
+shoot gauge-speed 103 15 'c=gauge&label=SPEED&value=4&max=8&cells=8&icon=fastforward'
+shoot gauge-empty 97 15 'c=gauge&label=LEVEL&value=0&max=9&cells=9'
+shoot gauge-full 97 15 'c=gauge&label=LEVEL&value=9&max=9&cells=9'
+
+# toasts: the tab wider than the line, the line wider than the tab, a descender, a label in
+# lower case
+shoot toast-saved 84 34 'c=toast&label=SAVE%20STATE&text=State%20saved'
+shoot toast-ended 96 34 'c=toast&label=LINK&text=Link%20was%20ended'
+shoot toast-gpsp 138 34 'c=toast&label=LINK&text=Please%20switch%20to%20gpSP'
+shoot toast-colour 96 34 'c=toast&label=colour&text=Correction%20off'
+
+# badges: fast forward held and latched at each speed's width, the link's and a lost one, lit and
+# not, and a sprite with no word
+shoot badge-ff-2 25 9 'c=badge&icon=fastforward&text=%C3%972'
+shoot badge-ff-6-lit 25 9 'c=badge&icon=fastforward&text=%C3%976&lit'
+shoot badge-link 11 9 'c=badge&icon=link'
+shoot badge-link-lit 11 9 'c=badge&icon=link&lit'
+shoot badge-unlinked 11 9 'c=badge&icon=unlinked'
+shoot badge-unlinked-lit 11 9 'c=badge&icon=unlinked&lit'
+shoot badge-word 37 9 'c=badge&icon=fastforward&text=HOST'
+# the link screen's art, each piece of omega-link: the plugs, a stretch of the cable, the adapter,
+# the port's strip at 640 and 720, the radio arcs (and one turned to the left) and the clicks
+shoot link-plug-host 30 54 'c=link&piece=plug&role=host'
+shoot link-plug-join 36 54 'c=link&piece=plug&role=join'
+shoot link-cable 6 4 'c=link&piece=cable&length=4'
+shoot link-adapter 80 52 'c=link&piece=adapter'
+shoot link-port-320 320 36 'c=link&piece=port&width=320&height=36'
+shoot link-port-360 360 36 'c=link&piece=port&width=360&height=36'
+shoot link-arc-0 5 14 'c=link&piece=arc&ring=0'
+shoot link-arc-1 7 22 'c=link&piece=arc&ring=1'
+shoot link-arc-2 9 30 'c=link&piece=arc&ring=2'
+shoot link-arc-2-left 9 30 'c=link&piece=arc&ring=2&side=left'
+shoot link-clicks 52 10 'c=link&piece=clicks'

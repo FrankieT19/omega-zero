@@ -172,7 +172,7 @@ body.shot .screen-scroll { padding: 0; overflow: visible; }
 /* a panel as tall as its rows; the panel after it takes the rest of the modal */
 omega-panel.hug { flex: none; }
 
-/* a panel or plate on its own, without a modal: as tall as what it holds, centred on whole art
+/* a panel on its own, without a modal: as tall as what it holds, centred on whole art
    pixels by player.js */
 .lone { position: absolute; left: 0; top: 0; }
 .lone.small { width: calc(200 * var(--u)); }
@@ -277,13 +277,9 @@ omega-panel.hug { flex: none; }
 }
 .hint-line b { font-weight: 400; color: var(--oz-frame-hi); }
 
-/* About: the sticker Rust draws, as a plain cream plate */
-.about-plate {
-  box-sizing: border-box; width: calc(176 * var(--u)); padding: calc(10 * var(--u)) 0 calc(11 * var(--u));
-  border: calc(2 * var(--u)) solid transparent; border-image: var(--flow-plate) 2 fill / calc(2 * var(--u)) stretch;
-  image-rendering: pixelated; color: var(--oz-dark); text-align: center;
-  font: 400 calc(9 * var(--u)) / calc(10 * var(--u)) var(--oz-font);
-}
-.about-plate p { margin: 0 auto; max-width: none; white-space: pre; }
-.about-plate p + p { margin-top: calc(3 * var(--u)); }
-.about-plate .small { color: var(--oz-edge); }
+/* About: the credits a line each, in the colour a row's name is, three pixels in as a note is,
+   4 below the well's top and 5 above its bottom as a note on its own; slot's last, in the notes'
+   dim. Eight lines fit under five rows at 480 tall, the longest one 44 letters across 640. */
+.credits { padding: calc(4 * var(--u)) calc(3 * var(--u)) calc(5 * var(--u)); color: var(--oz-label); white-space: nowrap; }
+.credits p { margin: 0; max-width: none; }
+.credits .based-on { color: var(--oz-dim); }

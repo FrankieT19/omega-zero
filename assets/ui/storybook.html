@@ -21,6 +21,12 @@
 <script src="components/omega-row.js"></script>
 <script src="components/omega-list-row.js"></script>
 <script src="components/omega-bar.js"></script>
+<script src="components/omega-gauge.js"></script>
+<script src="components/omega-hints.js"></script>
+<script src="components/omega-toast.js"></script>
+<script src="components/omega-badge.js"></script>
+<script src="components/omega-saves.js"></script>
+<script src="components/omega-link.js"></script>
 <script src="components/omega-button.js"></script>
 <script src="components/omega-screen.js"></script>
 <script src="components/omega-card.js"></script>
@@ -153,7 +159,15 @@
   .outlined omega-row::part(row), .outlined omega-row::part(label), .outlined omega-row::part(caret-left),
   .outlined omega-row::part(value), .outlined omega-row::part(caret-right), .outlined omega-row::part(opens),
   .outlined omega-bar::part(bar), .outlined omega-bar::part(middle), .outlined omega-bar::part(hints),
-  .outlined omega-bar::part(key), .outlined omega-bar::part(word) {
+  .outlined omega-bar::part(key), .outlined omega-bar::part(word),
+  .outlined omega-gauge::part(tab), .outlined omega-gauge::part(label), .outlined omega-gauge::part(slant),
+  .outlined omega-gauge::part(strip), .outlined omega-gauge::part(well), .outlined omega-gauge::part(cells),
+  .outlined omega-gauge::part(icon),
+  .outlined omega-hints::part(tab), .outlined omega-hints::part(label), .outlined omega-hints::part(slant),
+  .outlined omega-hints::part(strip), .outlined omega-hints::part(well), .outlined omega-hints::part(hints),
+  .outlined omega-hints::part(key), .outlined omega-hints::part(word),
+  .outlined omega-toast::part(line), .outlined omega-badge::part(icon), .outlined omega-badge::part(word),
+  .outlined omega-saves::part(panel), .outlined omega-saves::part(age), .outlined omega-saves::part(dots) {
     outline: 1px dashed var(--area); outline-offset: -1px;
   }
 
@@ -164,6 +178,9 @@
   .preview .screens figure { margin: 0; display: grid; gap: 8px; min-width: 0; max-width: 100%; }
   .screen-own { width: calc(340 * var(--u)); max-width: 100%; }
   .screen-small { width: calc(160 * var(--u)); max-width: 100%; }
+  /* the link screen's art, its pieces placed in art pixels as the screen places them */
+  .link-scene { position: relative; max-width: 100%; }
+  .link-scene > omega-link { position: absolute; }
   .card-grid {
     display: grid; gap: calc(2 * var(--u));
     grid-template-columns: repeat(auto-fill, min(100%, calc(150 * var(--u))));
@@ -521,6 +538,206 @@
       </article>
 
       <article class="card wide">
+        <header><h3>&lt;omega-gauge&gt;</h3><code>components/omega-gauge.js</code></header>
+        <p class="dim">A level on one line, like Mega Man Zero's life gauge: a title tab naming it, then
+          a well of cells, as many lit as the level reaches, and an icon at its end. It is a panel's
+          header with the strip beside the tab made the gauge, 15 art pixels tall like the bottom bar,
+          so it sits with the menus and on its own over a game: the volume, the brightness, the blue
+          light and the rewind left. One cell to a step reads best, 9 for a level of 0 to 9; 20 cells
+          of 5% each for 0 to 100. The cells stand on the title's capitals' rows.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">the four over a game, and the volume muted</span>
+          <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
+            <omega-gauge label="VOLUME" value="55" max="100" cells="20" icon="volume"></omega-gauge>
+            <omega-gauge label="BRIGHTNESS" value="6" max="9" cells="9" icon="brightness"></omega-gauge>
+            <omega-gauge label="BLUE LIGHT" value="3" max="9" cells="9" icon="bluelight"></omega-gauge>
+            <omega-gauge label="REWIND" value="70" max="100" cells="20" icon="rewind"></omega-gauge>
+            <omega-gauge label="VOLUME" value="0" max="100" cells="20" icon="muted"></omega-gauge>
+          </div>
+          <div class="side">
+            <figure>
+              <span class="tag">empty, full, no icon, headphones</span>
+              <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
+                <omega-gauge label="LEVEL" value="0" max="9" cells="9"></omega-gauge>
+                <omega-gauge label="LEVEL" value="9" max="9" cells="9"></omega-gauge>
+                <omega-gauge label="VOLUME" value="35" max="100" cells="20" icon="headphones"></omega-gauge>
+                <omega-gauge label="SPEED" value="4" max="8" cells="8" icon="fastforward"></omega-gauge>
+              </div>
+            </figure>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>label</td><td>The name in the tab, in capitals whatever case it is given in, lit in <code>--oz-cream</code>.</td></tr>
+            <tr><td>value</td><td>The level, from 0 to <code>max</code>. Default 0.</td></tr>
+            <tr><td>max</td><td>The level the gauge is full at. Default 100.</td></tr>
+            <tr><td>cells</td><td>How many cells the well has. Lit cells are <code>round(value / max × cells)</code> from the left, in <code>--oz-label</code>; the rest in <code>--oz-plate</code>. Default 20.</td></tr>
+            <tr><td>icon</td><td>A 7×7 sprite after the cells, in <code>--oz-cream</code>: <code>volume</code>, <code>muted</code>, <code>headphones</code>, <code>brightness</code>, <code>bluelight</code>, <code>rewind</code>, <code>fastforward</code>. None without it.</td></tr>
+            <tr><td>::part</td><td><code>gauge</code>, <code>tab</code>, <code>label</code>, <code>slant</code>, <code>strip</code>, <code>well</code>, <code>cells</code>, <code>icon</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-gauge label="VOLUME" value="55" max="100" cells="20" icon="volume"&gt;&lt;/omega-gauge&gt;
+&lt;omega-gauge label="BRIGHTNESS" value="6" max="9" cells="9" icon="brightness"&gt;&lt;/omega-gauge&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-toast&gt;</h3><code>components/omega-toast.js</code></header>
+        <p class="dim">A word on what just happened, as a lone panel says it: the title tab names
+          what it is about and the well holds one line. It comes and goes on its own, over a game,
+          the shelf or a menu, where the gauges stand. The tab hugs its title and the strip takes
+          whatever room the line leaves, so the toast is as wide as the wider of the two. The line
+          starts in line with the title, in its own case, with 4 rows of well above its capitals
+          and 4 below; 34 art pixels tall.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">what omega-zero says over a game</span>
+          <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
+            <omega-toast label="SAVE STATE" text="State saved"></omega-toast>
+            <omega-toast label="SAVE STATE" text="State loaded"></omega-toast>
+            <omega-toast label="LINK" text="Link was ended"></omega-toast>
+            <omega-toast label="LINK" text="Please switch to gpSP"></omega-toast>
+            <omega-toast label="COLOUR" text="Correction on"></omega-toast>
+          </div>
+          <div class="side">
+            <figure>
+              <span class="tag">empty, a title alone, a line alone</span>
+              <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
+                <omega-toast></omega-toast>
+                <omega-toast label="SAVE STATE"></omega-toast>
+                <omega-toast text="No link support"></omega-toast>
+              </div>
+            </figure>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>label</td><td>What it is about, in the title tab, in capitals whatever case it is given in, lit in <code>--oz-cream</code>.</td></tr>
+            <tr><td>text</td><td>The line, in its own case, in <code>--oz-cream</code>.</td></tr>
+            <tr><td>::part</td><td><code>toast</code> (its <code>&lt;omega-panel&gt;</code>), <code>line</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-toast label="SAVE STATE" text="State saved"&gt;&lt;/omega-toast&gt;
+&lt;omega-toast label="LINK" text="Link was ended"&gt;&lt;/omega-toast&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-badge&gt;</h3><code>components/omega-badge.js</code></header>
+        <p class="dim">What a game is doing that lasts, in the corner over it: the bottom bar's key cap
+          holding a 7×7 sprite and a word after it. Fast forward shows how fast, dark while R2 is held
+          and lit once it is latched; a link shows the link, lit while hosting and dark when joined,
+          and the link broken once it is lost. Lit, it is drawn as a lit row's band: the tab colour
+          with a frame line round it. 9 art pixels tall like a key cap, its sprite and word on the
+          capitals' rows, two pixels clear of either end.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">fast forward held, latched, at each speed</span>
+          <div style="display: flex; flex-wrap: wrap; gap: calc(6 * var(--u)); align-items: start">
+            <omega-badge icon="fastforward" text="×2"></omega-badge>
+            <omega-badge icon="fastforward" text="×3"></omega-badge>
+            <omega-badge icon="fastforward" text="×4" lit></omega-badge>
+            <omega-badge icon="fastforward" text="×6" lit></omega-badge>
+          </div>
+          <span class="tag">a link: hosting, joined, lost while hosting, lost when joined</span>
+          <div style="display: flex; flex-wrap: wrap; gap: calc(6 * var(--u)); align-items: start">
+            <omega-badge icon="link" lit></omega-badge>
+            <omega-badge icon="link"></omega-badge>
+            <omega-badge icon="unlinked" lit></omega-badge>
+            <omega-badge icon="unlinked"></omega-badge>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>icon</td><td>The sprite, in <code>--oz-cream</code>: <code>fastforward</code>, <code>link</code>, <code>unlinked</code> (a link that was lost). Fast forward without it.</td></tr>
+            <tr><td>text</td><td>A word after the sprite, 3 art pixels on, in <code>--oz-cream</code>: the speed, <code>×4</code>. None without it.</td></tr>
+            <tr><td>lit</td><td>The band of a lit row, <code>--oz-tab</code> inside a <code>--oz-frame</code> line; unlit, the key cap in <code>--oz-dark</code>.</td></tr>
+            <tr><td>::part</td><td><code>badge</code>, <code>icon</code>, <code>word</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-badge icon="fastforward" text="×4"&gt;&lt;/omega-badge&gt;       &lt;!-- held --&gt;
+&lt;omega-badge icon="fastforward" text="×4" lit&gt;&lt;/omega-badge&gt;   &lt;!-- latched --&gt;
+&lt;omega-badge icon="link" lit&gt;&lt;/omega-badge&gt;                    &lt;!-- hosting a link --&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-saves&gt;</h3><code>components/omega-saves.js</code></header>
+        <p class="dim">Which save state the switcher shows (MENU ×2 in a game), over its screenshot at
+          the top in the middle, under the top bar: a panel titled SAVE STATES, how long ago the save
+          shown was made in its well, and under that a dot for each save the cart has, newest first,
+          the one shown lit. Its tab is only as wide as its title, and it is as wide as the title,
+          the age or the dots need, 41 art pixels tall; the switcher gives it the room of the widest
+          age among its saves, so it holds still as the selection moves. The age starts in line with
+          the title, the dots a row past its line, where a descender reaches, and the well shows as
+          much under them as over the age's capitals.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">the newest of four, the third, the last of ten</span>
+          <div style="display: flex; flex-wrap: wrap; gap: calc(6 * var(--u)); align-items: flex-start">
+            <omega-saves age="Just now" count="4"></omega-saves>
+            <omega-saves age="4 min ago" count="4" at="2"></omega-saves>
+            <omega-saves age="3 hr ago" count="10" at="9"></omega-saves>
+          </div>
+          <span class="tag">half a day old: its day and time; and one save, held as wide as that</span>
+          <div style="display: flex; flex-wrap: wrap; gap: calc(6 * var(--u)); align-items: flex-start">
+            <omega-saves age="2026-08-08 20:00" count="3" at="2"></omega-saves>
+            <omega-saves age="Just now" style="width: calc(108 * var(--u))"></omega-saves>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>age</td><td>How long ago the save shown was made, in cream: <code>Just now</code>, <code>4 min ago</code>, <code>3 hr ago</code>, or its day and time once it is half a day old.</td></tr>
+            <tr><td>count</td><td>How many saves there are, a dot for each, 5 art pixels round and 3 apart; a cart keeps up to 10. Default 1.</td></tr>
+            <tr><td>at</td><td>Which of them is shown, from 0, the newest: its dot is lit in <code>--oz-cream</code>, the rest are <code>--oz-plate</code>. Default 0.</td></tr>
+            <tr><td>label</td><td>The title in the tab. Default <code>SAVE STATES</code>.</td></tr>
+            <tr><td>::part</td><td><code>panel</code> (the <code>&lt;omega-panel&gt;</code>), <code>age</code>, <code>dots</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-saves age="4 min ago" count="4" at="1"&gt;&lt;/omega-saves&gt;
+&lt;omega-saves age="Just now" count="2" style="width: calc(108 * var(--u))"&gt;&lt;/omega-saves&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-hints&gt;</h3><code>components/omega-hints.js</code></header>
+        <p class="dim">A screen's keys on one line of the kit, on a ground of their own, for where the
+          bottom bar's hints would sit on a picture: a title tab naming what they are for, then a
+          well holding the keys, each its key in a small dark cap and then the word, as the bar draws
+          its hints. It is drawn as <code>&lt;omega-gauge&gt;</code> with the keys in the well for
+          its cells, 15 art pixels tall like the bar; their capitals stand on the title's rows, so
+          each cap fills the well's inside from top to bottom, and the well shows 2 art pixels
+          either side of them. Put one just above the bar over a game or a photo, where the bar's
+          own hints would be hard to read. Given a width, the well takes what is over, the keys at
+          its left, so a line can keep the room of its widest keys as one comes and goes.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">two keys, and one</span>
+          <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
+            <omega-hints label="NETWORK" hint="X SCAN | Y FORGET"></omega-hints>
+            <omega-hints label="NETWORK" hint="X SCAN"></omega-hints>
+          </div>
+          <div class="side">
+            <figure>
+              <span class="tag">one key held as wide as two; none; three keys, one with no word</span>
+              <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
+                <omega-hints label="NETWORK" hint="X SCAN" style="width: calc(150 * var(--u))"></omega-hints>
+                <omega-hints label="KEYS"></omega-hints>
+                <omega-hints label="LABELS" hint="START FETCH | Y SIGN OUT | SELECT"></omega-hints>
+              </div>
+            </figure>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>label</td><td>The name in the tab, in capitals whatever case it is given in, lit in <code>--oz-cream</code>.</td></tr>
+            <tr><td>hint</td><td>The keys, as <code>&lt;omega-bar&gt;</code>'s: a key and what it does, the first word the key, <code>X SCAN</code>; more than one with a <code>|</code> between them, <code>X SCAN | Y FORGET</code>. Each cap is <code>--oz-dark</code>, its letters and the word <code>--oz-cream</code>, 8 art pixels from one key to the next.</td></tr>
+            <tr><td>width</td><td>As wide as the tab and the keys need; a wider one gives the well the rest, the keys at its left.</td></tr>
+            <tr><td>::part</td><td><code>frame</code>, <code>tab</code>, <code>label</code>, <code>slant</code>, <code>strip</code>, <code>well</code>, <code>hints</code>, <code>hint</code>, <code>key</code>, <code>word</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-hints label="NETWORK" hint="X SCAN | Y FORGET"&gt;&lt;/omega-hints&gt;
+&lt;omega-hints label="NETWORK" hint="X SCAN" style="width: calc(150 * var(--u))"&gt;&lt;/omega-hints&gt;   &lt;!-- held as wide --&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
         <header><h3>&lt;omega-bar&gt;</h3><code>components/omega-bar.js</code></header>
         <p class="dim">The bar along the bottom of a screen, as wide as what holds it and 15 art pixels
           tall: an <code>&lt;action-left&gt;</code> and an <code>&lt;action-right&gt;</code> at its ends
@@ -598,6 +815,66 @@
   &lt;action-left slot="left" label="RETURN" hint="B"&gt;&lt;/action-left&gt;
   &lt;action-right slot="right" label="CONFIRM" hint="A"&gt;&lt;/action-right&gt;
 &lt;/omega-bar&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-link&gt;</h3><code>components/omega-link.js</code></header>
+        <p class="dim">The art of the link screen a game opens with SELECT + MENU, one piece at a
+          time: the link port along the console's top edge, the GBA link cable's plug on its cable,
+          the wireless adapter, the radio arcs it calls out with and the clicks of a plug going
+          home. The screen moves them, a whole art pixel at a time: the plug drops into the port and
+          lifts out of it, a failed link shakes it a pixel either way, and the arcs pulse in the four
+          steps of a fade. The plug and the adapter are real things and keep their own colours, the
+          plug the purple of the real cable (the joiner's end grey, wider, with the socket a third
+          player's cable goes into); the port, the arcs and the clicks follow the palette.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">the host's plug and the joiner's on their cable, and the adapter</span>
+          <div class="link-scene" style="width: calc(200 * var(--u)); height: calc(70 * var(--u))">
+            <omega-link piece="cable" length="14" style="left: calc(12 * var(--u)); top: 0"></omega-link>
+            <omega-link piece="plug" role="host" style="left: 0; top: calc(14 * var(--u))"></omega-link>
+            <omega-link piece="cable" length="14" style="left: calc(57 * var(--u)); top: 0"></omega-link>
+            <omega-link piece="plug" role="join" style="left: calc(42 * var(--u)); top: calc(14 * var(--u))"></omega-link>
+            <omega-link piece="adapter" style="left: calc(100 * var(--u)); top: calc(10 * var(--u))"></omega-link>
+          </div>
+          <div class="side">
+            <figure>
+              <span class="tag">a plug home in the port, and its clicks</span>
+              <div class="link-scene" style="width: calc(120 * var(--u)); height: calc(84 * var(--u))">
+                <omega-link piece="cable" length="14" style="left: calc(57 * var(--u)); top: 0"></omega-link>
+                <omega-link piece="plug" role="host" style="left: calc(45 * var(--u)); top: calc(14 * var(--u))"></omega-link>
+                <omega-link piece="port" width="120" height="28" style="left: 0; top: calc(56 * var(--u))"></omega-link>
+                <omega-link piece="clicks" style="left: calc(34 * var(--u)); top: calc(46 * var(--u))"></omega-link>
+              </div>
+            </figure>
+            <figure>
+              <span class="tag">the adapter on the port, calling out</span>
+              <div class="link-scene" style="width: calc(180 * var(--u)); height: calc(76 * var(--u))">
+                <omega-link piece="port" width="180" height="24" style="left: 0; top: calc(52 * var(--u))"></omega-link>
+                <omega-link piece="adapter" style="left: calc(50 * var(--u)); top: calc(8 * var(--u))"></omega-link>
+                <omega-link piece="arc" ring="0" style="left: calc(134 * var(--u)); top: calc(23 * var(--u))"></omega-link>
+                <omega-link piece="arc" ring="1" style="left: calc(140 * var(--u)); top: calc(19 * var(--u))"></omega-link>
+                <omega-link piece="arc" ring="2" style="left: calc(146 * var(--u)); top: calc(15 * var(--u))"></omega-link>
+                <omega-link piece="arc" ring="0" side="left" style="left: calc(41 * var(--u)); top: calc(23 * var(--u))"></omega-link>
+                <omega-link piece="arc" ring="1" side="left" style="left: calc(33 * var(--u)); top: calc(19 * var(--u))"></omega-link>
+                <omega-link piece="arc" ring="2" side="left" style="left: calc(25 * var(--u)); top: calc(15 * var(--u))"></omega-link>
+              </div>
+            </figure>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>piece</td><td><code>plug</code> (default), <code>cable</code>, <code>port</code>, <code>adapter</code>, <code>arc</code> or <code>clicks</code>.</td></tr>
+            <tr><td>role</td><td>The plug's end of the cable: <code>host</code> (default), 30 art pixels wide and purple, or <code>join</code>, 36 wide and grey. Both are 54 tall, their tip the bottom 12, 18 wide in the middle.</td></tr>
+            <tr><td>length</td><td>The cable's length in art pixels; it is 6 wide and goes on the neck's middle. Default 20.</td></tr>
+            <tr><td>width, height</td><td>The port's strip: as wide as the screen, from its top edge to the screen's bottom, under the bar. Its lit edge and stripe in <code>--oz-frame</code> and <code>--oz-stripe</code>, the rest <code>--oz-well</code>, the opening in the middle <code>--oz-dark</code> with five pins in <code>--oz-frame-hi</code>. Defaults 160 and 36.</td></tr>
+            <tr><td>ring, side</td><td>Which radio arc, <code>0</code> (5 by 14) to <code>2</code> (9 by 30), and which side of the adapter, <code>right</code> (default) or <code>left</code>. In <code>--oz-cream</code>, two pixels thick.</td></tr>
+            <tr><td>::part</td><td><code>art</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-link piece="plug" role="host"&gt;&lt;/omega-link&gt;
+&lt;omega-link piece="port" width="320" height="36"&gt;&lt;/omega-link&gt;
+&lt;omega-link piece="arc" ring="2" side="left"&gt;&lt;/omega-link&gt;</code></pre>
       </article>
 
       <article class="card">

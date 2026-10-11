@@ -428,7 +428,7 @@ fn the_core_pickers_cancel_and_choose_are_the_bars_return_and_confirm() {
         vec![id(902), id(903)],
         vec![id(904), id(905)],
         id(906),
-        id(907),
+        [id(907), id(908)],
     );
     a.set_core_board_faces(id(900), id(901));
     a.apply(Action::GbaDown(Btn::X));
@@ -668,7 +668,7 @@ fn picker_faces(a: &mut App) {
         vec![id(902), id(903)],
         vec![id(904), id(905)],
         id(906),
-        id(907),
+        [id(907), id(908)],
     );
     a.set_core_board_faces(id(900), id(901));
 }
@@ -751,4 +751,53 @@ fn the_swap_fits_between_return_and_confirm() {
         wide + 8 <= room,
         "the swap is {wide} wide in a room {room} wide"
     );
+}
+
+/// The save states over a game have the bar, B RETURN and A LOAD at its ends, from the moment
+/// they open to the moment they close; the game under them has none.
+#[test]
+fn the_save_states_have_return_and_load_and_the_game_none() {
+    let d = tmp_root_with_carts(&["Emerald"]);
+    let mut a = common::app_playing_in(d.path(), "Emerald");
+    fake_bar(&mut a);
+    a.apply_at(Action::SaveState, 1_000);
+    assert_eq!(a.bar_place(), None, "the game has a bar");
+    assert_eq!(Actions::Switcher.action(Side::Left), ("RETURN", "B"));
+    assert_eq!(Actions::Switcher.action(Side::Right), ("LOAD", "A"));
+
+    a.apply_at(Action::Polaroids, 1_100);
+    let place = a.bar_place().expect("the save states have no bar");
+    assert_eq!(
+        (place.actions, place.sink, place.drop),
+        (Actions::Switcher, 0, 0)
+    );
+    let set = a.bar_faces().unwrap().sets[Actions::Switcher.index()];
+    let px = |art: u32| (art * SPRITE_PX) as f32;
+    let right = px(out_w() / SPRITE_PX - set.right.1);
+    let out = frame(&a);
+    let (l, r) = (set.left, set.right);
+    assert!(
+        out.contains(&quad(l.0, l.1, l.2, 0.0, rest_y())),
+        "no RETURN"
+    );
+    assert!(
+        out.contains(&quad(r.0, r.1, r.2, right, rest_y())),
+        "no LOAD"
+    );
+
+    a.apply_at(Action::GbaDown(Btn::B), 1_200);
+    assert!(matches!(a.phase(), Phase::Playing { .. }));
+    assert_eq!(a.bar_place(), None, "the bar stayed over the game");
+}
+
+/// The save states' bar has nothing between RETURN and LOAD: saving and loading is all they do.
+#[test]
+fn nothing_is_between_return_and_load() {
+    let d = tmp_root_with_carts(&["Emerald"]);
+    let mut a = common::app_playing_in(d.path(), "Emerald");
+    a.apply_at(Action::SaveState, 1_000);
+    a.apply_at(Action::Polaroids, 1_100);
+    assert!(matches!(a.phase(), Phase::Polaroids { .. }));
+    assert!(a.bar_hints(a.phase()).is_empty(), "the bar has hints");
+    assert!(a.bar_hints_shown().is_empty(), "the bar shows hints");
 }

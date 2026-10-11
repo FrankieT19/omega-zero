@@ -640,6 +640,52 @@ fn the_clear_shell_lightens_at_its_rim_and_the_plain_one_does_not() {
     }
 }
 
+/// A generated label's title is set at one art pixel (two of the label's) to one of Pixel Code's,
+/// short or long, as every word in the UI is: never at one and a half (27 px) or two.
+#[test]
+fn a_generated_title_is_set_one_art_pixel_to_a_face_pixel() {
+    let gba = |stem: &str| {
+        let d = tmp_root();
+        std::fs::write(d.path().join(format!("Games/GBA/{stem}.gba")), [0u8; 8]).unwrap();
+        (
+            cart_face(&scan(d.path()).unwrap()[0]),
+            [LABEL_X, LABEL_Y, LABEL_W, LABEL_H],
+        )
+    };
+    let gb = |stem: &str| {
+        let d = tmp_root();
+        write_gb_rom(&d, "GB", &format!("{stem}.gb"), 0x00);
+        let label = [GB_LABEL_X, GB_LABEL_Y, GB_LABEL_W, GB_LABEL_H];
+        (cart_face(&scan(d.path()).unwrap()[0]), label)
+    };
+    let long = "Supercalifragilisticexpialidocious Anniversary Edition";
+    for (stem, (face, [lx, ly, lw, lh]), face_px) in [
+        ("Zelda", gba("Zelda"), 2),
+        ("Minish Cap", gba("Minish Cap"), 2),
+        ("Pokemon Emerald Version", gba("Pokemon Emerald Version"), 2),
+        (long, gba(long), 2),
+        ("Tetris", gb("Tetris"), 2),
+        ("Links Awakening", gb("Links Awakening"), 2),
+    ] {
+        let bg = label_colour(stem);
+        let ink = |x: u32, y: u32| pixel(&face, lx + x, ly + y) != bg;
+        let rows: Vec<u32> = (0..lh).filter(|&y| (0..lw).any(|x| ink(x, y))).collect();
+        let caps = 1 + rows.windows(2).take_while(|r| r[1] == r[0] + 1).count() as u32;
+        assert_eq!(caps, 7 * face_px, "{stem}: capitals {caps} rows tall");
+        for y in 0..lh {
+            let mut run = 0;
+            for x in 0..=lw {
+                if x < lw && ink(x, y) {
+                    run += 1;
+                } else if run > 0 {
+                    assert_eq!(run % face_px, 0, "{stem}: a run of {run} at row {y}");
+                    run = 0;
+                }
+            }
+        }
+    }
+}
+
 #[test]
 fn a_game_boy_title_stays_inside_its_near_square_label() {
     for stem in [

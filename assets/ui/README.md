@@ -28,6 +28,12 @@ assets/ui/
     ├── omega-row.js       <omega-row>       one setting in a panel, lit under the cursor
     ├── omega-list-row.js  <omega-list-row>  a Wi-Fi network or Bluetooth device in a list
     ├── omega-bar.js       <omega-bar>       the bottom bar: two actions, key hints between them
+    ├── omega-gauge.js     <omega-gauge>     a level on one line: a title tab, then cells and an icon
+    ├── omega-toast.js     <omega-toast>     what just happened: a lone panel's tab and one line
+    ├── omega-badge.js     <omega-badge>     what a game is doing: a key cap, a sprite and a word
+    ├── omega-saves.js     <omega-saves>     which save state the switcher shows: its age, a dot each
+    ├── omega-hints.js     <omega-hints>     keys on a line of their own: a title tab, then the keys
+    ├── omega-link.js      <omega-link>      the link screen's art: the port, the plug, the adapter …
     ├── action-left.js     <action-left>     the bottom bar's left action
     ├── action-right.js    <action-right>    the same, mirrored
     ├── omega-button.js    <omega-button>    a page's link or button, drawn as the bar's pill
@@ -55,6 +61,11 @@ classic scripts, no build step, so it works from `file://`.
 <script src="components/action-left.js"></script>
 <script src="components/action-right.js"></script>
 <script src="components/omega-bar.js"></script>
+<script src="components/omega-gauge.js"></script>
+<script src="components/omega-hints.js"></script>   <!-- after omega-gauge.js and omega-bar.js -->
+<script src="components/omega-toast.js"></script>   <!-- after omega-panel.js, which it is drawn with -->
+<script src="components/omega-badge.js"></script>
+<script src="components/omega-saves.js"></script>  <!-- after omega-panel.js -->
 
 <div class="omega-backdrop" data-style="plates" data-moving></div>  <!-- Grid without data-style -->
 
@@ -66,6 +77,11 @@ classic scripts, no build step, so it works from `file://`.
     <omega-list-row label="8BitDo SN30 Pro" value="CONNECTED" device="gamepad"></omega-list-row>
   </omega-panel>
 </omega-modal>
+<omega-gauge label="VOLUME" value="55" max="100" cells="20" icon="volume"></omega-gauge>
+<omega-toast label="SAVE STATE" text="State saved"></omega-toast>
+<omega-badge icon="fastforward" text="×4" lit></omega-badge>
+<omega-saves age="4 min ago" count="4" at="1"></omega-saves>
+<omega-hints label="NETWORK" hint="X SCAN | Y FORGET"></omega-hints>
 <omega-bar hint="Y RESET">
   <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
   <action-right slot="right" label="SETTINGS" hint="START"></action-right>
@@ -73,6 +89,16 @@ classic scripts, no build step, so it works from `file://`.
 
 <script>OmegaPalette.apply('teal')</script>  <!-- Night unless told otherwise -->
 ```
+
+## Over a game
+
+`<omega-gauge>`, `<omega-toast>` and `<omega-badge>` are what omega-zero puts over a game, the
+shelf or a menu, with nothing behind them but what is on the screen. A gauge (volume 20 cells,
+brightness and blue light 9, rewind 20) or a toast stands centred at the top, 4 art pixels down,
+or 2 under the top bar where the shelf shows it; only one at a time, a toast taking the gauge's
+place. Each comes at once and goes in four even steps of fading out. A badge stays in the top
+right corner while it lasts, level with a gauge's middle: fast forward, `×2` to `×6` as Settings
+sets its speed, lit once latched, or the link, which outranks it.
 
 ## Pages around the menus
 
@@ -105,8 +131,8 @@ followed, and that copy is what GitHub Pages serves, the storybook at `kit/story
 `flow.html` puts every menu screen together from the kit (the shelf, Settings and everything
 under it, CONTROLS, the power menu and the screens after it) and moves between them with the slides the device draws: 280 ms,
 smootherstep, every frame on whole art pixels. It is the approved reference for the Rust screens.
-Open it from disk like the storybook. What Rust draws itself (the carts, the slot, the top bar,
-the About sticker) is a flat placeholder.
+Open it from disk like the storybook. What Rust draws itself (the carts, the slot, the top bar)
+is a flat placeholder.
 
 Walk it with the keyboard or the buttons under the screen:
 
@@ -147,6 +173,13 @@ disconnects; Y forgets a paired device. The bar says `X SCAN` while the radio is
 "Bluetooth is off.". Settings' BLUETOOTH row shows the connected device's name in capitals,
 else ON or OFF.
 
+Settings > About is a modal like Settings, with nothing to pick: OMEGA-ZERO, as tall as its
+rows, says the version, the build (the commit, `-DIRTY` after it for a build with changes not
+committed), the author, the handheld as BaseOS names it and its battery, each a name and a value
+as SSH's lines are; CREDITS under it says what omega-zero is made with and on, a line each in
+a row name's colour, three pixels in as a note is, and ends on slot's in the dim colour. Both
+titles are lit and no row is.
+
 Holding POWER opens POWER on any screen, a lone panel like THEME's with RESTART and POWER OFF,
 deeper from the screen it was held on, which its B goes back to. A on either row goes deeper to
 the screen shown until the handheld goes down: RESTART saying "Restarting…" or POWER OFF saying
@@ -179,6 +212,35 @@ flow.html#screen=network&from=settings&t=0.5&colour=amber&shot=1
 is Settings halfway through sliding out to the right for Network, in Amber, ready for a
 screenshot the size of the panel.
 
+## The save states
+
+The save-state switcher, MENU ×2 in a game, is drawn from the kit over the screenshot of the
+save it shows, which is drawn as the game is: the shelf's top bar, `<omega-saves>` at the top in
+the middle 8 art pixels under it, and the bar with B RETURN and A LOAD and nothing between them:
+a save state is saved and loaded, nothing more. Left and Right move between the saves; the panel
+says how old the one shown is and lights its dot.
+
+`<omega-hints>` is for any keys that would sit on a picture: it is `<omega-gauge>`'s chrome, the
+frame, the title tab and its slant, and the well, with the keys in the well drawn as
+`<omega-bar>` draws its hints, a dark cap and then the word, on the title's rows. The two share
+their code: `OmegaGauge` in omega-gauge.js and `OmegaBar` in omega-bar.js, as `gauge_chrome`
+and `draw_hints` do in Rust (crates/omega-ui/src/kit/hints.rs).
+
+## The link screen
+
+SELECT + MENU in a game opens the link screen over it, drawn in the kit like the menus: the
+backdrop, a lone LINK panel at the top with ROLE (HOST or JOIN, lit with its carets while the
+player picks) and MODE (CABLE or WIRELESS), and under them, as a note, what is happening
+("Looking for the other player", "Nobody arrived", "Linked"); the art between it and the bar; and
+the bar, B RETURN and A LINK while picking with SELECT MODE (where the game can switch) and
+◀▶ SWAP between them, B CANCEL while linking, A OK when it failed, B RETURN and A END LINK over a
+link under way. `<omega-link>` draws the art one piece at a time: the port's strip along the
+bottom under the bar, the plug on its cable running up behind the panel, the wireless adapter and
+its radio arcs, and the clicks of a plug going home. The device moves them a whole art pixel at a
+time: the plug drops into the port and lifts out of it, a failed link shakes it a pixel either
+way, and the arcs pulse in the four steps of a fade. The plug and the adapter keep their own
+colours, the plug the purple of the real GBA link cable; everything else follows the palette.
+
 ## The rules
 
 These are what make it look like one thing. Keep to them when changing or adding to the kit.
@@ -206,6 +268,10 @@ These are what make it look like one thing. Keep to them when changing or adding
 - **Each area is its own div**, named with `part` so a page can reach it with `::part()`.
 - **Space is even.** Text gets the same room above as below inside its box; a title starts from
   its tab's left edge.
+- **One exception: the GAME BOY ADVANCE band round a game.** On the real console that strip is a
+  label printed in high resolution, and the band imitates it, so it keeps the look of a
+  high-resolution print and is never redrawn as pixel art. Everything else on screen is pixel art
+  on this grid.
 
 ## Adding a component
 

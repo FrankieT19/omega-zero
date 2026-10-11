@@ -1,29 +1,25 @@
+//! The save-state switcher, MENU ×2 in a game: the screenshot of the save it shows, drawn through
+//! the game's pipeline where the game is, and over it, at the top in the middle under the top
+//! bar, the kit's SAVE STATES panel (kit/saves.rs) saying how old that save is and which of them
+//! it is. The top bar and the bottom bar, B RETURN and A LOAD with nothing between them, are the
+//! shelf's and the menus' own, which the app draws over it.
+
 use omega_gfx::{out_h, out_w, Draw, TexId};
-use omega_power::Battery;
 use omega_store::{parse_stamp, StateEntry};
 
 use crate::art;
-use crate::battery::{draw_gauge, GAUGE_H};
-use crate::footer::{draw_printed, Printed};
-use crate::hud::{HUD_INK, PLATE, PLATE_H};
-use crate::plate::{
-    hint_quad, hint_row, hint_width, word_cap_top, Hint, HINT_GAP, HINT_H, TITLE_H, TITLE_W,
-};
+use crate::kit::layout::screen_px;
+use crate::kit::pixel::quad;
+use crate::sprite::SPRITE_PX;
+use crate::status_bar::TOP_BAR_H;
 
 pub const PHOTO_W: u32 = 240;
 pub const PHOTO_H: u32 = 160;
 
 const BLANK: [u8; 3] = [0x3a, 0x3a, 0x3e];
 
-pub const DOT: f32 = 6.0;
-const DOT_GAP: f32 = 10.0;
-const DOT_DIM: f32 = 0.35;
-
-const MARGIN: f32 = 16.0;
-
-pub const LEGEND: [(&str, &str); 3] = [("B", "Back"), ("Y", "Delete"), ("A", "Load")];
-const WAYS_OUT: usize = 2;
-const UNDO_KEY: &str = "X";
+/// How far under the top bar the panel stands, in art pixels.
+const PANEL_GAP: u32 = 8;
 
 pub struct PhotoFace {
     pub rgba: Vec<u8>,
@@ -51,9 +47,8 @@ pub struct Polaroids {
     pub entries: Vec<StateEntry>,
     pub index: usize,
     faces: Vec<TexId>,
-    title: Option<TexId>,
-    hint_faces: Vec<TexId>,
-    undo: Option<String>,
+    /// The panel's face, uploaded, and its size in art pixels.
+    panel: Option<(TexId, u32, u32)>,
 }
 
 impl Polaroids {
@@ -62,9 +57,7 @@ impl Polaroids {
             entries,
             index: 0,
             faces: Vec::new(),
-            title: None,
-            hint_faces: Vec::new(),
-            undo: None,
+            panel: None,
         }
     }
 
@@ -72,27 +65,9 @@ impl Polaroids {
         self.faces = faces;
     }
 
-    pub fn set_title_face(&mut self, face: Option<TexId>) {
-        self.title = face;
-    }
-
-    pub fn set_hint_faces(&mut self, faces: Vec<TexId>) {
-        self.hint_faces = faces;
-    }
-
-    pub fn set_undo(&mut self, label: Option<&str>) {
-        self.undo = label.map(str::to_string);
-    }
-
-    pub fn hints(&self) -> Vec<Hint> {
-        let mut out = hint_row(&LEGEND);
-        if let Some(label) = &self.undo {
-            out.push(Hint {
-                key: UNDO_KEY,
-                label: label.clone(),
-            });
-        }
-        out
+    /// The SAVE STATES panel, `kit::saves::saves_face` uploaded as `tex`, `w` by `h` art pixels.
+    pub fn set_panel_face(&mut self, tex: TexId, w: u32, h: u32) {
+        self.panel = Some((tex, w, h));
     }
 
     pub fn is_empty(&self) -> bool {
@@ -107,22 +82,18 @@ impl Polaroids {
         (self.entries.len(), self.index)
     }
 
-    pub fn title(&self, now: &str) -> String {
-        match self.selected() {
-            Some(e) => Self::relative_time(&e.stamp, now),
-            None => String::new(),
-        }
+    /// How long before `now` the save shown was made, as its panel says it.
+    pub fn age(&self, now: &str) -> String {
+        self.selected()
+            .map_or_else(String::new, |e| Self::age_of(&e.stamp, now))
     }
 
-    pub fn remove_selected(&mut self) {
-        if self.index >= self.entries.len() {
-            return;
-        }
-        self.entries.remove(self.index);
-        if self.index < self.faces.len() {
-            self.faces.remove(self.index);
-        }
-        self.index = self.index.min(self.entries.len().saturating_sub(1));
+    /// Every save's age, newest first: the panel takes the room of the widest.
+    pub fn ages(&self, now: &str) -> Vec<String> {
+        self.entries
+            .iter()
+            .map(|e| Self::age_of(&e.stamp, now))
+            .collect()
     }
 
     pub fn left(&mut self) {
@@ -133,19 +104,21 @@ impl Polaroids {
         self.index = (self.index + 1).min(self.entries.len().saturating_sub(1));
     }
 
-    /// The switcher over the game. Its bar keeps the white it always had, whatever the
-    /// palette: the figure, the bolt and the clock handed in are baked in [`HUD_INK`].
-    pub fn draw(
-        &self,
-        battery: Option<Battery>,
-        battery_percent: Printed,
-        bolt: Option<TexId>,
-        clock: Printed,
-        out: &mut Vec<Draw>,
-    ) {
+    /// The switcher over the game: the screenshot, then the panel once it is made.
+    pub fn draw(&self, out: &mut Vec<Draw>) {
         self.draw_photo(out);
-        self.draw_top(battery, battery_percent, bolt, clock, out);
-        self.draw_bottom(out);
+        if let Some((tex, w, h)) = self.panel {
+            let [x, y, w, h] = Self::panel_rect(w, h);
+            out.push(quad(tex, w, h, screen_px(x), screen_px(y)));
+        }
+    }
+
+    /// Where a panel `w` by `h` art pixels goes, `[x, y, w, h]` in art pixels: across the
+    /// middle of the screen, rounded down to a whole art pixel, `PANEL_GAP` under the top bar.
+    pub fn panel_rect(w: u32, h: u32) -> [u32; 4] {
+        let across = out_w() / SPRITE_PX;
+        let top = TOP_BAR_H as u32 / SPRITE_PX + PANEL_GAP;
+        [across.saturating_sub(w) / 2, top, w, h]
     }
 
     fn draw_photo(&self, out: &mut Vec<Draw>) {
@@ -167,69 +140,14 @@ impl Polaroids {
         });
     }
 
-    fn draw_top(
-        &self,
-        battery: Option<Battery>,
-        battery_percent: Printed,
-        bolt: Option<TexId>,
-        clock: Printed,
-        out: &mut Vec<Draw>,
-    ) {
-        out.push(plate(0.0));
-        if let Some(tex) = self.title {
-            out.push(Draw::Tex {
-                x: (out_w() as f32 - TITLE_W as f32) / 2.0,
-                y: (PLATE_H - TITLE_H as f32) / 2.0,
-                w: TITLE_W as f32,
-                h: TITLE_H as f32,
-                tex,
-                alpha: 1.0,
-            });
-        }
-
-        let band = ((PLATE_H - GAUGE_H) / 2.0).round();
-        draw_gauge(MARGIN, band, battery, battery_percent, bolt, HUD_INK, out);
-        if clock.w > 0 {
-            let x = out_w() as f32 - MARGIN - clock.w as f32;
-            draw_printed(x, band - word_cap_top(), clock, out);
-        }
-    }
-
-    fn draw_bottom(&self, out: &mut Vec<Draw>) {
-        let top = out_h() as f32 - PLATE_H;
-        out.push(plate(top));
-        let y = top + (PLATE_H - HINT_H as f32) / 2.0;
-        let hints = self.hints();
-        let widths: Vec<f32> = hints
-            .iter()
-            .map(|h| hint_width(h.key, &h.label) as f32)
-            .collect();
-        let tail = &widths[WAYS_OUT..];
-        let tail_w = tail.iter().sum::<f32>() + HINT_GAP * (tail.len() - 1) as f32;
-        let mut x = MARGIN;
-        for (i, w) in widths.iter().enumerate() {
-            if i == WAYS_OUT {
-                x = out_w() as f32 - MARGIN - tail_w;
-            }
-            out.push(hint_quad(x, y, *w, self.hint_faces.get(i).copied()));
-            x += w + HINT_GAP;
-        }
-        self.draw_dots(top, out);
-    }
-
-    fn draw_dots(&self, top: f32, out: &mut Vec<Draw>) {
-        let n = self.entries.len();
-        let row = n as f32 * DOT + (n as f32 - 1.0).max(0.0) * DOT_GAP;
-        let mut x = (out_w() as f32 - row) / 2.0;
-        for i in 0..n {
-            out.push(Draw::Rect {
-                x,
-                y: top + (PLATE_H - DOT) / 2.0,
-                w: DOT,
-                h: DOT,
-                colour: [1.0, 1.0, 1.0, if i == self.index { 1.0 } else { DOT_DIM }],
-            });
-            x += DOT + DOT_GAP;
+    /// `relative_time` as the panel's well says it, its first letter a capital: "Just now",
+    /// "4 min ago", "2026-08-08 20:00".
+    pub fn age_of(stamp: &str, now: &str) -> String {
+        let said = Self::relative_time(stamp, now);
+        let mut chars = said.chars();
+        match chars.next() {
+            Some(first) => first.to_uppercase().chain(chars).collect(),
+            None => said,
         }
     }
 
@@ -249,15 +167,5 @@ impl Polaroids {
             return format!("{} hr ago", delta / 3600);
         }
         format!("{} {}:{}", &stamp[..10], &stamp[11..13], &stamp[14..16])
-    }
-}
-
-fn plate(y: f32) -> Draw {
-    Draw::Rect {
-        x: 0.0,
-        y,
-        w: out_w() as f32,
-        h: PLATE_H,
-        colour: PLATE,
     }
 }

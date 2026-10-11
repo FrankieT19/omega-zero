@@ -103,6 +103,27 @@ fn a_drifting_pattern_moves_slowly_by_the_clock_not_the_frame_and_starts_over() 
     assert_eq!(backdrop_shift(BackdropStyle::Solid, true, 9_999), 0);
 }
 
+/// A pattern drifts a whole art pixel at a time, never one screen pixel, so its 2x2 pixels stay
+/// on the grid the shelf and the menus are drawn on, frame after frame.
+#[test]
+fn a_drifting_pattern_moves_a_whole_art_pixel_at_a_time() {
+    for style in patterns() {
+        let mut was = 0;
+        let mut steps = 0;
+        for ms in 0..20_000 {
+            let s = backdrop_shift(style, true, ms);
+            assert_eq!(s % 2, 0, "{style:?} sits half an art pixel off at {ms} ms");
+            if s != was {
+                let step = (s + backdrop_period(style) - was) % backdrop_period(style);
+                assert_eq!(step, 2, "{style:?} jumped {step} px at {ms} ms");
+                steps += 1;
+            }
+            was = s;
+        }
+        assert!(steps > 50, "{style:?} hardly moved: {steps} steps in 20 s");
+    }
+}
+
 #[test]
 fn every_colour_has_a_name_and_stays_dark_enough_for_a_label() {
     assert_eq!(BACKDROP_PALETTE.len(), BACKDROP_COLOURS.len());

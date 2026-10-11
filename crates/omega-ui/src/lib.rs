@@ -1,6 +1,5 @@
 mod art;
 mod backdrop;
-mod barcode;
 mod battery;
 mod bezel;
 mod board;
@@ -9,15 +8,13 @@ mod clock;
 mod draw;
 mod footer;
 mod hud;
-mod icon;
 mod keyboard;
 pub mod kit;
-mod link_art;
+pub mod link_art;
 pub mod network;
 mod plate;
 mod polaroids;
 mod power_menu;
-mod quick_menu;
 mod refusal;
 mod settings_menu;
 mod shelf;
@@ -28,7 +25,6 @@ mod spin;
 mod sprite;
 mod stage;
 mod status_bar;
-mod sticker;
 pub mod text;
 mod toast;
 
@@ -36,18 +32,18 @@ pub use backdrop::{
     backdrop_colour_name, backdrop_pattern_face, backdrop_period, backdrop_rgb, backdrop_shift,
     backdrop_speed, draw_backdrop, draw_pattern, draw_solid, wallpaper_face, BACKDROP_PALETTE,
 };
-pub use barcode::{code39, CODE39_NARROW, CODE39_WIDE};
-pub use battery::{bolt_face, draw_gauge, gauge_width, GAUGE_H, GAUGE_W, WALL};
+pub use battery::{bolt_face, draw_gauge, gauge_width, FIGURE_AT, GAUGE_H, GAUGE_W, WALL};
 pub use bezel::{
     bezel_mark_face, mark_height, mark_rect, overlay_clear, overlay_face, overlay_path, rim,
     BEZEL_FILL, BEZEL_INK, RIM_W,
 };
 pub use board::{
     board_at, board_face, board_from, board_x, board_y, board_zoom, chip_face, chip_shadow_face,
-    grown, lid_at, lid_from, lift_of, on_board, padded, rom_marking, rom_marking_face, shelf_cart,
-    shelf_cart_at, slide_of, socket_face, Placed, BOARD_H, BOARD_W, CHIP_H, CHIP_TIP, CHIP_U,
-    CHIP_V, CHIP_W, HOP_LIFT, LID_TURN, ROM_H, ROM_W, ROM_X, ROM_Y, SHADOW_H, SHADOW_W,
-    SLIDE_SHARE, SLIDE_UP, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
+    grown, lid_at, lid_from, lid_shadow_face, lift_of, on_board, padded, rom_marking,
+    rom_marking_face, shelf_cart, shelf_cart_at, slide_of, socket_face, Placed, BOARD_H, BOARD_W,
+    CHIP_H, CHIP_U, CHIP_V, CHIP_W, HOP_LIFT, LID_SHADOW_H, LID_SHADOW_W, LID_TURN, ROM_H, ROM_W,
+    ROM_X, ROM_Y, SHADOW_AT, SHADOW_H, SHADOW_W, SLIDE_SHARE, SLIDE_UP, SOCKET_H, SOCKET_U,
+    SOCKET_V, SOCKET_W, TURN_PAD,
 };
 pub use cart::{
     cart_box, cart_face, cart_shadow, clean_label, gb_cart_shadow, gb_label_panel, gb_shell_of,
@@ -59,32 +55,20 @@ pub use clock::{clock_label, date_time_text, hhmm, ClockPicker, Field};
 pub use draw::{out_h, out_w, Draw, MeshId, TexId};
 pub use footer::Printed;
 pub use hud::{
-    badge_at, ff_badge, FfState, Hud, HudKind, LinkBadge, Millis, HUD_ICON_PX, HUD_INK, HUD_MS,
-    LINK_HOST_INK, LINK_JOIN_INK, PLATE_H,
+    CornerBadge, FfState, Gauge, Hud, HudFace, HudKind, LinkBadge, Millis, HUD_INK, HUD_MS, MARGIN,
+    SCREEN_MARGIN,
 };
-pub use icon::{badge_face, icon_box, icon_face, Badge, Icon};
 pub use keyboard::{
     bottom_label, field_face, key_box, key_label, key_on, key_rect, keyboard_place, keyboard_title,
     keys_face, lit_key_face, row_len, window_face, Key, Keyboard, KeyboardFaces, KeyboardLook,
     KeyboardPlace, KeyboardScreen, KeyboardStale, Layer, BOTTOM, FIELD_H, KEYS_H, KEYS_W, KEY_COLS,
     KEY_GAP, KEY_H, KEY_ROWS, KEY_W, MAX_TEXT,
 };
-pub use link_art::{
-    arcs, arrow_left_x, arrow_right_x, arrow_y, clicks_x, clicks_y, link_art, port_y, LinkArt,
-    ADAPTER_BASE_X, ADAPTER_BASE_Y, ADAPTER_H, ADAPTER_W, ARROW_H, ARROW_W, CLICKS_H, CLICKS_W,
-    PLUG_H, PLUG_TIP_X, PLUG_W, PORT_H, PORT_W,
-};
-pub use plate::{
-    arrows_hint_face, arrows_hint_width, cap_width, centred_hints, hint_face, hint_quad, hint_row,
-    hint_width, title_face, word_cap_top, word_face, word_face_in, word_tail, word_width, Hint,
-    UndoFace, ARROW_GAP, CAP, CAP_GAP, HINT_EDGE, HINT_GAP, HINT_H, LEGEND_GAP, TITLE_H, TITLE_W,
-};
-pub use polaroids::{photo_face, PhotoFace, Polaroids, DOT, LEGEND, PHOTO_H, PHOTO_W};
+pub use kit::badge::BadgeIcon;
+pub use kit::gauge::GaugeIcon;
+pub use plate::{word_cap_top, UndoFace, HINT_H};
+pub use polaroids::{photo_face, PhotoFace, Polaroids, PHOTO_H, PHOTO_W};
 pub use power_menu::PowerChoice;
-pub use quick_menu::{
-    menu_face, quick_caret_face, quick_value_face, MENU_H, MENU_INK, MENU_PAD, QUICK_EDGE,
-    QUICK_PITCH,
-};
 pub use refusal::Refusal;
 pub use settings_menu::{
     configs_in, settings_frame, settings_panels, settings_row_face, settings_row_rects,
@@ -99,18 +83,15 @@ pub use shell::{
 };
 pub use silhouette::{gb_silhouette, silhouette, GbShell};
 pub use slot_chrome::{
-    draw_empty_slot, draw_slot_name, ease, edge, housing, opening, recess, set_theme, slot_top,
-    ChromeColours, SlotChrome, ALERT_PX, BAR_H, CATCH_OUT, LIP_H, MOUTH_H, MOUTH_W, SLOT_RAISE,
+    alert_face, draw_empty_slot, draw_slot_name, ease, edge, housing, opening, recess, set_theme,
+    slot_name_face, slot_top, ChromeColours, SlotChrome, ALERT_H, ALERT_W, BAR_H, CATCH_OUT, LIP_H,
+    MOUTH_H, MOUTH_W, SLOT_RAISE,
 };
 pub use spin::{
     cart_mesh, posed_cart, posed_face, push_cart_side, CartMeshes, CartModel, Pose, OUTLINE_INSET,
     THICK,
 };
-pub use sprite::{CELL_PX, SPRITE_PX};
+pub use sprite::{CELL, CELL_PX, SPRITE_PX};
 pub use stage::{stage_x, stage_y, MOCKUP_H, MOCKUP_W};
 pub use status_bar::{link_face, Link, LinkFaces, Links, TopBar, LINK_OFF, LINK_ON, TOP_BAR_H};
-pub use sticker::{
-    draw_sticker, head_rows, sticker_face, sticker_lines, sticker_rect, StickerFields, COPYRIGHT,
-    CREDITS, DC, HOME, ORIGIN, STICKER_H, STICKER_W,
-};
-pub use toast::{toast_box, toast_face, toast_rect, Toast};
+pub use toast::Toast;

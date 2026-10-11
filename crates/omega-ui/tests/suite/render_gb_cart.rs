@@ -1,5 +1,5 @@
 use omega_store::scan;
-use omega_ui::{cart_face, out_h, rest_y, slot_top, CartFace, CART_W, PLATE_H};
+use omega_ui::{cart_face, out_h, rest_y, slot_top, CartFace, CART_W, TOP_BAR_H};
 use tempfile::TempDir;
 
 const COLS: u32 = 4;
@@ -59,7 +59,11 @@ fn render_gb_cart() {
     let mut frame = Vec::with_capacity((SHEET_W * out_h() * 3) as usize);
     for y in 0..out_h() {
         for _ in 0..SHEET_W {
-            let c = if (y as f32) < PLATE_H { PLATE } else { GROUND };
+            let c = if (y as f32) < TOP_BAR_H {
+                PLATE
+            } else {
+                GROUND
+            };
             frame.extend_from_slice(&c);
         }
     }

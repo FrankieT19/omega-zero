@@ -26,13 +26,13 @@ use omega_ui::kit::modal::{modal_face, modal_layout};
 use omega_ui::kit::palette::Palette;
 use omega_ui::kit::panel::{panel_face, tab_width, title_face, PanelFace, TAB_W};
 use omega_ui::kit::pixel::{
-    big_word, flip, keyed, letters, mirror, quad, ACCENT, ADVANCE, BAR_ROWS, CAP,
+    big_word, flip, keyed, letters, letters_over, mirror, quad, ACCENT, ADVANCE, BAR_ROWS, CAP,
 };
 use omega_ui::kit::row::{panel_height, row_face, row_rect, row_width, Row, ROW_H};
 use omega_ui::kit::text::text_face;
 use omega_ui::{Draw, TexId, UndoFace};
 
-const RAMP: Palette = Palette {
+pub(crate) const RAMP: Palette = Palette {
     bg: [0x30, 0x22, 0x08],
     dark: [0x2a, 0x0f, 0x04],
     edge: [0x6a, 0x3d, 0x01],
@@ -59,8 +59,19 @@ fn reference(name: &str) -> UndoFace {
     let mut reader = decoder.read_info().expect("a PNG");
     let mut buf = vec![0; reader.output_buffer_size()];
     let info = reader.next_frame(&mut buf).expect("its pixels");
-    assert_eq!(info.color_type, png::ColorType::Rgba, "{name} is not RGBA");
     buf.truncate(info.buffer_size());
+    // Chrome writes a screenshot with nothing clear in it, such as the link port's strip, as RGB
+    if info.color_type == png::ColorType::Rgb {
+        buf = buf
+            .chunks_exact(3)
+            .flat_map(|p| [p[0], p[1], p[2], 255])
+            .collect();
+    }
+    assert_eq!(
+        buf.len(),
+        (info.width * info.height * 4) as usize,
+        "{name} is not RGBA"
+    );
     UndoFace {
         rgba: buf,
         w: info.width,
@@ -81,7 +92,7 @@ fn write(path: &str, face: &UndoFace) {
 
 /// `face` is `name`'s screenshot exactly: the same size, clear where it is clear, and every
 /// other pixel the same opaque colour.
-fn matches(face: &UndoFace, name: &str) {
+pub(crate) fn matches(face: &UndoFace, name: &str) {
     if let Ok(dir) = std::env::var("KIT_OUT") {
         write(&format!("{dir}/{name}.png"), face);
     }
@@ -375,6 +386,22 @@ fn a_colon_between_figures_stands_a_pixel_higher_as_the_browser_draws_it() {
     assert_eq!(dots("16:ab"), plain, "a figure on one side only does not");
 }
 
+/// Pixel Code's capital accents stand a row over the line, which `letters` leaves out and
+/// `letters_over` keeps; a row's value, which nothing cuts, draws it on the band's frame line as
+/// the browser does, and its name, which `overflow: hidden` cuts, does not.
+#[test]
+fn a_capitals_accent_rises_a_row_over_the_line_in_a_rows_value() {
+    let over = letters_over("\u{c1}", ADVANCE, 1);
+    assert!(over[0].contains('#'), "the Á's accent has no top row");
+    assert_eq!(over[1..], letters("\u{c1}", ADVANCE)[..], "the line moved");
+
+    let top = |face: &UndoFace| (0..face.w).any(|x| face.rgba[(x * 4 + 3) as usize] != 0);
+    let value = row_face(60, &row("A", Some("\u{c1}"), ""), &RAMP);
+    let name = row_face(60, &row("\u{c1}", Some("A"), ""), &RAMP);
+    assert!(top(&value), "the value's accent is cut");
+    assert!(!top(&name), "the name's accent is not cut");
+}
+
 #[test]
 fn mirror_makes_a_sprite_from_its_quarter_and_flip_turns_it() {
     assert_eq!(mirror(&[".s", "sA"]), [".s.", "sAs", ".s."]);
@@ -643,7 +670,7 @@ fn a_list_of_devices_lines_up_its_values_and_icons() {
 /// The bar `w` art pixels wide as omega-bar draws it with these actions, one width, and hints:
 /// the hints between the actions and the actions at the ends, on a face `TALL` high whose row
 /// `RISE` is the bar's top, clear everywhere else.
-fn bar(w: u32, left: (&str, &str), right: (&str, &str), hints: &[Hint]) -> UndoFace {
+pub(crate) fn bar(w: u32, left: (&str, &str), right: (&str, &str), hints: &[Hint]) -> UndoFace {
     bar_in(Font::Bold, w, left, right, hints)
 }
 

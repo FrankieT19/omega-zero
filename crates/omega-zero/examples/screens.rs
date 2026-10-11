@@ -503,6 +503,9 @@ enum Step {
     Frames(String, u32),
     /// Boot the frontend again on the same card, as the handheld does after a restart.
     Boot,
+    /// The core refuses the cart going in, as it does a broken ROM, so the cart comes back out
+    /// with the alert on it.
+    Fail,
 }
 
 fn btn(name: &str) -> Btn {
@@ -539,6 +542,7 @@ fn parse(script: &str) -> Vec<Step> {
             ["wait", ..] => steps.push(Step::Wait(n(1, 1))),
             ["settle"] => steps.push(Step::Settle),
             ["boot"] => steps.push(Step::Boot),
+            ["fail"] => steps.push(Step::Fail),
             ["lit"] => steps.push(Step::Lit),
             ["tap", b, ..] | ["hold", b, ..] => {
                 steps.push(Step::Down(btn(b)));
@@ -777,6 +781,7 @@ fn main() {
             Step::Up(b) => input.0.push(RawEvent::Up(b)),
             Step::Settle => settle(&mut frontend, &mut compositor),
             Step::Boot => frontend = booted(root.path(), &mut compositor),
+            Step::Fail => frontend.app_mut().on_core_failed(),
             Step::Shot(name) | Step::Look(name) => {
                 settle(&mut frontend, &mut compositor);
                 compositor.upload_game(&still_frame());

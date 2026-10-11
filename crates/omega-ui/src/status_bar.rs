@@ -4,23 +4,25 @@
 //! Everything on it stands in one band, a sprite cell tall: the icons are drawn on the text's
 //! own pixel grid, and the words hang so their capitals fill the same band. All of it is
 //! printed in the ink its [`ChromeColours`] give, the palette's cream or a theme's white, so
-//! the faces are baked in that ink and baked again when it changes.
+//! the faces are baked in that ink and baked again when it changes. Every face is the kit's,
+//! one texel to an art pixel, uploaded NEAREST and drawn at two screen pixels to one of its own
+//! on even screen pixels.
 
 use omega_gfx::{out_w, Draw, TexId};
 use omega_power::Battery;
 
-use crate::battery::{draw_gauge, gauge_width};
-use crate::footer::{draw_printed, Printed};
+use crate::battery::{draw_gauge, gauge_width, FIGURE_AT};
+use crate::footer::Printed;
 use crate::hud::HUD_INK;
-use crate::plate::{word_cap_top, word_tail, UndoFace, HINT_H};
+use crate::kit::pixel::{blank, letters, quad, ACCENT, ADVANCE};
+use crate::kit::text::{AIR, WORD_H};
+use crate::plate::UndoFace;
 use crate::slot_chrome::ChromeColours;
-use crate::sprite::{cropped, sprite_face, Rows, CELL_PX, SPRITE_PX};
-use crate::text;
+use crate::sprite::{cropped, sprite_face, Rows, CELL, CELL_PX, SPRITE_PX};
 
 pub const TOP_BAR_H: f32 = 36.0;
 const MARGIN: f32 = 24.0;
 const GAP: f32 = 4.0 * SPRITE_PX as f32;
-const SSH_PX: f32 = 18.0;
 const RULE_H: f32 = 2.0;
 
 /// What an item is drawn in while it is on, and while it is off, on a card whose theme.txt sets
@@ -81,8 +83,8 @@ pub struct Links {
     pub ssh: bool,
 }
 
-/// One item's face, on or off in the ink of `colours`: an icon one cell square, or "ssh" in
-/// bold cut to its ink.
+/// One item's face, on or off in the ink of `colours`, one texel to an art pixel: an icon one
+/// cell square, or "ssh" in bold cut to its ink.
 pub fn link_face(link: Link, on: bool, colours: &ChromeColours) -> UndoFace {
     let ink = colours.link_ink(on);
     match link.sprite() {
@@ -91,39 +93,27 @@ pub fn link_face(link: Link, on: bool, colours: &ChromeColours) -> UndoFace {
     }
 }
 
-/// "ssh", in its own case, in the UI font's bold face. The h stands a cell tall, the same as
-/// the icons, and the word has no descender, so its ink fills the band exactly.
+/// "ssh", in its own case, in Pixel Code drawn bold the kit's way: each letter a face pixel to
+/// an art pixel and drawn again a pixel to its right, a pixel of air between letters. The h
+/// stands a cell tall, the same as the icons, and the word has no descender, so its ink fills
+/// the band exactly.
 fn ssh_face(ink: [u8; 3]) -> UndoFace {
-    let Some(font) = text::bold_font() else {
-        return UndoFace {
-            rgba: Vec::new(),
-            w: 0,
-            h: 0,
-        };
-    };
-    let word = "ssh";
-    let w = text::line_width(font, word, SSH_PX, 0.0).ceil() as u32;
-    let layout = text::Layout {
-        lines: vec![word.to_string()],
-        px: SSH_PX,
-        tracking: 0.0,
-    };
-    cropped(tinted(
-        &text::coverage_in(font, w, HINT_H, &layout),
-        w,
-        HINT_H,
-        ink,
-    ))
+    let rows = letters("ssh", ADVANCE + 1);
+    let w = rows[0].len();
+    let mut face = blank(w as u32, rows.len() as u32);
+    for (y, row) in rows.iter().enumerate() {
+        let row = row.as_bytes();
+        for x in 0..w {
+            if row[x] == b'#' || (x > 0 && row[x - 1] == b'#') {
+                let i = (y * w + x) * 4;
+                face.rgba[i..i + 4].copy_from_slice(&[ink[0], ink[1], ink[2], 255]);
+            }
+        }
+    }
+    cropped(face)
 }
 
-fn tinted(mask: &[u8], w: u32, h: u32, ink: [u8; 3]) -> UndoFace {
-    let rgba = mask
-        .iter()
-        .flat_map(|&a| [ink[0], ink[1], ink[2], a])
-        .collect();
-    UndoFace { rgba, w, h }
-}
-
+/// A face uploaded, and its size in art pixels.
 pub type Face = (TexId, u32, u32);
 
 /// Every item's faces, off first then on.
@@ -151,6 +141,8 @@ pub struct TopBar<'a> {
     pub colours: ChromeColours,
     pub links: Links,
     pub faces: Option<&'a LinkFaces>,
+    /// The time and the battery's figure, each a line of `kit::text::text_face` `w` art pixels
+    /// wide.
     pub clock: Printed,
     pub battery: Option<Battery>,
     pub percent: Printed,
@@ -160,6 +152,17 @@ pub struct TopBar<'a> {
 /// The top of the band every item stands in, centred in the bar above its rule.
 fn band() -> f32 {
     ((TOP_BAR_H - RULE_H - CELL_PX) / 2.0).round()
+}
+
+/// `v` to the nearest even screen pixel, a half down: a whole art pixel.
+fn on_grid(v: f32) -> f32 {
+    let art = SPRITE_PX as f32;
+    (v / art - 0.5).ceil() * art
+}
+
+/// How wide a word's ink is on the screen: its face, less the air after its last letter.
+fn ink_w(word: Printed) -> f32 {
+    (word.w.saturating_sub(AIR) * SPRITE_PX) as f32
 }
 
 impl TopBar<'_> {
@@ -183,25 +186,47 @@ impl TopBar<'_> {
             let mut x = MARGIN;
             for (link, on) in self.shown() {
                 let (tex, fw, fh) = faces.of(link, on);
-                out.push(Draw::Tex {
-                    x,
-                    y: band() + ((CELL_PX - fh as f32) / 2.0).round(),
-                    w: fw as f32,
-                    h: fh as f32,
-                    tex,
-                    alpha: 1.0,
-                });
-                x += fw as f32 + GAP;
+                let y = band() + (CELL.saturating_sub(fh) / 2 * SPRITE_PX) as f32;
+                out.push(quad(tex, fw, fh, x, y));
+                x += (fw * SPRITE_PX) as f32 + GAP;
             }
         }
-        if self.clock.w > 0 {
-            let x = ((w - self.clock.w as f32 + word_tail()) / 2.0).round();
-            draw_printed(x, band() - word_cap_top(), self.clock, out);
+        // the words' capitals stand in the band, ACCENT rows below the top of their faces
+        let words = band() - (ACCENT as u32 * SPRITE_PX) as f32;
+        if let Some(tex) = self.clock.face {
+            let x = on_grid((w - ink_w(self.clock)) / 2.0);
+            out.push(quad(tex, self.clock.w, WORD_H, x, words));
         }
         // the figure's ink, not its face, ends at the margin, as the Wi-Fi icon's starts at it
-        let x = w - MARGIN - gauge_width(self.percent) + word_tail();
         let ink = self.colours.ink;
-        draw_gauge(x, band(), self.battery, self.percent, self.bolt, ink, out);
+        match (self.battery, self.percent.face) {
+            (Some(_), Some(tex)) => {
+                let figure = w - MARGIN - ink_w(self.percent);
+                let x = figure - FIGURE_AT;
+                draw_gauge(
+                    x,
+                    band(),
+                    self.battery,
+                    Printed::default(),
+                    self.bolt,
+                    ink,
+                    out,
+                );
+                out.push(quad(tex, self.percent.w, WORD_H, figure, words));
+            }
+            _ => {
+                let x = w - MARGIN - gauge_width(Printed::default());
+                draw_gauge(
+                    x,
+                    band(),
+                    self.battery,
+                    Printed::default(),
+                    self.bolt,
+                    ink,
+                    out,
+                );
+            }
+        }
     }
 
     /// The items along the left, in order, each with whether it is on.

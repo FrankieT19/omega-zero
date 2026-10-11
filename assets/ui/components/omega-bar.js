@@ -26,6 +26,11 @@
   and below its letters' capitals, two dark pixels either side. Areas, each a div that ::part()
   reaches: bar, middle (the room between the actions), hints, hint, key, word.
 
+  How it draws its hints is OmegaBar, which <omega-hints> (omega-hints.js) draws its own with:
+  OmegaBar.HINTS, their style, for a shadow root; OmegaBar.KEY, the cap's sprite, which the style
+  takes as --cap; and OmegaBar.hints(box, value), which fills a .hints box with value's hints and
+  sets its --ink.
+
   Needs everything in foundation/ on the page (see README.md) and the two actions' components; its
   colours follow palette.js.
 */
@@ -49,28 +54,11 @@
   // Pixel Code letters are 6 pixels apart, the last of the 6 blank.
   const ADVANCE = 6;
 
-  const template = document.createElement('template');
-  template.innerHTML = `
-    <style>
-      /* text-rendering: Pixel Code drawn without the browser's hinting, which smears its edges by
-         part of a pixel even where it sits on whole pixels */
-      :host { display: block; flex: none; height: calc(${BAR} * var(--u)); text-rendering: geometricPrecision; }
-      :host([hidden]) { display: none; }
-
-      .bar { display: flex; height: 100%; }
-      ::slotted(*) { position: relative; z-index: 1; flex: none; }
-
-      /* the room between the two actions, from one's end to the other's: nothing is drawn in it but
-         the hints, so whatever is behind the bar shows through */
-      .middle { flex: 1; min-width: 0; }
-
-      /* Centred between the actions, rounded down to a whole art pixel: --ink is the hints' width in
-         art pixels from their first ink to their last, which paintHints() works out from the text. */
+  // How the hints are drawn in their box, .hints, wherever it is: on a line of 10, each hint its
+  // key in a small dark cap (the sprite in --cap), then the word.
+  const HINTS = `
       .hints {
         display: flex;
-        width: max-content;
-        margin-top: calc(${HINTS_TOP} * var(--u));
-        margin-left: max(0px, round(down, (100% - var(--ink, 0) * var(--u)) / 2, var(--u)));
         font: 400 calc(9 * var(--u)) / calc(10 * var(--u)) var(--oz-font);
         white-space: nowrap;
         color: var(--oz-cream);
@@ -96,7 +84,30 @@
         image-rendering: pixelated;
       }
       .word { margin-left: calc(${GAP} * var(--u)); }
-      .word:empty { display: none; }
+      .word:empty { display: none; }`;
+
+  const template = document.createElement('template');
+  template.innerHTML = `
+    <style>
+      /* text-rendering: Pixel Code drawn without the browser's hinting, which smears its edges by
+         part of a pixel even where it sits on whole pixels */
+      :host { display: block; flex: none; height: calc(${BAR} * var(--u)); text-rendering: geometricPrecision; }
+      :host([hidden]) { display: none; }
+
+      .bar { display: flex; height: 100%; }
+      ::slotted(*) { position: relative; z-index: 1; flex: none; }
+
+      /* the room between the two actions, from one's end to the other's: nothing is drawn in it but
+         the hints, so whatever is behind the bar shows through */
+      .middle { flex: 1; min-width: 0; }
+${HINTS}
+      /* Centred between the actions, rounded down to a whole art pixel: --ink is the hints' width in
+         art pixels from their first ink to their last, which hints() works out from the text. */
+      .hints {
+        width: max-content;
+        margin-top: calc(${HINTS_TOP} * var(--u));
+        margin-left: max(0px, round(down, (100% - var(--ink, 0) * var(--u)) / 2, var(--u)));
+      }
     </style>
     <div class="bar" part="bar">
       <slot name="left"></slot>
@@ -111,6 +122,34 @@
       return { key, word: word.join(' ') };
     });
   }
+
+  // `box` filled with one key and word per hint in `value`, and its --ink set to the width they
+  // take from their first ink to their last, in art pixels.
+  function hints(box, value) {
+    const all = parse(value);
+    const length = text => [...text].length;
+    box.replaceChildren(...all.map(({ key, word }) => {
+      const hint = document.createElement('div');
+      hint.className = 'hint';
+      hint.setAttribute('part', 'hint');
+      for (const [name, text] of [['key', key], ['word', word]]) {
+        const area = document.createElement('div');
+        area.className = name;
+        area.setAttribute('part', name);
+        area.textContent = text;
+        hint.append(area);
+      }
+      return hint;
+    }));
+    // a cap is its letters and three pixels more, a word its letters; the last word's blank
+    // pixel is not ink
+    const ink = all.reduce((sum, { key, word }, i) =>
+      sum + (i ? BETWEEN - 1 : 0) + length(key) * ADVANCE + 3 + (word ? GAP + length(word) * ADVANCE : 0), 0);
+    const last = all.at(-1);
+    box.style.setProperty('--ink', all.length ? ink - (last.word ? 1 : 0) : 0);
+  }
+
+  window.OmegaBar = { HINTS, KEY, hints };
 
   customElements.define('omega-bar', class extends OmegaPixel.Element {
     static observedAttributes = ['hint', 'font'];
@@ -144,34 +183,8 @@
       }
     }
 
-    // One key and word per hint, and the width they take, ink to ink, to centre them by.
-    paintHints(value) {
-      const hints = parse(value);
-      const box = this.shadowRoot.querySelector('.hints');
-      const length = text => [...text].length;
-      box.replaceChildren(...hints.map(({ key, word }) => {
-        const hint = document.createElement('div');
-        hint.className = 'hint';
-        hint.setAttribute('part', 'hint');
-        for (const [name, text] of [['key', key], ['word', word]]) {
-          const area = document.createElement('div');
-          area.className = name;
-          area.setAttribute('part', name);
-          area.textContent = text;
-          hint.append(area);
-        }
-        return hint;
-      }));
-      // a cap is its letters and three pixels more, a word its letters; the last word's blank
-      // pixel is not ink
-      const ink = hints.reduce((sum, { key, word }, i) =>
-        sum + (i ? BETWEEN - 1 : 0) + length(key) * ADVANCE + 3 + (word ? GAP + length(word) * ADVANCE : 0), 0);
-      const last = hints.at(-1);
-      box.style.setProperty('--ink', hints.length ? ink - (last.word ? 1 : 0) : 0);
-    }
-
     attributeChangedCallback(name, _old, value) {
-      if (name === 'hint') this.paintHints(value);
+      if (name === 'hint') hints(this.shadowRoot.querySelector('.hints'), value);
       else this.pair();
     }
   });

@@ -4,19 +4,25 @@ use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use omega_input::Action;
 use omega_store::Core;
-use omega_ui::{
-    arrows_hint_face, hint_face, link_art, menu_face, out_h, out_w, stage_x, stage_y, toast_face,
-    CartFace, Draw, TexId, Toast, UndoFace,
-};
-use omega_zero::app::{GameMenu, LinkLegend, LinkRow};
+use omega_ui::kit::action::{action_pair, Font, Side};
+use omega_ui::kit::bar::bar_layout;
+use omega_ui::kit::palette::palette;
+use omega_ui::link_art::{link_art, PLUG_H};
+use omega_ui::{out_h, out_w, CartFace, Draw, HudFace, TexId, Toast, UndoFace, SPRITE_PX};
+use omega_zero::app::{App, GameMenu, LinkRow};
 use omega_zero::link_kind::LinkKind;
 use omega_zero::link_net::Cancel;
 use omega_zero::link_radio::{LinkRole, RadioJob, RadioJobs};
-use omega_zero::link_screen::{draw_link_art, LinkSprites, Sprite};
+use omega_zero::link_screen::{
+    draw_link_art, link_panel_face, port_top, LinkActions, LinkBar, LinkSprites, Sprite, PORT_UP,
+};
 use omega_zero::link_start::{LinkFail, LinkStarter, LinkStep};
+use omega_zero::screens::bar::BarSet;
+use omega_zero::screens::lone::Lone;
 
 struct Face {
     rgba: Vec<u8>,
@@ -44,11 +50,12 @@ impl From<UndoFace> for Face {
     }
 }
 
+/// The art for Night, each face under a texture of its own, as the frontend uploads it.
 fn sprites_and_faces() -> (LinkSprites, Vec<(TexId, Face)>) {
-    let art = link_art();
+    let art = link_art(palette(0), out_w() / SPRITE_PX, PORT_UP);
     let mut faces = Vec::new();
     let mut n = 0;
-    let mut put = |f: CartFace| {
+    let mut put = |f: UndoFace| {
         n += 1;
         let tex = TexId::from_raw(n);
         let sprite = Sprite {
@@ -62,82 +69,57 @@ fn sprites_and_faces() -> (LinkSprites, Vec<(TexId, Face)>) {
     let [ar0, ar1, ar2] = art.arcs_right;
     let [al0, al1, al2] = art.arcs_left;
     let sprites = LinkSprites {
-        port: put(art.port),
         plug_host: put(art.plug_host),
         plug_join: put(art.plug_join),
+        cable: put(art.cable),
         adapter: put(art.adapter),
+        port: put(art.port),
         arcs_right: [put(ar0), put(ar1), put(ar2)],
         arcs_left: [put(al0), put(al1), put(al2)],
         clicks: put(art.clicks),
-        arrow_left: put(art.arrow_left),
-        arrow_right: put(art.arrow_right),
     };
     (sprites, faces)
 }
 
+const GROUND: [u8; 3] = [0x05, 0x05, 0x08];
+
+/// `out` drawn over the Night backdrop's colour, each face stretched to its quad by its nearest
+/// texel, as the compositor draws a NEAREST texture.
 fn composite(out: &[Draw], faces: &[(TexId, Face)]) -> Vec<u8> {
     let (w, h) = (out_w() as usize, out_h() as usize);
     let mut px = vec![0u8; w * h * 4];
     for i in 0..w * h {
-        px[i * 4..i * 4 + 4].copy_from_slice(&[0x05, 0x05, 0x08, 255]);
+        px[i * 4..i * 4 + 4].copy_from_slice(&[GROUND[0], GROUND[1], GROUND[2], 255]);
     }
-    let blend = |x: i32, y: i32, c: [u8; 4], alpha: f32, px: &mut Vec<u8>| {
-        if x < 0 || y < 0 || x >= w as i32 || y >= h as i32 {
-            return;
-        }
-        let a = (c[3] as f32 / 255.0) * alpha;
-        let d = (y as usize * w + x as usize) * 4;
-        for (k, cc) in c.iter().take(3).enumerate() {
-            px[d + k] = (*cc as f32 * a + px[d + k] as f32 * (1.0 - a)).round() as u8;
-        }
-    };
     for d in out {
-        let (x, y, dw, dh, tex, alpha, turn) = match *d {
-            Draw::Tex {
-                x,
-                y,
-                w,
-                h,
-                tex,
-                alpha,
-            } => (x, y, w, h, tex, alpha, 0.0),
-            Draw::Turned {
-                x,
-                y,
-                w,
-                h,
-                tex,
-                alpha,
-                turn,
-            } => (x, y, w, h, tex, alpha, turn),
-            _ => continue,
+        let Draw::Tex {
+            x,
+            y,
+            w: dw,
+            h: dh,
+            tex,
+            alpha,
+        } = *d
+        else {
+            continue;
         };
-        let face = &faces
-            .iter()
-            .find(|(t, _)| *t == tex)
-            .expect("unknown tex")
-            .1;
-        let (cx, cy) = (x + dw / 2.0, y + dh / 2.0);
-        let (sin, cos) = turn.sin_cos();
-        let reach = (dw.max(dh) * 0.75) as i32;
-        for py in (cy as i32 - reach)..(cy as i32 + reach) {
-            for qx in (cx as i32 - reach)..(cx as i32 + reach) {
-                let (rx, ry) = (qx as f32 + 0.5 - cx, py as f32 + 0.5 - cy);
-                let (ux, uy) = (
-                    rx * cos + ry * sin + dw / 2.0,
-                    -rx * sin + ry * cos + dh / 2.0,
-                );
-                if ux < 0.0 || uy < 0.0 || ux >= face.w as f32 || uy >= face.h as f32 {
+        let Some((_, face)) = faces.iter().find(|(t, _)| *t == tex) else {
+            continue;
+        };
+        for qy in y as i32..(y + dh) as i32 {
+            for qx in x as i32..(x + dw) as i32 {
+                if qx < 0 || qy < 0 || qx >= w as i32 || qy >= h as i32 {
                     continue;
                 }
-                let s = (uy as usize * face.w as usize + ux as usize) * 4;
-                let c = [
-                    face.rgba[s],
-                    face.rgba[s + 1],
-                    face.rgba[s + 2],
-                    face.rgba[s + 3],
-                ];
-                blend(qx, py, c, alpha, &mut px);
+                let fx = ((qx as f32 - x) * face.w as f32 / dw) as usize;
+                let fy = ((qy as f32 - y) * face.h as f32 / dh) as usize;
+                let s = (fy * face.w as usize + fx) * 4;
+                let a = face.rgba[s + 3] as f32 / 255.0 * alpha;
+                let o = (qy as usize * w + qx as usize) * 4;
+                for k in 0..3 {
+                    px[o + k] =
+                        (face.rgba[s + k] as f32 * a + px[o + k] as f32 * (1.0 - a)).round() as u8;
+                }
             }
         }
     }
@@ -149,10 +131,20 @@ fn at(px: &[u8], x: usize, y: usize) -> [u8; 3] {
     [px[o], px[o + 1], px[o + 2]]
 }
 
+/// The pixel at art pixel (`x`, `y`) of the screen.
+fn art_at(px: &[u8], x: i32, y: i32) -> [u8; 3] {
+    let s = SPRITE_PX as i32;
+    at(px, (x * s) as usize, (y * s) as usize)
+}
+
+fn mid() -> i32 {
+    (out_w() / SPRITE_PX / 2) as i32
+}
+
 fn render(menu: GameMenu, kind: LinkKind, now: u64, name: &str) -> Vec<u8> {
     let (sprites, faces) = sprites_and_faces();
     let mut out = Vec::new();
-    draw_link_art(menu, kind, now, &sprites, &mut out);
+    draw_link_art(menu, kind, now, &sprites, 8, &mut out);
     let px = composite(&out, &faces);
     dump(&px, name);
     px
@@ -171,43 +163,38 @@ fn dump(px: &[u8], name: &str) {
     println!("wrote {path}");
 }
 
+/// The plug's housing, under its ridges, left of the middle.
+fn housing(px: &[u8], menu: GameMenu, now: u64) -> [u8; 3] {
+    let bottom = port_top() + omega_zero::link_screen::plug_bottom(menu, now);
+    art_at(px, mid() - 4, bottom - PLUG_H as i32 + 22)
+}
+
 #[test]
 fn the_host_picks_a_purple_plug_over_the_port() {
-    let px = render(
-        GameMenu::Pick(LinkRow::Host),
-        LinkKind::Cable,
-        0,
-        "cable-host-pick",
-    );
-    let housing = on_stage(&px, 356, 330 - 60);
+    let menu = GameMenu::Pick(LinkRow::Host);
+    let px = render(menu, LinkKind::Cable, 0, "cable-host-pick");
+    let h = housing(&px, menu, 0);
+    assert!(h[2] > h[1] + 30, "no purple housing over the port: {h:?}");
+    let slot = art_at(&px, mid(), port_top() + 1);
+    let pal = palette(0);
+    assert_eq!(slot, pal.dark, "no port's opening under the plug");
+    let gap = art_at(&px, mid(), port_top() - 2);
+    assert_eq!(gap, GROUND, "the plug is already in the port");
+}
+
+#[test]
+fn a_joiner_picks_a_grey_plug() {
+    let menu = GameMenu::Pick(LinkRow::Join);
+    let px = render(menu, LinkKind::Cable, 0, "cable-join-pick");
+    let h = housing(&px, menu, 0);
     assert!(
-        housing[2] > housing[1] + 30,
-        "no purple housing above the port: {housing:?}"
-    );
-    let slot = on_stage(&px, 360, 406);
-    assert!(
-        slot.iter().all(|c| *c < 0x14),
-        "no port under the plug: {slot:?}"
+        (h[0] as i32 - h[2] as i32).abs() < 14 && h[0] > 0x70,
+        "not grey: {h:?}"
     );
 }
 
 #[test]
-fn a_joiner_picks_a_gray_plug() {
-    let px = render(
-        GameMenu::Pick(LinkRow::Join),
-        LinkKind::Cable,
-        0,
-        "cable-join-pick",
-    );
-    let housing = on_stage(&px, 356, 330 - 60);
-    assert!(
-        (housing[0] as i32 - housing[2] as i32).abs() < 14 && housing[0] > 0x70,
-        "not gray: {housing:?}"
-    );
-}
-
-#[test]
-fn a_wireless_link_seats_the_adapter_with_its_label_plate() {
+fn a_wireless_link_seats_the_adapter_on_the_port() {
     let menu = GameMenu::Linked {
         role: LinkRow::Host,
         worked: 0,
@@ -215,10 +202,11 @@ fn a_wireless_link_seats_the_adapter_with_its_label_plate() {
         opened: false,
     };
     let px = render(menu, LinkKind::Wireless, 2000, "wireless-linked");
-    let plate = on_stage(&px, 360, 388 - 12);
+    let body = art_at(&px, mid(), port_top() - 4);
+    assert_ne!(body, GROUND, "no adapter sitting on the port");
     assert!(
-        plate[0] > 0x28 && plate[0] < 0x70,
-        "no plate where the seated adapter's label goes: {plate:?}"
+        (body[0] as i32 - body[2] as i32).abs() < 30,
+        "the adapter is not its grey: {body:?}"
     );
 }
 
@@ -237,21 +225,13 @@ fn a_failed_plug_leaves_where_it_waited() {
         since: 1200,
     };
     let gone = render(failed, LinkKind::Cable, 1600, "cable-failed");
-    let spot = (356, 350 - 60);
+    let spot = (mid() - 10, port_top() - 2);
     assert_ne!(
-        on_stage(&waiting, spot.0, spot.1),
-        on_stage(&gone, spot.0, spot.1),
+        art_at(&waiting, spot.0, spot.1),
+        art_at(&gone, spot.0, spot.1),
         "the plug never lifted away"
     );
 }
-
-/// The pixel at a point on the 720x480 mockup, wherever the stage puts it on this canvas.
-fn on_stage(px: &[u8], x: usize, y: usize) -> [u8; 3] {
-    let (sx, sy) = (stage_x() as i32, stage_y() as i32);
-    at(px, (x as i32 + sx) as usize, (y as i32 + sy) as usize)
-}
-
-const GROUND: [u8; 3] = [0x05, 0x05, 0x08];
 
 #[test]
 fn ending_a_link_pulls_the_plug_back_out_of_the_port() {
@@ -261,14 +241,14 @@ fn ending_a_link_pulls_the_plug_back_out_of_the_port() {
     };
     let seated = render(menu, LinkKind::Cable, 0, "cable-unplug-start");
     let gone = render(menu, LinkKind::Cable, 400, "cable-unplug-end");
-    let (x, y) = (356, 359);
+    let (x, y) = (mid() - 10, port_top() - 2);
     assert_ne!(
-        on_stage(&seated, x, y),
+        art_at(&seated, x, y),
         GROUND,
-        "no plug in the port on the frame the unplug begins"
+        "no plug on the port on the frame the unplug begins"
     );
     assert_eq!(
-        on_stage(&gone, x, y),
+        art_at(&gone, x, y),
         GROUND,
         "the plug never came back out of the port"
     );
@@ -282,21 +262,67 @@ fn ending_a_wireless_link_lifts_the_adapter_off_the_port() {
     };
     let seated = render(menu, LinkKind::Wireless, 0, "wireless-unplug-start");
     let gone = render(menu, LinkKind::Wireless, 400, "wireless-unplug-end");
-    let (x, y) = (360, 380);
+    let (x, y) = (mid(), port_top() - 2);
     assert_ne!(
-        on_stage(&seated, x, y),
+        art_at(&seated, x, y),
         GROUND,
         "no adapter on the port on the frame the unplug begins"
     );
     assert_eq!(
-        on_stage(&gone, x, y),
+        art_at(&gone, x, y),
         GROUND,
         "the adapter never lifted off the port"
     );
 }
 
+/// The app with its link screen's faces in, as sync_link puts them: the art, the panel for what
+/// it shows, and the bar.
+struct Shown {
+    faces: Vec<(TexId, Face)>,
+}
+
+impl Shown {
+    fn new(app: &mut App) -> Shown {
+        let (sprites, mut faces) = sprites_and_faces();
+        app.set_link_sprites(sprites);
+        let pal = palette(0);
+        let width = out_w() / SPRITE_PX;
+        let mut n = 500;
+        let mut put = |face: UndoFace, faces: &mut Vec<(TexId, Face)>| {
+            n += 1;
+            let tex = TexId::from_raw(n);
+            let (w, h) = (face.w, face.h);
+            faces.push((tex, face.into()));
+            (tex, w, h)
+        };
+        let sets = LinkActions::ALL.map(|a| {
+            let [left, right] =
+                action_pair(a.action(Side::Left), a.action(Side::Right), Font::Bold, pal);
+            BarSet {
+                layout: bar_layout(width, &left, &right),
+                left: put(left.face, &mut faces),
+                right: put(right.face, &mut faces),
+            }
+        });
+        app.set_link_bar(LinkBar { sets, hints: None });
+        if let Some(view) = app.link_view() {
+            let (tex, w, h) = put(link_panel_face(&view, pal), &mut faces);
+            app.set_link_panel(Lone { tex, w, h });
+        }
+        Shown { faces }
+    }
+
+    fn pixels(&self, app: &App, name: &str) -> Vec<u8> {
+        let mut out = Vec::new();
+        app.draw(&mut out);
+        let px = composite(&out, &self.faces);
+        dump(&px, name);
+        px
+    }
+}
+
 fn lit(px: &[u8], o: usize) -> bool {
-    px[o] != 0x05 || px[o + 1] != 0x05 || px[o + 2] != 0x08
+    px[o] != GROUND[0] || px[o + 1] != GROUND[1] || px[o + 2] != GROUND[2]
 }
 
 fn ink(px: &[u8]) -> usize {
@@ -313,26 +339,7 @@ fn inked_rows(px: &[u8]) -> (usize, usize) {
     )
 }
 
-fn legend_faces() -> Vec<(TexId, Face)> {
-    LinkLegend::ALL
-        .iter()
-        .map(|k| {
-            let f: Face = match k {
-                LinkLegend::Cancel => hint_face("B", "Cancel"),
-                LinkLegend::Mode => hint_face("SELECT", "Mode"),
-                LinkLegend::Swap => arrows_hint_face("Swap"),
-                LinkLegend::Link => hint_face("A", "Link"),
-                LinkLegend::Ok => hint_face("A", "OK"),
-                LinkLegend::Back => hint_face("B", "Back"),
-                LinkLegend::EndLink => hint_face("A", "End Link"),
-            }
-            .into();
-            (TexId::from_raw(900 + k.index()), f)
-        })
-        .collect()
-}
-
-fn legend_pixels(title: &str, code: &str, name: &str) -> Vec<u8> {
+fn playing(title: &str, code: &str) -> (App, tempfile::TempDir) {
     let d = common::tmp_root_with_carts(&["Zzz"]);
     common::write_retail_header(&d, "Cart", title, code);
     let mut app = common::boot(d.path());
@@ -342,81 +349,112 @@ fn legend_pixels(title: &str, code: &str, name: &str) -> Vec<u8> {
     for _ in 0..120 {
         app.update(1.0 / 60.0);
     }
-    let faces = legend_faces();
-    app.set_link_legend_faces(faces.iter().map(|(t, f)| (*t, f.w)).collect());
-    app.apply(Action::GameMenu);
-    assert!(app.game_menu_open(), "{code} never opened its link screen");
-    let mut out = Vec::new();
-    app.draw(&mut out);
-    let legend: Vec<Draw> = out
-        .into_iter()
-        .filter(|d| matches!(*d, Draw::Tex { tex, .. } if faces.iter().any(|(t, _)| *t == tex)))
-        .collect();
-    let px = composite(&legend, &faces);
-    dump(&px, name);
-    px
+    (app, d)
 }
 
-fn connected_legend_pixels(name: &str) -> Vec<u8> {
-    let d = common::tmp_root_with_carts(&["Zzz"]);
-    common::write_retail_header(&d, "Cart", "POKEMON RUBY", "AXVE");
-    let mut app = common::boot(d.path());
-    app.apply(Action::Insert);
-    app.set_core(Core::Gpsp);
-    app.on_core_ready();
-    for _ in 0..120 {
-        app.update(1.0 / 60.0);
-    }
-    let faces = legend_faces();
-    app.set_link_legend_faces(faces.iter().map(|(t, f)| (*t, f.w)).collect());
+#[test]
+fn the_whole_link_screen_is_drawn_in_the_kit_over_the_backdrop() {
+    let (mut app, _d) = playing("POKEMON RUBY", "AXVE");
+    app.apply(Action::GameMenu);
+    let shown = Shown::new(&mut app);
+    let px = shown.pixels(&app, "screen-pick");
+    let pal = palette(0);
+    // the panel's frame at the top, the strip's lit edge over the bar, and the bar at the bottom
+    let [panel_x, panel_y] = omega_zero::link_screen::panel_at(&Lone {
+        tex: TexId::from_raw(1),
+        w: omega_zero::link_screen::PANEL_W,
+        h: 1,
+    });
+    let strip = panel_x + omega_zero::link_screen::PANEL_W as i32 - 4;
+    assert_eq!(
+        art_at(&px, strip, panel_y + 4),
+        pal.frame_hi,
+        "no LINK panel"
+    );
+    assert_eq!(art_at(&px, 0, port_top()), pal.frame, "no port's strip");
+    let bottom = (out_h() / SPRITE_PX) as i32 - 1;
+    assert_ne!(
+        art_at(&px, 0, bottom),
+        pal.well,
+        "no bar over the strip's foot"
+    );
+}
+
+#[test]
+fn the_connected_screen_offers_return_and_end_link() {
+    let (mut app, _d) = playing("POKEMON RUBY", "AXVE");
     app.begin_link(0);
     app.apply(Action::GameMenu);
     assert!(
         matches!(app.game_menu(), Some(GameMenu::Linked { opened: true, .. })),
         "the shortcut did not open the connected screen over a live session"
     );
-    let mut out = Vec::new();
-    app.draw(&mut out);
-    let legend: Vec<Draw> = out
-        .into_iter()
-        .filter(|d| matches!(*d, Draw::Tex { tex, .. } if faces.iter().any(|(t, _)| *t == tex)))
-        .collect();
-    let px = composite(&legend, &faces);
-    dump(&px, name);
-    px
-}
-
-fn cap_ink(key: &'static str, label: &'static str) -> usize {
-    let f: Face = hint_face(key, label).into();
-    let (w, h) = (f.w as f32, f.h as f32);
-    let tex = TexId::from_raw(1);
-    let draw = Draw::Tex {
-        x: 100.0,
-        y: 422.0,
-        w,
-        h,
-        tex,
-        alpha: 1.0,
-    };
-    ink(&composite(&[draw], &[(tex, f)]))
+    assert_eq!(app.link_bar_shown(), Some((LinkActions::Linked, 0)));
+    assert_eq!(app.link_view().and_then(|v| v.status), Some("Linked"));
+    let shown = Shown::new(&mut app);
+    let px = shown.pixels(&app, "screen-connected");
+    assert!(ink(&px) > 0);
 }
 
 #[test]
-fn the_connected_screen_shows_back_and_end_link() {
-    let px = connected_legend_pixels("legend-connected");
-    assert!(ink(&px) > 0, "the connected screen drew no legend at all");
-    assert_eq!(
-        ink(&px),
-        cap_ink("B", "Back") + cap_ink("A", "End Link"),
-        "the row is not exactly a Back cap and an End Link cap"
+fn a_failed_link_says_why_and_offers_only_ok() {
+    let (mut app, _d) = playing("POKEMON RUBY", "AXVE");
+    app.apply(Action::GameMenu);
+    app.start_link(
+        LinkStarter::spawn_with(
+            Box::new(|_, _| Ok(())),
+            Box::new(|| {}),
+            LinkRole::Host,
+            0,
+            Box::new(|_, _: &Cancel| Err(io::Error::new(io::ErrorKind::TimedOut, "from a test"))),
+        ),
+        0,
     );
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while matches!(app.game_menu(), Some(GameMenu::Working { .. })) {
+        app.update(1.0 / 60.0);
+        std::thread::sleep(Duration::from_millis(1));
+        assert!(Instant::now() < deadline, "the link never failed");
+    }
+    assert!(
+        matches!(
+            app.game_menu(),
+            Some(GameMenu::Failed {
+                fail: LinkFail::NobodyCame,
+                ..
+            })
+        ),
+        "{:?}",
+        app.game_menu()
+    );
+    assert_eq!(
+        app.link_view().and_then(|v| v.status),
+        Some(LinkFail::NobodyCame.line())
+    );
+    for _ in 0..30 {
+        app.update(1.0 / 60.0);
+    }
+    assert_eq!(app.link_bar_shown(), Some((LinkActions::Failed, 0)));
+    let shown = Shown::new(&mut app);
+    let px = shown.pixels(&app, "screen-failed");
+    assert!(ink(&px) > 0);
 }
 
-fn toast_faces() -> Vec<(TexId, Face)> {
-    Toast::ALL
-        .iter()
-        .map(|t| (TexId::from_raw(800 + t.index()), toast_face(*t).into()))
-        .collect()
+const TOAST: TexId = TexId::from_raw(800);
+
+/// `t` as the frontend draws it for the HUD, doubled as it shows on the screen, two pixels to
+/// each of its art pixels.
+fn toast_face(t: Toast) -> Face {
+    let f = t.face(palette(0));
+    let (w, h) = (f.w * 2, f.h * 2);
+    let mut rgba = Vec::with_capacity((w * h * 4) as usize);
+    for y in 0..h {
+        for x in 0..w {
+            let at = (((y / 2) * f.w + x / 2) * 4) as usize;
+            rgba.extend_from_slice(&f.rgba[at..at + 4]);
+        }
+    }
+    Face { rgba, w, h }
 }
 
 fn banner_pixels(core: Core, title: &str, code: &str, name: &str) -> Vec<u8> {
@@ -429,37 +467,39 @@ fn banner_pixels(core: Core, title: &str, code: &str, name: &str) -> Vec<u8> {
     for _ in 0..120 {
         app.update(1.0 / 60.0);
     }
-    let faces = toast_faces();
-    app.set_toast_faces(faces.iter().map(|(t, _)| *t).collect());
     app.apply(Action::GameMenu);
     assert!(
         !app.game_menu_open(),
         "{code} on {core:?} opened a link screen instead of refusing"
     );
+    let said = app.hud().last_toast().expect("the refusal said nothing");
+    let face = toast_face(said);
+    let (w, h) = (face.w / 2, face.h / 2);
+    app.hud_mut()
+        .set_toast_face(said, HudFace { tex: TOAST, w, h });
     let mut out = Vec::new();
     app.draw(&mut out);
     let banner: Vec<Draw> = out
         .into_iter()
-        .filter(|d| matches!(*d, Draw::Tex { tex, .. } if faces.iter().any(|(t, _)| *t == tex)))
+        .filter(|d| matches!(*d, Draw::Tex { tex, .. } if tex == TOAST))
         .collect();
-    let px = composite(&banner, &faces);
+    let px = composite(&banner, &[(TOAST, face)]);
     dump(&px, name);
     px
 }
 
 fn banner_ink(t: Toast) -> usize {
-    let f: Face = toast_face(t).into();
+    let f = toast_face(t);
     let (w, h) = (f.w as f32, f.h as f32);
-    let tex = TexId::from_raw(1);
     let draw = Draw::Tex {
         x: 100.0,
         y: 20.0,
         w,
         h,
-        tex,
+        tex: TOAST,
         alpha: 1.0,
     };
-    ink(&composite(&[draw], &[(tex, f)]))
+    ink(&composite(&[draw], &[(TOAST, f)]))
 }
 
 #[test]
@@ -500,55 +540,6 @@ fn a_cart_gpsp_can_link_reads_please_switch_to_gpsp() {
     );
 }
 
-fn mode_cap_ink() -> usize {
-    let f: Face = hint_face("SELECT", "Mode").into();
-    let (w, h) = (f.w as f32, f.h as f32);
-    let tex = TexId::from_raw(1);
-    let draw = Draw::Tex {
-        x: 100.0,
-        y: 422.0,
-        w,
-        h,
-        tex,
-        alpha: 1.0,
-    };
-    ink(&composite(&[draw], &[(tex, f)]))
-}
-
-#[test]
-fn the_legend_shows_select_mode_only_where_the_hardware_can_be_switched() {
-    let switchable = legend_pixels("POKEMON RUBY", "AXVE", "legend-switchable");
-    let fixed = legend_pixels("MARIO GOLF", "BMGE", "legend-fixed");
-
-    assert!(
-        ink(&fixed) > 0,
-        "the legend put no type on the frame at all"
-    );
-    assert!(
-        ink(&switchable) > ink(&fixed),
-        "both screens carry the same type: {} and {}",
-        ink(&switchable),
-        ink(&fixed)
-    );
-    assert_eq!(
-        ink(&switchable) - ink(&fixed),
-        mode_cap_ink(),
-        "the difference between the two frames is not one SELECT Mode cap"
-    );
-
-    for (px, what) in [(&switchable, "switchable"), (&fixed, "fixed")] {
-        let (first, last) = inked_rows(px);
-        assert!(
-            first >= out_h() as usize * 3 / 4,
-            "the {what} legend is not down on the strip: rows {first}..{last}"
-        );
-        assert!(
-            last < out_h() as usize,
-            "the {what} legend runs off the bottom of the panel"
-        );
-    }
-}
-
 #[derive(Clone, Default)]
 struct FakeRadio {
     warm: Arc<AtomicBool>,
@@ -565,28 +556,13 @@ impl RadioJobs for FakeRadio {
     }
 }
 
-fn step_faces() -> Vec<(TexId, Face)> {
-    LinkStep::ALL
-        .iter()
-        .map(|s| (TexId::from_raw(950 + s.index()), menu_face(s.line()).into()))
-        .collect()
-}
-
-fn first_step_pixels(warm: bool, name: &str) -> (Vec<u8>, Vec<RadioJob>) {
-    let d = common::tmp_root_with_carts(&["Zzz"]);
-    common::write_retail_header(&d, "Cart", "POKEMON RUBY", "AXVE");
-    let mut app = common::boot(d.path());
-    app.apply(Action::Insert);
-    app.set_core(Core::Gpsp);
-    app.on_core_ready();
-    for _ in 0..120 {
-        app.update(1.0 / 60.0);
-    }
+/// The LINK panel on the first step of a link, its radio `warm` or not, and what the screen asked
+/// of the radio.
+fn first_step_pixels(warm: bool, name: &str) -> (Vec<u8>, Option<&'static str>, Vec<RadioJob>) {
+    let (mut app, _d) = playing("POKEMON RUBY", "AXVE");
     let radio = FakeRadio::default();
     radio.warm.store(warm, Ordering::SeqCst);
     app.set_radio_jobs(Box::new(radio.clone()));
-    let faces = step_faces();
-    app.set_link_step_faces(faces.iter().map(|(t, f)| (*t, f.w, f.h)).collect());
     app.apply(Action::GameMenu);
     assert!(app.game_menu_open(), "the link screen never opened");
     let (release, held) = channel::<()>();
@@ -614,66 +590,61 @@ fn first_step_pixels(warm: bool, name: &str) -> (Vec<u8>, Vec<RadioJob>) {
         "the screen is not on the step this is about: {:?}",
         app.game_menu()
     );
-    let mut out = Vec::new();
-    app.draw(&mut out);
-    let line: Vec<Draw> = out
-        .into_iter()
-        .filter(|d| matches!(*d, Draw::Tex { tex, .. } if faces.iter().any(|(t, _)| *t == tex)))
-        .collect();
-    let px = composite(&line, &faces);
-    dump(&px, name);
+    let status = app.link_view().and_then(|v| v.status);
+    let shown = Shown::new(&mut app);
+    let px = shown.pixels(&app, name);
     drop(release);
     let asked = radio.asked.lock().expect("radio log").clone();
-    (px, asked)
-}
-
-fn line_ink(step: LinkStep) -> usize {
-    let f: Face = menu_face(step.line()).into();
-    let (w, h) = (f.w as f32, f.h as f32);
-    let tex = TexId::from_raw(1);
-    let draw = Draw::Tex {
-        x: 100.0,
-        y: 20.0,
-        w,
-        h,
-        tex,
-        alpha: 1.0,
-    };
-    ink(&composite(&[draw], &[(tex, f)]))
+    (px, status, asked)
 }
 
 #[test]
 fn a_cold_radio_says_it_is_bringing_the_radio_up() {
-    let (px, asked) = first_step_pixels(false, "step-radio-cold");
-    assert!(ink(&px) > 0, "the step put no sentence on the frame at all");
+    let (px, status, asked) = first_step_pixels(false, "step-radio-cold");
+    assert!(ink(&px) > 0, "the screen drew nothing at all");
     assert!(
         asked.contains(&RadioJob::Warm),
         "the screen never asked for a warm, so this frame says nothing about finishing one"
     );
-    assert_ne!(
-        line_ink(LinkStep::Radio),
-        line_ink(LinkStep::Waiting),
-        "the two sentences carry the same ink, so neither frame below proves anything"
-    );
     assert_eq!(
-        ink(&px),
-        line_ink(LinkStep::Radio),
+        status,
+        Some(LinkStep::Radio.line()),
         "a screen whose warm has not finished is not saying the radio is coming up"
     );
 }
 
 #[test]
 fn a_warm_radio_goes_straight_to_looking_for_the_other_player() {
-    let (px, _) = first_step_pixels(true, "step-radio-warm");
-    assert!(ink(&px) > 0, "the step put no sentence on the frame at all");
+    let (px, status, _) = first_step_pixels(true, "step-radio-warm");
     assert_eq!(
-        ink(&px),
-        line_ink(LinkStep::Waiting),
+        status,
+        Some(LinkStep::Waiting.line()),
         "a warm radio is still being announced as coming up"
     );
-    let (first, last) = inked_rows(&px);
+    let (first, _) = inked_rows(&px);
     assert!(
-        last < out_h() as usize / 2,
-        "the line is not up where the link screen's sentence goes: rows {first}..{last}"
+        first < out_h() as usize / 4,
+        "the panel is not up at the top"
     );
+}
+
+#[test]
+fn the_status_is_a_line_in_the_panels_well_that_grows_it() {
+    let pal = palette(0);
+    let view = |status: Option<&'static str>| omega_zero::link_screen::LinkView {
+        role: LinkRow::Host,
+        kind: LinkKind::Cable,
+        picking: status.is_none(),
+        status,
+    };
+    let bare = link_panel_face(&view(None), pal);
+    let told = link_panel_face(&view(Some(LinkStep::Waiting.line())), pal);
+    assert_eq!(bare.w, told.w);
+    assert!(told.h > bare.h, "the status took no room");
+    let dim = told
+        .rgba
+        .chunks_exact(4)
+        .filter(|p| p[..3] == pal.dim)
+        .count();
+    assert!(dim > 0, "the status is not in the dim colour of a note");
 }

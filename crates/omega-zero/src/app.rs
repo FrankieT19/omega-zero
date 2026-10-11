@@ -1,4 +1,3 @@
-use omega_ui::stage_y;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -8,17 +7,18 @@ use omega_power::{Battery, Charge, LedState, LidPolicy, Power};
 use omega_retro::LinkChannel;
 use omega_store::{
     format_stamp, read_app_state, scan, write_app_state, AppState, BackdropStyle, Cart, Core,
-    Platform, StateEntry, StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, RING_MAX, VOLUME_MAX,
+    Platform, StateEntry, StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, VOLUME_MAX,
 };
 use omega_ui::kit::action::Font;
+use omega_ui::kit::fade::stepped;
 use omega_ui::{
     backdrop_shift, board_from, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease, grown,
-    lid_at, lid_from, lift_of, on_board, posed_cart, posed_face, push_cart_side, shelf_cart_at,
-    CartMeshes, ChromeColours, ClockPicker, Draw, FfState, GbShell, Hud, HudKind, Icon,
+    lid_from, lift_of, on_board, posed_cart, posed_face, push_cart_side, shelf_cart_at, CartMeshes,
+    ChromeColours, ClockPicker, CornerBadge, Draw, FfState, GaugeIcon, GbShell, Hud, HudKind,
     KeyboardFaces, LinkBadge, LinkFaces, Links, Millis, Placed, Polaroids, PowerChoice, Refusal,
     SettingsFaces, SettingsRow, Shelf, SlotChrome, TexId, Toast, CART_W, CHIP_H, CHIP_U, CHIP_V,
-    CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V,
-    SOCKET_W, TOP_BAR_H, TURN_PAD,
+    CHIP_W, HOP_LIFT, LID_SHADOW_H, LID_SHADOW_W, SHADOW_AT, SHADOW_H, SHADOW_W, SOCKET_H,
+    SOCKET_U, SOCKET_V, SOCKET_W, SPRITE_PX, TOP_BAR_H, TURN_PAD,
 };
 
 use crate::audio::Sfx;
@@ -31,9 +31,9 @@ use crate::label_screen::{Labels, LabelsScreen};
 use crate::label_sync::{label_jobs, Account, LabelJobs, NoKey, Want};
 use crate::link_kind::{link_carried, link_kind, serial_option, LinkKind};
 use crate::link_radio::{radio_jobs, LinkRole, RadioJob, RadioJobs};
-use crate::link_screen::LinkSprites;
+use crate::link_screen::{LinkBar, LinkSprites};
 use crate::link_start::{link_port, LinkFail, LinkProgress, LinkStarter, LinkStep};
-use crate::nav::{offsets, Dir, End, Offsets, Slide, SLIDE_MS};
+use crate::nav::{even, offsets, Dir, End, Offsets, Slide, SLIDE_MS};
 use crate::persist::{self, Snapshot};
 use crate::screens::bar::BarFaces;
 use crate::screens::clock::clock_screen;
@@ -72,8 +72,6 @@ const HEADPHONES_POLL_MS: Millis = 500;
 
 const BATTERY_LOW: u8 = 20;
 
-pub const UNDO_GRACE_MS: Millis = 30_000;
-
 pub const LINK_LOST_MS: Millis = 2000;
 
 const PLAY_HOLD_MS: Millis = 500;
@@ -86,7 +84,6 @@ const SHUTDOWN_SHOW_MS: Millis = SLIDE_MS + 120;
 const PLATFORM_NAME_IN_MS: Millis = 200;
 const PLATFORM_NAME_HOLD_MS: Millis = 1200;
 const PLATFORM_NAME_OUT_MS: Millis = 800;
-const PLATFORM_NAME_ALPHA: f32 = 0.4;
 /// The core picker's lid, the cart's own face, turned `turn` as it lifts and spun `yaw` as it
 /// leaves the shelf. Unspun, it is drawn exactly as it was before carts swayed.
 fn push_lid(out: &mut Vec<Draw>, at: (f32, f32, f32, f32), tex: TexId, turn: f32, yaw: f32) {
@@ -106,35 +103,14 @@ fn push_lid(out: &mut Vec<Draw>, at: (f32, f32, f32, f32), tex: TexId, turn: f32
     });
 }
 
-fn link_text_y() -> f32 {
-    44.0 + stage_y()
-}
-
-fn link_legend_y() -> f32 {
-    422.0 + stage_y()
-}
-
-const LINK_LEGEND_GAP: f32 = 40.0;
-const LID_SHADOW_W: f32 = 168.0;
-const LID_SHADOW_H: f32 = 18.0;
+/// How far under the resting lid's bottom edge the middle of its shadow falls.
 const LID_SHADOW_DROP: f32 = 29.0;
-const LID_SHADOW_ALPHA: f32 = 0.8;
 const FACES_WAIT_MS: Millis = 1500;
 
 const ALERT_HOLD: f32 = 0.45;
 const ALERT_GONE: f32 = 0.9;
 
 const CLOCK_FLOOR: i64 = 1_577_836_800;
-
-pub enum PendingUndo {
-    Save {
-        stamp: String,
-        evicted: Option<(String, Vec<u8>, Vec<u8>)>,
-    },
-    Load {
-        prior: Vec<u8>,
-    },
-}
 
 struct LinkSession {
     client_id: u16,
@@ -231,33 +207,6 @@ impl LinkRow {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum LinkLegend {
-    Cancel,
-    Mode,
-    Swap,
-    Link,
-    Ok,
-    Back,
-    EndLink,
-}
-
-impl LinkLegend {
-    pub const ALL: [LinkLegend; 7] = [
-        LinkLegend::Cancel,
-        LinkLegend::Mode,
-        LinkLegend::Swap,
-        LinkLegend::Link,
-        LinkLegend::Ok,
-        LinkLegend::Back,
-        LinkLegend::EndLink,
-    ];
-
-    pub fn index(self) -> usize {
-        self as usize
-    }
-}
-
 pub const LINKED_HOLD_MS: Millis = 1000;
 
 pub const UNPLUG_HOLD_MS: Millis = 420;
@@ -306,9 +255,9 @@ pub enum Phase {
     },
 }
 
-/// What a bar across the top prints beside its icons: the time, the battery's figure, and the
-/// bolt shown while the handheld charges. The shelf's top bar and the switcher each have their
-/// own, baked in their own ink.
+/// What the bar across the top prints beside its icons: the time, the battery's figure, and the
+/// bolt shown while the handheld charges, baked in its ink. The save-state switcher shows the
+/// same bar.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Readouts {
     pub clock: omega_ui::Printed,
@@ -339,6 +288,7 @@ pub struct App {
     pub(crate) core_chip_faces: Vec<TexId>,
     pub(crate) core_blank_chip_face: Option<TexId>,
     pub(crate) core_chip_shadow_face: Option<TexId>,
+    pub(crate) core_lid_shadow_face: Option<TexId>,
     pub(crate) game_menu: Option<GameMenu>,
     pub(crate) link_sprites: Option<LinkSprites>,
     pub(crate) link_hardware: LinkKind,
@@ -347,11 +297,9 @@ pub struct App {
     pub(crate) link_loaded: Option<&'static str>,
     pub(crate) link_reload: Option<(String, &'static str)>,
     reload: Option<Reload>,
-    pub(crate) link_menu_faces: Vec<(TexId, u32, u32)>,
-    pub(crate) link_linked_face: Option<(TexId, u32, u32)>,
-    pub(crate) link_step_faces: Vec<(TexId, u32, u32)>,
-    pub(crate) link_fail_faces: Vec<(TexId, u32, u32)>,
-    pub(crate) link_legend_faces: Vec<(TexId, u32)>,
+    /// The link screen's LINK panel, and its bar.
+    pub(crate) link_panel: Option<Lone>,
+    pub(crate) link_bar: Option<LinkBar>,
     starting: Option<LinkStarting>,
     pub(crate) link_transport: Option<(u16, Box<dyn LinkChannel>)>,
     pub(crate) restarting: bool,
@@ -369,17 +317,12 @@ pub struct App {
     link: Option<LinkSession>,
     pub(crate) sfx: Option<Sfx>,
     pub(crate) polaroids: Option<Polaroids>,
-    pub(crate) pending: Option<(PendingUndo, Millis)>,
-    pub(crate) legend_faces: Vec<TexId>,
-    pub(crate) undo_face: Option<TexId>,
     pub(crate) clock_panel: Option<Lone>,
     pub(crate) settings_faces: Option<SettingsFaces>,
-    pub(crate) sticker_face: Option<TexId>,
+    pub(crate) about_modal: Option<Lone>,
     pub(crate) wallpaper: Option<TexId>,
     /// The top bar's clock, figure and bolt, baked in its ink.
     pub(crate) top_readouts: Readouts,
-    /// The switcher's, which keep the white they have over the game.
-    pub(crate) switcher_readouts: Readouts,
     pub(crate) shelf_platform: omega_ui::Printed,
     pub(crate) name_pending: bool,
     pub(crate) slot_letter: Option<char>,
@@ -488,6 +431,7 @@ impl App {
             core_chip_faces: Vec::new(),
             core_blank_chip_face: None,
             core_chip_shadow_face: None,
+            core_lid_shadow_face: None,
             game_menu: None,
             link_sprites: None,
             link_hardware: LinkKind::Cable,
@@ -496,11 +440,8 @@ impl App {
             link_loaded: None,
             link_reload: None,
             reload: None,
-            link_menu_faces: Vec::new(),
-            link_linked_face: None,
-            link_step_faces: Vec::new(),
-            link_fail_faces: Vec::new(),
-            link_legend_faces: Vec::new(),
+            link_panel: None,
+            link_bar: None,
             starting: None,
             link_transport: None,
             restarting: false,
@@ -518,15 +459,11 @@ impl App {
             link: None,
             sfx: None,
             polaroids: None,
-            pending: None,
-            legend_faces: Vec::new(),
-            undo_face: None,
             clock_panel: None,
             settings_faces: None,
-            sticker_face: None,
+            about_modal: None,
             wallpaper: None,
             top_readouts: Readouts::default(),
-            switcher_readouts: Readouts::default(),
             shelf_platform: omega_ui::Printed::default(),
             name_pending: false,
             slot_letter: None,
@@ -637,6 +574,8 @@ impl App {
         self.name_pending = true;
     }
 
+    /// How much of the slot's name shows: it comes in, holds in the palette's dim colour and
+    /// goes, each way in the kit's four steps.
     pub(crate) fn slot_name_alpha(&self) -> f32 {
         let Some(at) = self.shelf_named else {
             return 0.0;
@@ -650,7 +589,7 @@ impl App {
             let out = t - PLATFORM_NAME_IN_MS - PLATFORM_NAME_HOLD_MS;
             1.0 - (out as f32 / PLATFORM_NAME_OUT_MS as f32).min(1.0)
         };
-        PLATFORM_NAME_ALPHA * ease(level)
+        stepped(ease(level))
     }
 
     fn next_shelf(&self, by: i32) -> Option<usize> {
@@ -728,11 +667,6 @@ impl App {
     /// The top bar's clock, figure and bolt, baked in `chrome_colours().ink`.
     pub fn set_top_readouts(&mut self, readouts: Readouts) {
         self.top_readouts = readouts;
-    }
-
-    /// The switcher's clock, figure and bolt, in white.
-    pub fn set_switcher_readouts(&mut self, readouts: Readouts) {
-        self.switcher_readouts = readouts;
     }
 
     pub fn set_shelf_platform_face(&mut self, face: TexId, w: u32) {
@@ -967,10 +901,6 @@ impl App {
 
     pub fn link_badge(&self) -> LinkBadge {
         self.hud.link()
-    }
-
-    pub fn set_link_badge_faces(&mut self, faces: Vec<TexId>) {
-        self.hud.set_link_faces(faces);
     }
 
     fn sync_link_badge(&mut self) {
@@ -1244,8 +1174,6 @@ impl App {
                 Action::ShelfRight | Action::GbaDown(Btn::Right) => self.flick(Polaroids::right),
                 Action::GbaDown(Btn::A) => self.load_selected(),
                 Action::GbaDown(Btn::B) | Action::Polaroids => self.close_polaroids(),
-                Action::GbaDown(Btn::X) => self.undo(self.now()),
-                Action::GbaDown(Btn::Y) => self.delete_selected(),
                 _ => {}
             },
             Phase::About => self.about_input(action),
@@ -1507,12 +1435,13 @@ impl App {
         self.hud.release_rewind();
     }
 
+    /// Fast forward as `ff`, its badge saying the speed Settings sets.
     pub fn set_ff(&mut self, ff: FfState) {
-        self.hud.set_ff(ff);
+        self.hud.set_ff(ff, self.state.ff_speed);
     }
 
-    pub fn ff_badge(&self) -> Option<Icon> {
-        self.hud.badge()
+    pub fn ff_badge(&self) -> Option<CornerBadge> {
+        self.hud.ff_badge()
     }
 
     pub fn blue_light(&self) -> u8 {
@@ -1567,7 +1496,7 @@ impl App {
         }
     }
 
-    pub fn hud_icon(&self) -> Icon {
+    pub fn hud_icon(&self) -> GaugeIcon {
         self.hud.glyph()
     }
 
@@ -1700,10 +1629,6 @@ impl App {
         self.labels.tick();
         self.take_labels();
         self.play_hold();
-        let offer = self.undo_label();
-        if let Some(p) = &mut self.polaroids {
-            p.set_undo(offer);
-        }
         if self.doze_expired() {
             self.on_doze_timeout();
         }
@@ -1919,7 +1844,7 @@ impl App {
     /// back with the shelf.
     fn top_bar_reach(&self) -> f32 {
         let shows = |phase: &Phase| match phase {
-            Phase::Shelf | Phase::Ejecting { .. } => true,
+            Phase::Shelf | Phase::Ejecting { .. } | Phase::Polaroids { .. } => true,
             Phase::Inserting { resumed, .. } => !resumed,
             _ => false,
         };
@@ -1978,12 +1903,14 @@ impl App {
             }
             Phase::Playing { cart } if self.screen < 1.0 => self.chrome(cart, 0.0, out),
             Phase::Playing { .. } => self.push_game(out),
+            // the save states over the game, under the shelf's top bar; the bar along the bottom
+            // is drawn after every screen
             Phase::Polaroids { .. } => {
                 self.push_game(out);
                 if let Some(p) = &self.polaroids {
-                    let r = self.switcher_readouts;
-                    p.draw(self.battery, r.percent, r.bolt, r.clock, out);
+                    p.draw(out);
                 }
+                self.draw_top_bar(out);
             }
             Phase::Doze { .. } => out.push(Draw::Rect {
                 x: 0.0,
@@ -2050,6 +1977,8 @@ impl App {
         self.alert_alpha() > 0.0
     }
 
+    /// How much of the refused cart's alert shows: all of it until the cart is `ALERT_HOLD` of
+    /// the way out, then fading in the kit's four steps until it is gone at `ALERT_GONE`.
     pub fn alert_alpha(&self) -> f32 {
         let (Some(from), Phase::Ejecting { t, .. }) = (self.refused_from, &self.phase) else {
             return 0.0;
@@ -2059,7 +1988,7 @@ impl App {
             return 0.0;
         }
         let u = ((t - from) / span).clamp(0.0, 1.0);
-        ((ALERT_GONE - u) / (ALERT_GONE - ALERT_HOLD)).clamp(0.0, 1.0)
+        stepped((ALERT_GONE - u) / (ALERT_GONE - ALERT_HOLD))
     }
 
     pub fn set_alert_face(&mut self, face: TexId) {
@@ -2077,40 +2006,13 @@ impl App {
         sockets: Vec<TexId>,
         chips: Vec<TexId>,
         blank: TexId,
-        shadow: TexId,
+        [chip_shadow, lid_shadow]: [TexId; 2],
     ) {
         self.core_socket_faces = sockets;
         self.core_chip_faces = chips;
         self.core_blank_chip_face = Some(blank);
-        self.core_chip_shadow_face = Some(shadow);
-    }
-
-    pub fn set_link_menu_faces(&mut self, faces: Vec<(TexId, u32, u32)>) {
-        self.link_menu_faces = faces;
-    }
-
-    pub fn set_link_linked_face(&mut self, face: (TexId, u32, u32)) {
-        self.link_linked_face = Some(face);
-    }
-
-    pub fn set_link_step_faces(&mut self, faces: Vec<(TexId, u32, u32)>) {
-        self.link_step_faces = faces;
-    }
-
-    pub fn set_link_fail_faces(&mut self, faces: Vec<(TexId, u32, u32)>) {
-        self.link_fail_faces = faces;
-    }
-
-    pub fn set_link_legend_faces(&mut self, faces: Vec<(TexId, u32)>) {
-        self.link_legend_faces = faces;
-    }
-
-    pub fn set_link_sprites(&mut self, sprites: LinkSprites) {
-        self.link_sprites = Some(sprites);
-    }
-
-    pub fn link_sprites_ready(&self) -> bool {
-        self.link_sprites.is_some()
+        self.core_chip_shadow_face = Some(chip_shadow);
+        self.core_lid_shadow_face = Some(lid_shadow);
     }
 
     pub(crate) fn core_picker_shown(&self) -> Option<CorePicker> {
@@ -2144,31 +2046,36 @@ impl App {
                     pose.yaw,
                 ));
             }
+            // the parts are pixel art like the board, a texel to `px` screen pixels as it is
+            // drawn, each put down on whole art pixels
+            let px = SPRITE_PX as f32 * zoom;
             for (i, tex) in self.core_socket_faces.iter().copied().enumerate() {
                 let (x, y) = on_board(board, SOCKET_U[i], SOCKET_V);
                 out.push(Draw::Tex {
-                    x: x.round(),
-                    y: y.round(),
-                    w: SOCKET_W as f32 * zoom,
-                    h: SOCKET_H as f32 * zoom,
+                    x: even(x),
+                    y: even(y),
+                    w: SOCKET_W as f32 * px,
+                    h: SOCKET_H as f32 * px,
                     tex,
                     alpha: 1.0,
                 });
             }
 
+            // the chip crosses and hops a whole art pixel at a time, level: a turned face
+            // would leave the grid
             let chip = picker.chip(now);
-            let u = CHIP_U[0] + (CHIP_U[1] - CHIP_U[0]) * chip.across;
-            if chip.lift > 0.0 {
+            let u = (CHIP_U[0] + (CHIP_U[1] - CHIP_U[0]) * chip.across).round();
+            let hop = (HOP_LIFT * chip.lift).round();
+            if hop > 0.0 {
                 if let Some(tex) = self.core_chip_shadow_face {
-                    let (cx, cy) = on_board(board, u + 19.0, CHIP_V + 29.4);
-                    let (w, h) = (SHADOW_W as f32 * zoom, SHADOW_H as f32 * zoom);
+                    let (x, y) = on_board(board, u + SHADOW_AT[0], CHIP_V + SHADOW_AT[1]);
                     out.push(Draw::Tex {
-                        x: cx - w / 2.0,
-                        y: cy - h / 2.0,
-                        w,
-                        h,
+                        x: even(x),
+                        y: even(y),
+                        w: SHADOW_W as f32 * px,
+                        h: SHADOW_H as f32 * px,
                         tex,
-                        alpha: 0.6 * chip.lift * lift,
+                        alpha: stepped(chip.lift * lift),
                     });
                 }
             }
@@ -2177,37 +2084,32 @@ impl App {
                 None => self.core_blank_chip_face,
             };
             if let Some(tex) = face {
-                let (x, y) = on_board(board, u, CHIP_V - HOP_LIFT * chip.lift);
-                let body = Placed {
-                    x: x + chip.shake,
-                    y,
-                    w: CHIP_W as f32 * zoom,
-                    h: CHIP_H as f32 * zoom,
-                };
-                let at = grown(body, TURN_PAD as f32 * zoom);
-                out.push(Draw::Turned {
-                    x: at.x.round(),
-                    y: at.y.round(),
-                    w: at.w,
-                    h: at.h,
+                let (x, y) = on_board(board, u, CHIP_V - hop);
+                out.push(Draw::Tex {
+                    x: even(x + chip.shake),
+                    y: even(y),
+                    w: CHIP_W as f32 * px,
+                    h: CHIP_H as f32 * px,
                     tex,
                     alpha: 1.0,
-                    turn: chip.tip,
                 });
             }
         }
 
-        if let Some(tex) = self.core_chip_shadow_face {
+        // the lid's shadow, a dithered block at the size it rests at, fading in steps as it lifts
+        if let Some(tex) = self.core_lid_shadow_face {
             let (lid, _) = lid_from(shelf, progress);
-            let k = lid.w / lid_at(1.0).0.w;
-            let (w, h) = (LID_SHADOW_W * k, LID_SHADOW_H * k);
+            let (w, h) = (
+                (LID_SHADOW_W * SPRITE_PX) as f32,
+                (LID_SHADOW_H * SPRITE_PX) as f32,
+            );
             out.push(Draw::Tex {
-                x: lid.x + (lid.w - w) / 2.0,
-                y: lid.y + lid.h + LID_SHADOW_DROP * k - h / 2.0,
+                x: even(lid.x + (lid.w - w) / 2.0),
+                y: even(lid.y + lid.h + LID_SHADOW_DROP - h / 2.0),
                 w,
                 h,
                 tex,
-                alpha: LID_SHADOW_ALPHA * lift,
+                alpha: stepped(lift),
             });
         }
 
@@ -2238,75 +2140,6 @@ impl App {
         {
             let (lid, turn) = lid_from(shelf, progress);
             push_lid(out, (lid.x, lid.y, lid.w, lid.h), tex, turn, pose.yaw);
-        }
-    }
-
-    fn draw_game_menu(&self, menu: GameMenu, out: &mut Vec<Draw>) {
-        out.push(Draw::Rect {
-            x: 0.0,
-            y: 0.0,
-            w: out_w() as f32,
-            h: out_h() as f32,
-            colour: omega_ui::opening(),
-        });
-        if let Some(sprites) = &self.link_sprites {
-            crate::link_screen::draw_link_art(menu, self.link_hardware, self.now(), sprites, out);
-        }
-        let line = match menu {
-            GameMenu::Pick(role) => self.link_menu_faces.get(role.index()).copied(),
-            GameMenu::Working { step, .. } => self
-                .link_step_faces
-                .get(step.shown(self.radio.warmed()).index())
-                .copied(),
-            GameMenu::Linked { .. } => self.link_linked_face,
-            GameMenu::Failed { fail, .. } => fail
-                .shown()
-                .and_then(|i| self.link_fail_faces.get(i).copied()),
-            GameMenu::Unplug { .. } => None,
-        };
-        if let Some((tex, w, h)) = line {
-            out.push(Draw::Tex {
-                x: ((out_w() as f32 - w as f32) / 2.0).round(),
-                y: link_text_y(),
-                w: w as f32,
-                h: h as f32,
-                tex,
-                alpha: 1.0,
-            });
-        }
-        let switchable = self.seated().is_some_and(|stem| self.link_switchable(stem));
-        let keys: &[LinkLegend] = match menu {
-            GameMenu::Pick(_) if switchable => &[
-                LinkLegend::Cancel,
-                LinkLegend::Mode,
-                LinkLegend::Swap,
-                LinkLegend::Link,
-            ],
-            GameMenu::Pick(_) => &[LinkLegend::Cancel, LinkLegend::Swap, LinkLegend::Link],
-            GameMenu::Working { .. } => &[LinkLegend::Cancel],
-            GameMenu::Linked { opened: true, .. } => &[LinkLegend::Back, LinkLegend::EndLink],
-            GameMenu::Linked { .. } => &[],
-            GameMenu::Failed { .. } => &[LinkLegend::Ok],
-            GameMenu::Unplug { .. } => &[],
-        };
-        let faces: Vec<(TexId, u32)> = keys
-            .iter()
-            .filter_map(|k| self.link_legend_faces.get(k.index()).copied())
-            .collect();
-        let seen = |w: u32| w.saturating_sub(HINT_EDGE) as f32;
-        let total: f32 = faces.iter().map(|(_, w)| seen(*w)).sum::<f32>()
-            + LINK_LEGEND_GAP * faces.len().saturating_sub(1) as f32;
-        let mut x = ((out_w() as f32 - total) / 2.0).round();
-        for (tex, w) in faces {
-            out.push(Draw::Tex {
-                x,
-                y: link_legend_y(),
-                w: w as f32,
-                h: HINT_H as f32,
-                tex,
-                alpha: 1.0,
-            });
-            x += (seen(w) + LINK_LEGEND_GAP).round();
         }
     }
 
@@ -2385,7 +2218,6 @@ impl App {
         self.end_link();
         self.close_game_menu();
         self.flush_eject(&cart);
-        self.pending = None;
         self.refusal = None;
         self.refused_from = None;
         self.phase = Phase::Ejecting {
@@ -2666,7 +2498,7 @@ impl App {
         self.link_choices.insert(stem, other);
     }
 
-    fn link_switchable(&self, stem: &str) -> bool {
+    pub(crate) fn link_switchable(&self, stem: &str) -> bool {
         self.auto_link(stem).is_some_and(|(cart, auto)| {
             serial_option(self.link_hardware.other(), auto, &cart.code, &cart.title)
                 != serial_option(self.link_hardware, auto, &cart.code, &cart.title)
@@ -2734,7 +2566,6 @@ impl App {
 
     fn refuse_seated(&mut self) {
         self.close_game_menu();
-        self.pending = None;
         let caught = self.seat();
         let cart = match &mut self.phase {
             Phase::Playing { cart } => Some(std::mem::take(cart)),
@@ -2946,7 +2777,7 @@ impl App {
         Some(StateRing::new(root, self.platform, self.core, cart))
     }
 
-    fn seated(&self) -> Option<&str> {
+    pub(crate) fn seated(&self) -> Option<&str> {
         match &self.phase {
             Phase::Playing { cart } | Phase::Polaroids { cart } => Some(cart),
             _ => None,
@@ -2969,11 +2800,8 @@ impl App {
             return;
         };
         let cart = std::mem::take(cart);
-        let mut p = Polaroids::new(entries);
-        p.set_undo(self.undo_label());
-        self.polaroids = Some(p);
+        self.polaroids = Some(Polaroids::new(entries));
         self.phase = Phase::Polaroids { cart };
-        self.push_hint_faces();
     }
 
     fn close_polaroids(&mut self) {
@@ -2994,38 +2822,6 @@ impl App {
         let refused = state.map(|state| self.load_file(&state)) == Some(false);
         if !refused {
             self.close_polaroids();
-        }
-    }
-
-    fn delete_selected(&mut self) {
-        let stamp = self
-            .polaroids
-            .as_ref()
-            .and_then(|p| p.selected())
-            .map(|e| e.stamp.clone());
-        let (Some(stamp), Some(ring)) = (stamp, self.ring()) else {
-            return;
-        };
-        if let Err(e) = ring.remove(&stamp) {
-            eprintln!("omega-zero: delete: {e}");
-            return;
-        }
-        if self.undo_targets(&stamp) {
-            self.pending = None;
-        }
-        let Some(p) = &mut self.polaroids else {
-            return;
-        };
-        p.remove_selected();
-        if p.is_empty() {
-            self.close_polaroids();
-        }
-    }
-
-    fn undo_targets(&self, stamp: &str) -> bool {
-        match self.pending.as_ref() {
-            Some((PendingUndo::Save { stamp: pending, .. }, _)) => pending == stamp,
-            _ => false,
         }
     }
 
@@ -3051,12 +2847,8 @@ impl App {
                 return false;
             }
         };
-        let prior = snapshot.state();
         snapshot.load(bytes);
         self.hud.toast(Toast::StateLoaded, self.now());
-        if let Some(prior) = prior {
-            self.pending = Some((PendingUndo::Load { prior }, self.now()));
-        }
         true
     }
 
@@ -3076,97 +2868,26 @@ impl App {
         };
         let thumb = snapshot.thumb().unwrap_or_default();
         let stamp = free_stamp(&ring, self.wall_secs());
-        let evicted = doomed(&ring);
         if let Err(e) = ring.push(&state, &thumb, &stamp) {
             eprintln!("omega-zero: save: {e}");
             return;
         }
         self.hud.toast(Toast::StateSaved, self.now());
-        self.pending = Some((PendingUndo::Save { stamp, evicted }, self.now()));
     }
 
-    pub fn undo_available(&self, now: Millis) -> bool {
-        self.pending
-            .as_ref()
-            .is_some_and(|(_, at)| now.saturating_sub(*at) <= UNDO_GRACE_MS)
+    /// What shows over the screen for a moment or while it lasts: the gauge, the toast and the
+    /// badge in the corner.
+    pub fn hud(&self) -> &Hud {
+        &self.hud
     }
 
-    pub fn undo_label(&self) -> Option<&'static str> {
-        if !self.undo_available(self.now()) {
-            return None;
-        }
-        match self.pending.as_ref()?.0 {
-            PendingUndo::Save { .. } => Some("undo save"),
-            PendingUndo::Load { .. } => Some("undo load"),
-        }
-    }
-
-    pub fn set_legend_faces(&mut self, faces: Vec<TexId>) {
-        self.legend_faces = faces;
-        self.push_hint_faces();
-    }
-
-    pub fn set_undo_face(&mut self, face: Option<TexId>) {
-        self.undo_face = face;
-        self.push_hint_faces();
-    }
-
-    fn push_hint_faces(&mut self) {
-        let mut faces = self.legend_faces.clone();
-        faces.extend(self.undo_face);
-        if let Some(p) = &mut self.polaroids {
-            p.set_hint_faces(faces);
-        }
-    }
-
-    pub fn set_icon_faces(&mut self, faces: Vec<TexId>) {
-        self.hud.set_icons(faces);
-    }
-
-    pub fn set_toast_faces(&mut self, faces: Vec<TexId>) {
-        self.hud.set_toasts(faces);
+    /// The HUD, for the frontend to hand it the faces it asks for.
+    pub fn hud_mut(&mut self) -> &mut Hud {
+        &mut self.hud
     }
 
     pub fn toast(&self) -> Option<Toast> {
         self.hud.said(self.now())
-    }
-
-    pub fn undo(&mut self, now: Millis) {
-        if !self.undo_available(now) {
-            self.pending = None;
-            return;
-        }
-        if matches!(&self.pending, Some((PendingUndo::Load { .. }, _))) && !self.may_load_state() {
-            return self.refuse();
-        }
-        let Some((what, _)) = self.pending.take() else {
-            return;
-        };
-        match what {
-            PendingUndo::Save { stamp, evicted } => self.undo_save(&stamp, evicted),
-            PendingUndo::Load { prior } => {
-                if let Some(snapshot) = &self.snapshot {
-                    snapshot.load(prior);
-                }
-            }
-        }
-        self.close_polaroids();
-    }
-
-    fn undo_save(&self, stamp: &str, evicted: Option<(String, Vec<u8>, Vec<u8>)>) {
-        let Some(ring) = self.ring() else {
-            return;
-        };
-        if let Err(e) = ring.remove(stamp) {
-            eprintln!("omega-zero: undo: {e}");
-            return;
-        }
-        let Some((stamp, state, thumb)) = evicted else {
-            return;
-        };
-        if let Err(e) = ring.push(&state, &thumb, &stamp) {
-            eprintln!("omega-zero: undo: {e}");
-        }
     }
 
     pub fn polaroid_entries(&self) -> &[StateEntry] {
@@ -3182,22 +2903,15 @@ impl App {
         }
     }
 
-    pub fn polaroid_stamp(&self) -> Option<&str> {
-        self.polaroids
-            .as_ref()
-            .and_then(|p| p.selected())
-            .map(|e| e.stamp.as_str())
+    /// The save-state switcher while it is open.
+    pub fn polaroids(&self) -> Option<&Polaroids> {
+        self.polaroids.as_ref()
     }
 
-    pub fn polaroid_title(&self, now: &str) -> String {
-        self.polaroids
-            .as_ref()
-            .map_or_else(String::new, |p| p.title(now))
-    }
-
-    pub fn set_polaroid_title_face(&mut self, face: TexId) {
+    /// The switcher's SAVE STATES panel, uploaded as `tex`, `w` by `h` art pixels.
+    pub fn set_polaroid_panel(&mut self, tex: TexId, w: u32, h: u32) {
         if let Some(p) = &mut self.polaroids {
-            p.set_title_face(Some(face));
+            p.set_panel_face(tex, w, h);
         }
     }
 }
@@ -3250,13 +2964,6 @@ fn system_secs() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
-}
-
-fn doomed(ring: &StateRing) -> Option<(String, Vec<u8>, Vec<u8>)> {
-    let entries = ring.list().ok()?;
-    let oldest = entries.get(RING_MAX - 1)?;
-    let (state, thumb) = ring.read(&oldest.stamp).ok()?;
-    Some((oldest.stamp.clone(), state, thumb))
 }
 
 fn free_stamp(ring: &StateRing, now: i64) -> String {

@@ -7,8 +7,10 @@ use omega_gfx::{
     lcd3x_mask, out_h, out_w, Compositor, Draw, Filter, GameView, HeadlessSurface, SRC_H, SRC_W,
 };
 use omega_retro::{ButtonMask, MockCore, RetroCore};
-use omega_store::{Core, Platform, StateRing};
-use omega_ui::{photo_face, Polaroids, Printed};
+use omega_store::{colour_index, Core, Platform, StateRing};
+use omega_ui::kit::palette::palette;
+use omega_ui::kit::saves::{saves_face, saves_width};
+use omega_ui::{photo_face, Polaroids, UndoFace};
 use omega_zero::thumb;
 use omega_zero::video_mode::{screen, VideoMode};
 
@@ -72,7 +74,7 @@ fn deviation(frame: &[u8], src: &[u8], view: GameView, samples: &[(usize, usize)
 
 fn switcher_photo(p: &Polaroids) -> Vec<Draw> {
     let mut out = Vec::new();
-    p.draw(None, Printed::default(), None, Printed::default(), &mut out);
+    p.draw(&mut out);
     let photo = *out.first().expect("the switcher drew nothing");
     assert!(
         matches!(photo, Draw::Shot { .. }),
@@ -191,5 +193,62 @@ fn the_switcher_magnifies_its_screenshot_without_resampling_it() {
     assert!(
         worst <= 1,
         "a source pixel bled into its neighbours by {worst}"
+    );
+}
+
+/// Where the frame is not `face` at twice its size with its top left at art pixel (`x0`, `y0`):
+/// each opaque art pixel a 2x2 block of exactly its colour, nothing blended. As (x, y).
+fn off_twice(frame: &[u8], face: &UndoFace, [x0, y0]: [u32; 2]) -> Vec<(usize, usize)> {
+    let mut off = Vec::new();
+    for ty in 0..face.h as usize {
+        for tx in 0..face.w as usize {
+            let t = (ty * face.w as usize + tx) * 4;
+            if face.rgba[t + 3] != 0xff {
+                continue;
+            }
+            let want = [face.rgba[t], face.rgba[t + 1], face.rgba[t + 2]];
+            for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                let (x, y) = ((x0 as usize + tx) * 2 + dx, (y0 as usize + ty) * 2 + dy);
+                if px(frame, x, y) != want {
+                    off.push((x, y));
+                }
+            }
+        }
+    }
+    off
+}
+
+/// `p` drawn alone on a fresh frame, and the frame read back.
+fn drawn(c: &mut Compositor, p: &Polaroids) -> Vec<u8> {
+    let mut out = Vec::new();
+    p.draw(&mut out);
+    c.begin_frame();
+    c.draw_list(&out);
+    c.read_frame()
+}
+
+/// The switcher's SAVE STATES panel on the panel is its face at twice its size: each art pixel
+/// a 2x2 block of exactly its colour where `Polaroids::panel_rect` puts it, nothing blended.
+#[test]
+fn the_switchers_panel_is_its_face_at_twice_its_size() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let pal = palette(colour_index("amber").expect("amber"));
+    let (count, at) = (4, 1);
+    let w = saves_width("4 min ago", count);
+    let face = saves_face(w, "4 min ago", count, at, pal);
+    let tex = c.create_texture_nearest(face.w, face.h, &face.rgba);
+    let mut p = Polaroids::new(Vec::new());
+    p.set_panel_face(tex, face.w, face.h);
+    let frame = drawn(&mut c, &p);
+
+    let [x0, y0, _, _] = Polaroids::panel_rect(face.w, face.h);
+    let off = off_twice(&frame, &face, [x0, y0]);
+    assert!(
+        off.is_empty(),
+        "the panel is off its face at {} pixels, first {:?}",
+        off.len(),
+        &off[..off.len().min(4)]
     );
 }

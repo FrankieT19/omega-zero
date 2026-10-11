@@ -3,7 +3,7 @@ use crate::common;
 use common::{app_playing_in, app_playing_with_volume, boot, tmp_root_with_carts};
 use omega_input::Action;
 use omega_store::read_app_state;
-use omega_ui::Icon;
+use omega_ui::GaugeIcon;
 use omega_zero::app::Phase;
 
 #[test]
@@ -71,7 +71,7 @@ fn muted_is_silent_but_remembers() {
     a.apply_at(Action::MuteToggle, 0);
     assert_eq!(a.output_volume(), 0, "muted but still audible");
     assert_eq!(a.volume(), 70, "muting forgot the level");
-    assert_eq!(a.hud_icon(), Icon::VolumeMuted);
+    assert_eq!(a.hud_icon(), GaugeIcon::Muted);
 }
 
 #[test]

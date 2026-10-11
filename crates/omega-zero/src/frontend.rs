@@ -4,20 +4,16 @@ use omega_gfx::{out_h, out_w, Bezel, Compositor, Draw, TexId};
 use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_ui::{
-    arrows_hint_face, badge_face, bezel_mark_face, cart_face, cart_mesh, cart_shadow, chip_face,
-    chip_shadow_face, gb_cart_shadow, hint_face, icon_face, mark_height, mark_rect, menu_face, rim,
-    socket_face, toast_face, wallpaper_face, CartMeshes, CartModel, GbShell, Icon, LinkBadge,
-    Toast, UndoFace, ALERT_PX, BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
+    bezel_mark_face, cart_face, cart_mesh, cart_shadow, chip_face, chip_shadow_face,
+    gb_cart_shadow, lid_shadow_face, mark_height, mark_rect, rim, socket_face, wallpaper_face,
+    CartFace, CartMeshes, CartModel, GbShell, UndoFace, BEZEL_FILL,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
-use crate::app::LinkRow;
 use crate::face_builder::FaceBuilder;
 use crate::frontend::faces::upload_nearest;
-use crate::link_art_builder::LinkArtBuilder;
-use crate::link_screen::{LinkSprites, Sprite};
-use crate::link_start::{LinkFail, LinkStep};
 use crate::list_view::ListView;
+use crate::screens::about::AboutView;
 use crate::session::Session;
 use crate::wallpaper;
 
@@ -30,8 +26,10 @@ mod sync_bluetooth;
 mod sync_clock;
 mod sync_controls;
 mod sync_core_picker;
+mod sync_hud;
 mod sync_keyboard;
 mod sync_labels;
+mod sync_link;
 mod sync_network;
 mod sync_power;
 mod sync_settings;
@@ -40,25 +38,25 @@ mod sync_switcher;
 mod sync_top_bar;
 
 use lone::Baked;
-use sync_about::{sync_about, AboutFace};
+use sync_about::sync_about;
 use sync_background::{sync_background, BackdropTex};
 use sync_bar::{sync_bar, BarTexes};
 use sync_bluetooth::{sync_bluetooth, BluetoothTexes};
 use sync_clock::{sync_clock, Clocks};
 use sync_controls::sync_controls;
 use sync_core_picker::sync_core_picker;
+use sync_hud::{sync_hud, HudTexes};
 use sync_keyboard::{sync_keyboard, KeyboardTexes};
 use sync_labels::sync_labels;
+use sync_link::{sync_link, LinkTexes};
 use sync_network::{sync_network, NetworkTexes};
 use sync_power::{sync_power, PowerPanels};
 use sync_settings::{sync_settings, SettingsTexes};
 use sync_ssh::{sync_ssh, SshTexes};
-use sync_switcher::{sync_switcher, Faces, Switcher};
+use sync_switcher::{sync_switcher, Switcher};
 use sync_top_bar::{sync_top_bar, TopBarTexes};
 
 const DOZE_TIMEOUT: Duration = Duration::from_secs(180);
-
-const ALERT_INK: [u8; 3] = [0xf0, 0xb4, 0x3c];
 
 pub struct Frontend {
     session: Session,
@@ -66,19 +64,18 @@ pub struct Frontend {
     last: Instant,
     draws: Vec<Draw>,
     polaroid_texes: Vec<TexId>,
-    title_tex: Option<TexId>,
     faces: FaceBuilder,
-    link_art: LinkArtBuilder,
-    link_art_done: bool,
+    /// The link screen's art, LINK panel and bar.
+    link: LinkTexes,
     core_asked: Option<String>,
     core_board_tex: Option<TexId>,
     core_lid_tex: Option<TexId>,
     core_built: Option<String>,
-    undo_tex: Option<TexId>,
     switcher: Switcher,
     clocks: Clocks,
     top_bar: TopBarTexes,
-    about: AboutFace,
+    /// About's modal, baked as one face.
+    about: Baked<(AboutView, u8)>,
     settings: SettingsTexes,
     bezel_marks: Vec<BezelMark>,
     overlays: Vec<Overlay>,
@@ -96,6 +93,8 @@ pub struct Frontend {
     power: PowerPanels,
     backdrop: BackdropTex,
     bar: BarTexes,
+    /// The gauge's, the toast's and the corner badge's faces.
+    hud: HudTexes,
     /// The boot logo's texture while it fades over the shelf.
     boot_logo: Option<TexId>,
 }
@@ -131,19 +130,16 @@ impl Frontend {
             last: now,
             draws: Vec::new(),
             polaroid_texes: Vec::new(),
-            title_tex: None,
             faces: FaceBuilder::spawn(),
-            link_art: LinkArtBuilder::spawn(),
-            link_art_done: false,
+            link: LinkTexes::default(),
             core_asked: None,
             core_board_tex: None,
             core_lid_tex: None,
             core_built: None,
-            undo_tex: None,
             switcher: Switcher::default(),
             clocks: Clocks::default(),
             top_bar: TopBarTexes::default(),
-            about: AboutFace::default(),
+            about: Baked::default(),
             settings: SettingsTexes::default(),
             bezel_marks: Vec::new(),
             overlays: Vec::new(),
@@ -157,6 +153,7 @@ impl Frontend {
             power: PowerPanels::default(),
             backdrop: BackdropTex::default(),
             bar: BarTexes::default(),
+            hud: HudTexes::default(),
             boot_logo: None,
         }
     }
@@ -194,82 +191,21 @@ impl Frontend {
             })
             .collect();
         self.session.app_mut().set_faces(faces);
-        let icons = Icon::ALL
-            .iter()
-            .map(|i| {
-                let f = icon_face(*i, HUD_ICON_PX, HUD_INK);
-                compositor.create_texture(f.w, f.h, &f.rgba)
-            })
-            .collect();
-        self.session.app_mut().set_icon_faces(icons);
-        let link_badges = LinkBadge::FACES
-            .iter()
-            .map(|b| {
-                let (badge, ink) = (
-                    b.badge().expect("a face has a glyph"),
-                    b.colour().expect("and a colour"),
-                );
-                let f = badge_face(badge, HUD_ICON_PX, ink);
-                compositor.create_texture(f.w, f.h, &f.rgba)
-            })
-            .collect();
-        self.session.app_mut().set_link_badge_faces(link_badges);
-        let alert = icon_face(Icon::Alert, ALERT_PX, ALERT_INK);
-        let alert = compositor.create_texture(alert.w, alert.h, &alert.rgba);
-        self.session.app_mut().set_alert_face(alert);
+        // the core picker's parts are pixel art, a texel to an art pixel, kept sharp at 2x
+        let mut sprite = |f: CartFace| compositor.create_texture_nearest(f.w, f.h, &f.rgba);
         let sockets = omega_store::Core::ALL
             .iter()
-            .map(|c| {
-                let f = socket_face(*c);
-                compositor.create_texture(f.w, f.h, &f.rgba)
-            })
+            .map(|c| sprite(socket_face(*c)))
             .collect();
         let chips = omega_store::Core::ALL
             .iter()
-            .map(|c| {
-                let f = chip_face(Some(*c));
-                compositor.create_texture(f.w, f.h, &f.rgba)
-            })
+            .map(|c| sprite(chip_face(Some(*c))))
             .collect();
-        let blank = chip_face(None);
-        let blank = compositor.create_texture(blank.w, blank.h, &blank.rgba);
-        let shadow = chip_shadow_face();
-        let shadow = compositor.create_texture(shadow.w, shadow.h, &shadow.rgba);
+        let blank = sprite(chip_face(None));
+        let shadows = [sprite(chip_shadow_face()), sprite(lid_shadow_face())];
         self.session
             .app_mut()
-            .set_core_part_faces(sockets, chips, blank, shadow);
-        let roles = menu_faces(compositor, LinkRow::ALL.iter().map(|r| r.text()));
-        self.session.app_mut().set_link_menu_faces(roles);
-        if let Some(linked) = menu_faces(compositor, ["Linked"].into_iter()).pop() {
-            self.session.app_mut().set_link_linked_face(linked);
-        }
-        let legend = [
-            hint_face("B", "Cancel"),
-            hint_face("SELECT", "Mode"),
-            arrows_hint_face("Swap"),
-            hint_face("A", "Link"),
-            hint_face("A", "OK"),
-            hint_face("B", "Back"),
-            hint_face("A", "End Link"),
-        ]
-        .into_iter()
-        .map(|f| (compositor.create_texture(f.w, f.h, &f.rgba), f.w))
-        .collect();
-        self.session.app_mut().set_link_legend_faces(legend);
-        let steps = menu_faces(compositor, LinkStep::ALL.iter().map(|s| s.line()));
-        self.session.app_mut().set_link_step_faces(steps);
-        let fails = menu_faces(compositor, LinkFail::SHOWN.iter().map(|f| f.line()));
-        self.session.app_mut().set_link_fail_faces(fails);
-        let toasts = Toast::ALL
-            .iter()
-            .map(|t| {
-                let f = toast_face(*t);
-                compositor.create_texture(f.w, f.h, &f.rgba)
-            })
-            .collect();
-        self.session.app_mut().set_toast_faces(toasts);
-        let legend = legend_faces(compositor, &LEGEND);
-        self.session.app_mut().set_legend_faces(legend);
+            .set_core_part_faces(sockets, chips, blank, shadows);
         let shadow = cart_shadow();
         let id = compositor.create_texture(shadow.w, shadow.h, &shadow.rgba);
         self.session.app_mut().set_cart_shadow(id);
@@ -345,6 +281,7 @@ impl Frontend {
         );
         sync_power(self.session.app_mut(), compositor, &mut self.power);
         sync_bar(self.session.app_mut(), compositor, &mut self.bar);
+        sync_hud(self.session.app_mut(), compositor, &mut self.hud);
         self.relabel(compositor);
         sync_core_picker(
             self.session.app_mut(),
@@ -355,44 +292,11 @@ impl Frontend {
             &mut self.core_lid_tex,
             &mut self.core_built,
         );
-        if !self.link_art_done {
-            if let Some(art) = self.link_art.take() {
-                let mut up = |f: &omega_ui::CartFace| Sprite {
-                    tex: compositor.create_texture(f.w, f.h, &f.rgba),
-                    w: f.w,
-                    h: f.h,
-                };
-                let sprites = LinkSprites {
-                    port: up(&art.port),
-                    plug_host: up(&art.plug_host),
-                    plug_join: up(&art.plug_join),
-                    adapter: up(&art.adapter),
-                    arcs_right: [
-                        up(&art.arcs_right[0]),
-                        up(&art.arcs_right[1]),
-                        up(&art.arcs_right[2]),
-                    ],
-                    arcs_left: [
-                        up(&art.arcs_left[0]),
-                        up(&art.arcs_left[1]),
-                        up(&art.arcs_left[2]),
-                    ],
-                    clicks: up(&art.clicks),
-                    arrow_left: up(&art.arrow_left),
-                    arrow_right: up(&art.arrow_right),
-                };
-                self.session.app_mut().set_link_sprites(sprites);
-                self.link_art_done = true;
-            }
-        }
+        sync_link(self.session.app_mut(), compositor, &mut self.link);
         sync_switcher(
             self.session.app_mut(),
             compositor,
-            Faces {
-                pool: &mut self.polaroid_texes,
-                title: &mut self.title_tex,
-                undo: &mut self.undo_tex,
-            },
+            &mut self.polaroid_texes,
             &mut self.switcher,
         );
         self.drop_boot_logo(compositor);
@@ -569,10 +473,10 @@ impl Frontend {
         self.session.core_settling()
     }
 
-    /// Whether the worker threads have handed back all they were asked for: the link art, and
-    /// the core picker's faces for the cart the shelf is on. compose takes them in.
+    /// Whether the worker threads have handed back all they were asked for: the core picker's
+    /// faces for the cart the shelf is on. compose takes them in.
     pub fn settled(&self) -> bool {
-        self.link_art_done && self.core_asked == self.core_built && !self.core_settling()
+        self.core_asked == self.core_built && !self.core_settling()
     }
 
     pub fn advance_at(&mut self, input: &mut dyn InputSource, now: Millis, dt: f32) {
@@ -600,26 +504,4 @@ impl Frontend {
     pub fn poweroff(&mut self) {
         self.session.app_mut().poweroff();
     }
-}
-
-fn menu_faces<'a>(
-    compositor: &mut Compositor,
-    labels: impl Iterator<Item = &'a str>,
-) -> Vec<(TexId, u32, u32)> {
-    labels
-        .map(|label| {
-            let f = menu_face(label);
-            (compositor.create_texture(f.w, f.h, &f.rgba), f.w, f.h)
-        })
-        .collect()
-}
-
-fn legend_faces(compositor: &mut Compositor, legend: &[(&str, &str)]) -> Vec<TexId> {
-    legend
-        .iter()
-        .map(|(key, label)| {
-            let f = hint_face(key, label);
-            compositor.create_texture(f.w, f.h, &f.rgba)
-        })
-        .collect()
 }

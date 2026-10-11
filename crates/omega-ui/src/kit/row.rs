@@ -13,7 +13,9 @@
 
 use super::palette::Palette;
 use super::panel::HEADER;
-use super::pixel::{blank, flip, ink, letters, mirror, nine_slice, paint, text_width, ADVANCE};
+use super::pixel::{
+    blank, flip, ink, letters, letters_over, mirror, nine_slice, paint, text_width, ADVANCE,
+};
 use crate::plate::UndoFace;
 
 /// How tall a row is in art pixels.
@@ -162,7 +164,7 @@ pub(super) fn base(w: u32, lit: bool, pal: &Palette) -> UndoFace {
 }
 
 /// The name, in `colour` from the row's left, cut off `room` pixels in, as `overflow: hidden`
-/// cuts it.
+/// cuts it, and at the line's top, so a capital's accent loses the row it rises over the line.
 pub(super) fn name(face: &mut UndoFace, text: &str, room: u32, colour: [u8; 3]) {
     let rows: Vec<String> = letters(text, ADVANCE)
         .into_iter()
@@ -172,9 +174,11 @@ pub(super) fn name(face: &mut UndoFace, text: &str, room: u32, colour: [u8; 3]) 
     ink(face, &rows, x, BORDER as i32, colour);
 }
 
-/// A word on the row's line, its box's left at `x`.
+/// A word on the row's line, its box's left at `x`. Nothing cuts it, so a capital's accent
+/// rises over the line onto the band's frame line, as the browser draws it.
 pub(super) fn word(face: &mut UndoFace, text: &str, x: i32, colour: [u8; 3]) {
-    ink(face, &letters(text, ADVANCE), x, BORDER as i32, colour);
+    let rows = letters_over(text, ADVANCE, BORDER as usize);
+    ink(face, &rows, x, 0, colour);
 }
 
 /// Art on the capitals' rows, its left at `x`.

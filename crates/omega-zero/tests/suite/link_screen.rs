@@ -1,4 +1,6 @@
-use omega_ui::*;
+use omega_ui::kit::fade::stepped;
+use omega_ui::link_art::{ADAPTER_H, ADAPTER_W, CONNECTOR_H, PLUG_H, TIP_H};
+use omega_ui::{Draw, TexId, SPRITE_PX};
 use omega_zero::app::{GameMenu, LinkRow};
 use omega_zero::link_kind::LinkKind;
 use omega_zero::link_screen::*;
@@ -21,75 +23,101 @@ fn failed(since: u64) -> GameMenu {
     }
 }
 
+fn linked(worked: u64, since: u64) -> GameMenu {
+    GameMenu::Linked {
+        role: LinkRow::Host,
+        worked,
+        since,
+        opened: false,
+    }
+}
+
+const SEATED: i32 = TIP_H as i32;
+
 #[test]
-fn pick_hangs_the_plug_above_the_port() {
-    assert_eq!(plug_tip(GameMenu::Pick(LinkRow::Host), 0), 330.0);
+fn pick_hangs_the_plug_over_the_port() {
+    let at = plug_bottom(GameMenu::Pick(LinkRow::Host), 0);
+    assert!(at < 0, "the plug's tip is in the port before A: {at}");
 }
 
 #[test]
 fn working_seats_the_plug_in_200ms_and_holds_it_there() {
     let m = working(LinkRow::Host, 1000);
-    assert_eq!(plug_tip(m, 1000), 330.0);
-    assert!((plug_tip(m, 1200) - 419.0).abs() < 0.01);
-    let held: Vec<f32> = (0..3000)
+    assert_eq!(
+        plug_bottom(m, 1000),
+        plug_bottom(GameMenu::Pick(LinkRow::Host), 0)
+    );
+    assert_eq!(
+        plug_bottom(m, 1200),
+        SEATED,
+        "the tip is not all the way in"
+    );
+    let held: Vec<i32> = (0..3000)
         .step_by(50)
-        .map(|t| plug_tip(m, 1200 + t))
+        .map(|t| plug_bottom(m, 1200 + t))
         .collect();
-    assert!(held.iter().all(|y| (y - 419.0).abs() < 0.01), "{held:?}");
+    assert!(held.iter().all(|y| *y == SEATED), "{held:?}");
 }
 
 #[test]
 fn linked_seats_the_plug_from_where_it_was_and_clicks_as_it_lands() {
-    let (worked, since) = (1000, 2700);
-    let before = plug_tip(working(LinkRow::Host, worked), since);
-    let m = GameMenu::Linked {
-        role: LinkRow::Host,
-        worked,
-        since,
-        opened: false,
-    };
-    assert!(
-        (plug_tip(m, since) - before).abs() < 0.01,
-        "the plug jumped"
-    );
-    assert!((plug_tip(m, since + 160) - 419.0).abs() < 0.01);
-    assert_eq!(clicks_alpha(m, since + 100), 0.0);
-    assert_eq!(clicks_alpha(m, since + 160), 1.0);
+    let (worked, since) = (1000, 1100);
+    let before = plug_bottom(working(LinkRow::Host, worked), since);
+    let m = linked(worked, since);
+    assert_eq!(plug_bottom(m, since), before, "the plug jumped");
+    assert_eq!(plug_bottom(m, since + 160), SEATED);
+    assert!(!clicks_shown(m, since + 100));
+    assert!(clicks_shown(m, since + 160));
 }
 
 #[test]
-fn failed_lifts_tilts_and_dims_over_250ms() {
+fn a_failed_plug_lifts_out_higher_than_it_was_picked_and_shakes_a_pixel_each_way() {
     let m = failed(5000);
-    assert_eq!(plug_turn(m, 5000), 0.0);
-    assert!((plug_tip(m, 5250) - 276.0).abs() < 0.01);
-    assert!((plug_turn(m, 5250) - 14f32.to_radians()).abs() < 1e-4);
-    assert!((art_alpha(m, 5250) - 0.45).abs() < 1e-4);
+    let pick = plug_bottom(GameMenu::Pick(LinkRow::Host), 0);
+    assert!(plug_bottom(m, 5250) < pick, "the plug did not lift out");
+    assert_eq!(shake(m, 5000), 0, "it shook before it lifted");
+    let shook: Vec<i32> = (5250..5450).step_by(10).map(|t| shake(m, t)).collect();
+    assert!(shook.contains(&1) && shook.contains(&-1), "{shook:?}");
+    assert!(shook.iter().all(|dx| dx.abs() <= 1), "{shook:?}");
+    assert_eq!(shake(m, 6000), 0, "it never came to rest");
+    assert_eq!(shake(working(LinkRow::Host, 0), 300), 0);
 }
 
 #[test]
 fn the_adapter_seats_while_working_and_stays_seated() {
-    assert_eq!(adapter_base(GameMenu::Pick(LinkRow::Join), 0), 336.0);
-    assert!((adapter_base(working(LinkRow::Join, 0), 200) - port_y()).abs() < 0.01);
-    assert!((adapter_base(failed(3000), 3250) - port_y()).abs() < 0.01);
+    assert!(adapter_bottom(GameMenu::Pick(LinkRow::Join), 0) < 0);
+    assert_eq!(adapter_bottom(working(LinkRow::Join, 0), 200), 0);
+    assert_eq!(adapter_bottom(failed(3000), 3250), 0);
 }
 
 #[test]
 fn the_arcs_call_in_turn_hold_when_linked_and_die_on_failure() {
     let a = arc_alphas(working(LinkRow::Host, 0), 200 + 600);
-    assert!(
-        (a[0] - 1.0).abs() < 0.01,
-        "ring 0 is not at its peak: {a:?}"
-    );
+    assert_eq!(a[0], 1.0, "ring 0 is not at its peak: {a:?}");
     assert!(a[1] < 1.0);
     assert_eq!(arc_alphas(GameMenu::Pick(LinkRow::Host), 0), [0.0; 3]);
-    let linked = GameMenu::Linked {
-        role: LinkRow::Host,
-        worked: 0,
-        since: 4000,
-        opened: false,
-    };
-    assert_eq!(arc_alphas(linked, 4160), [1.0; 3]);
+    assert_eq!(arc_alphas(linked(0, 4000), 4160), [1.0; 3]);
     assert_eq!(arc_alphas(failed(4000), 4250), [0.0; 3]);
+}
+
+#[test]
+fn the_arcs_fade_in_the_four_steps_of_a_kit_fade() {
+    let menus = [
+        working(LinkRow::Host, 0),
+        linked(0, 900),
+        failed(900),
+        GameMenu::Unplug {
+            role: LinkRow::Host,
+            since: 900,
+        },
+    ];
+    for m in menus {
+        for t in (0..3000).step_by(7) {
+            for a in arc_alphas(m, t) {
+                assert_eq!(a, stepped(a), "{m:?} at {t}: {a} is between steps");
+            }
+        }
+    }
 }
 
 fn sprites() -> LinkSprites {
@@ -98,45 +126,32 @@ fn sprites() -> LinkSprites {
         w,
         h,
     };
-    let arc = |n: usize, i: usize| s(n, arcs()[i].2, arcs()[i].3);
     LinkSprites {
-        port: s(1, PORT_W, PORT_H),
-        plug_host: s(2, PLUG_W, PLUG_H),
-        plug_join: s(3, PLUG_W, PLUG_H),
+        plug_host: s(1, 30, PLUG_H),
+        plug_join: s(2, 36, PLUG_H),
+        cable: s(3, 6, 1),
         adapter: s(4, ADAPTER_W, ADAPTER_H),
-        arcs_right: [arc(7, 0), arc(8, 1), arc(9, 2)],
-        arcs_left: [arc(10, 0), arc(11, 1), arc(12, 2)],
-        clicks: s(13, CLICKS_W, CLICKS_H),
-        arrow_left: s(14, ARROW_W, ARROW_H),
-        arrow_right: s(15, ARROW_W, ARROW_H),
+        port: s(5, 320, PORT_UP),
+        arcs_right: [s(6, 5, 14), s(7, 7, 22), s(8, 9, 30)],
+        arcs_left: [s(9, 5, 14), s(10, 7, 22), s(11, 9, 30)],
+        clicks: s(12, 52, 10),
     }
 }
 
-#[test]
-fn a_searching_plug_sits_in_the_port() {
+fn drawn(menu: GameMenu, kind: LinkKind, now: u64) -> (LinkSprites, Vec<Draw>) {
     let s = sprites();
     let mut out = Vec::new();
-    draw_link_art(
-        working(LinkRow::Host, 0),
-        LinkKind::Cable,
-        1000,
-        &s,
-        &mut out,
-    );
-    let plug = out
-        .iter()
-        .position(|d| matches!(d, Draw::Tex { tex, .. } if *tex == s.plug_host.tex))
-        .expect("no plug");
-    assert!(
-        matches!(out[plug], Draw::Tex { y, .. } if y == 419.0 - PLUG_H as f32),
-        "the plug is not seated in the port: {:?}",
-        out[plug]
-    );
-    let port = out
-        .iter()
-        .position(|d| matches!(d, Draw::Tex { tex, .. } if *tex == s.port.tex))
-        .expect("no port");
-    assert!(port > plug, "the port must be drawn over the seated plug");
+    draw_link_art(menu, kind, now, &s, 8, &mut out);
+    (s, out)
+}
+
+fn find(out: &[Draw], tex: TexId) -> Option<(f32, f32, f32, f32)> {
+    out.iter().find_map(|d| match *d {
+        Draw::Tex {
+            x, y, w, h, tex: t, ..
+        } if t == tex => Some((x, y, w, h)),
+        _ => None,
+    })
 }
 
 fn texes(out: &[Draw]) -> Vec<TexId> {
@@ -148,81 +163,91 @@ fn texes(out: &[Draw]) -> Vec<TexId> {
         .collect()
 }
 
-#[test]
-fn cable_carts_draw_the_plug_under_the_port_and_wireless_carts_the_adapter() {
-    let s = sprites();
-    let mut out = Vec::new();
-    draw_link_art(
-        GameMenu::Pick(LinkRow::Host),
-        LinkKind::Cable,
-        0,
-        &s,
-        &mut out,
-    );
-    let t = texes(&out);
-    let plug = t
-        .iter()
-        .position(|x| *x == s.plug_host.tex)
-        .expect("no plug");
-    let port = t.iter().position(|x| *x == s.port.tex).expect("no port");
-    assert!(
-        port > plug,
-        "the port must be drawn over a plug that goes into it"
-    );
-    assert!(!t.contains(&s.adapter.tex));
+const PX: f32 = SPRITE_PX as f32;
 
-    out.clear();
-    draw_link_art(
-        GameMenu::Pick(LinkRow::Host),
-        LinkKind::Wireless,
-        0,
-        &s,
-        &mut out,
+#[test]
+fn a_searching_plug_sits_in_the_port_under_the_strip() {
+    let (s, out) = drawn(working(LinkRow::Host, 0), LinkKind::Cable, 1000);
+    let (_, y, _, h) = find(&out, s.plug_host.tex).expect("no plug");
+    let bottom = (y + h) / PX;
+    assert_eq!(
+        bottom as i32,
+        port_top() + SEATED,
+        "the plug is not seated in the port"
     );
     let t = texes(&out);
-    assert!(t.contains(&s.adapter.tex) && !t.contains(&s.plug_host.tex));
+    let at = |tex| t.iter().position(|x| *x == tex);
+    assert!(
+        at(s.port.tex) > at(s.plug_host.tex),
+        "the port must be drawn over the plug"
+    );
 }
 
 #[test]
-fn a_joiner_holds_the_gray_plug() {
-    let s = sprites();
-    let mut out = Vec::new();
-    draw_link_art(
-        GameMenu::Pick(LinkRow::Join),
-        LinkKind::Cable,
-        0,
-        &s,
-        &mut out,
+fn the_cable_runs_from_the_panel_down_to_the_plugs_neck() {
+    let (s, out) = drawn(GameMenu::Pick(LinkRow::Host), LinkKind::Cable, 0);
+    let (cx, cy, cw, ch) = find(&out, s.cable.tex).expect("no cable");
+    let (px, py, pw, _) = find(&out, s.plug_host.tex).expect("no plug");
+    assert_eq!(
+        cy,
+        8.0 * PX,
+        "the cable does not start where it was asked to"
     );
+    assert_eq!(cy + ch, py, "the cable does not reach the plug");
+    assert_eq!(
+        cx + cw / 2.0,
+        px + pw / 2.0,
+        "the cable is not over the neck"
+    );
+}
+
+#[test]
+fn cable_carts_draw_the_plug_and_wireless_carts_the_adapter() {
+    let (s, out) = drawn(GameMenu::Pick(LinkRow::Host), LinkKind::Cable, 0);
+    let t = texes(&out);
+    assert!(t.contains(&s.plug_host.tex) && t.contains(&s.port.tex));
+    assert!(!t.contains(&s.adapter.tex));
+
+    let (s, out) = drawn(GameMenu::Pick(LinkRow::Host), LinkKind::Wireless, 0);
+    let t = texes(&out);
+    assert!(t.contains(&s.adapter.tex) && !t.contains(&s.plug_host.tex));
+    assert!(!t.contains(&s.cable.tex), "a cable on the adapter");
+}
+
+#[test]
+fn a_joiner_holds_the_grey_plug() {
+    let (s, out) = drawn(GameMenu::Pick(LinkRow::Join), LinkKind::Cable, 0);
     let t = texes(&out);
     assert!(t.contains(&s.plug_join.tex) && !t.contains(&s.plug_host.tex));
 }
 
 #[test]
-fn the_swap_arrows_show_on_pick_only() {
-    let s = sprites();
-    let mut out = Vec::new();
-    draw_link_art(
+fn nothing_is_turned_or_off_the_art_grid() {
+    let menus = [
         GameMenu::Pick(LinkRow::Host),
-        LinkKind::Cable,
-        0,
-        &s,
-        &mut out,
-    );
-    assert!(texes(&out).contains(&s.arrow_left.tex));
-    out.clear();
-    draw_link_art(working(LinkRow::Host, 0), LinkKind::Cable, 50, &s, &mut out);
-    assert!(!texes(&out).contains(&s.arrow_left.tex));
-}
-
-#[test]
-fn a_failed_plug_is_drawn_turned() {
-    let s = sprites();
-    let mut out = Vec::new();
-    draw_link_art(failed(0), LinkKind::Cable, 250, &s, &mut out);
-    assert!(out.iter().any(
-        |d| matches!(d, Draw::Turned { tex, turn, .. } if *tex == s.plug_host.tex && *turn > 0.2)
-    ));
+        working(LinkRow::Join, 0),
+        linked(0, 300),
+        failed(300),
+        GameMenu::Unplug {
+            role: LinkRow::Host,
+            since: 300,
+        },
+    ];
+    for m in menus {
+        for kind in [LinkKind::Cable, LinkKind::Wireless] {
+            for t in (0..1500).step_by(13) {
+                let (_, out) = drawn(m, kind, t);
+                for d in &out {
+                    let Draw::Tex { x, y, w, h, .. } = *d else {
+                        panic!("{m:?} drew {d:?}, which is not a face on the grid");
+                    };
+                    for v in [x, y, w, h] {
+                        assert_eq!(v % PX, 0.0, "{m:?} at {t}: {d:?} is off the art grid");
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[test]
@@ -231,29 +256,35 @@ fn unplug_pulls_the_plug_back_out_of_the_port_and_leaves_it_there() {
         role: LinkRow::Host,
         since: 1000,
     };
-    assert!(
-        (plug_tip(m, 1000) - 419.0).abs() < 0.01,
-        "the unplug did not start from where a seated plug sits"
+    let pick = plug_bottom(GameMenu::Pick(LinkRow::Host), 0);
+    assert_eq!(
+        plug_bottom(m, 1000),
+        SEATED,
+        "the unplug did not start seated"
     );
-    assert!(
-        (plug_tip(m, 1260) - 330.0).abs() < 0.01,
+    assert_eq!(
+        plug_bottom(m, 1260),
+        pick,
         "the plug is not back where it was picked up"
     );
-    let held: Vec<f32> = (0..2000)
+    let held: Vec<i32> = (0..2000)
         .step_by(100)
-        .map(|t| plug_tip(m, 1260 + t))
+        .map(|t| plug_bottom(m, 1260 + t))
         .collect();
-    assert!(held.iter().all(|y| (y - 330.0).abs() < 0.01), "{held:?}");
+    assert!(held.iter().all(|y| *y == pick), "{held:?}");
 }
 
 #[test]
-fn unplug_lifts_the_adapter_off_the_port_and_dies_its_arcs() {
+fn unplug_lifts_the_adapter_off_the_port_and_its_arcs_die() {
     let m = GameMenu::Unplug {
         role: LinkRow::Join,
         since: 0,
     };
-    assert!((adapter_base(m, 0) - port_y()).abs() < 0.01);
-    assert!((adapter_base(m, 260) - 336.0).abs() < 0.01);
+    assert_eq!(adapter_bottom(m, 0), 0);
+    assert_eq!(
+        adapter_bottom(m, 260),
+        adapter_bottom(GameMenu::Pick(LinkRow::Join), 0)
+    );
     assert_eq!(
         arc_alphas(m, 0),
         [1.0; 3],
@@ -268,35 +299,19 @@ fn unplug_lifts_the_adapter_off_the_port_and_dies_its_arcs() {
 }
 
 #[test]
-fn the_unplug_is_the_seating_motion_run_backwards() {
-    let out = GameMenu::Unplug {
-        role: LinkRow::Host,
-        since: 0,
-    };
+fn the_adapter_calls_out_with_its_arcs_either_side_while_working() {
+    let (s, out) = drawn(working(LinkRow::Host, 0), LinkKind::Wireless, 800);
+    let (ax, ay, aw, _) = find(&out, s.adapter.tex).expect("no adapter");
+    let (rx, ry, _, rh) = find(&out, s.arcs_right[0].tex).expect("no right arc");
+    let (lx, _, lw, _) = find(&out, s.arcs_left[0].tex).expect("no left arc");
     assert!(
-        (plug_tip(out, 0) - plug_tip(working(LinkRow::Host, 0), 1000)).abs() < 0.01,
-        "the unplug does not start where a seated plug is"
+        rx >= ax + aw && lx + lw <= ax,
+        "the arcs are not either side of it"
     );
-    assert!(
-        (plug_tip(out, 260) - plug_tip(GameMenu::Pick(LinkRow::Host), 0)).abs() < 0.01,
-        "the unplug does not end where the plug is picked up"
-    );
-}
-
-#[test]
-fn the_adapter_calls_out_with_its_arcs_while_working() {
-    let s = sprites();
-    let mut out = Vec::new();
-    draw_link_art(
-        working(LinkRow::Host, 0),
-        LinkKind::Wireless,
-        800,
-        &s,
-        &mut out,
-    );
-    let t = texes(&out);
-    assert!(
-        t.contains(&s.arcs_right[0].tex) && t.contains(&s.arcs_left[0].tex),
-        "no arcs while working"
+    let body = ((ADAPTER_H - CONNECTOR_H) as f32) * PX;
+    assert_eq!(
+        ry + rh / 2.0,
+        ay + body / 2.0,
+        "the arcs are not level with its body"
     );
 }

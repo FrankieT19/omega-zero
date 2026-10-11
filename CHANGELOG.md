@@ -2,14 +2,55 @@
 
 ## Unreleased
 
+- Everything around the shelf is on the menus' 2-pixel grid: the slot's edges and its scoop, the
+  slot's name in the menus' type and the theme's dim colour, the top bar's clock, figure and
+  "ssh" (drawn bold the kit's way), and a generated label's title, now always Pixel Code at its
+  own size. A cart the core turns away comes out under a pixel-art warning sign in the theme's
+  colour. The background drifts two pixels at a time, a refused cart shakes a whole pixel at a
+  time, and the boot logo fades into the shelf in four steps.
+- The save states, MENU ×2 in a game, are drawn in the menus' pixel art. The shelf's top bar
+  stands over the screenshot in place of a dark strip of their own; a SAVE STATES panel at the
+  top in the middle says how long ago the save shown was made, with a dot for each save under
+  it, the one shown lit; and the bar along the bottom has B RETURN and A LOAD. Nothing over the
+  screenshot is see-through any more.
+- Save states only save and load: Y no longer deletes the save shown, and X no longer undoes the
+  last save or load.
+- `<omega-hints>` joins the UI kit: a screen's keys on one line of the kit, on a ground of their
+  own, for where the bar's hints would sit on a picture.
+- The link screen (SELECT + MENU in a game) is drawn in the menus' kit: the theme's backdrop, a
+  LINK panel with ROLE (HOST or JOIN, Left and Right swap it) and MODE (CABLE or WIRELESS,
+  SELECT switches it where the game can), what is happening as a note under them, and the
+  bottom bar with RETURN and LINK, SELECT MODE and ◀▶ SWAP between them. The plug, its cable,
+  the port, the wireless adapter, its radio arcs and the clicks of a plug going home are pixel
+  art on the 2-pixel grid, the plug still the purple of the real cable. A link that fails lifts
+  the plug out and shakes it a pixel either way instead of tilting it, and the arcs pulse in four
+  steps.
 - The carts are low-poly models drawn the way a PlayStation drew 3D: a face and a side for
   every cut of the outline, each lit on its own, corners that land on the 2-pixel grid as they
   turn, textures mapped without perspective, and colour in 15 bits through the PlayStation's
   dither. The one you are on sways twenty degrees either way, seen from closer than before, so
   its side and the step under a GBA cart's grip show. The cart going into the slot and the core
   picker's lid are the same model. A cart is one draw instead of up to seventeen.
-- On the shelf the volume, brightness and blue light bar sits under the top bar instead of
-  over it.
+- The volume, brightness, blue light and rewind show as a gauge drawn like the menus: the
+  level's name in a tab, then a cell for each step, lit as far as the level reaches, and its
+  icon, on the 2-pixel grid in the colours of Settings > Theme, with no dark band behind it. It
+  stands at the top of the screen, on the shelf just under the top bar, and fades out in four
+  steps. What just happened shows the same way, a small panel titled SAVE STATE, LINK or COLOUR
+  over "State saved", "Link ended", "Correction on" and the rest.
+- Fast forward's badge in the corner is a key cap holding ▶▶ and the speed, ×2 to ×6, lit
+  while it is latched. A link's badge shows a link, lit while hosting and dark when joined, and
+  broken once the other handheld is lost.
+- The core picker is pixel art on the 2-pixel grid: the open cart in its own plastic, the board,
+  the ROM chip marked with the game's title, the sockets and the chip, with outlines and flat
+  colours. The title and the cores' names are in Pixel Code at its own size and spacing. The
+  chip hops between the sockets a pixel at a time, level, and the shadows under it and under
+  the lid are checker dither.
+- About is a window like Settings, drawn in the menus' kit in place of the sticker. OMEGA-ZERO
+  lists the version, the build (its commit, with -DIRTY after it for a build with changes not
+  committed), the author, @oauramos, the handheld as BaseOS names it, and how full its
+  battery is and whether it is charging. CREDITS under it says what omega-zero is made with and
+  on, a line each, and ends on slot's, in the dim colour. The barcode, the ANBERNIC wordmark and
+  the made-up rating lines are gone.
 - A bar along the bottom of the shelf: SELECT CONTROLS on the left, START SETTINGS on the
   right. The slot sits a bar higher to make room for it.
 - Game Boy carts stand at 80% of their size on the shelf and grow to full size as they go into
@@ -40,7 +81,7 @@
   password you set there yourself is kept.
 - Cart Labels is no longer on the Wi-Fi screen: it is Labels, in Settings.
 - Theme, Date & Time and Labels are panels over the background, and the passphrase
-  keyboard is a window. About is the same sticker as before.
+  keyboard is a window.
 - In the menus the bottom bar says B RETURN and A CONFIRM. A screen's own keys sit in the middle
   of it: Y FORGET on Network, START FETCH and Y SIGN OUT on Labels. Between its two ends there is
   nothing but those keys, over the background.

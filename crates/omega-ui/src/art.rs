@@ -89,27 +89,3 @@ fn decode(path: &Path) -> Option<(Vec<u8>, u32, u32)> {
     }
     Some((rgba, info.width, info.height))
 }
-
-pub(crate) fn render_svg(svg: &str, w: u32, h: u32) -> Option<Vec<u8>> {
-    let tree = usvg::Tree::from_str(svg, &usvg::Options::default()).ok()?;
-    let mut pixmap = resvg::tiny_skia::Pixmap::new(w, h)?;
-    let size = tree.size();
-    let scale =
-        resvg::tiny_skia::Transform::from_scale(w as f32 / size.width(), h as f32 / size.height());
-    resvg::render(&tree, scale, &mut pixmap.as_mut());
-    let mut rgba = pixmap.data().to_vec();
-    unpremultiply(&mut rgba);
-    Some(rgba)
-}
-
-fn unpremultiply(rgba: &mut [u8]) {
-    for px in rgba.chunks_exact_mut(4) {
-        let a = px[3];
-        if a == 0 || a == 255 {
-            continue;
-        }
-        for c in &mut px[..3] {
-            *c = ((*c as u32 * 255 + a as u32 / 2) / a as u32).min(255) as u8;
-        }
-    }
-}
