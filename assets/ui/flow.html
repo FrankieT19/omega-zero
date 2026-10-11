@@ -10,8 +10,8 @@
   Controls panel, and the power menu with the screens after it. Open it straight from disk; it
   needs no server or build. The URL's hash picks the screen, the panel size, the colour and any
   moment of a slide (see "The URL" on the page), so a still of any of them can be taken with
-  headless Chrome. The placeholders for what Rust draws (the carts, the slot, the top bar, the
-  About sticker) are flat on purpose.
+  headless Chrome. The placeholders for what Rust draws (the carts, the slot, the top bar) are
+  flat on purpose.
 -->
 <link rel="stylesheet" href="foundation/fonts.css">
 <link rel="stylesheet" href="foundation/tokens.css">
@@ -214,12 +214,32 @@
             </omega-panel>
           </section>
 
-          <!-- Settings > About: a sticker Rust draws, here a plain plate -->
+          <!-- Settings > About: what omega-zero is, the handheld it runs on, and what it is made
+               with. Nothing on it is picked, so both titles are lit and no row is. The build is
+               the commit's short hash, -DIRTY after it for a build with changes not committed. -->
           <section class="part page away" data-screen="about">
-            <div class="lone about-plate">
-              <p>OMEGA-ZERO</p>
-              <p>0.0.2</p>
-              <p class="small">THE STICKER RUST DRAWS</p>
+            <div class="modal-area">
+              <omega-modal>
+                <omega-panel label="OMEGA-ZERO" active class="hug">
+                  <omega-row label="VERSION" value="0.0.2"></omega-row>
+                  <omega-row label="BUILD" value="68CDBC4"></omega-row>
+                  <omega-row label="AUTHOR" value="OTÁVIO (@OAURAMOS)"></omega-row>
+                  <omega-row label="HANDHELD" value="RG35XX SP"></omega-row>
+                  <omega-row label="BATTERY" value="86% CHARGING"></omega-row>
+                </omega-panel>
+                <omega-panel label="CREDITS" active>
+                  <div class="credits">
+                    <p>Emulation by mGBA and gpSP.</p>
+                    <p>Made on BaseOS by pvaibhav.</p>
+                    <p>Type is Pixel Code by Qwerasd.</p>
+                    <p>Panel mask from GigaHerz's LCD3x.</p>
+                    <p>Labels from ScreenScraper.</p>
+                    <p>Built with Claude.</p>
+                    <p>Free software under the GPL-3.0. See README.</p>
+                    <p class="based-on">Based on slot by Brandon T. Kowalski.</p>
+                  </div>
+                </omega-panel>
+              </omega-modal>
             </div>
           </section>
 
