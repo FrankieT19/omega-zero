@@ -64,6 +64,7 @@
   times slower, and the URL's hash picks the screen, colour, panel size and any moment of a
   slide: `flow.html#screen=network&from=settings&t=0.5&colour=amber&shot=1`.
 - The storybook has three new components: `<omega-row>`, `<omega-list-row>` and `<omega-bar>`.
+- And four for pages, which the site is now drawn with: `<omega-button>`, `<omega-screen>`, `<omega-card>`, `<omega-code>`.
 - The kit is in Rust too, in `crates/omega-ui/src/kit/` (palette, pixel, modal, panel, action,
   row, list_row, bar, text, layout). `tests/suite/kit/` holds it to Chrome's screenshots of the
   HTML kit pixel for pixel; `make-refs.sh` takes them again.
