@@ -13,6 +13,7 @@ use omega_ui::{overlay_clear, overlay_face, overlay_path};
 use crate::face_builder::FaceBuilder;
 use crate::frontend::faces::upload_nearest;
 use crate::list_view::ListView;
+use crate::opening::Facts;
 use crate::screens::about::AboutView;
 use crate::session::Session;
 use crate::wallpaper;
@@ -32,6 +33,7 @@ mod sync_keyboard;
 mod sync_labels;
 mod sync_link;
 mod sync_network;
+mod sync_opening;
 mod sync_power;
 mod sync_settings;
 mod sync_switcher;
@@ -51,6 +53,7 @@ use sync_keyboard::{sync_keyboard, KeyboardTexes};
 use sync_labels::sync_labels;
 use sync_link::{sync_link, LinkTexes};
 use sync_network::{sync_network, NetworkTexes};
+use sync_opening::{sync_opening, OpeningTexes};
 use sync_power::{sync_power, PowerPanels};
 use sync_settings::{sync_settings, SettingsTexes};
 use sync_switcher::{sync_switcher, Switcher};
@@ -97,6 +100,8 @@ pub struct Frontend {
     hud: HudTexes,
     /// The boot logo's texture while it fades over the shelf.
     boot_logo: Option<TexId>,
+    /// The opening's lines while it plays.
+    opening: OpeningTexes,
 }
 
 /// A card's own overlay for one system, read once and checked against each layout it is
@@ -155,6 +160,7 @@ impl Frontend {
             bar: BarTexes::default(),
             hud: HudTexes::default(),
             boot_logo: None,
+            opening: OpeningTexes::default(),
         }
     }
 
@@ -168,6 +174,12 @@ impl Frontend {
         }
         let tex = upload_nearest(compositor, &mut self.boot_logo, logo);
         self.session.app_mut().set_boot_logo(tex, logo.w, logo.h);
+    }
+
+    /// Plays the opening over the shelf's first frames, telling `facts`, when the boot has
+    /// landed on the shelf. The boot logo, when it is shown, fades out over its black.
+    pub fn start_opening(&mut self, facts: &Facts) {
+        self.session.app_mut().start_opening(facts);
     }
 
     /// Once the boot logo has faded, its texture shrinks to a pixel and gives its memory back.
@@ -282,6 +294,7 @@ impl Frontend {
         sync_power(self.session.app_mut(), compositor, &mut self.power);
         sync_bar(self.session.app_mut(), compositor, &mut self.bar);
         sync_hud(self.session.app_mut(), compositor, &mut self.hud);
+        sync_opening(self.session.app_mut(), compositor, &mut self.opening);
         self.relabel(compositor);
         sync_core_picker(
             self.session.app_mut(),

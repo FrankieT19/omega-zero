@@ -1,4 +1,5 @@
 mod alsa;
+mod chime;
 #[cfg(feature = "host")]
 mod host;
 mod ring;

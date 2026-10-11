@@ -12,6 +12,7 @@ mod keyboard;
 pub mod kit;
 pub mod link_art;
 pub mod network;
+mod opening;
 mod plate;
 mod polaroids;
 mod power_menu;
@@ -66,6 +67,7 @@ pub use keyboard::{
 };
 pub use kit::badge::BadgeIcon;
 pub use kit::gauge::GaugeIcon;
+pub use opening::{opening_line, OPENING_ADVANCE, OPENING_PITCH, OPENING_RISE};
 pub use plate::{word_cap_top, UndoFace, HINT_H};
 pub use polaroids::{photo_face, PhotoFace, Polaroids, PHOTO_H, PHOTO_W};
 pub use power_menu::PowerChoice;

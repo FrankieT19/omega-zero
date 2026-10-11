@@ -34,6 +34,7 @@ use crate::link_radio::{radio_jobs, LinkRole, RadioJob, RadioJobs};
 use crate::link_screen::{LinkBar, LinkSprites};
 use crate::link_start::{link_port, LinkFail, LinkProgress, LinkStarter, LinkStep};
 use crate::nav::{even, offsets, Dir, End, Offsets, Slide, SLIDE_MS};
+use crate::opening::Opening;
 use crate::persist::{self, Snapshot};
 use crate::screens::bar::BarFaces;
 use crate::screens::clock::clock_screen;
@@ -370,6 +371,8 @@ pub struct App {
     pub(crate) bar_faces: Option<BarFaces>,
     /// The boot logo over the shelf while it fades out at boot.
     pub(crate) boot_fade: Option<BootFade>,
+    /// The opening over the shelf while it plays at boot.
+    pub(crate) opening: Option<Opening>,
 }
 
 fn shelves_of(carts: Vec<Cart>) -> Vec<(Platform, Shelf)> {
@@ -412,6 +415,7 @@ impl App {
             theme: None,
             bar_faces: None,
             boot_fade: None,
+            opening: None,
             phase: Phase::Shelf,
             shelves,
             shelf_at,
@@ -1076,7 +1080,11 @@ impl App {
     }
 
     pub fn apply(&mut self, action: Action) {
+        let taken = self.opening_takes(action);
         self.press_ends_boot_fade(action);
+        if taken {
+            return;
+        }
         match self.power_screen {
             Some(PowerScreen::Menu(_)) => match action {
                 Action::LidClose => return self.doze(),
@@ -1513,7 +1521,9 @@ impl App {
     pub fn update(&mut self, dt: f32) {
         self.clock += dt as f64 * 1000.0;
         self.step_boot_fade(dt);
-        if self.name_pending && self.shelf_platform.face.is_some() {
+        self.step_opening(dt);
+        // the slot names its console once the shelf can be seen
+        if self.name_pending && self.shelf_platform.face.is_some() && !self.opening_covers() {
             self.name_pending = false;
             self.shelf_named = Some(self.now());
         }
@@ -1806,6 +1816,11 @@ impl App {
     }
 
     pub fn draw(&self, out: &mut Vec<Draw>) {
+        // nothing under the opening's black need be drawn
+        if self.opening_covers() {
+            self.draw_opening(out);
+            return self.draw_boot_logo(out);
+        }
         // the power screens stand over whatever POWER was held on
         if self.power_shown() {
             return self.draw_power(out);
@@ -1836,6 +1851,7 @@ impl App {
             self.draw_game_menu(menu, out);
         }
         self.hud.draw_at(self.now(), self.top_bar_reach(), out);
+        self.draw_opening(out);
         self.draw_boot_logo(out);
     }
 

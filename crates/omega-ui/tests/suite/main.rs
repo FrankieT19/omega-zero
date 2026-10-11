@@ -22,6 +22,7 @@ mod label;
 mod letters;
 mod link_art;
 mod network;
+mod opening;
 mod palette;
 mod polaroids;
 mod quick_menu;

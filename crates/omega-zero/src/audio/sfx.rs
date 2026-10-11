@@ -1,3 +1,5 @@
+use super::chime::{self, BLIP_S, KEY_S, OMEGA_S, READING_S};
+
 const INSERT: &[u8] = include_bytes!("../../assets/insert.pcm");
 const EJECT: &[u8] = include_bytes!("../../assets/eject.pcm");
 const ASSET_HZ: f32 = 48_000.0;
@@ -6,6 +8,14 @@ const ASSET_HZ: f32 = 48_000.0;
 pub enum Sfx {
     Insert,
     Eject,
+    /// The opening's power-on: a square wave swept up from 150 Hz to 1 kHz, as Mega Man X5's.
+    Blip,
+    /// A key typed in the opening: 440 Hz with every harmonic, gone in a breath.
+    Key,
+    /// A file read in the opening: a fast warble of A5, C6 and F5 that dies away.
+    Reading,
+    /// The opening's last file, OMEGA: the same warble an octave down, held longer.
+    Omega,
 }
 
 impl Sfx {
@@ -13,30 +23,43 @@ impl Sfx {
         match self {
             Sfx::Insert => 0.097,
             Sfx::Eject => 0.021,
+            Sfx::Blip | Sfx::Key | Sfx::Reading | Sfx::Omega => 0.0,
         }
     }
 
     pub fn tail(self) -> f32 {
-        let pcm = match self {
-            Sfx::Insert => INSERT,
-            Sfx::Eject => EJECT,
+        let secs = match self {
+            Sfx::Insert => INSERT.len() as f32 / 2.0 / ASSET_HZ,
+            Sfx::Eject => EJECT.len() as f32 / 2.0 / ASSET_HZ,
+            Sfx::Blip => BLIP_S,
+            Sfx::Key => KEY_S,
+            Sfx::Reading => READING_S,
+            Sfx::Omega => OMEGA_S,
         };
-        pcm.len() as f32 / 2.0 / ASSET_HZ - self.lead()
+        secs - self.lead()
     }
 
     pub fn render(self, sample_rate: u32) -> Vec<i16> {
         let pcm = match self {
             Sfx::Insert => INSERT,
             Sfx::Eject => EJECT,
+            Sfx::Blip | Sfx::Key | Sfx::Reading | Sfx::Omega => {
+                return stereo(chime::render(self, sample_rate))
+            }
         };
-        let mut out = Vec::with_capacity(pcm.len());
-        for v in resampled(pcm, sample_rate) {
-            let s = v.clamp(-32768.0, 32767.0) as i16;
-            out.push(s);
-            out.push(s);
-        }
-        out
+        stereo(resampled(pcm, sample_rate))
     }
+}
+
+/// `mono` as the frames the sink takes, the same sample to both ears.
+fn stereo(mono: Vec<f32>) -> Vec<i16> {
+    let mut out = Vec::with_capacity(mono.len() * 2);
+    for v in mono {
+        let s = v.clamp(-32768.0, 32767.0) as i16;
+        out.push(s);
+        out.push(s);
+    }
+    out
 }
 
 fn resampled(pcm: &[u8], sample_rate: u32) -> Vec<f32> {

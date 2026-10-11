@@ -267,3 +267,60 @@ fn a_cart_sound_is_silent_when_muted() {
     let muted = sfx_peak(|s| s.app_mut().apply(omega_input::Action::MuteToggle));
     assert_eq!(muted, 0, "the cart was heard through a mute");
 }
+
+const OPENING: [Sfx; 4] = [Sfx::Blip, Sfx::Key, Sfx::Reading, Sfx::Omega];
+
+#[test]
+fn the_openings_sounds_are_made_for_the_rate_and_run_as_long_as_they_say() {
+    for s in OPENING {
+        for rate in [48_000, GBA_HZ] {
+            let v = s.render(rate);
+            assert_eq!(v, s.render(rate), "{s:?} is not the same twice");
+            assert!(v.chunks_exact(2).all(|c| c[0] == c[1]), "{s:?} is not mono");
+            let secs = v.len() as f32 / 2.0 / rate as f32;
+            assert!(
+                (secs - s.tail()).abs() < 0.002,
+                "{s:?} runs {secs} s, says {}",
+                s.tail()
+            );
+            assert!(
+                v.iter().any(|x| x.abs() > 3_000),
+                "{s:?} is near silent at {rate} Hz"
+            );
+            assert!(
+                v[..8].iter().all(|x| x.abs() < 400),
+                "{s:?} starts on a step"
+            );
+            assert!(
+                v[v.len() - 8..].iter().all(|x| x.abs() < 400),
+                "{s:?} ends on a step"
+            );
+        }
+        assert_eq!(s.lead(), 0.0, "{s:?} is heard the moment it is due");
+    }
+}
+
+#[test]
+fn a_key_is_x5s_440_hz() {
+    let v = Sfx::Key.render(48_000);
+    let mono: Vec<i16> = v.chunks_exact(2).map(|c| c[0]).take(4_800).collect();
+    let rises = mono.windows(2).filter(|w| w[0] < 0 && w[1] >= 0).count();
+    assert!(
+        (42..=46).contains(&rises),
+        "{rises} cycles in the key's first 100 ms"
+    );
+}
+
+#[test]
+fn the_openings_sounds_sit_under_the_carts() {
+    let peak = |s: Sfx| {
+        s.render(48_000)
+            .iter()
+            .map(|x| x.unsigned_abs())
+            .max()
+            .unwrap()
+    };
+    for s in OPENING {
+        assert!(peak(s) <= 9_000, "{s:?} peaks at {}", peak(s));
+    }
+}

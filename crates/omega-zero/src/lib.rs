@@ -27,6 +27,7 @@ pub mod link_start;
 pub mod link_state;
 pub mod list_view;
 pub mod nav;
+pub mod opening;
 pub mod persist;
 pub mod resample;
 pub mod rewind;
