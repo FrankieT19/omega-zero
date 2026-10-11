@@ -64,6 +64,11 @@ is the most useful thing you can send.
 ## Screens
 
 <p align="center">
+<a href="https://oauramos.github.io/omega-zero/"><img src="site/media/loops/lid.webp" width="640" alt="An RG35XX SP drawn in 3D, its lid open on the shelf of carts, Emerald over the slot"></a>
+<br><sub>The RG35XX SP in 3D, with omega-zero's own screens on it: the loops play on the <a href="https://oauramos.github.io/omega-zero/">site</a></sub>
+</p>
+
+<p align="center">
 <img src="site/media/settings.png" width="380" alt="Settings in Night: CONFIGS (Fast Forward 6X, Fast Forward Sound, Colour Correction, Rumble, Labels) and GENERAL (Date and Time, Network, Bluetooth, Theme, About)">
 <img src="site/media/amber.png" width="380" alt="The same Settings in Amber, Mega Man Zero's own orange and brown">
 <br><sub>Settings, in Night and in Amber</sub>
@@ -92,17 +97,16 @@ is the most useful thing you can send.
 3. Put your games in `Games/GBA`, `Games/GB` and `Games/GBC`.
 4. Boot. On the shelf, START opens Settings and a tap of SELECT shows every button.
 
-Two cards, updating, controls and everything else are in the
-[wiki](https://github.com/oauramos/omega-zero/wiki).
+Two cards and updating are in the site's
+[install guide](https://oauramos.github.io/omega-zero/#install); controls and everything else are
+in the [wiki](https://github.com/oauramos/omega-zero/wiki).
 
 <img src="site/media/readme/credits.png" width="760" alt="">
 
 ## Credits and licence
 
-- omega-zero is based on [slot](https://github.com/BrandonKowalski/slot) by
-  [Brandon T. Kowalski](https://github.com/BrandonKowalski), released under the GPL-3.0: the
-  shelf, the carts, their sounds and much of the code began there, and have been modified since
-  October 2026.
+omega-zero is made by **Otávio ([@oauramos](https://github.com/oauramos))**.
+
 - [BaseOS](https://github.com/pvaibhav/BaseOS) by pvaibhav.
 - Emulation by [mGBA](https://mgba.io) (MPL-2.0) and [gpSP](https://github.com/libretro/gpsp)
   (GPL-2.0). Their licences, patches and gpSP's source ship in `System/licenses/`.
@@ -117,3 +121,7 @@ UI kit, [`assets/ui`](assets/ui).
 
 Game Boy, Game Boy Color and Game Boy Advance are trademarks of Nintendo. Anbernic is a trademark
 of its owner. This project is not affiliated with either.
+
+<sub>Based on [slot](https://github.com/BrandonKowalski/slot) by
+[Brandon T. Kowalski](https://github.com/BrandonKowalski), released under the GPL-3.0, and
+modified since October 2026.</sub>
