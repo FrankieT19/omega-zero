@@ -16,6 +16,7 @@
     kit.html?c=bar&w=320&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET
     kit.html?c=text&tone=dim&text=SFTP%20uses%20the%20same%20login
     kit.html?c=flow&screen=ssh                           a panel as flow.html builds it
+    kit.html?c=link&piece=plug&role=join                 a piece of the link screen's art
 
   An action takes its label, font, hint and room. row and list-row take omega-row's and
   omega-list-row's attributes, bar omega-bar's hint and font and its two actions' words and hints
@@ -48,6 +49,7 @@
 <script src="../../../../../assets/ui/components/action-left.js"></script>
 <script src="../../../../../assets/ui/components/action-right.js"></script>
 <script src="../../../../../assets/ui/components/omega-bar.js"></script>
+<script src="../../../../../assets/ui/components/omega-link.js"></script>
 <script src="../../../../../assets/ui/flow/art.js"></script>
 <style>
   :root { --u: 1px; }
@@ -212,6 +214,10 @@
       }
     }
     kit.append(line);
+  } else if (c === 'link') {
+    const link = document.createElement('omega-link');
+    attrs(link, ['piece', 'role', 'length', 'width', 'height', 'ring', 'side'], []);
+    kit.append(link);
   } else if (c === 'flow') {
     flowStyles();
     kit.append(document.getElementById(`flow-${q.get('screen')}`).content.cloneNode(true));

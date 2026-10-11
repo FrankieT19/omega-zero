@@ -12,7 +12,7 @@ mod hud;
 mod icon;
 mod keyboard;
 pub mod kit;
-mod link_art;
+pub mod link_art;
 pub mod network;
 mod plate;
 mod polaroids;
@@ -69,21 +69,15 @@ pub use keyboard::{
     KeyboardPlace, KeyboardScreen, KeyboardStale, Layer, BOTTOM, FIELD_H, KEYS_H, KEYS_W, KEY_COLS,
     KEY_GAP, KEY_H, KEY_ROWS, KEY_W, MAX_TEXT,
 };
-pub use link_art::{
-    arcs, arrow_left_x, arrow_right_x, arrow_y, clicks_x, clicks_y, link_art, port_y, LinkArt,
-    ADAPTER_BASE_X, ADAPTER_BASE_Y, ADAPTER_H, ADAPTER_W, ARROW_H, ARROW_W, CLICKS_H, CLICKS_W,
-    PLUG_H, PLUG_TIP_X, PLUG_W, PORT_H, PORT_W,
-};
 pub use plate::{
-    arrows_hint_face, arrows_hint_width, cap_width, centred_hints, hint_face, hint_quad, hint_row,
-    hint_width, title_face, word_cap_top, word_face, word_face_in, word_tail, word_width, Hint,
-    UndoFace, ARROW_GAP, CAP, CAP_GAP, HINT_EDGE, HINT_GAP, HINT_H, LEGEND_GAP, TITLE_H, TITLE_W,
+    cap_width, centred_hints, hint_face, hint_quad, hint_row, hint_width, title_face, word_cap_top,
+    word_face, word_face_in, word_tail, word_width, Hint, UndoFace, CAP, CAP_GAP, HINT_EDGE,
+    HINT_GAP, HINT_H, LEGEND_GAP, TITLE_H, TITLE_W,
 };
 pub use polaroids::{photo_face, PhotoFace, Polaroids, DOT, LEGEND, PHOTO_H, PHOTO_W};
 pub use power_menu::PowerChoice;
 pub use quick_menu::{
-    menu_face, quick_caret_face, quick_value_face, MENU_H, MENU_INK, MENU_PAD, QUICK_EDGE,
-    QUICK_PITCH,
+    quick_caret_face, quick_value_face, MENU_H, MENU_INK, MENU_PAD, QUICK_EDGE, QUICK_PITCH,
 };
 pub use refusal::Refusal;
 pub use settings_menu::{

@@ -19,7 +19,6 @@ pub mod json;
 pub mod label_screen;
 pub mod label_sync;
 pub mod latency;
-pub mod link_art_builder;
 pub mod link_kind;
 pub mod link_net;
 pub mod link_radio;

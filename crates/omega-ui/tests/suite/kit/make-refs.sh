@@ -120,3 +120,17 @@ shoot flow-ssh-offline 200 42 'c=flow&screen=ssh-offline'
 shoot flow-ssh-switched-off 200 42 'c=flow&screen=ssh-switched-off'
 shoot flow-labels 280 75 'c=flow&screen=labels'
 shoot flow-controls 304 157 'c=flow&screen=controls'
+
+# the link screen's art, each piece of omega-link: the plugs, a stretch of the cable, the adapter,
+# the port's strip at 640 and 720, the radio arcs (and one turned to the left) and the clicks
+shoot link-plug-host 30 54 'c=link&piece=plug&role=host'
+shoot link-plug-join 36 54 'c=link&piece=plug&role=join'
+shoot link-cable 6 4 'c=link&piece=cable&length=4'
+shoot link-adapter 80 52 'c=link&piece=adapter'
+shoot link-port-320 320 36 'c=link&piece=port&width=320&height=36'
+shoot link-port-360 360 36 'c=link&piece=port&width=360&height=36'
+shoot link-arc-0 5 14 'c=link&piece=arc&ring=0'
+shoot link-arc-1 7 22 'c=link&piece=arc&ring=1'
+shoot link-arc-2 9 30 'c=link&piece=arc&ring=2'
+shoot link-arc-2-left 9 30 'c=link&piece=arc&ring=2&side=left'
+shoot link-clicks 52 10 'c=link&piece=clicks'

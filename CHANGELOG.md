@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- The link screen (SELECT + MENU in a game) is drawn in the menus' kit: the theme's backdrop, a
+  LINK panel with ROLE (HOST or JOIN, Left and Right swap it) and MODE (CABLE or WIRELESS,
+  SELECT switches it where the game can), what is happening as a note under them, and the
+  bottom bar with RETURN and LINK, SELECT MODE and ◀▶ SWAP between them. The plug, its cable,
+  the port, the wireless adapter, its radio arcs and the clicks of a plug going home are pixel
+  art on the 2-pixel grid, the plug still the purple of the real cable. A link that fails lifts
+  the plug out and shakes it a pixel either way instead of tilting it, and the arcs pulse in four
+  steps.
 - The carts are low-poly models drawn the way a PlayStation drew 3D: a face and a side for
   every cut of the outline, each lit on its own, corners that land on the 2-pixel grid as they
   turn, textures mapped without perspective, and colour in 15 bits through the PlayStation's

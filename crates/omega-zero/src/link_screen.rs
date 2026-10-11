@@ -1,12 +1,37 @@
-use omega_ui::{
-    arcs, arrow_left_x, arrow_right_x, arrow_y, clicks_x, clicks_y, ease, out_w, port_y, Draw,
-    Millis, TexId, ADAPTER_BASE_X, ADAPTER_BASE_Y, PLUG_H, PLUG_TIP_X,
+//! The link screen a game opens with SELECT + MENU: Host or Join, over a cable or the wireless
+//! adapter, then linking, linked, failed or unplugged. It is drawn in the kit over the theme's
+//! backdrop, as the menus are: a lone panel titled LINK holding the ROLE and MODE rows and, under
+//! them, what is happening; the link's art between it and the bottom bar; and the kit's bar,
+//! B RETURN and A LINK while picking, with SELECT MODE and ◀▶ SWAP between them.
+//!
+//! The art is assets/ui/components/omega-link.js's (omega_ui::link_art): the link port along the
+//! console's top edge, the plug on its cable or the wireless adapter over it, the radio arcs and
+//! the clicks of a plug going home. Everything is placed in art pixels and drawn at 2x, so every
+//! edge lands on the grid: the plug drops into the port and lifts out of it a whole art pixel at
+//! a time, a failed link shakes it a pixel either way, and the arcs pulse in the four steps of
+//! kit::fade.
+
+use omega_gfx::{out_h, out_w};
+use omega_ui::kit::action::Side;
+use omega_ui::kit::bar::{action_swap, BarLayout, Hint};
+use omega_ui::kit::fade::stepped;
+use omega_ui::kit::palette::Palette;
+use omega_ui::kit::panel::panel_face;
+use omega_ui::kit::pixel::quad;
+use omega_ui::kit::row::panel_height;
+use omega_ui::link_art::{
+    ADAPTER_H, ADAPTER_W, CABLE_W, CLICKS_H, CLICKS_W, CONNECTOR_H, PLUG_H, RINGS, TIP_H,
 };
-use omega_ui::{stage_x, stage_y};
+use omega_ui::{ease, stage_y, Draw, Millis, TexId, UndoFace, SPRITE_PX};
 
-use crate::app::{GameMenu, LinkRow};
+use crate::app::{App, GameMenu, LinkRow};
 use crate::link_kind::LinkKind;
+use crate::list_view::{RowLabel, RowValue, ViewRow};
+use crate::nav::progress;
+use crate::screens::bar::{BarSet, SWAP};
+use crate::screens::lone::{hold, notes, notes_height, rows_height, Lone, NOTE_GAP};
 
+/// One of the art's faces uploaded: its texture and its size in art pixels.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Sprite {
     pub tex: TexId,
@@ -14,67 +39,98 @@ pub struct Sprite {
     pub h: u32,
 }
 
+impl Sprite {
+    /// The face with its top left at art pixel (`x`, `y`) of the screen, at 2x.
+    fn at(self, x: i32, y: i32) -> Draw {
+        quad(self.tex, self.w, self.h, px(x), px(y))
+    }
+}
+
+/// Every piece of the art, uploaded.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct LinkSprites {
-    pub port: Sprite,
     pub plug_host: Sprite,
     pub plug_join: Sprite,
+    pub cable: Sprite,
     pub adapter: Sprite,
-    pub arcs_right: [Sprite; 3],
-    pub arcs_left: [Sprite; 3],
+    pub port: Sprite,
+    pub arcs_right: [Sprite; RINGS],
+    pub arcs_left: [Sprite; RINGS],
     pub clicks: Sprite,
-    pub arrow_left: Sprite,
-    pub arrow_right: Sprite,
 }
 
-fn pick_tip() -> f32 {
-    330.0 + stage_y()
+/// An art pixel position as the screen pixels a Draw takes: always even.
+fn px(art: i32) -> f32 {
+    (art * SPRITE_PX as i32) as f32
 }
 
-fn seated_tip() -> f32 {
-    419.0 + stage_y()
+/// The screen in art pixels, across and down.
+fn page() -> (i32, i32) {
+    ((out_w() / SPRITE_PX) as i32, (out_h() / SPRITE_PX) as i32)
 }
 
-fn failed_tip() -> f32 {
-    276.0 + stage_y()
+/// How tall the port's strip is, from its top edge to the bottom of the screen; the bottom bar
+/// stands over its lower half.
+pub const PORT_UP: u32 = 36;
+
+/// The strip's top edge, in art pixels down the screen.
+pub fn port_top() -> i32 {
+    page().1 - PORT_UP as i32
 }
 
-const FAILED_TURN_DEG: f32 = 14.0;
-const FAILED_ALPHA: f32 = 0.45;
+/// The middle of the screen across, in art pixels, which the plug and the adapter hang over.
+fn centre() -> i32 {
+    page().0 / 2
+}
+
+/// How wide the LINK panel is, and how far down the 720x480 stage its top is.
+pub const PANEL_W: u32 = 200;
+pub const PANEL_TOP: u32 = 8;
+
+/// Where the plug's bottom edge is, in art pixels from the strip's top edge: seated, its tip all
+/// the way into the port; hanging over the port while the player picks; and lifted higher when a
+/// link failed.
+const SEATED: i32 = TIP_H as i32;
+const PICK: i32 = -18;
+const FAILED: i32 = -30;
+/// Where the adapter's body ends, from the strip's top edge: on it, its connector in the port, and
+/// held over it while the player picks.
+const ADAPTER_PICK: i32 = -30;
+
 const DROP_MS: Millis = 200;
 const SEAT_MS: Millis = 160;
 const LIFT_MS: Millis = 250;
 const UNPLUG_MS: Millis = 260;
-fn pick_base() -> f32 {
-    336.0 + stage_y()
-}
 const ARC_MS: f32 = 1200.0;
 const ARC_STAGGER_MS: f32 = 300.0;
-const ARROW_ALPHA: f32 = 0.7;
+/// A failed link shakes the plug or the adapter once it has lifted: a pixel to the right, to the
+/// left, and back, `SHAKES` times, each `SHAKE_MS` long.
+const SHAKE_MS: Millis = 50;
+const SHAKES: Millis = 4;
+/// How far the arcs stand from the adapter's sides, and from each other.
+const ARC_GAP: i32 = 4;
+const ARC_STEP: i32 = 6;
 
-fn lerp(a: f32, b: f32, t: f32) -> f32 {
-    if t >= 1.0 {
-        b
-    } else {
-        a + (b - a) * t
-    }
+/// `a` to `b` `t` of the way, to the nearest art pixel.
+fn between(a: i32, b: i32, t: f32) -> i32 {
+    (a as f32 + (b - a) as f32 * t.clamp(0.0, 1.0)).round() as i32
 }
 
 fn eased(now: Millis, since: Millis, ms: Millis) -> f32 {
     ease((now.saturating_sub(since) as f32 / ms as f32).clamp(0.0, 1.0))
 }
 
-fn working_tip(since: Millis, now: Millis) -> f32 {
-    lerp(pick_tip(), seated_tip(), eased(now, since, DROP_MS))
+fn working_plug(since: Millis, now: Millis) -> i32 {
+    between(PICK, SEATED, eased(now, since, DROP_MS))
 }
 
-fn working_base(since: Millis, now: Millis) -> f32 {
-    lerp(pick_base(), port_y(), eased(now, since, DROP_MS))
+fn working_adapter(since: Millis, now: Millis) -> i32 {
+    between(ADAPTER_PICK, 0, eased(now, since, DROP_MS))
 }
 
-fn working_arcs(since: Millis, now: Millis) -> [f32; 3] {
+fn working_arcs(since: Millis, now: Millis) -> [f32; RINGS] {
     let t = now.saturating_sub(since);
-    let mut out = [0.0; 3];
+    let mut out = [0.0; RINGS];
     if t < DROP_MS {
         return out;
     }
@@ -88,84 +144,79 @@ fn working_arcs(since: Millis, now: Millis) -> [f32; 3] {
     out
 }
 
-pub fn plug_tip(menu: GameMenu, now: Millis) -> f32 {
+/// Where the plug's bottom edge is at `now`, in art pixels from the strip's top edge.
+pub fn plug_bottom(menu: GameMenu, now: Millis) -> i32 {
     match menu {
-        GameMenu::Pick(_) => pick_tip(),
-        GameMenu::Working { since, .. } => working_tip(since, now),
-        GameMenu::Linked { worked, since, .. } => lerp(
-            working_tip(worked, since),
-            seated_tip(),
+        GameMenu::Pick(_) => PICK,
+        GameMenu::Working { since, .. } => working_plug(since, now),
+        GameMenu::Linked { worked, since, .. } => between(
+            working_plug(worked, since),
+            SEATED,
             eased(now, since, SEAT_MS),
         ),
-        GameMenu::Failed { worked, since, .. } => lerp(
-            working_tip(worked, since),
-            failed_tip(),
+        GameMenu::Failed { worked, since, .. } => between(
+            working_plug(worked, since),
+            FAILED,
             eased(now, since, LIFT_MS),
         ),
-        GameMenu::Unplug { since, .. } => {
-            lerp(seated_tip(), pick_tip(), eased(now, since, UNPLUG_MS))
-        }
+        GameMenu::Unplug { since, .. } => between(SEATED, PICK, eased(now, since, UNPLUG_MS)),
     }
 }
 
-pub fn plug_turn(menu: GameMenu, now: Millis) -> f32 {
+/// Where the adapter's body ends at `now`, in art pixels from the strip's top edge.
+pub fn adapter_bottom(menu: GameMenu, now: Millis) -> i32 {
     match menu {
-        GameMenu::Failed { since, .. } => FAILED_TURN_DEG.to_radians() * eased(now, since, LIFT_MS),
-        _ => 0.0,
-    }
-}
-
-pub fn art_alpha(menu: GameMenu, now: Millis) -> f32 {
-    match menu {
-        GameMenu::Failed { since, .. } => lerp(1.0, FAILED_ALPHA, eased(now, since, LIFT_MS)),
-        _ => 1.0,
-    }
-}
-
-pub fn adapter_base(menu: GameMenu, now: Millis) -> f32 {
-    match menu {
-        GameMenu::Pick(_) => pick_base(),
-        GameMenu::Working { since, .. } => working_base(since, now),
-        GameMenu::Linked { worked, since, .. } => lerp(
-            working_base(worked, since),
-            port_y(),
+        GameMenu::Pick(_) => ADAPTER_PICK,
+        GameMenu::Working { since, .. } => working_adapter(since, now),
+        GameMenu::Linked { worked, since, .. } => between(
+            working_adapter(worked, since),
+            0,
             eased(now, since, SEAT_MS),
         ),
-        GameMenu::Failed { worked, since, .. } => working_base(worked, since),
-        GameMenu::Unplug { since, .. } => lerp(port_y(), pick_base(), eased(now, since, UNPLUG_MS)),
+        GameMenu::Failed { worked, since, .. } => working_adapter(worked, since),
+        GameMenu::Unplug { since, .. } => between(0, ADAPTER_PICK, eased(now, since, UNPLUG_MS)),
     }
 }
 
-pub fn arc_alphas(menu: GameMenu, now: Millis) -> [f32; 3] {
-    match menu {
-        GameMenu::Pick(_) => [0.0; 3],
+/// How far a failed link has the plug or the adapter shaken across at `now`, in art pixels: once
+/// it has lifted, a pixel right, a pixel left, `SHAKES` times; otherwise none.
+pub fn shake(menu: GameMenu, now: Millis) -> i32 {
+    let GameMenu::Failed { since, .. } = menu else {
+        return 0;
+    };
+    let t = now.saturating_sub(since);
+    if !(LIFT_MS..LIFT_MS + SHAKE_MS * SHAKES).contains(&t) {
+        return 0;
+    }
+    match ((t - LIFT_MS) / SHAKE_MS) % 2 {
+        0 => 1,
+        _ => -1,
+    }
+}
+
+/// How lit each radio arc is at `now`, in the four steps of a kit fade: they call out in turn
+/// while linking, all lit once linked, and fade away when the link fails or ends.
+pub fn arc_alphas(menu: GameMenu, now: Millis) -> [f32; RINGS] {
+    let smooth = match menu {
+        GameMenu::Pick(_) => [0.0; RINGS],
         GameMenu::Working { since, .. } => working_arcs(since, now),
         GameMenu::Linked { worked, since, .. } => {
             let from = working_arcs(worked, since);
             let t = eased(now, since, SEAT_MS);
-            [
-                lerp(from[0], 1.0, t),
-                lerp(from[1], 1.0, t),
-                lerp(from[2], 1.0, t),
-            ]
+            from.map(|a| a + (1.0 - a) * t)
         }
         GameMenu::Failed { worked, since, .. } => {
-            let from = working_arcs(worked, since);
             let fade = 1.0 - eased(now, since, LIFT_MS);
-            [from[0] * fade, from[1] * fade, from[2] * fade]
+            working_arcs(worked, since).map(|a| a * fade)
         }
-        GameMenu::Unplug { since, .. } => {
-            let fade = 1.0 - eased(now, since, UNPLUG_MS);
-            [fade; 3]
-        }
-    }
+        GameMenu::Unplug { since, .. } => [1.0 - eased(now, since, UNPLUG_MS); RINGS],
+    };
+    smooth.map(stepped)
 }
 
-pub fn clicks_alpha(menu: GameMenu, now: Millis) -> f32 {
-    match menu {
-        GameMenu::Linked { since, .. } if now.saturating_sub(since) >= SEAT_MS => 1.0,
-        _ => 0.0,
-    }
+/// Whether the clicks of a plug going home show: once it has seated on a link.
+pub fn clicks_shown(menu: GameMenu, now: Millis) -> bool {
+    matches!(menu, GameMenu::Linked { since, .. } if now.saturating_sub(since) >= SEAT_MS)
 }
 
 fn role_of(menu: GameMenu) -> LinkRow {
@@ -178,81 +229,312 @@ fn role_of(menu: GameMenu) -> LinkRow {
     }
 }
 
-fn tex(out: &mut Vec<Draw>, s: Sprite, x: f32, y: f32, alpha: f32) {
-    out.push(Draw::Tex {
-        x: x.round(),
-        y: y.round(),
-        w: s.w as f32,
-        h: s.h as f32,
-        tex: s.tex,
-        alpha,
-    });
-}
-
+/// The art for `menu` at `now` over `kind` of link, the cable running up from `cable_top` (art
+/// pixels down the screen) to the plug: the cable, the plug or the adapter, then the port over
+/// them, so the plug's tip and the adapter's connector go into it, then the clicks or the arcs.
 pub fn draw_link_art(
     menu: GameMenu,
     kind: LinkKind,
     now: Millis,
     s: &LinkSprites,
+    cable_top: i32,
     out: &mut Vec<Draw>,
 ) {
-    let host = role_of(menu) == LinkRow::Host;
-    let alpha = art_alpha(menu, now);
-    let centre = out_w() as f32 / 2.0;
+    let (port, mid, dx) = (port_top(), centre(), shake(menu, now));
     match kind {
         LinkKind::Cable => {
-            let tip = plug_tip(menu, now);
-            let plug = if host { s.plug_host } else { s.plug_join };
-            let (x, y) = ((centre - PLUG_TIP_X).round(), (tip - PLUG_H as f32).round());
-            let turn = plug_turn(menu, now);
-            if turn == 0.0 {
-                tex(out, plug, x, y, alpha);
-            } else {
-                out.push(Draw::Turned {
-                    x,
-                    y,
-                    w: plug.w as f32,
-                    h: plug.h as f32,
-                    tex: plug.tex,
-                    alpha,
-                    turn,
-                });
+            let plug = match role_of(menu) {
+                LinkRow::Host => s.plug_host,
+                LinkRow::Join => s.plug_join,
+            };
+            let top = port + plug_bottom(menu, now) - PLUG_H as i32;
+            let cable = top - cable_top;
+            if cable > 0 {
+                let x = mid - CABLE_W as i32 / 2 + dx;
+                out.push(quad(
+                    s.cable.tex,
+                    CABLE_W,
+                    cable as u32,
+                    px(x),
+                    px(cable_top),
+                ));
             }
-            tex(out, s.port, stage_x(), port_y(), 1.0);
-            let clicks = clicks_alpha(menu, now);
-            if clicks > 0.0 {
-                tex(out, s.clicks, clicks_x(), clicks_y(), clicks);
-            }
-        }
-        LinkKind::Wireless => {
-            let base = adapter_base(menu, now);
-            tex(
-                out,
-                s.adapter,
-                centre - ADAPTER_BASE_X,
-                base - ADAPTER_BASE_Y,
-                alpha,
-            );
-            tex(out, s.port, stage_x(), port_y(), 1.0);
-            let dy = base - port_y();
-            for (i, a) in arc_alphas(menu, now).into_iter().enumerate() {
-                if a <= 0.0 {
-                    continue;
-                }
-                let (x, y, w, _) = arcs()[i];
-                tex(out, s.arcs_right[i], x, y + dy, a);
-                tex(
-                    out,
-                    s.arcs_left[i],
-                    out_w() as f32 - x - w as f32,
-                    y + dy,
-                    a,
+            out.push(plug.at(mid - plug.w as i32 / 2 + dx, top));
+            out.push(s.port.at(0, port));
+            if clicks_shown(menu, now) {
+                out.push(
+                    s.clicks
+                        .at(mid - CLICKS_W as i32 / 2, port - CLICKS_H as i32),
                 );
             }
         }
+        LinkKind::Wireless => {
+            let body = (ADAPTER_H - CONNECTOR_H) as i32;
+            let top = port + adapter_bottom(menu, now) - body;
+            let half = ADAPTER_W as i32 / 2;
+            out.push(s.adapter.at(mid - half + dx, top));
+            out.push(s.port.at(0, port));
+            for (i, alpha) in arc_alphas(menu, now).into_iter().enumerate() {
+                if alpha <= 0.0 {
+                    continue;
+                }
+                let (right, left) = (s.arcs_right[i], s.arcs_left[i]);
+                let y = top + body / 2 - right.h as i32 / 2;
+                let reach = half + ARC_GAP + ARC_STEP * i as i32;
+                for (arc, x) in [
+                    (right, mid + reach + dx),
+                    (left, mid - reach - left.w as i32 + dx),
+                ] {
+                    out.push(Draw::Tex {
+                        x: px(x),
+                        y: px(y),
+                        w: px(arc.w as i32),
+                        h: px(arc.h as i32),
+                        tex: arc.tex,
+                        alpha,
+                    });
+                }
+            }
+        }
     }
-    if matches!(menu, GameMenu::Pick(_)) {
-        tex(out, s.arrow_left, arrow_left_x(), arrow_y(), ARROW_ALPHA);
-        tex(out, s.arrow_right, arrow_right_x(), arrow_y(), ARROW_ALPHA);
+}
+
+/// Where the LINK panel goes, `[x, y]` in art pixels: across the middle, near the top of the
+/// 720x480 stage, which a taller screen has against its bottom.
+pub fn panel_at(panel: &Lone) -> [i32; 2] {
+    let stage_top = (stage_y().max(0.0) as u32 / SPRITE_PX) as i32;
+    [
+        (page().0 - panel.w as i32).div_euclid(2),
+        stage_top + PANEL_TOP as i32,
+    ]
+}
+
+/// What the LINK panel shows: the role and the link's kind, the role lit with its carets while
+/// the player picks, and under them what is happening, if anything.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LinkView {
+    pub role: LinkRow,
+    pub kind: LinkKind,
+    pub picking: bool,
+    pub status: Option<&'static str>,
+}
+
+/// The kind's word on the MODE row.
+fn kind_word(kind: LinkKind) -> &'static str {
+    match kind {
+        LinkKind::Cable => "Cable",
+        LinkKind::Wireless => "Wireless",
+    }
+}
+
+/// The LINK panel in `pal`: ROLE with its value and carets, MODE with the link's kind, and the
+/// status as a note under them in the dim colour, the panel as tall as what it holds.
+pub fn link_panel_face(view: &LinkView, pal: &Palette) -> UndoFace {
+    let rows = [
+        ViewRow {
+            label: RowLabel::Setting("ROLE"),
+            value: Some(RowValue::Choice(view.role.text())),
+            dim: false,
+        },
+        ViewRow {
+            label: RowLabel::Setting("MODE"),
+            value: Some(RowValue::Said(kind_word(view.kind))),
+            dim: false,
+        },
+    ];
+    let held = rows_height(rows.len());
+    let lines: Vec<String> = view.status.iter().map(|s| s.to_string()).collect();
+    let content = match lines.len() {
+        0 => held,
+        n => held + notes_height(n),
+    };
+    let mut panel = panel_face(PANEL_W, panel_height(content), "LINK", true, pal);
+    hold(&mut panel, &rows, view.picking.then_some(0), pal);
+    notes(&mut panel, &lines, held + NOTE_GAP, pal);
+    panel.face
+}
+
+/// The pair of actions the bar shows over the link screen.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum LinkActions {
+    /// Picking: B RETURN, A LINK.
+    Pick,
+    /// Linking: B CANCEL, and nothing for A.
+    Working,
+    /// Linked, opened over a link under way: B RETURN, A END LINK.
+    Linked,
+    /// Failed: A OK alone.
+    Failed,
+    /// Linked a moment ago, or unplugging: nothing to press, both actions empty.
+    Idle,
+}
+
+impl LinkActions {
+    pub const ALL: [LinkActions; 5] = [
+        LinkActions::Pick,
+        LinkActions::Working,
+        LinkActions::Linked,
+        LinkActions::Failed,
+        LinkActions::Idle,
+    ];
+
+    pub fn index(self) -> usize {
+        self as usize
+    }
+
+    /// The big word and the button in its pill of the action at `side`.
+    pub fn action(self, side: Side) -> (&'static str, &'static str) {
+        match (self, side) {
+            (LinkActions::Pick | LinkActions::Linked, Side::Left) => ("RETURN", "B"),
+            (LinkActions::Working, Side::Left) => ("CANCEL", "B"),
+            (LinkActions::Pick, Side::Right) => ("LINK", "A"),
+            (LinkActions::Linked, Side::Right) => ("END LINK", "A"),
+            (LinkActions::Failed, Side::Right) => ("OK", "A"),
+            (LinkActions::Failed | LinkActions::Idle, Side::Left)
+            | (LinkActions::Working | LinkActions::Idle, Side::Right) => ("", ""),
+        }
+    }
+
+    /// The actions `menu` has.
+    pub fn of(menu: GameMenu) -> LinkActions {
+        match menu {
+            GameMenu::Pick(_) => LinkActions::Pick,
+            GameMenu::Working { .. } => LinkActions::Working,
+            GameMenu::Linked { opened: true, .. } => LinkActions::Linked,
+            GameMenu::Failed { .. } => LinkActions::Failed,
+            GameMenu::Linked { .. } | GameMenu::Unplug { .. } => LinkActions::Idle,
+        }
+    }
+
+    /// The actions the bar had before `menu`'s and when it changed to them, for the swap: picking
+    /// gives way to linking, and linking to linked or failed.
+    fn before(menu: GameMenu) -> Option<(LinkActions, Millis)> {
+        match menu {
+            GameMenu::Working { since, .. } => Some((LinkActions::Pick, since)),
+            GameMenu::Linked {
+                opened: false,
+                since,
+                ..
+            }
+            | GameMenu::Failed { since, .. } => Some((LinkActions::Working, since)),
+            _ => None,
+        }
+    }
+}
+
+/// The actions the bar shows over `menu` at `now`, and how far they are sunk: when the actions
+/// change, the old ones sink out of the screen and the new ones rise into place, as a menu's do
+/// through a slide.
+pub fn link_bar_place(menu: GameMenu, now: Millis) -> (LinkActions, u32) {
+    let to = LinkActions::of(menu);
+    match LinkActions::before(menu) {
+        Some((from, since)) => {
+            let swap = action_swap(progress(since, now));
+            (if swap.new { to } else { from }, swap.sink)
+        }
+        None => (to, 0),
+    }
+}
+
+/// The link screen's bar: each pair of actions uploaded, and the hints between picking's.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LinkBar {
+    pub sets: [BarSet; 5],
+    pub hints: Option<TexId>,
+}
+
+/// SELECT on the link screen: it switches between the cable and the wireless adapter.
+pub const MODE: Hint<'static> = Hint {
+    key: "SELECT",
+    word: "MODE",
+};
+
+impl App {
+    /// What the LINK panel shows, while the link screen is open.
+    pub fn link_view(&self) -> Option<LinkView> {
+        let menu = self.game_menu?;
+        let status = match menu {
+            GameMenu::Working { step, .. } => Some(step.shown(self.radio.warmed()).line()),
+            GameMenu::Linked { .. } => Some("Linked"),
+            GameMenu::Failed { fail, .. } => fail.shown().map(|_| fail.line()),
+            GameMenu::Pick(_) | GameMenu::Unplug { .. } => None,
+        };
+        Some(LinkView {
+            role: role_of(menu),
+            kind: self.link_hardware,
+            picking: matches!(menu, GameMenu::Pick(_)),
+            status,
+        })
+    }
+
+    /// The keys between picking's actions: SELECT MODE where the seated game can switch between
+    /// the cable and the adapter, and ◀▶ SWAP, which swaps HOST and JOIN.
+    pub fn link_hints(&self) -> Vec<Hint<'static>> {
+        let switchable = self.seated().is_some_and(|stem| self.link_switchable(stem));
+        match switchable {
+            true => vec![MODE, SWAP],
+            false => vec![SWAP],
+        }
+    }
+
+    /// The link screen's actions shown now, and how far they are sunk.
+    pub fn link_bar_shown(&self) -> Option<(LinkActions, u32)> {
+        self.game_menu.map(|menu| link_bar_place(menu, self.now()))
+    }
+
+    pub fn set_link_sprites(&mut self, sprites: LinkSprites) {
+        self.link_sprites = Some(sprites);
+    }
+
+    pub fn link_sprites_ready(&self) -> bool {
+        self.link_sprites.is_some()
+    }
+
+    pub fn set_link_panel(&mut self, panel: Lone) {
+        self.link_panel = Some(panel);
+    }
+
+    pub fn set_link_bar(&mut self, bar: LinkBar) {
+        self.link_bar = Some(bar);
+    }
+
+    /// The link screen over the game: the theme's backdrop, the art, the LINK panel over the top
+    /// of the cable, and the bar.
+    pub(crate) fn draw_game_menu(&self, menu: GameMenu, out: &mut Vec<Draw>) {
+        self.draw_background(out);
+        let panel = self.link_panel.map(|p| (p, panel_at(&p)));
+        if let Some(sprites) = &self.link_sprites {
+            let cable_top = panel.map_or(0, |(_, [_, y])| y);
+            draw_link_art(
+                menu,
+                self.link_hardware,
+                self.now(),
+                sprites,
+                cable_top,
+                out,
+            );
+        }
+        if let Some((p, [x, y])) = panel {
+            out.push(quad(p.tex, p.w, p.h, px(x), px(y)));
+        }
+        self.draw_link_bar(menu, out);
+    }
+
+    fn draw_link_bar(&self, menu: GameMenu, out: &mut Vec<Draw>) {
+        let Some(bar) = &self.link_bar else {
+            return;
+        };
+        let (actions, sink) = link_bar_place(menu, self.now());
+        let set = &bar.sets[actions.index()];
+        let h = out_h();
+        if actions == LinkActions::Pick {
+            if let Some(tex) = bar.hints {
+                out.push(set.layout.hints_quad(tex, h));
+            }
+        }
+        for ((tex, w, th), [x, y]) in [(set.left, set.layout.left), (set.right, set.layout.right)] {
+            let y = BarLayout::top(h) + px(y + sink as i32);
+            out.push(quad(tex, w, th, px(x), y));
+        }
     }
 }

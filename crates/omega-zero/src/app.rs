@@ -1,4 +1,3 @@
-use omega_ui::stage_y;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -17,8 +16,8 @@ use omega_ui::{
     CartMeshes, ChromeColours, ClockPicker, Draw, FfState, GbShell, Hud, HudKind, Icon,
     KeyboardFaces, LinkBadge, LinkFaces, Links, Millis, Placed, Polaroids, PowerChoice, Refusal,
     SettingsFaces, SettingsRow, Shelf, SlotChrome, TexId, Toast, CART_W, CHIP_H, CHIP_U, CHIP_V,
-    CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V,
-    SOCKET_W, TOP_BAR_H, TURN_PAD,
+    CHIP_W, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TOP_BAR_H,
+    TURN_PAD,
 };
 
 use crate::audio::Sfx;
@@ -31,7 +30,7 @@ use crate::label_screen::{Labels, LabelsScreen};
 use crate::label_sync::{label_jobs, Account, LabelJobs, NoKey, Want};
 use crate::link_kind::{link_carried, link_kind, serial_option, LinkKind};
 use crate::link_radio::{radio_jobs, LinkRole, RadioJob, RadioJobs};
-use crate::link_screen::LinkSprites;
+use crate::link_screen::{LinkBar, LinkSprites};
 use crate::link_start::{link_port, LinkFail, LinkProgress, LinkStarter, LinkStep};
 use crate::nav::{offsets, Dir, End, Offsets, Slide, SLIDE_MS};
 use crate::persist::{self, Snapshot};
@@ -106,15 +105,6 @@ fn push_lid(out: &mut Vec<Draw>, at: (f32, f32, f32, f32), tex: TexId, turn: f32
     });
 }
 
-fn link_text_y() -> f32 {
-    44.0 + stage_y()
-}
-
-fn link_legend_y() -> f32 {
-    422.0 + stage_y()
-}
-
-const LINK_LEGEND_GAP: f32 = 40.0;
 const LID_SHADOW_W: f32 = 168.0;
 const LID_SHADOW_H: f32 = 18.0;
 const LID_SHADOW_DROP: f32 = 29.0;
@@ -231,33 +221,6 @@ impl LinkRow {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum LinkLegend {
-    Cancel,
-    Mode,
-    Swap,
-    Link,
-    Ok,
-    Back,
-    EndLink,
-}
-
-impl LinkLegend {
-    pub const ALL: [LinkLegend; 7] = [
-        LinkLegend::Cancel,
-        LinkLegend::Mode,
-        LinkLegend::Swap,
-        LinkLegend::Link,
-        LinkLegend::Ok,
-        LinkLegend::Back,
-        LinkLegend::EndLink,
-    ];
-
-    pub fn index(self) -> usize {
-        self as usize
-    }
-}
-
 pub const LINKED_HOLD_MS: Millis = 1000;
 
 pub const UNPLUG_HOLD_MS: Millis = 420;
@@ -347,11 +310,9 @@ pub struct App {
     pub(crate) link_loaded: Option<&'static str>,
     pub(crate) link_reload: Option<(String, &'static str)>,
     reload: Option<Reload>,
-    pub(crate) link_menu_faces: Vec<(TexId, u32, u32)>,
-    pub(crate) link_linked_face: Option<(TexId, u32, u32)>,
-    pub(crate) link_step_faces: Vec<(TexId, u32, u32)>,
-    pub(crate) link_fail_faces: Vec<(TexId, u32, u32)>,
-    pub(crate) link_legend_faces: Vec<(TexId, u32)>,
+    /// The link screen's LINK panel, and its bar.
+    pub(crate) link_panel: Option<Lone>,
+    pub(crate) link_bar: Option<LinkBar>,
     starting: Option<LinkStarting>,
     pub(crate) link_transport: Option<(u16, Box<dyn LinkChannel>)>,
     pub(crate) restarting: bool,
@@ -496,11 +457,8 @@ impl App {
             link_loaded: None,
             link_reload: None,
             reload: None,
-            link_menu_faces: Vec::new(),
-            link_linked_face: None,
-            link_step_faces: Vec::new(),
-            link_fail_faces: Vec::new(),
-            link_legend_faces: Vec::new(),
+            link_panel: None,
+            link_bar: None,
             starting: None,
             link_transport: None,
             restarting: false,
@@ -2085,34 +2043,6 @@ impl App {
         self.core_chip_shadow_face = Some(shadow);
     }
 
-    pub fn set_link_menu_faces(&mut self, faces: Vec<(TexId, u32, u32)>) {
-        self.link_menu_faces = faces;
-    }
-
-    pub fn set_link_linked_face(&mut self, face: (TexId, u32, u32)) {
-        self.link_linked_face = Some(face);
-    }
-
-    pub fn set_link_step_faces(&mut self, faces: Vec<(TexId, u32, u32)>) {
-        self.link_step_faces = faces;
-    }
-
-    pub fn set_link_fail_faces(&mut self, faces: Vec<(TexId, u32, u32)>) {
-        self.link_fail_faces = faces;
-    }
-
-    pub fn set_link_legend_faces(&mut self, faces: Vec<(TexId, u32)>) {
-        self.link_legend_faces = faces;
-    }
-
-    pub fn set_link_sprites(&mut self, sprites: LinkSprites) {
-        self.link_sprites = Some(sprites);
-    }
-
-    pub fn link_sprites_ready(&self) -> bool {
-        self.link_sprites.is_some()
-    }
-
     pub(crate) fn core_picker_shown(&self) -> Option<CorePicker> {
         self.core_picker.filter(|p| !p.waiting())
     }
@@ -2238,75 +2168,6 @@ impl App {
         {
             let (lid, turn) = lid_from(shelf, progress);
             push_lid(out, (lid.x, lid.y, lid.w, lid.h), tex, turn, pose.yaw);
-        }
-    }
-
-    fn draw_game_menu(&self, menu: GameMenu, out: &mut Vec<Draw>) {
-        out.push(Draw::Rect {
-            x: 0.0,
-            y: 0.0,
-            w: out_w() as f32,
-            h: out_h() as f32,
-            colour: omega_ui::opening(),
-        });
-        if let Some(sprites) = &self.link_sprites {
-            crate::link_screen::draw_link_art(menu, self.link_hardware, self.now(), sprites, out);
-        }
-        let line = match menu {
-            GameMenu::Pick(role) => self.link_menu_faces.get(role.index()).copied(),
-            GameMenu::Working { step, .. } => self
-                .link_step_faces
-                .get(step.shown(self.radio.warmed()).index())
-                .copied(),
-            GameMenu::Linked { .. } => self.link_linked_face,
-            GameMenu::Failed { fail, .. } => fail
-                .shown()
-                .and_then(|i| self.link_fail_faces.get(i).copied()),
-            GameMenu::Unplug { .. } => None,
-        };
-        if let Some((tex, w, h)) = line {
-            out.push(Draw::Tex {
-                x: ((out_w() as f32 - w as f32) / 2.0).round(),
-                y: link_text_y(),
-                w: w as f32,
-                h: h as f32,
-                tex,
-                alpha: 1.0,
-            });
-        }
-        let switchable = self.seated().is_some_and(|stem| self.link_switchable(stem));
-        let keys: &[LinkLegend] = match menu {
-            GameMenu::Pick(_) if switchable => &[
-                LinkLegend::Cancel,
-                LinkLegend::Mode,
-                LinkLegend::Swap,
-                LinkLegend::Link,
-            ],
-            GameMenu::Pick(_) => &[LinkLegend::Cancel, LinkLegend::Swap, LinkLegend::Link],
-            GameMenu::Working { .. } => &[LinkLegend::Cancel],
-            GameMenu::Linked { opened: true, .. } => &[LinkLegend::Back, LinkLegend::EndLink],
-            GameMenu::Linked { .. } => &[],
-            GameMenu::Failed { .. } => &[LinkLegend::Ok],
-            GameMenu::Unplug { .. } => &[],
-        };
-        let faces: Vec<(TexId, u32)> = keys
-            .iter()
-            .filter_map(|k| self.link_legend_faces.get(k.index()).copied())
-            .collect();
-        let seen = |w: u32| w.saturating_sub(HINT_EDGE) as f32;
-        let total: f32 = faces.iter().map(|(_, w)| seen(*w)).sum::<f32>()
-            + LINK_LEGEND_GAP * faces.len().saturating_sub(1) as f32;
-        let mut x = ((out_w() as f32 - total) / 2.0).round();
-        for (tex, w) in faces {
-            out.push(Draw::Tex {
-                x,
-                y: link_legend_y(),
-                w: w as f32,
-                h: HINT_H as f32,
-                tex,
-                alpha: 1.0,
-            });
-            x += (seen(w) + LINK_LEGEND_GAP).round();
         }
     }
 
@@ -2666,7 +2527,7 @@ impl App {
         self.link_choices.insert(stem, other);
     }
 
-    fn link_switchable(&self, stem: &str) -> bool {
+    pub(crate) fn link_switchable(&self, stem: &str) -> bool {
         self.auto_link(stem).is_some_and(|(cart, auto)| {
             serial_option(self.link_hardware.other(), auto, &cart.code, &cart.title)
                 != serial_option(self.link_hardware, auto, &cart.code, &cart.title)
@@ -2946,7 +2807,7 @@ impl App {
         Some(StateRing::new(root, self.platform, self.core, cart))
     }
 
-    fn seated(&self) -> Option<&str> {
+    pub(crate) fn seated(&self) -> Option<&str> {
         match &self.phase {
             Phase::Playing { cart } | Phase::Polaroids { cart } => Some(cart),
             _ => None,

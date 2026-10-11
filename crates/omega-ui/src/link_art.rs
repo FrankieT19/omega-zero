@@ -1,232 +1,512 @@
-use crate::art::render_svg;
-use crate::cart::CartFace;
-use crate::stage::{stage_x, stage_y};
-use crate::text;
+//! The link screen's art, as assets/ui/components/omega-link.js draws it: the link port along the
+//! console's top edge, the GBA link cable's plug on its cable, the wireless adapter, the radio
+//! arcs it calls out with and the clicks of a plug going home. Each piece is a sprite written a
+//! character to an art pixel, baked one texel to an art pixel and drawn at 2x like the kit's
+//! faces; link_screen.rs in omega-zero moves them.
+//!
+//! The plug and the adapter are real things and keep their own colours, the plug the purple of
+//! the GBA's link cable; the port, the arcs and the clicks are drawn in the kit's palette, so they
+//! follow Settings > Theme > Colour.
 
-const PORT_SVG: &str = include_str!("../assets/link_port.svg");
-const PLUG_HOST_SVG: &str = include_str!("../assets/link_plug_host.svg");
-const PLUG_JOIN_SVG: &str = include_str!("../assets/link_plug_join.svg");
-const ADAPTER_SVG: &str = include_str!("../assets/link_adapter.svg");
+use crate::kit::palette::Palette;
+use crate::kit::pixel::{blank, fill, flip, letters, ADVANCE};
+use crate::plate::UndoFace;
 
-pub const PORT_W: u32 = 720;
-pub const PORT_H: u32 = 92;
-pub fn port_y() -> f32 {
-    388.0 + stage_y()
+/// A piece's own colours, by the keys its rows are written in: o its outline, D the dark of a
+/// slot, S shadow, B its body, G lit, W the brightest edge. Lit from the top left.
+type Own = [(char, [u8; 3]); 6];
+
+const fn ramp([o, d, s, b, g, w]: [u32; 6]) -> Own {
+    [
+        ('o', hex(o)),
+        ('D', hex(d)),
+        ('S', hex(s)),
+        ('B', hex(b)),
+        ('G', hex(g)),
+        ('W', hex(w)),
+    ]
 }
-pub const PLUG_W: u32 = 92;
-pub const PLUG_H: u32 = 244;
-pub const PLUG_TIP_X: f32 = 46.0;
-pub const ADAPTER_W: u32 = 268;
-pub const ADAPTER_H: u32 = 182;
-pub const ADAPTER_BASE_X: f32 = 134.0;
-pub const ADAPTER_BASE_Y: f32 = 144.0;
-const RINGS: [(f32, f32, u32, u32); 3] = [
-    (508.0, 290.0, 16, 56),
-    (530.0, 274.0, 20, 88),
-    (552.0, 258.0, 25, 120),
+
+const fn hex(rgb: u32) -> [u8; 3] {
+    [(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8]
+}
+
+/// The host's plug: the purple of the real cable.
+const PURPLE: Own = ramp([0x1d1430, 0x2e2352, 0x46397a, 0x6a55a6, 0x8f7bd0, 0xb7a8ea]);
+/// The joiner's plug, and the cable.
+const GREY: Own = ramp([0x1f2024, 0x3a3b40, 0x6f7078, 0x9c9ca4, 0xc2c2c9, 0xe2e2e7]);
+/// The adapter's smoky grey plastic.
+const SMOKE: Own = ramp([0x15171a, 0x272a2f, 0x3a3f46, 0x4f5660, 0x6e7681, 0x9aa2ac]);
+
+/// The host's plug, the cable's narrow end: the neck the cable goes into with its two rings, the
+/// housing with three grip ridges and an emblem, and the tip with its slot, which goes into the
+/// port.
+#[rustfmt::skip]
+const PLUG_HOST: [&str; 54] = [
+    "..........oGBBBBBBSo..........",
+    "..........oGBBBBBBSo..........",
+    "..........oSSSSSSSSo..........",
+    "..........oGBBBBBBSo..........",
+    "..........oSSSSSSSSo..........",
+    ".........oGBBBBBBBBSo.........",
+    "...oooooooooooooooooooooooo...",
+    ".ooGGGGGGGGGGGGGGGGGGGGGGGSoo.",
+    ".oWGBBBBBBBBBBBBBBBBBBBBBBSSo.",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBSSSSSSSSSSSSSSSSSSBBBSSo",
+    "oGWGBBGGGGGGGGGGGGGGGGGGBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBSSSSSSSSSSSSSSSSSSBBBSSo",
+    "oGWGBBGGGGGGGGGGGGGGGGGGBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBSSSSSSSSSSSSSSSSSSBBBSSo",
+    "oGWGBBGGGGGGGGGGGGGGGGGGBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBSSSSSSSSSSBBBBBBBSSo",
+    "oGWGBBBBBSBBBBBBBBBBGBBBBBBSSo",
+    "oGWGBBBBBSBBBBBBBBBBGBBBBBBSSo",
+    "oGWGBBBBBSBBBBBBBBBBGBBBBBBSSo",
+    "oGWGBBBBBBGGGGGGGGGGBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oBSSSSSSSSSSSSSSSSSSSSSSSSSSSo",
+    ".oSSSSSSSSSSSSSSSSSSSSSSSSSSo.",
+    ".ooSSSSSSSSSSSSSSSSSSSSSSSSoo.",
+    "...oooooooooooooooooooooooo...",
+    "......oDDDDDDDDDDDDDDDDo......",
+    "......oGBBBBBBBBBBBBBBSo......",
+    "......oGBBBBBBBBBBBBBBSo......",
+    "......oGBSSSSSSSSSSSSBSo......",
+    "......oGBDDDDDDDDDDDDBSo......",
+    "......oGBDDDDDDDDDDDDBSo......",
+    "......oGBDDDDDDDDDDDDBSo......",
+    "......oGBGGGGGGGGGGGGBSo......",
+    "......oGBBBBBBBBBBBBBBSo......",
+    "......oGBBBBBBBBBBBBBBSo......",
+    "......oSSSSSSSSSSSSSSSSo......",
+    ".......oooooooooooooooo.......",
 ];
 
-pub fn arcs() -> [(f32, f32, u32, u32); 3] {
-    RINGS.map(|(x, y, w, h)| (x + stage_x(), y + stage_y(), w, h))
-}
-pub fn clicks_x() -> f32 {
-    270.0 + stage_x()
+/// The joiner's plug, the cable's wide end, with the socket a third player's cable goes into.
+#[rustfmt::skip]
+const PLUG_JOIN: [&str; 54] = [
+    ".............oGBBBBBBSo.............",
+    ".............oGBBBBBBSo.............",
+    ".............oSSSSSSSSo.............",
+    ".............oGBBBBBBSo.............",
+    ".............oSSSSSSSSo.............",
+    "............oGBBBBBBBBSo............",
+    "...oooooooooooooooooooooooooooooo...",
+    ".ooGGGGGGGGGGGGGGGGGGGGGGGGGGGGGSoo.",
+    ".oWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo.",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBSSSSSSSSSSSSSSSSSSSSSSSSBBBSSo",
+    "oGWGBBGGGGGGGGGGGGGGGGGGGGGGGGBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBSSSSSSSSSSSSSSSSSSSSSSSSBBBSSo",
+    "oGWGBBGGGGGGGGGGGGGGGGGGGGGGGGBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBSSSSSSSSSSSSSSSSSSSSSSSSBBBSSo",
+    "oGWGBBGGGGGGGGGGGGGGGGGGGGGGGGBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBSSSSSSSSSSSSSSBBBBBBBBSSo",
+    "oGWGBBBBBBBSDDDDDDDDDDDDGBBBBBBBBSSo",
+    "oGWGBBBBBBBSDDDDDDDDDDDDGBBBBBBBBSSo",
+    "oGWGBBBBBBBSDDDDDDDDDDDDGBBBBBBBBSSo",
+    "oGWGBBBBBBBSDDDDDDDDDDDDGBBBBBBBBSSo",
+    "oGWGBBBBBBBSDDDDDDDDDDDDGBBBBBBBBSSo",
+    "oGWGBBBBBBBSDDDDDDDDDDDDGBBBBBBBBSSo",
+    "oGWGBBBBBBBGGGGGGGGGGGGGGBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oBSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSo",
+    ".oSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSo.",
+    ".ooSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSoo.",
+    "...oooooooooooooooooooooooooooooo...",
+    ".........oDDDDDDDDDDDDDDDDo.........",
+    ".........oGBBBBBBBBBBBBBBSo.........",
+    ".........oGBBBBBBBBBBBBBBSo.........",
+    ".........oGBSSSSSSSSSSSSBSo.........",
+    ".........oGBDDDDDDDDDDDDBSo.........",
+    ".........oGBDDDDDDDDDDDDBSo.........",
+    ".........oGBDDDDDDDDDDDDBSo.........",
+    ".........oGBGGGGGGGGGGGGBSo.........",
+    ".........oGBBBBBBBBBBBBBBSo.........",
+    ".........oGBBBBBBBBBBBBBBSo.........",
+    ".........oSSSSSSSSSSSSSSSSo.........",
+    "..........oooooooooooooooo..........",
+];
+
+/// The wireless adapter: a smoky dome over the antenna inside, a label plate, two screws, and
+/// under it the connector that goes into the port.
+#[rustfmt::skip]
+const ADAPTER: [&str; 52] = [
+    "....................oooooooooooooooooooooooooooooooooooooooo....................",
+    "................ooooGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGSSoooo................",
+    ".............oooGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSooo.............",
+    "...........ooGBBBBBDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDBBBBSSoo...........",
+    "..........oGBBBDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDBBSSo..........",
+    ".........oGBBDDDDDDDDDDDSDDDDDDDSDDDDDDSSDDDDDDSDDDDDDDSDDDDDDDDDDDBSSo.........",
+    "........oGWGDDDDDDDDDDDDSDDDDDDDSDDDDDDSSDDDDDDSDDDDDDDSDDDDDDDDDDDDBSSo........",
+    "........oGWGDDDDDDDDDDDDSDDDDDDDSDDDDDDSSDDDDDDSDDDDDDDSDDDDDDDDDDDDBSSo........",
+    "........oGWGDDDDDDDDDDDDSDDDDDDDSDDDDDDSSDDDDDDSDDDDDDDSDDDDDDDDDDDDBSSo........",
+    "........oGWGDDDDDDDDDDDDSDDDDDDDSDDDDDDSSDDDDDDSDDDDDDDSDDDDDDDDDDDDBSSo........",
+    ".......oGWGDDDDDDDDDDDDDSDDDDDDDSDDDDDDSSDDDDDDSDDDDDDDSDDDDDDDDDDDDDBSSo.......",
+    ".......oGWGDDDDDDDDDDDDDSDDDDDDDSDDDDDDSSDDDDDDSDDDDDDDSDDDDDDDDDDDDDBSSo.......",
+    ".......oGWGDDDDDDDDDDDDDSDDDDDDDSDDDDDDSSDDDDDDSDDDDDDDSDDDDDDDDDDDDDBSSo.......",
+    ".......oGWGSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSBSSo.......",
+    "......oGWGDDDDDDDDDDDDDDSDDDDDDDSDDDDDDSSDDDDDDSDDDDDDDSDDDDDDDDDDDDDDBSSo......",
+    "......oGWGDDDDDDDDDDDDDDSDDDDDDDSDDDDDDSSDDDDDDSDDDDDDDSDDDDDDDDDDDDDDBSSo......",
+    "......oGWGDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDBSSo......",
+    "......oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo......",
+    ".....oSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSo.....",
+    ".....oGWGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGSSo.....",
+    ".....oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo.....",
+    ".....oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo.....",
+    "....oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo....",
+    "....oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo....",
+    "....oGWGBBBBBBBBBBBBBBBDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDBBBBBBBBBBBBBBBBBSSo....",
+    "....oGWGBBBBBBBBBBBBBBBDSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSGBBBBBBBBBBBBBBBBSSo....",
+    "...oGWGBBBBBBBBBBBBBBBBDSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSGBBBBBBBBBBBBBBBBBSSo...",
+    "...oGWGBBBoooBBBBBBBBBBDSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSGBBBBBBBBBBoooBBBBSSo...",
+    "...oGWGBBoGSGoBBBBBBBBBDSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSGBBBBBBBBBoGSGoBBBSSo...",
+    "...oGWGBBoSSSoBBBBBBBBBDSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSGBBBBBBBBBoSSSoBBBSSo...",
+    "..oGWGBBBoGSGoBBBBBBBBBDSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSGBBBBBBBBBoGSGoBBBBSSo..",
+    "..oGWGBBBBoooBBBBBBBBBBDSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSGBBBBBBBBBBoooBBBBBSSo..",
+    "..oGWGBBBBBBBBBBBBBBBBBDSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSGBBBBBBBBBBBBBBBBBBSSo..",
+    "..oGWGBBBBBBBBBBBBBBBBBDSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSGBBBBBBBBBBBBBBBBBBSSo..",
+    ".oGWGBBBBBBBBBBBBBBBBBBDSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSGBBBBBBBBBBBBBBBBBBBSSo.",
+    ".oGWGBBBBBBBBBBBBBBBBBBBGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGBBBBBBBBBBBBBBBBBBBSSo.",
+    ".oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo.",
+    ".oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo.",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGWGBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSSo",
+    "oGSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSo",
+    "oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo",
+    "................................oWGGGGGGGGGGGGSo................................",
+    "................................oWGGGGGGGGGGGGSo................................",
+    "................................oGooooooooooooSo................................",
+    "................................oGoDDDDDDDDDDoSo................................",
+    "................................oGooooooooooooSo................................",
+    "................................oGGGGGGGGGGGGGSo................................",
+    "................................oSSSSSSSSSSSSSSo................................",
+    ".................................oooooooooooooo.................................",
+];
+
+/// The port's opening in the middle of the strip's top edge, its five pins in the frame's bright
+/// colour, drawn over the strip.
+#[rustfmt::skip]
+const NOTCH: [&str; 8] = [
+    "kkkkkkkkkkkkkkkkkkkkkk",
+    ".kkkkkkkkkkkkkkkkkkkk.",
+    "..kkkkkkkkkkkkkkkkkk..",
+    "..kkHHkHHkHHkHHkHHkk..",
+    "..kkHHkHHkHHkHHkHHkk..",
+    "..kkkkkkkkkkkkkkkkkk..",
+    "..kkkkkkkkkkkkkkkkkk..",
+    "...kkkkkkkkkkkkkkkk...",
+];
+
+/// The clicks of a plug going home, either side of its housing over the port: the left half, the
+/// right the same turned round.
+#[rustfmt::skip]
+const CLICKS_LEFT: [&str; 10] = [
+    "...cc.....................",
+    "....cc....................",
+    ".....cc...................",
+    "......cc..................",
+    "..........................",
+    "..........................",
+    "..........................",
+    "cccccc....................",
+    "..........................",
+    "..........................",
+];
+
+/// A row of the cable, in the grey plug's colours, repeated as long as the cable is.
+const CABLE: &str = "oGBBSo";
+
+/// Where OMEGA's line goes on the adapter, its capitals two rows down it: in the label plate.
+const ADAPTER_LABEL: (i32, i32) = (25, 24);
+
+/// The strip's top edge, lit, over a stripe; under them the strip is the well colour.
+const EDGE: [char; 2] = ['A', 's'];
+
+/// The radio arcs on the adapter's right, two pixels thick, the smallest first.
+#[rustfmt::skip]
+const ARC_0: [&str; 14] = [
+    "cc...",
+    ".cc..",
+    "..cc.",
+    "..cc.",
+    "...cc",
+    "...cc",
+    "...cc",
+    "...cc",
+    "...cc",
+    "...cc",
+    "..cc.",
+    "..cc.",
+    ".cc..",
+    "cc...",
+];
+
+#[rustfmt::skip]
+const ARC_1: [&str; 22] = [
+    "cc.....",
+    ".cc....",
+    "..cc...",
+    "...cc..",
+    "...cc..",
+    "....cc.",
+    "....cc.",
+    ".....cc",
+    ".....cc",
+    ".....cc",
+    ".....cc",
+    ".....cc",
+    ".....cc",
+    ".....cc",
+    ".....cc",
+    "....cc.",
+    "....cc.",
+    "...cc..",
+    "...cc..",
+    "..cc...",
+    ".cc....",
+    "cc.....",
+];
+
+#[rustfmt::skip]
+const ARC_2: [&str; 30] = [
+    "cc.......",
+    ".cc......",
+    "..cc.....",
+    "...cc....",
+    "...cc....",
+    "....cc...",
+    "....cc...",
+    ".....cc..",
+    ".....cc..",
+    "......cc.",
+    "......cc.",
+    ".......cc",
+    ".......cc",
+    ".......cc",
+    ".......cc",
+    ".......cc",
+    ".......cc",
+    ".......cc",
+    ".......cc",
+    "......cc.",
+    "......cc.",
+    ".....cc..",
+    ".....cc..",
+    "....cc...",
+    "....cc...",
+    "...cc....",
+    "...cc....",
+    "..cc.....",
+    ".cc......",
+    "cc.......",
+];
+
+/// How tall a plug is, its neck to its tip, in art pixels.
+pub const PLUG_H: u32 = PLUG_HOST.len() as u32;
+/// How tall its tip is, the part that goes into the port, and how wide.
+pub const TIP_H: u32 = 12;
+pub const TIP_W: u32 = 18;
+/// How wide the cable is.
+pub const CABLE_W: u32 = CABLE.len() as u32;
+/// The adapter's size, its connector the bottom `CONNECTOR_H` rows.
+pub const ADAPTER_W: u32 = ADAPTER[0].len() as u32;
+pub const ADAPTER_H: u32 = ADAPTER.len() as u32;
+pub const CONNECTOR_H: u32 = 8;
+/// How wide the port's opening is at the top of the strip.
+pub const NOTCH_W: u32 = NOTCH[0].len() as u32;
+/// The clicks' size: they stand either side of a plug's housing, just over the strip.
+pub const CLICKS_W: u32 = 2 * CLICKS_LEFT[0].len() as u32;
+pub const CLICKS_H: u32 = CLICKS_LEFT.len() as u32;
+/// How many radio arcs there are on each side.
+pub const RINGS: usize = 3;
+
+/// Which end of the cable a plug is.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum End {
+    /// The host's: the narrow end, in the real cable's purple.
+    Host,
+    /// The joiner's: the wide end, grey, with a socket for a third player's cable.
+    Join,
 }
 
-pub fn clicks_y() -> f32 {
-    360.0 + stage_y()
-}
-pub const CLICKS_W: u32 = 180;
-pub const CLICKS_H: u32 = 30;
-pub const ARROW_W: u32 = 16;
-pub const ARROW_H: u32 = 22;
-pub fn arrow_left_x() -> f32 {
-    268.0 + stage_x()
-}
-
-pub fn arrow_right_x() -> f32 {
-    436.0 + stage_x()
-}
-
-pub fn arrow_y() -> f32 {
-    52.0 + stage_y()
-}
-
-const ADAPTER_SCALE: f32 = 1.75;
-const LABEL_INK: [u8; 3] = [0xec, 0xee, 0xef];
-const LOGO_INK: [u8; 3] = [0x7d, 0x85, 0x8e];
-const ARC_INK: &str = "#f6f4ef";
-
-pub struct LinkArt {
-    pub port: CartFace,
-    pub plug_host: CartFace,
-    pub plug_join: CartFace,
-    pub adapter: CartFace,
-    pub arcs_right: [CartFace; 3],
-    pub arcs_left: [CartFace; 3],
-    pub clicks: CartFace,
-    pub arrow_left: CartFace,
-    pub arrow_right: CartFace,
-}
-
-pub fn link_art() -> LinkArt {
-    let arcs_right = [arc_face(0), arc_face(1), arc_face(2)];
-    let arcs_left = [
-        mirror(&arcs_right[0]),
-        mirror(&arcs_right[1]),
-        mirror(&arcs_right[2]),
-    ];
-    LinkArt {
-        port: svg_face(PORT_SVG, PORT_W, PORT_H),
-        plug_host: svg_face(PLUG_HOST_SVG, PLUG_W, PLUG_H),
-        plug_join: svg_face(PLUG_JOIN_SVG, PLUG_W, PLUG_H),
-        adapter: adapter_face(),
-        arcs_right,
-        arcs_left,
-        clicks: svg_face(
-            &format!(
-                r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {CLICKS_W} {CLICKS_H}"><g stroke="{ARC_INK}" stroke-width="4" stroke-linecap="round"><path d="M34 20 L20 4"/><path d="M146 20 L160 4"/><path d="M26 26 L4 26"/><path d="M154 26 L176 26"/></g></svg>"#
-            ),
-            CLICKS_W,
-            CLICKS_H,
-        ),
-        arrow_left: svg_face(&arrow_svg("M14 2 L2 11 L14 20 Z"), ARROW_W, ARROW_H),
-        arrow_right: svg_face(&arrow_svg("M2 2 L14 11 L2 20 Z"), ARROW_W, ARROW_H),
-    }
-}
-
-fn svg_face(svg: &str, w: u32, h: u32) -> CartFace {
-    let rgba = render_svg(svg, w, h).unwrap_or_else(|| vec![0; (w * h * 4) as usize]);
-    CartFace { rgba, w, h }
-}
-
-fn arrow_svg(path: &str) -> String {
-    format!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {ARROW_W} {ARROW_H}"><path d="{path}" fill="{ARC_INK}"/></svg>"#
-    )
-}
-
-fn arc_face(ring: usize) -> CartFace {
-    let (_, _, w, h) = RINGS[ring];
-    let bulge = [16.0, 24.0, 34.0][ring];
-    let path = format!("M4 4 Q{} {} 4 {}", 4.0 + bulge, h as f32 / 2.0, h - 4);
-    svg_face(
-        &format!(
-            r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}"><path d="{path}" fill="none" stroke="{ARC_INK}" stroke-width="5" stroke-linecap="round"/></svg>"#
-        ),
-        w,
-        h,
-    )
-}
-
-fn mirror(face: &CartFace) -> CartFace {
-    let mut rgba = vec![0u8; face.rgba.len()];
-    for y in 0..face.h {
-        for x in 0..face.w {
-            let s = ((y * face.w + x) * 4) as usize;
-            let d = ((y * face.w + (face.w - 1 - x)) * 4) as usize;
-            rgba[d..d + 4].copy_from_slice(&face.rgba[s..s + 4]);
-        }
-    }
-    CartFace {
-        rgba,
-        w: face.w,
-        h: face.h,
-    }
-}
-
-#[derive(Copy, Clone)]
-enum Align {
+/// Which side of the adapter an arc is on.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Side {
     Left,
-    Centre,
+    Right,
 }
 
-type LabelRow = (f32, f32, &'static str, f32, [u8; 3], Align);
-
-fn adapter_face() -> CartFace {
-    let mut face = svg_face(ADAPTER_SVG, ADAPTER_W, ADAPTER_H);
-    let at = |x: f32, y: f32| {
-        (
-            ADAPTER_BASE_X + x * ADAPTER_SCALE,
-            ADAPTER_BASE_Y + y * ADAPTER_SCALE,
-        )
-    };
-    let s = ADAPTER_SCALE;
-    // The pixel face is never set smaller than nine pixels, so the fine print is the two rows
-    // of it the plate has room for, each no wider than the plate.
-    let rows: [LabelRow; 4] = [
-        (0.0, -58.9, "OMEGA", 5.6 * s, LOGO_INK, Align::Centre),
-        (
-            0.0,
-            -23.4,
-            "WIRELESS ADAPTER",
-            5.2 * s,
-            LABEL_INK,
-            Align::Centre,
-        ),
-        (
-            -37.0,
-            -15.0,
-            "MODEL NO. AGS-015",
-            3.4 * s,
-            LABEL_INK,
-            Align::Left,
-        ),
-        (
-            -37.0,
-            -8.0,
-            "WLAN1 5GHZ PORT 7211",
-            3.4 * s,
-            LABEL_INK,
-            Align::Left,
-        ),
-    ];
-    for (x, baseline, line, px, ink, align) in rows {
-        let (fx, fy) = at(x, baseline);
-        stamp(&mut face, fx, fy, line, px, ink, align);
+/// `rows` painted a texel to a character: a key `own` has in its own colour, the palette's keys
+/// in `pal`, anything else (and '.') left clear.
+fn drawn(rows: &[impl AsRef<str>], own: &[(char, [u8; 3])], pal: &Palette) -> UndoFace {
+    let w = rows
+        .iter()
+        .map(|r| r.as_ref().chars().count())
+        .max()
+        .unwrap_or(0)
+        .max(1) as u32;
+    let mut face = blank(w, rows.len().max(1) as u32);
+    for (y, row) in rows.iter().enumerate() {
+        for (x, key) in row.as_ref().chars().enumerate() {
+            let colour = own
+                .iter()
+                .find(|(k, _)| *k == key)
+                .map(|(_, c)| *c)
+                .or_else(|| pal.key(key));
+            if let Some(colour) = colour {
+                fill(&mut face, [x as i32, y as i32, 1, 1], colour);
+            }
+        }
     }
     face
 }
 
-fn stamp(
-    face: &mut CartFace,
-    x: f32,
-    baseline: f32,
-    line: &str,
-    px: f32,
-    ink: [u8; 3],
-    align: Align,
-) {
-    let Some(font) = text::label_font() else {
-        return;
-    };
-    let layout = text::fit(font, line, f32::MAX, 1, px, px);
-    let width = layout
-        .lines
-        .first()
-        .map(|l| text::line_width(font, l, px, layout.tracking))
-        .unwrap_or(0.0);
-    let (bw, bh) = ((width.ceil() as u32).max(1), (px * 1.6).ceil() as u32);
-    let cov = text::coverage(bw, bh, &layout);
-    let left = match align {
-        Align::Left => x,
-        Align::Centre => x - bw as f32 / 2.0,
+/// `rows` with `over` laid on them, its top left at (`x`, `y`): every character of `over` but
+/// '.' takes the place of the one under it.
+fn laid(rows: &[impl AsRef<str>], over: &[impl AsRef<str>], x: i32, y: i32) -> Vec<String> {
+    rows.iter()
+        .enumerate()
+        .map(|(ry, row)| {
+            let top = usize::try_from(ry as i32 - y)
+                .ok()
+                .and_then(|i| over.get(i))
+                .map(|r| r.as_ref().chars().collect::<Vec<char>>());
+            row.as_ref()
+                .chars()
+                .enumerate()
+                .map(|(rx, k)| {
+                    let at = usize::try_from(rx as i32 - x).ok();
+                    match (&top, at) {
+                        (Some(top), Some(at)) => top.get(at).copied().filter(|c| *c != '.'),
+                        _ => None,
+                    }
+                    .unwrap_or(k)
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// The plug at `end` of the cable: the neck the cable goes into with its two rings, the housing
+/// with its grip ridges, and the tip with its slot, `TIP_H` rows at the bottom, `TIP_W` wide in
+/// the middle. The host's is 30 art pixels wide, the joiner's 36.
+pub fn plug_face(end: End, pal: &Palette) -> UndoFace {
+    match end {
+        End::Host => drawn(&PLUG_HOST, &PURPLE, pal),
+        End::Join => drawn(&PLUG_JOIN, &GREY, pal),
     }
-    .round() as i32;
-    let top = (baseline - px * 1.2).round() as i32;
-    for row in 0..bh as i32 {
-        for col in 0..bw as i32 {
-            let a = cov[(row as u32 * bw + col as u32) as usize] as u32;
-            let (dx, dy) = (left + col, top + row);
-            if a == 0 || dx < 0 || dy < 0 || dx >= face.w as i32 || dy >= face.h as i32 {
-                continue;
-            }
-            let d = ((dy as u32 * face.w + dx as u32) * 4) as usize;
-            for (k, c) in ink.iter().enumerate() {
-                face.rgba[d + k] =
-                    ((*c as u32 * a + face.rgba[d + k] as u32 * (255 - a)) / 255) as u8;
-            }
-            face.rgba[d + 3] = face.rgba[d + 3].max(a as u8);
-        }
+}
+
+/// A row of the cable: drawn as tall as the cable is long, each row the same.
+pub fn cable_face(pal: &Palette) -> UndoFace {
+    drawn(&[CABLE], &GREY, pal)
+}
+
+/// The adapter with OMEGA on its label in Pixel Code, a face pixel to an art pixel, in the
+/// lightest of its colours.
+pub fn adapter_face(pal: &Palette) -> UndoFace {
+    let ink: Vec<String> = letters("OMEGA", ADVANCE)
+        .iter()
+        .map(|row| row.replace('#', "W"))
+        .collect();
+    let (x, y) = ADAPTER_LABEL;
+    drawn(&laid(&ADAPTER, &ink, x, y), &SMOKE, pal)
+}
+
+/// The strip along the console's top edge, `w` by `h` art pixels: its lit edge and stripe, the
+/// well colour under them, and the port's opening in the middle, rounded down to a whole pixel.
+pub fn port_face(w: u32, h: u32, pal: &Palette) -> UndoFace {
+    let rows: Vec<String> = (0..h as usize)
+        .map(|y| {
+            EDGE.get(y)
+                .copied()
+                .unwrap_or('w')
+                .to_string()
+                .repeat(w as usize)
+        })
+        .collect();
+    let x = (w as i32 - NOTCH_W as i32).div_euclid(2);
+    drawn(&laid(&rows, &NOTCH, x, 0), &[], pal)
+}
+
+/// Radio arc `ring` (0, the smallest, to 2) on `side` of the adapter.
+pub fn arc_face(ring: usize, side: Side, pal: &Palette) -> UndoFace {
+    let rows: &[&str] = match ring {
+        0 => &ARC_0,
+        1 => &ARC_1,
+        _ => &ARC_2,
+    };
+    match side {
+        Side::Right => drawn(rows, &[], pal),
+        Side::Left => drawn(&flip(rows), &[], pal),
+    }
+}
+
+/// The clicks of a plug going home: either side of its housing, over the strip.
+pub fn clicks_face(pal: &Palette) -> UndoFace {
+    let right = flip(&CLICKS_LEFT);
+    let rows: Vec<String> = CLICKS_LEFT
+        .iter()
+        .zip(&right)
+        .map(|(l, r)| format!("{l}{r}"))
+        .collect();
+    drawn(&rows, &[], pal)
+}
+
+/// Every piece, baked for `pal` and a screen `w` art pixels wide whose strip is `port_h` tall.
+pub struct LinkArt {
+    pub plug_host: UndoFace,
+    pub plug_join: UndoFace,
+    pub cable: UndoFace,
+    pub adapter: UndoFace,
+    pub port: UndoFace,
+    pub arcs_right: [UndoFace; RINGS],
+    pub arcs_left: [UndoFace; RINGS],
+    pub clicks: UndoFace,
+}
+
+pub fn link_art(pal: &Palette, w: u32, port_h: u32) -> LinkArt {
+    LinkArt {
+        plug_host: plug_face(End::Host, pal),
+        plug_join: plug_face(End::Join, pal),
+        cable: cable_face(pal),
+        adapter: adapter_face(pal),
+        port: port_face(w, port_h, pal),
+        arcs_right: [0, 1, 2].map(|i| arc_face(i, Side::Right, pal)),
+        arcs_left: [0, 1, 2].map(|i| arc_face(i, Side::Left, pal)),
+        clicks: clicks_face(pal),
     }
 }

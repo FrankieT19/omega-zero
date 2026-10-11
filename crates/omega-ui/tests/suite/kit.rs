@@ -32,7 +32,7 @@ use omega_ui::kit::row::{panel_height, row_face, row_rect, row_width, Row, ROW_H
 use omega_ui::kit::text::text_face;
 use omega_ui::{Draw, TexId, UndoFace};
 
-const RAMP: Palette = Palette {
+pub(crate) const RAMP: Palette = Palette {
     bg: [0x30, 0x22, 0x08],
     dark: [0x2a, 0x0f, 0x04],
     edge: [0x6a, 0x3d, 0x01],
@@ -59,8 +59,19 @@ fn reference(name: &str) -> UndoFace {
     let mut reader = decoder.read_info().expect("a PNG");
     let mut buf = vec![0; reader.output_buffer_size()];
     let info = reader.next_frame(&mut buf).expect("its pixels");
-    assert_eq!(info.color_type, png::ColorType::Rgba, "{name} is not RGBA");
     buf.truncate(info.buffer_size());
+    // Chrome writes a screenshot with nothing clear in it, such as the link port's strip, as RGB
+    if info.color_type == png::ColorType::Rgb {
+        buf = buf
+            .chunks_exact(3)
+            .flat_map(|p| [p[0], p[1], p[2], 255])
+            .collect();
+    }
+    assert_eq!(
+        buf.len(),
+        (info.width * info.height * 4) as usize,
+        "{name} is not RGBA"
+    );
     UndoFace {
         rgba: buf,
         w: info.width,
@@ -81,7 +92,7 @@ fn write(path: &str, face: &UndoFace) {
 
 /// `face` is `name`'s screenshot exactly: the same size, clear where it is clear, and every
 /// other pixel the same opaque colour.
-fn matches(face: &UndoFace, name: &str) {
+pub(crate) fn matches(face: &UndoFace, name: &str) {
     if let Ok(dir) = std::env::var("KIT_OUT") {
         write(&format!("{dir}/{name}.png"), face);
     }
