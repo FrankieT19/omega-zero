@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## omega-zero 0.0.3
+
+Settings in the style of Mega Man Zero's menus, with Network, Bluetooth, Theme and a POWER menu;
+every screen drawn in the UI kit's 8/16-bit pixel art; carts as low-poly models drawn the way a
+PlayStation drew 3D; and an opening after Mega Man X5's boot terminal at power-on.
 
 - Everything around the shelf is on the menus' 2-pixel grid: the slot's edges and its scoop, the
   slot's name in the menus' type and the theme's dim colour, the top bar's clock, figure and
