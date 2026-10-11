@@ -1,15 +1,22 @@
-# omega-zero
+<h1 align="center"><img src="assets/logo/omega-zero-logo@2x.png" width="420" alt="omega-zero"></h1>
 
-A Game Boy-centric frontend for Anbernic H700 handhelds running
-[BaseOS](https://github.com/pvaibhav/BaseOS). It plays GBA, GBC and GB games, and only those, on a
-shelf of cartridges you slide into a slot.
+<p align="center">A Game Boy-centric frontend for Anbernic H700 handhelds running
+<a href="https://github.com/pvaibhav/BaseOS">BaseOS</a>. It plays GBA, GBC and GB games, and
+only those, on a shelf of cartridges you slide into a slot.</p>
 
-**[Site](https://oauramos.github.io/omega-zero/)** ·
-**[Download](https://github.com/oauramos/omega-zero/releases/latest)** ·
-**[Wiki](https://github.com/oauramos/omega-zero/wiki)** ·
-**[Changelog](CHANGELOG.md)**
+<p align="center">
+<a href="https://oauramos.github.io/omega-zero/"><b>Site</b></a> ·
+<a href="https://github.com/oauramos/omega-zero/releases/latest"><b>Download</b></a> ·
+<a href="https://github.com/oauramos/omega-zero/wiki"><b>Wiki</b></a> ·
+<a href="CHANGELOG.md"><b>Changelog</b></a>
+</p>
 
-![The shelf of GBA carts on an RG35XX SP](site/media/shelf.png)
+<p align="center">
+<img src="site/media/shelf.png" width="380" alt="The shelf of GBA carts on an RG35XX SP: Emerald in the middle over the slot, the top bar with Wi-Fi, ssh, the clock and the battery, and the bottom bar with SELECT CONTROLS and START SETTINGS">
+<img src="site/media/slide.png" width="380" alt="START on the shelf: the carts going out to the left as the Settings window comes in from the right">
+</p>
+
+<img src="site/media/readme/supported-devices.png" width="760" alt="">
 
 ## Supported devices
 
@@ -29,19 +36,52 @@ for its panel.
 Own an untested one? A [device report](https://github.com/oauramos/omega-zero/wiki/Device-Reports)
 is the most useful thing you can send.
 
+<img src="site/media/readme/highlights.png" width="760" alt="">
+
 ## Highlights
 
 - A shelf of solid carts in their own plastics with real label scans. The one you are on floats
-  and sways, and slides into the slot at full size.
+  and sways, and slides into the slot at full size; Game Boy carts stand at 80% and grow as they
+  go in. The boot logo fades into the shelf.
 - Two GBA cores, mGBA and gpSP, chosen per cart. GBA fills a 640x480 screen; Game Boy stays at 3x.
 - Resume on boot, save states with a switcher, rewind, fast-forward, turbo buttons.
 - Link play between two handhelds over Wi-Fi, for Pokémon trades, Advance Wars, Mario Kart and Tetris.
 - Settings on START, in windows in the style of Mega Man Zero's menus that slide from screen to
-  screen. A tap of SELECT lists what every button does.
-- Home Wi-Fi with SSH and SFTP (switched on and off in Network, the login and root's own random
-  password shown on screen), network time, and cart labels fetched from ScreenScraper.
-- A pixel font, a top bar with the radios, clock and battery, a bottom bar with the buttons, and
-  a background you choose, whose colour the menus take.
+  screen, over a background that keeps moving: CONFIGS (Fast Forward, Fast Forward Sound, Colour
+  Correction, Rumble, Labels) and GENERAL (Date & Time, Network, Bluetooth, Theme, About).
+- A tap of SELECT opens CONTROLS: what every button does, on the shelf and in a game, on one panel.
+- Network: home Wi-Fi, network time, and SSH and SFTP. SSH steps through ON, OFF and INFO, which
+  shows the login and root's own random password. Cart labels are fetched from ScreenScraper.
+- Bluetooth, on handhelds that have it: pair a device and connect it, or forget it. Game sound and
+  gamepads over Bluetooth are still to come.
+- Theme: the background's pattern, its motion and its colour, which the menus, both bars and the
+  slot take (Night is grey, Amber is Mega Man Zero's own), and the bottom bar's font, Bold or
+  Thin.
+- A pixel font, a top bar with the radios, clock and battery, and a bottom bar with the buttons.
+
+<img src="site/media/readme/screens.png" width="760" alt="">
+
+## Screens
+
+<p align="center">
+<img src="site/media/settings.png" width="380" alt="Settings in Night: CONFIGS (Fast Forward 6X, Fast Forward Sound, Colour Correction, Rumble, Labels) and GENERAL (Date and Time, Network, Bluetooth, Theme, About)">
+<img src="site/media/amber.png" width="380" alt="The same Settings in Amber, Mega Man Zero's own orange and brown">
+<br><sub>Settings, in Night and in Amber</sub>
+</p>
+
+<p align="center">
+<img src="site/media/network.png" width="380" alt="Network: Wi-Fi, Network Time and SSH on, and the networks around with their padlocks, signal and CONNECTED">
+<img src="site/media/bluetooth.png" width="380" alt="Bluetooth: the radio on, and a gamepad connected, headphones paired, a keyboard and a device known only by its address">
+<br><sub>Network and Bluetooth</sub>
+</p>
+
+<p align="center">
+<img src="site/media/theme.png" width="380" alt="Theme: Background Plates, Motion Moving, Colour Night and Font Bold, over the plates pattern">
+<img src="site/media/controls.png" width="380" alt="CONTROLS: what every button does on the shelf and in a game, on one panel">
+<br><sub>Theme, and CONTROLS on a tap of SELECT</sub>
+</p>
+
+<img src="site/media/readme/quick-start.png" width="760" alt="">
 
 ## Quick start
 
@@ -54,6 +94,8 @@ is the most useful thing you can send.
 
 Two cards, updating, controls and everything else are in the
 [wiki](https://github.com/oauramos/omega-zero/wiki).
+
+<img src="site/media/readme/credits.png" width="760" alt="">
 
 ## Credits and licence
 
@@ -70,7 +112,8 @@ Two cards, updating, controls and everything else are in the
   account.
 
 omega-zero is licensed under the GPL-3.0-or-later; see [LICENSE](LICENSE). It is written with
-Claude, and reviewed and tested by its maintainer.
+Claude, and reviewed and tested by its maintainer. The site and these pictures are drawn with its
+UI kit, [`assets/ui`](assets/ui).
 
 Game Boy, Game Boy Color and Game Boy Advance are trademarks of Nintendo. Anbernic is a trademark
 of its owner. This project is not affiliated with either.

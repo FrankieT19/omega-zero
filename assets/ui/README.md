@@ -29,7 +29,11 @@ assets/ui/
     ├── omega-list-row.js  <omega-list-row>  a Wi-Fi network or Bluetooth device in a list
     ├── omega-bar.js       <omega-bar>       the bottom bar: two actions, key hints between them
     ├── action-left.js     <action-left>     the bottom bar's left action
-    └── action-right.js    <action-right>    the same, mirrored
+    ├── action-right.js    <action-right>    the same, mirrored
+    ├── omega-button.js    <omega-button>    a page's link or button, drawn as the bar's pill
+    ├── omega-screen.js    <omega-screen>    a screenshot in a handheld's bezel
+    ├── omega-card.js      <omega-card>      a feature: an icon, a title and a few lines
+    └── omega-code.js      <omega-code>      lines to read or type exactly, scrolled in a box
 ```
 
 ## Using it
@@ -68,6 +72,22 @@ classic scripts, no build step, so it works from `file://`.
 
 <script>OmegaPalette.apply('teal')</script>  <!-- Night unless told otherwise -->
 ```
+
+## Pages around the menus
+
+The last four components are for pages about omega-zero rather than its screens: the site
+(`site/`) is drawn with them and the rest of the kit. Each holds the page's own element, so the
+words, links, headings and alt text stay real HTML: `<omega-button>` a link or button in the
+bar's pill, lit on hover and focus, with a ring for keyboard focus; `<omega-screen>` a screenshot
+in a handheld's bezel, 2×2 art pixels kept 2×2 at its own size; `<omega-card>` a feature, its icon
+an 11×11 sprite (`cart`, `chip`, `rewind`, `link`, `window`, `gamepad`, `wifi`, `bluetooth`,
+`theme`) beside a slotted title; `<omega-code>` a `<pre>` in a dark box that scrolls sideways
+instead of the page, with a label and a COPY key if asked. They mark how they draw what they hold
+`!important`, so a page's own rules for links, headings and `<pre>` stay off it.
+
+`site/kit` is a link to this folder (and `site/logo` to `assets/logo`), so `site/index.html`
+opens from disk like the storybook; `.github/workflows/pages.yml` copies `site/` with the links
+followed, and that copy is what GitHub Pages serves, the storybook at `kit/storybook.html`.
 
 ## Screens and slides
 
