@@ -42,9 +42,11 @@
   Night is grey; Amber is Mega Man Zero's own colours.
 - Theme is what Background was: the background's pattern, its motion and its colour. It also
   picks the font of the bottom bar's big words, Bold or Thin.
-- Restart and Power off take Wi-Fi and Bluetooth down first. The RTL8821CS's driver could hang
-  the kernel's shutdown after Settings > Network had scanned for networks, leaving the console
-  frozen until it was reset.
+- Restart no longer freezes the console after Settings > Network has been open. The RTL8821CS's
+  Wi-Fi driver hung the kernel's shutdown when it had just gone into its power saving, as it does
+  after scanning for networks, so the console stayed frozen until it was reset. omega-zero now
+  lets go of the driver itself before a restart or power off: wpa_supplicant and the DHCP client
+  stop, the interfaces go down, and the device is unbound from its driver.
 - The top bar lights Wi-Fi and ssh within a second of a network being joined, and puts them out
   as quickly when it is lost. After boot they stayed dark until a menu was opened.
 - Bluetooth, under Network in Settings, on handhelds that have it. Its screen switches it on and

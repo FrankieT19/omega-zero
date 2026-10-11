@@ -115,9 +115,11 @@ deploy)
 	done
 	on sync
 	echo "copied, rebooting $host"
-	# Wi-Fi down first, as omega-zero's own restart does: the RTL8821CS's driver can hang the
-	# kernel's shutdown when it is taken down from up after scanning for networks
-	on "(sleep 1; for n in /sys/class/net/*/wireless; do n=\${n%/wireless}; ifconfig \${n##*/} down; done; sleep 1; reboot) > /dev/null 2>&1 &"
+	# Wi-Fi let go of first, as omega-zero's own restart does: the RTL8821CS's driver hangs the
+	# kernel's shutdown when it has just gone into its power saving, as it does after scanning
+	# for networks. wpa_supplicant, wpa_cli and the DHCP client stop, each interface goes down,
+	# and its device is unbound from the driver, so the kernel has nothing of it left to stop.
+	on "(sleep 1; kill \$(pidof wpa_supplicant wpa_cli udhcpc) 2> /dev/null; sleep 1; kill -9 \$(pidof wpa_supplicant wpa_cli udhcpc) 2> /dev/null; for n in /sys/class/net/*/wireless; do n=\${n%/wireless}; d=\$(readlink -f \$n/device); r=\$(readlink -f \$n/device/driver); ifconfig \${n##*/} down; done; [ -n \"\$r\" ] && echo \${d##*/} > \$r/unbind; sleep 1; reboot) > /dev/null 2>&1 &"
 	# The launcher writes a line to the session log as it starts omega-zero. A console that is
 	# back but turns the password away three times running has had a new one given to root: the
 	# first omega-zero to run on a card with no ssh_password does that as it starts.
