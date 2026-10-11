@@ -1,6 +1,6 @@
 //! The power screens. Holding POWER puts the POWER menu over the shelf, a menu or a game, a lone
-//! panel over the backdrop that slides in deeper from the screen it was held on and back out to
-//! exactly where it was; its bar is every menu's. Its choice slides on to RESTART or POWER OFF,
+//! panel over the backdrop that slides down in deeper from the screen it was held on and back up
+//! out to exactly where it was; its bar is every menu's. Its choice slides on to RESTART or POWER OFF,
 //! where nothing can be pressed and the bar sinks away, until the time comes to restart or power
 //! off.
 
@@ -15,9 +15,9 @@ use omega_store::{write_app_state, AppState};
 use omega_ui::kit::action::{action_pair, Font, Side};
 use omega_ui::kit::bar::{action_swap, bar_layout, SINK};
 use omega_ui::kit::layout::screen_px;
-use omega_ui::{out_w, Draw, PowerChoice, SettingsRow, TexId, SPRITE_PX, TOP_BAR_H};
+use omega_ui::{out_h, out_w, Draw, PowerChoice, SettingsRow, TexId, SPRITE_PX};
 use omega_zero::app::{App, Phase};
-use omega_zero::nav::{offsets, Dir, End, SLIDE_MS};
+use omega_zero::nav::{dropping, Dir, End, SLIDE_MS};
 use omega_zero::screens::bar::{Actions, BarPlace, BarSet};
 use omega_zero::screens::lone::Lone;
 use omega_zero::screens::power::PowerScreen;
@@ -114,10 +114,19 @@ fn drew_game(out: &[Draw]) -> bool {
 }
 
 fn x_of(out: &[Draw], tex: TexId) -> Option<f32> {
+    at(out, tex).map(|(x, _)| x)
+}
+
+fn y_of(out: &[Draw], tex: TexId) -> Option<f32> {
+    at(out, tex).map(|(_, y)| y)
+}
+
+/// Where `tex` is drawn: its top left.
+fn at(out: &[Draw], tex: TexId) -> Option<(f32, f32)> {
     out.iter().find_map(|d| match *d {
-        Draw::Tex { x, tex: t, .. } if t == tex => Some(x),
-        Draw::Spun { x, tex: t, .. } if t == tex => Some(x),
-        Draw::Turned { x, tex: t, .. } if t == tex => Some(x),
+        Draw::Tex { x, y, tex: t, .. } if t == tex => Some((x, y)),
+        Draw::Spun { x, y, tex: t, .. } if t == tex => Some((x, y)),
+        Draw::Turned { x, y, tex: t, .. } if t == tex => Some((x, y)),
         _ => None,
     })
 }
@@ -131,9 +140,16 @@ fn top_bar_at(a: &App, out: &[Draw], dy: f32) -> bool {
     })
 }
 
-/// Where a lone panel stands at rest, across.
+/// Whether the selected cart is drawn where the shelf at rest has it, `rest`, moved `dy` down
+/// and not at all across. The carts bob up and down a few pixels on their own as time goes by,
+/// so how far down is held to within that.
+fn cart_at(out: &[Draw], rest: (f32, f32), dy: f32) -> bool {
+    at(out, CARTS[0]).is_some_and(|(x, y)| x == rest.0 && (y - (rest.1 + dy)).abs() <= 8.0)
+}
+
+/// Where a lone panel stands at rest, down.
 fn home(panel: Lone) -> f32 {
-    screen_px(panel.rect()[0])
+    screen_px(panel.rect()[1])
 }
 
 /// The slide to or from a power screen, its two ends and its way.
@@ -175,91 +191,87 @@ fn holding_power_opens_the_menu_over_the_shelf_a_menu_and_a_game() {
     assert!(matches!(a.phase(), Phase::Playing { .. }));
 }
 
-/// From the shelf the menu comes in from the left as the shelf leaves by its three ways, its
-/// carts off to the right, its top bar up and its slot down; B is the mirror.
+/// From the shelf the menu comes down from the top as the whole shelf drops out of the bottom,
+/// its carts, top bar and slot together; B is the mirror, the menu going back up as the shelf
+/// rises into place. Nothing moves across.
 #[test]
 fn halfway_in_from_the_shelf_and_back_both_are_where_the_slide_has_them() {
     let (_d, mut a) = on_shelf();
-    let w = out_w() as f32;
-    let rest = x_of(&frame(&a), CARTS[0]).expect("the selected cart is not drawn");
+    let h = out_h() as f32;
+    let rest = at(&frame(&a), CARTS[0]).expect("the selected cart is not drawn");
+    let menu_x = screen_px(menu_panel().rect()[0]);
 
-    let at: Millis = 10_000;
-    a.apply_at(Action::PowerHold, at);
-    a.tick_ms(at + SLIDE_MS / 2);
+    let start: Millis = 10_000;
+    a.apply_at(Action::PowerHold, start);
+    a.tick_ms(start + SLIDE_MS / 2);
     let out = frame(&a);
-    let half = offsets(Dir::Deeper, End::Leaving, 0.5, w);
+    let half = dropping(Dir::Deeper, End::Leaving, 0.5, h);
+    assert_eq!(half.carts_dy, h / 2.0);
+    assert!(cart_at(&out, rest, half.carts_dy), "the carts");
+    assert!(top_bar_at(&a, &out, h / 2.0), "the top bar");
     assert_eq!(
-        x_of(&out, CARTS[0]),
-        Some(rest + half.carts_dx),
-        "the carts"
-    );
-    assert!(top_bar_at(&a, &out, -TOP_BAR_H / 2.0), "the top bar");
-    assert_eq!(
-        x_of(&out, MENU_PANEL),
-        Some(home(menu_panel()) - w / 2.0),
-        "the menu is not halfway in from the left"
+        at(&out, MENU_PANEL),
+        Some((menu_x, home(menu_panel()) - h / 2.0)),
+        "the menu is not halfway down from the top"
     );
 
     a.finish_slide();
     let out = frame(&a);
-    assert_eq!(x_of(&out, MENU_PANEL), Some(home(menu_panel())));
+    assert_eq!(y_of(&out, MENU_PANEL), Some(home(menu_panel())));
     assert_eq!(
         x_of(&out, CARTS[0]),
         None,
         "the shelf still shows under the menu"
     );
 
-    a.apply_at(Action::GbaDown(Btn::B), at + 1_000);
+    a.apply_at(Action::GbaDown(Btn::B), start + 1_000);
     assert_eq!(a.power_menu(), None);
     assert_eq!(power_slid(&a), (MENU, Dir::Back, None));
-    a.tick_ms(at + 1_000 + SLIDE_MS / 2);
+    a.tick_ms(start + 1_000 + SLIDE_MS / 2);
     let out = frame(&a);
-    let half = offsets(Dir::Back, End::Arriving, 0.5, w);
+    let half = dropping(Dir::Back, End::Arriving, 0.5, h);
+    assert_eq!(half.carts_dy, h / 2.0, "the shelf rises from the bottom");
+    assert!(cart_at(&out, rest, half.carts_dy), "the carts");
+    assert!(top_bar_at(&a, &out, h / 2.0), "the top bar");
     assert_eq!(
-        x_of(&out, CARTS[0]),
-        Some(rest + half.carts_dx),
-        "the carts"
-    );
-    assert!(top_bar_at(&a, &out, -TOP_BAR_H / 2.0), "the top bar");
-    assert_eq!(
-        x_of(&out, MENU_PANEL),
-        Some(home(menu_panel()) - w / 2.0),
-        "the menu is not halfway off to the left"
+        at(&out, MENU_PANEL),
+        Some((menu_x, home(menu_panel()) - h / 2.0)),
+        "the menu is not halfway back up"
     );
 
     a.update(SLIDE_MS as f32 / 1000.0);
     assert!(a.power_slide().is_none(), "the slide outlasted its time");
     let out = frame(&a);
-    assert_eq!(x_of(&out, CARTS[0]), Some(rest), "the shelf is not back");
+    assert!(cart_at(&out, rest, 0.0), "the shelf is not back");
     assert_eq!(x_of(&out, MENU_PANEL), None);
 }
 
-/// From a menu it goes as from Settings to a screen under it: the menu out to the right as the
-/// power menu comes in from the left, and back.
+/// From a menu the same: the menu drops out of the bottom as the power menu comes down from the
+/// top, and back up.
 #[test]
-fn from_a_menu_the_menu_leaves_to_the_right_and_comes_back_from_it() {
+fn from_a_menu_the_menu_drops_out_of_the_bottom_and_rises_back() {
     let (_d, mut a) = on_shelf();
     a.apply(Action::SelectTap);
     a.finish_slide();
-    let w = out_w() as f32;
-    let rest = x_of(&frame(&a), CONTROLS_PANEL).expect("Controls is not drawn");
+    let h = out_h() as f32;
+    let rest = at(&frame(&a), CONTROLS_PANEL).expect("Controls is not drawn");
 
-    let at: Millis = 10_000;
-    a.apply_at(Action::PowerHold, at);
-    a.tick_ms(at + SLIDE_MS / 2);
+    let start: Millis = 10_000;
+    a.apply_at(Action::PowerHold, start);
+    a.tick_ms(start + SLIDE_MS / 2);
     let out = frame(&a);
-    assert_eq!(x_of(&out, CONTROLS_PANEL), Some(rest + w / 2.0));
-    assert_eq!(x_of(&out, MENU_PANEL), Some(home(menu_panel()) - w / 2.0));
+    assert_eq!(at(&out, CONTROLS_PANEL), Some((rest.0, rest.1 + h / 2.0)));
+    assert_eq!(y_of(&out, MENU_PANEL), Some(home(menu_panel()) - h / 2.0));
 
     a.finish_slide();
-    a.apply_at(Action::GbaDown(Btn::B), at + 1_000);
-    a.tick_ms(at + 1_000 + SLIDE_MS / 2);
+    a.apply_at(Action::GbaDown(Btn::B), start + 1_000);
+    a.tick_ms(start + 1_000 + SLIDE_MS / 2);
     let out = frame(&a);
-    assert_eq!(x_of(&out, CONTROLS_PANEL), Some(rest + w / 2.0));
-    assert_eq!(x_of(&out, MENU_PANEL), Some(home(menu_panel()) - w / 2.0));
+    assert_eq!(at(&out, CONTROLS_PANEL), Some((rest.0, rest.1 + h / 2.0)));
+    assert_eq!(y_of(&out, MENU_PANEL), Some(home(menu_panel()) - h / 2.0));
     a.finish_slide();
     assert!(matches!(a.phase(), Phase::Controls), "{:?}", a.phase());
-    assert_eq!(x_of(&frame(&a), CONTROLS_PANEL), Some(rest));
+    assert_eq!(at(&frame(&a), CONTROLS_PANEL), Some(rest));
 }
 
 /// A game's picture cannot slide: the backdrop takes its place at once, under the menu as it
@@ -267,7 +279,7 @@ fn from_a_menu_the_menu_leaves_to_the_right_and_comes_back_from_it() {
 #[test]
 fn in_a_game_the_backdrop_takes_the_games_place_until_the_menu_has_gone() {
     let (_d, mut a) = in_a_game();
-    let w = out_w() as f32;
+    let h = out_h() as f32;
     let at: Millis = 100_000;
     a.apply_at(Action::PowerHold, at);
     for t in [0, SLIDE_MS / 2, SLIDE_MS] {
@@ -281,7 +293,7 @@ fn in_a_game_the_backdrop_takes_the_games_place_until_the_menu_has_gone() {
         );
     }
     a.finish_slide();
-    assert_eq!(x_of(&frame(&a), MENU_PANEL), Some(home(menu_panel())));
+    assert_eq!(y_of(&frame(&a), MENU_PANEL), Some(home(menu_panel())));
 
     a.apply_at(Action::GbaDown(Btn::B), at + 1_000);
     a.tick_ms(at + 1_000 + SLIDE_MS / 2);
@@ -291,7 +303,7 @@ fn in_a_game_the_backdrop_takes_the_games_place_until_the_menu_has_gone() {
         "the game is back before the menu has gone"
     );
     assert!(a.power_shown(), "the game would run under the menu leaving");
-    assert_eq!(x_of(&out, MENU_PANEL), Some(home(menu_panel()) - w / 2.0));
+    assert_eq!(y_of(&out, MENU_PANEL), Some(home(menu_panel()) - h / 2.0));
 
     a.update(SLIDE_MS as f32 / 1000.0);
     assert!(!a.power_shown());
@@ -351,14 +363,14 @@ fn a_press_during_the_slide_ends_it_and_acts_and_a_release_does_not() {
     assert_eq!(a.power_menu(), Some(1), "and did not act on the menu");
 }
 
-/// RESTART slides in deeper from the menu as it goes out to the right; the handheld may only
+/// RESTART comes down deeper from the menu as it drops out of the bottom; the handheld may only
 /// restart once it has slid all the way in.
 #[test]
 fn restart_slides_in_its_screen_and_the_machine_waits_until_it_is_in() {
     let (_d, mut a) = on_shelf();
     a.apply(Action::PowerHold);
     a.finish_slide();
-    let w = out_w() as f32;
+    let h = out_h() as f32;
     let at: Millis = 10_000;
     a.apply_at(Action::GbaDown(Btn::A), at);
     let going = Some(PowerScreen::Going(PowerChoice::Restart));
@@ -368,13 +380,13 @@ fn restart_slides_in_its_screen_and_the_machine_waits_until_it_is_in() {
 
     a.tick_ms(at + SLIDE_MS / 2);
     let out = frame(&a);
-    assert_eq!(x_of(&out, MENU_PANEL), Some(home(menu_panel()) + w / 2.0));
+    assert_eq!(y_of(&out, MENU_PANEL), Some(home(menu_panel()) + h / 2.0));
     let going_home = home(Lone {
         tex: GOING_PANEL,
         w: 200,
         h: 42,
     });
-    assert_eq!(x_of(&out, GOING_PANEL), Some(going_home - w / 2.0));
+    assert_eq!(y_of(&out, GOING_PANEL), Some(going_home - h / 2.0));
     assert!(
         !a.ready_to_restart(),
         "it may restart halfway through the slide"
@@ -382,7 +394,7 @@ fn restart_slides_in_its_screen_and_the_machine_waits_until_it_is_in() {
 
     a.tick_ms(at + SLIDE_MS);
     assert!(!a.ready_to_restart(), "it may restart the moment it is in");
-    assert_eq!(x_of(&frame(&a), GOING_PANEL), Some(going_home));
+    assert_eq!(y_of(&frame(&a), GOING_PANEL), Some(going_home));
     a.tick_ms(at + 1_000);
     assert!(a.ready_to_restart(), "then it may restart");
     assert!(!a.ready_to_power_off());

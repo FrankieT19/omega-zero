@@ -1963,7 +1963,7 @@ impl App {
             }),
         }
         for d in &mut out[start..] {
-            *d = d.shifted(off.dx, 0.0);
+            *d = d.shifted(off.dx, off.dy);
         }
     }
 

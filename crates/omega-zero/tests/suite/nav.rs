@@ -8,12 +8,12 @@ use omega_input::{Action, Btn, Millis};
 use omega_store::{write_app_state, AppState};
 use omega_ui::kit::palette::palette;
 use omega_ui::{
-    out_w, settings_frame, Draw, SettingsFaces, SettingsRow, TexId, SPRITE_PX, TOP_BAR_H,
+    out_h, out_w, settings_frame, Draw, SettingsFaces, SettingsRow, TexId, SPRITE_PX, TOP_BAR_H,
 };
 use omega_zero::app::{App, Phase};
 use omega_zero::label_screen::LabelsScreen;
 use omega_zero::nav::{
-    across, even, offsets, progress, widest_cart, Dir, End, Offsets, SLIDE_MS, SLOT_DROP,
+    across, dropping, even, offsets, progress, widest_cart, Dir, End, Offsets, SLIDE_MS, SLOT_DROP,
 };
 use omega_zero::screens::lone::Lone;
 use omega_zero::wifi::{Seen, WifiJob, WifiJobs, WifiNews};
@@ -94,6 +94,44 @@ fn every_offset_is_whole_art_pixels() {
     assert_eq!(even(3.0), 4.0);
     assert_eq!(even(2.9), 2.0);
     assert_eq!(even(-1.2), -2.0);
+}
+
+/// The power screens slide down rather than across: going deeper, the screen left behind drops
+/// out of the bottom as the new one comes down from the top, the shelf as one; back, the mirror.
+#[test]
+fn a_dropping_slide_goes_down_in_and_up_out_with_nothing_across() {
+    let h = out_h() as f32;
+    let down = |dy: f32| Offsets {
+        dy,
+        carts_dy: dy,
+        bar_dy: dy,
+        slot_dy: dy,
+        ..Offsets::NONE
+    };
+    for (dir, end, at_half) in [
+        (Dir::Deeper, End::Leaving, h / 2.0),
+        (Dir::Deeper, End::Arriving, -h / 2.0),
+        (Dir::Back, End::Leaving, -h / 2.0),
+        (Dir::Back, End::Arriving, h / 2.0),
+    ] {
+        assert_eq!(dropping(dir, end, 0.5, h), down(at_half), "{dir:?} {end:?}");
+    }
+    assert_eq!(dropping(Dir::Deeper, End::Leaving, 0.0, h), Offsets::NONE);
+    assert_eq!(
+        dropping(Dir::Deeper, End::Leaving, 1.0, h),
+        down(h),
+        "not gone"
+    );
+    assert_eq!(
+        dropping(Dir::Deeper, End::Arriving, 0.0, h),
+        down(-h),
+        "not off the top"
+    );
+    assert_eq!(dropping(Dir::Deeper, End::Arriving, 1.0, h), Offsets::NONE);
+    for step in 0..=SLIDE_MS {
+        let o = dropping(Dir::Deeper, End::Arriving, progress(0, step), h);
+        assert!(whole(o.dy), "off the art grid at {step} ms: {}", o.dy);
+    }
 }
 
 #[test]

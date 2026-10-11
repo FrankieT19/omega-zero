@@ -70,8 +70,9 @@
   left out rather than shown by its address.
 - Holding POWER opens POWER, a panel like the other menus over the background, with RESTART and
   POWER OFF and B RETURN and A CONFIRM on the bar; B goes back to where you were, a game
-  included. After a choice, in place of the black screen, a RESTART or POWER OFF panel says
-  "Restarting…" or "Turning off…" until the handheld goes down, and the bar sinks away.
+  included. It comes down from the top as the screen under it drops away, and goes back up. After
+  a choice, in place of the black screen, a RESTART or POWER OFF panel comes down the same way and
+  says "Restarting…" or "Turning off…" until the handheld goes down, and the bar sinks away.
 
 ### For developers
 
