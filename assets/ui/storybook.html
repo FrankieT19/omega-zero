@@ -22,6 +22,7 @@
 <script src="components/omega-list-row.js"></script>
 <script src="components/omega-bar.js"></script>
 <script src="components/omega-gauge.js"></script>
+<script src="components/omega-hints.js"></script>
 <script src="components/omega-toast.js"></script>
 <script src="components/omega-badge.js"></script>
 <script src="components/omega-saves.js"></script>
@@ -162,6 +163,9 @@
   .outlined omega-gauge::part(tab), .outlined omega-gauge::part(label), .outlined omega-gauge::part(slant),
   .outlined omega-gauge::part(strip), .outlined omega-gauge::part(well), .outlined omega-gauge::part(cells),
   .outlined omega-gauge::part(icon),
+  .outlined omega-hints::part(tab), .outlined omega-hints::part(label), .outlined omega-hints::part(slant),
+  .outlined omega-hints::part(strip), .outlined omega-hints::part(well), .outlined omega-hints::part(hints),
+  .outlined omega-hints::part(key), .outlined omega-hints::part(word),
   .outlined omega-toast::part(line), .outlined omega-badge::part(icon), .outlined omega-badge::part(word),
   .outlined omega-saves::part(panel), .outlined omega-saves::part(age), .outlined omega-saves::part(dots) {
     outline: 1px dashed var(--area); outline-offset: -1px;
@@ -690,6 +694,50 @@
         </div>
 <pre><code>&lt;omega-saves age="4 min ago" count="4" at="1"&gt;&lt;/omega-saves&gt;
 &lt;omega-saves age="Just now" count="2" style="width: calc(108 * var(--u))"&gt;&lt;/omega-saves&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-hints&gt;</h3><code>components/omega-hints.js</code></header>
+        <p class="dim">A screen's keys on one line of the kit, on a ground of their own, for where the
+          bottom bar's hints would sit on a picture: a title tab naming what they are for, then a
+          well holding the keys, each its key in a small dark cap and then the word, as the bar draws
+          its hints. It is drawn as <code>&lt;omega-gauge&gt;</code> with the keys in the well for
+          its cells, 15 art pixels tall like the bar; their capitals stand on the title's rows, so
+          each cap fills the well's inside from top to bottom, and the well shows 2 art pixels
+          either side of them. The save-state switcher stands one in the middle just above the
+          bar, over the game's screenshot: SAVE, Y DELETE, and X UNDO SAVE or X UNDO LOAD while the
+          last save or load can still be undone. Given a width, the well takes what is over, the
+          keys at its left: the switcher keeps the room of its widest keys while it is open, so Y
+          DELETE stays put when the undo runs out.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">the switcher's, with a save or a load to undo, and with none</span>
+          <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
+            <omega-hints label="SAVE" hint="Y DELETE | X UNDO SAVE"></omega-hints>
+            <omega-hints label="SAVE" hint="Y DELETE | X UNDO LOAD"></omega-hints>
+            <omega-hints label="SAVE" hint="Y DELETE"></omega-hints>
+          </div>
+          <div class="side">
+            <figure>
+              <span class="tag">the undo run out, held as wide; none; three keys, one with no word</span>
+              <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
+                <omega-hints label="SAVE" hint="Y DELETE" style="width: calc(176 * var(--u))"></omega-hints>
+                <omega-hints label="KEYS"></omega-hints>
+                <omega-hints label="LABELS" hint="START FETCH | Y SIGN OUT | SELECT"></omega-hints>
+              </div>
+            </figure>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>label</td><td>The name in the tab, in capitals whatever case it is given in, lit in <code>--oz-cream</code>.</td></tr>
+            <tr><td>hint</td><td>The keys, as <code>&lt;omega-bar&gt;</code>'s: a key and what it does, the first word the key, <code>Y DELETE</code>; more than one with a <code>|</code> between them, <code>Y DELETE | X UNDO SAVE</code>. Each cap is <code>--oz-dark</code>, its letters and the word <code>--oz-cream</code>, 8 art pixels from one key to the next.</td></tr>
+            <tr><td>width</td><td>As wide as the tab and the keys need; a wider one gives the well the rest, the keys at its left.</td></tr>
+            <tr><td>::part</td><td><code>frame</code>, <code>tab</code>, <code>label</code>, <code>slant</code>, <code>strip</code>, <code>well</code>, <code>hints</code>, <code>hint</code>, <code>key</code>, <code>word</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-hints label="SAVE" hint="Y DELETE | X UNDO SAVE"&gt;&lt;/omega-hints&gt;
+&lt;omega-hints label="SAVE" hint="Y DELETE" style="width: calc(176 * var(--u))"&gt;&lt;/omega-hints&gt;   &lt;!-- held as wide --&gt;</code></pre>
       </article>
 
       <article class="card wide">

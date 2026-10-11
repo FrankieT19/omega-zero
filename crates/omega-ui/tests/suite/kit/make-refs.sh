@@ -103,11 +103,20 @@ shoot bar-shelf-thin-320 320 19 'c=bar&w=320&font=thin&left=CONTROLS&left-hint=S
 shoot bar-menu-thin-320 320 19 'c=bar&w=320&font=thin&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET'
 
 # the save-state switcher's: its bar, B RETURN and A LOAD, with Y DELETE and X UNDO SAVE between
-# them or Y DELETE alone; and its panel, as wide as the title, the dots or the date, or held wider
+# them or Y DELETE alone; its keys on a line of their own, SAVE with Y DELETE and X UNDO SAVE or
+# X UNDO LOAD, or Y DELETE alone, as wide as it needs or held as wide as both; and its panel, as
+# wide as the title, the dots or the date, or held wider
 for w in 320 360; do
   shoot bar-switcher-$w $w 19 "c=bar&w=$w&left=RETURN&left-hint=B&right=LOAD&right-hint=A&hint=Y%20DELETE%20%7C%20X%20UNDO%20SAVE"
 done
 shoot bar-switcher-delete-320 320 19 'c=bar&w=320&left=RETURN&left-hint=B&right=LOAD&right-hint=A&hint=Y%20DELETE'
+shoot hints-switcher 176 15 'c=hints&label=SAVE&hint=Y%20DELETE%20%7C%20X%20UNDO%20SAVE'
+shoot hints-switcher-load 176 15 'c=hints&label=SAVE&hint=Y%20DELETE%20%7C%20X%20UNDO%20LOAD'
+shoot hints-switcher-delete 103 15 'c=hints&label=SAVE&hint=Y%20DELETE'
+shoot hints-switcher-held 176 15 'c=hints&label=SAVE&hint=Y%20DELETE&w=176'
+# keys on a line: none, a label in lower case and three keys, the last with no word
+shoot hints-empty 56 15 'c=hints&label=KEYS'
+shoot hints-three 235 15 'c=hints&label=keys&hint=START%20FETCH%20%7C%20Y%20SIGN%20OUT%20%7C%20SELECT'
 shoot saves-just-now 90 41 'c=saves&age=Just%20now'
 shoot saves-four 90 41 'c=saves&age=4%20min%20ago&count=4&at=1'
 shoot saves-ten 90 41 'c=saves&age=3%20hr%20ago&count=10&at=9'

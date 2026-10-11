@@ -17,6 +17,7 @@ mod font;
 mod hud;
 mod keyboard;
 mod kit;
+mod kit_hints;
 mod kit_hud;
 mod kit_layout;
 mod label;
