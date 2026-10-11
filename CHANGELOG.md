@@ -7,7 +7,7 @@
   "ssh" (drawn bold the kit's way), and a generated label's title, now always Pixel Code at its
   own size. A cart the core turns away comes out under a pixel-art warning sign in the theme's
   colour. The background drifts two pixels at a time, a refused cart shakes a whole pixel at a
-  time, and the boot logo fades into the shelf in four steps.
+  time, and the boot screen fades out in four steps.
 - The save states, MENU ×2 in a game, are drawn in the menus' pixel art. The shelf's top bar
   stands over the screenshot in place of a dark strip of their own; a SAVE STATES panel at the
   top in the middle says how long ago the save shown was made, with a dot for each save under
@@ -96,8 +96,8 @@
 - Theme, Date & Time and Labels are panels over the background, and the passphrase
   keyboard is a window.
 - In the menus the bottom bar says B RETURN and A CONFIRM. A screen's own keys sit in the middle
-  of it: Y INFO and Y FORGET on Network, START FETCH and Y SIGN OUT on Labels. Between its two ends there is
-  nothing but those keys, over the background.
+  of it: Y INFO and Y FORGET on Network, START FETCH and Y SIGN OUT on Labels. Between its two
+  ends there is nothing but those keys, over the background.
 - Every move between screens slides, over a background that keeps moving. Going into a screen,
   the one you leave goes out to the right and the new one comes in from the left; coming back is
   the mirror. Leaving the shelf, the top bar goes up, the carts sideways and the slot down.

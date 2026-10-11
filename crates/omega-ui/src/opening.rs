@@ -5,8 +5,9 @@
 
 use fontdue::Font;
 
+use crate::kit::pixel::LETTER_PX;
 use crate::plate::UndoFace;
-use crate::text::{label_font, FONT_GRID};
+use crate::text::label_font;
 
 /// How far apart two letters stand, in screen pixels.
 pub const OPENING_ADVANCE: u32 = (CELL as u32) * SX;
@@ -84,7 +85,8 @@ fn grid_ink(font: &Font, text: &str) -> Vec<[bool; ROWS]> {
         if ch == ' ' {
             continue;
         }
-        let (m, cov) = font.rasterize(ch, FONT_GRID);
+        // at one face pixel to a pixel of `ink`, which then sizes it up
+        let (m, cov) = font.rasterize(ch, LETTER_PX);
         let top = BASELINE - (m.height as i32 + m.ymin) + drop(ch);
         for r in 0..m.height {
             for c in 0..m.width {
