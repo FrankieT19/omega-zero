@@ -30,7 +30,7 @@ pub const TITLE: &str = "OMEGA-ZERO";
 pub const CREDITS_TITLE: &str = "CREDITS";
 
 /// Who made it.
-pub const AUTHOR: &str = "OT\u{c1}VIO (@OAURAMOS)";
+pub const AUTHOR: &str = "@OAURAMOS";
 
 /// What omega-zero is made with and on, a line each, each name in its own case. The longest is
 /// as long as a line can be in the credits' well at 640x480: 44 letters.

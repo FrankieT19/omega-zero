@@ -124,12 +124,12 @@ fn the_rows_say_the_version_the_build_the_author_the_handheld_and_its_battery() 
         [
             ("VERSION", "0.0.2".to_string()),
             ("BUILD", "68CDBC4".to_string()),
-            ("AUTHOR", "OT\u{c1}VIO (@OAURAMOS)".to_string()),
+            ("AUTHOR", "@OAURAMOS".to_string()),
             ("HANDHELD", "RG35XX SP".to_string()),
             ("BATTERY", "86% CHARGING".to_string()),
         ]
     );
-    assert_eq!(AUTHOR, "OT\u{c1}VIO (@OAURAMOS)");
+    assert_eq!(AUTHOR, "@OAURAMOS");
 
     // a build with changes not committed is marked, and a handheld BaseOS does not name, or a
     // battery that says nothing, is said to be unknown rather than left blank

@@ -46,7 +46,7 @@
   the lid are checker dither.
 - About is a window like Settings, drawn in the menus' kit in place of the sticker. OMEGA-ZERO
   lists the version, the build (its commit, with -DIRTY after it for a build with changes not
-  committed), the author, Otávio (@oauramos), the handheld as BaseOS names it, and how full its
+  committed), the author, @oauramos, the handheld as BaseOS names it, and how full its
   battery is and whether it is charging. CREDITS under it says what omega-zero is made with and
   on, a line each, and ends on slot's, in the dim colour. The barcode, the ANBERNIC wordmark and
   the made-up rating lines are gone.
