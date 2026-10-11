@@ -4,7 +4,7 @@ use omega_store::{Cart, Platform};
 use crate::cart::{cart_box, gb_shell_of, label_colour, label_text, CART_H};
 use crate::hud::Millis;
 use crate::silhouette::GbShell;
-use crate::slot_chrome::{draw_empty_slot, ease, ChromeColours, MOUTH_H, SLOT_RAISE};
+use crate::slot_chrome::{ease, BAR_H};
 use crate::spin::{self, CartMeshes, Pose};
 use crate::stage::{stage_y, MOCKUP_H};
 use crate::status_bar::TOP_BAR_H;
@@ -36,7 +36,7 @@ pub fn shelf_box(platform: Platform) -> (f32, f32) {
 /// shorter stands on the floor a GBA cart centred there would. A pak shrunk on the shelf is
 /// still taller than a GBA cart, so it is centred where it would stand at its own size.
 pub fn rest_y(h: f32) -> f32 {
-    let (top, floor) = (TOP_BAR_H, MOCKUP_H - SLOT_RAISE - MOUTH_H);
+    let (top, floor) = (TOP_BAR_H, MOCKUP_H - BAR_H);
     let y = if h > CART_H as f32 {
         top + (floor - top - h) / 2.0
     } else {
@@ -373,7 +373,6 @@ impl Shelf {
     /// The row over an empty slot in the greys the slot was drawn in before the kit's palette.
     pub fn draw(&self, shake: f32, out: &mut Vec<Draw>) {
         self.draw_row(None, shake, 0.0, 1.0, out);
-        draw_empty_slot(&ChromeColours::default(), out);
     }
 
     pub fn draw_row(

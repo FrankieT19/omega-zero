@@ -326,6 +326,23 @@ impl App {
                     .shifted(0.0, px(place.drop as i32)),
             );
         }
+        // the shelf's system in its pill between the actions, going with them
+        let on_shelf = matches!(
+            self.phase,
+            Phase::Shelf | Phase::Inserting { .. } | Phase::Ejecting { .. }
+        );
+        if let (Actions::Shelf, true, None, Some(tex)) = (
+            place.actions,
+            on_shelf,
+            self.core_picker_shown(),
+            self.shelf_platform.face,
+        ) {
+            let sink = (place.sink + self.pill_sink()).min(SINK);
+            let w = self.shelf_platform.w;
+            let x = (omega_gfx::out_w() / SPRITE_PX / 2).saturating_sub(w / 2);
+            let y = BarLayout::top(h) + px(sink as i32);
+            out.push(quad(tex, w, omega_ui::kit::action::BAR, px(x as i32), y));
+        }
         if place.sink >= SINK {
             return;
         }

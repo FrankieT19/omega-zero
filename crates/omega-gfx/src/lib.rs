@@ -26,7 +26,7 @@ pub use headless::HeadlessSurface;
 pub use host::{host_rotation, HostSurface};
 pub use lcd3x::{lcd3x_mask, mask_texture_rgba8};
 pub use pipeline::{Filter, GameView, SCALE, SRC_H, SRC_W, WHOLE_TEXTURE};
-pub use power::{screen_brightness, screen_rect_in, screen_scale, screen_width};
+pub use power::{screen_brightness, screen_glow, screen_rect_in, screen_scale, screen_width};
 pub use surface::{
     blit_rect, blit_rect_fit, fit_rect, fit_scale, panel_rect, GfxError, Rotation, Surface,
 };

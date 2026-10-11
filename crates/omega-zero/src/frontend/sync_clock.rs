@@ -3,7 +3,8 @@
 //! (sync_top_bar.rs), over the shelf and over the save-state switcher alike.
 
 use omega_gfx::{Compositor, TexId};
-use omega_ui::{alert_face, slot_name_face, Field};
+use omega_ui::kit::action::pill_face;
+use omega_ui::{alert_face, Field};
 
 use crate::app::App;
 use crate::frontend::faces::upload_nearest;
@@ -45,7 +46,7 @@ pub(crate) fn sync_clock(app: &mut App, compositor: &mut Compositor, clocks: &mu
         if named.0.is_empty() {
             app.clear_shelf_platform();
         } else {
-            let face = slot_name_face(&named.0, app.palette());
+            let face = pill_face(&named.0, app.palette());
             let id = upload_nearest(compositor, &mut clocks.platform_tex, &face);
             app.set_shelf_platform_face(id, face.w);
         }

@@ -47,18 +47,18 @@ use crate::video_mode::{self, VideoMode};
 use crate::wifi::{wifi_jobs, WifiJobs};
 use crate::wifi_screen::{Summary, Watch, Wifi, WifiScreen};
 
-pub const INSERT_S: f32 = 0.73;
+pub const INSERT_S: f32 = 0.88;
 const INSERT_HOLD_S: f32 = 0.28;
 
 pub const SEATED_AT: f32 = INSERT_S - INSERT_HOLD_S;
 
 pub const EJECT_S: f32 = SEATED_AT;
 
-const EJECT_HOLD_S: f32 = 0.35;
+const EJECT_HOLD_S: f32 = 0.2;
 
-const POWER_ON_S: f32 = 0.22;
+const POWER_ON_S: f32 = 0.6;
 
-const POWER_OFF_S: f32 = 0.16;
+const POWER_OFF_S: f32 = 0.5;
 
 const VOLUME_STEP: u8 = 5;
 
@@ -83,6 +83,7 @@ const PLAY_HOLD_MS: Millis = 500;
 const SHUTDOWN_SHOW_MS: Millis = SLIDE_MS + 120;
 
 const PLATFORM_NAME_IN_MS: Millis = 200;
+const PILL_IN_MS: Millis = 220;
 const PLATFORM_NAME_HOLD_MS: Millis = 1200;
 const PLATFORM_NAME_OUT_MS: Millis = 800;
 /// The core picker's lid, the cart's own face, turned `turn` as it lifts and spun `yaw` as it
@@ -684,8 +685,21 @@ impl App {
     pub fn slot_text(&self) -> Option<String> {
         match self.slot_letter {
             Some(letter) => Some(letter.to_string()),
-            None => self.shelf_platform_name().map(str::to_string),
+            None => self
+                .shelves
+                .get(self.shelf_at)
+                .map(|(platform, _)| platform.dir_name().to_string()),
         }
+    }
+
+    /// How far below its place the shelf's pill is, in art pixels: it rises into place as a
+    /// new system or letter is shown, and is out of sight while its face is still to come.
+    pub(crate) fn pill_sink(&self) -> u32 {
+        let Some(at) = self.shelf_named else {
+            return omega_ui::kit::bar::SINK;
+        };
+        let t = self.now().saturating_sub(at) as f32 / PILL_IN_MS as f32;
+        ((1.0 - ease(t.min(1.0))) * omega_ui::kit::bar::SINK as f32).round() as u32
     }
 
     pub fn shelf_platform_name(&self) -> Option<&'static str> {
@@ -1522,6 +1536,17 @@ impl App {
         self.clock += dt as f64 * 1000.0;
         self.step_boot_fade(dt);
         self.step_opening(dt);
+        // a letter jumped to shows in the pill for a while, then the system comes back
+        let letter_over = PLATFORM_NAME_IN_MS + PLATFORM_NAME_HOLD_MS + PLATFORM_NAME_OUT_MS;
+        if self.slot_letter.is_some()
+            && self
+                .shelf_named
+                .is_some_and(|at| self.now().saturating_sub(at) > letter_over)
+        {
+            self.slot_letter = None;
+            self.shelf_platform = omega_ui::Printed::default();
+            self.name_pending = true;
+        }
         // the slot names its console once the shelf can be seen
         if self.name_pending && self.shelf_platform.face.is_some() && !self.opening_covers() {
             self.name_pending = false;

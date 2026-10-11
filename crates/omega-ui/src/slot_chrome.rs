@@ -306,30 +306,25 @@ impl SlotChrome<'_> {
 
         let chrome = 1.0 - self.screen.clamp(0.0, 1.0);
 
-        draw_slot_back(&self.colours, chrome, out);
-
         let (cw, ch) = cart_box(self.cart.platform);
         let (cw, ch) = (cw as f32, ch as f32);
 
-        // A cart comes up to its own size as it goes in: what the row had not finished growing
-        // by the lip, and what the shelf holds a pak smaller than it is as it sinks from the
-        // lip to its seat, since at its own size on the lip a pak would stand over the bar
-        // at the top.
+        // The cart comes to the middle of the row, square and level, as it rises a little;
+        // then it is pulled down out of the bottom of the screen, into the handheld.
         let scale = self.scale.clamp(0.0, 1.0);
         let shelf = shelf_scale(self.cart.platform);
         let row = (scale / shelf).min(1.0);
         let w0 = cw * scale;
-        let (foot0, seated_foot) = (foot_y(shelf_box(self.cart.platform).1), seated_y() + ch);
-        let catch = catch_at(foot0, seated_foot);
-        let travel = travel(seat, catch);
-        let k = (travel / catch).min(1.0);
-        let sunk = ((travel - catch) / (1.0 - catch)).clamp(0.0, 1.0);
-        let grown = (row + (1.0 - row) * k) * (shelf + (1.0 - shelf) * sunk);
-        let (cw, ch) = (cw * grown, ch * grown);
+        let (sw, sh) = (cw * shelf, ch * shelf);
+        let k = ease((seat / SETTLE).min(1.0));
+        let grown = row + (1.0 - row) * k;
+        let (cw, ch) = (sw * grown, sh * grown);
         let centre = self.rest + w0 / 2.0;
         let x = centre + (cx() - centre) * k - cw / 2.0;
         let pose = self.pose.toward_rest(k);
-        let y = foot0 + (seated_foot - foot0) * travel - ch - pose.lift;
+        let top = foot_y(sh) - ch;
+        let gone = out_h() as f32 - top;
+        let y = top + dive(seat, gone) - pose.lift;
         let cart_alpha = if seat >= 1.0 { chrome } else { 1.0 };
         match (self.face, self.mesh) {
             (Some(tex), Some(mesh)) => out.push(spin::posed_cart(
@@ -380,23 +375,9 @@ impl SlotChrome<'_> {
             });
         }
 
-        if chrome < 1.0 {
-            front_bands(&self.colours, |x, y, w, h, _| {
-                out.push(Draw::Rect {
-                    x,
-                    y,
-                    w,
-                    h,
-                    colour: [0.0, 0.0, 0.0, 1.0],
-                });
-            });
-        }
-
         if self.game && self.screen > 0.0 {
             out.push(Draw::Game);
         }
-
-        draw_slot_front(&self.colours, chrome, out);
     }
 }
 
@@ -485,13 +466,11 @@ pub fn draw_slot_name(name: Printed, alpha: f32, out: &mut Vec<Draw>) {
     let (Some(tex), true) = (name.face, alpha > 0.0) else {
         return;
     };
+    // between the bar's actions, on the rows of the words in their pills, as a hint is
     let ink = name.w.saturating_sub(AIR) as f32 * ART;
-    let hole = scoop_y() + scoop_d() - slit_y();
-    let caps = CAP as f32 * ART;
-    let caps_top = on_grid(slit_y() + (hole - caps) / 2.0);
     out.push(Draw::Tex {
         x: on_grid(cx() - ink / 2.0),
-        y: caps_top - ACCENT as f32 * ART,
+        y: out_h() as f32 - BAR_H + 3.0 * ART,
         w: name.w as f32 * ART,
         h: WORD_H as f32 * ART,
         tex,
@@ -514,6 +493,28 @@ fn travel(seat: f32, catch: f32) -> f32 {
     } else {
         let caught = catch + creep;
         caught + (1.0 - caught) * ease((seat - CATCH_OUT) / (1.0 - CATCH_OUT))
+    }
+}
+
+/// How far into its way in a cart has come to the middle of the row, square and level.
+const SETTLE: f32 = 0.35;
+/// How far the cart rises before it is pulled down, in screen pixels, and how much of its way
+/// in that takes: the quick lift of a hand letting go.
+const LIFT: f32 = 8.0;
+const RISE: f32 = 0.2;
+/// How the pull down gathers speed: slow off the top, faster and faster out of the screen.
+const PULL: f32 = 2.5;
+
+/// How far below where it stands a cart is `seat` of the way in, `gone` being where it is out
+/// of the screen: a quick rise, then a long pull down. Coming out it is the same played
+/// backwards: up fast, slowing to a stop a little over its place, then down onto it.
+fn dive(seat: f32, gone: f32) -> f32 {
+    let u = seat.clamp(0.0, 1.0);
+    if u < RISE {
+        let k = 1.0 - u / RISE;
+        -LIFT * (1.0 - k * k)
+    } else {
+        -LIFT + (gone + LIFT) * ((u - RISE) / (1.0 - RISE)).powf(PULL)
     }
 }
 

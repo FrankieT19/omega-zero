@@ -1,6 +1,6 @@
 use crate::canvas::{out_h, out_w};
 use crate::lcd3x::mask_texture_rgba8;
-use crate::power::{screen_brightness, screen_rect_in};
+use crate::power::{screen_brightness, screen_glow, screen_rect_in};
 use crate::quad::Quad;
 use crate::shaders::{GAME_FRAG, GAME_SHARP_FRAG, RECT_VERT};
 use crate::surface::GfxError;
@@ -46,6 +46,7 @@ struct Lcd {
     prog: gl::types::GLuint,
     u_rect: gl::types::GLint,
     u_bright: gl::types::GLint,
+    u_glow: gl::types::GLint,
     u_uv: gl::types::GLint,
     u_src: gl::types::GLint,
 }
@@ -54,6 +55,7 @@ struct Sharp {
     prog: gl::types::GLuint,
     u_rect: gl::types::GLint,
     u_bright: gl::types::GLint,
+    u_glow: gl::types::GLint,
     u_uv: gl::types::GLint,
     u_scale: gl::types::GLint,
 }
@@ -100,6 +102,7 @@ impl GamePass {
                 prog: lcd,
                 u_rect: uniform(lcd, "u_rect"),
                 u_bright: uniform(lcd, "u_bright"),
+                u_glow: uniform(lcd, "u_glow"),
                 u_uv: uniform(lcd, "u_uv"),
                 u_src: uniform(lcd, "u_src"),
             },
@@ -107,6 +110,7 @@ impl GamePass {
                 prog: sharp,
                 u_rect: uniform(sharp, "u_rect"),
                 u_bright: uniform(sharp, "u_bright"),
+                u_glow: uniform(sharp, "u_glow"),
                 u_uv: uniform(sharp, "u_uv"),
                 u_scale: uniform(sharp, "u_scale"),
             },
@@ -184,6 +188,7 @@ impl GamePass {
                     view.rect[3] / SCALE as f32,
                 );
                 gl::Uniform1f(self.lcd.u_bright, screen_brightness(self.power));
+                gl::Uniform1f(self.lcd.u_glow, screen_glow(self.power));
                 gl::ActiveTexture(gl::TEXTURE0);
                 gl::BindTexture(gl::TEXTURE_2D, tex);
                 gl::ActiveTexture(gl::TEXTURE1);
@@ -200,6 +205,7 @@ impl GamePass {
                     view.rect[3] / (uv[3] * SRC_H as f32),
                 );
                 gl::Uniform1f(self.sharp.u_bright, screen_brightness(self.power));
+                gl::Uniform1f(self.sharp.u_glow, screen_glow(self.power));
                 gl::ActiveTexture(gl::TEXTURE0);
                 gl::BindTexture(gl::TEXTURE_2D, tex);
                 filter(gl::LINEAR);
