@@ -5,72 +5,317 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>omega-zero</title>
 <meta name="description" content="A Game Boy-centric frontend for Anbernic H700 handhelds running BaseOS.">
+<meta name="theme-color" content="#050508">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://oauramos.github.io/omega-zero/">
 <meta property="og:title" content="omega-zero">
 <meta property="og:description" content="A Game Boy-centric frontend for Anbernic H700 handhelds running BaseOS.">
-<style>
-  :root {
-    color-scheme: dark;
-    --ground: #0b0e11;
-    --panel: #15181d;
-    --rule: #262a31;
-    --ink: #f4f5f9;
-    --dim: #9da1ab;
-    --accent: #8f8cf2;
-    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    --body: system-ui, -apple-system, "Segoe UI", sans-serif;
-  }
-  body { margin: 0; background: var(--ground); color: var(--ink); font: 1rem/1.6 var(--body); }
-  main { max-width: 760px; margin: 0 auto; padding: 48px 20px 64px; display: grid; gap: 28px; }
-  h1 { font: 700 2.6rem/1 var(--mono); margin: 0; letter-spacing: -0.02em; }
-  p { margin: 0; max-width: 62ch; }
-  .dim { color: var(--dim); }
-  .actions { display: flex; flex-wrap: wrap; gap: 10px; }
-  .btn {
-    font: 600 0.95rem/1 var(--mono); color: var(--ground); background: var(--ink);
-    padding: 12px 16px; border-radius: 4px; text-decoration: none;
-  }
-  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--rule); }
-  .btn:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
-  figure { margin: 0; display: grid; gap: 6px; }
-  figure img { width: 100%; height: auto; display: block; border: 6px solid #000; border-radius: 6px; image-rendering: pixelated; }
-  figcaption { font-size: 0.9rem; color: var(--dim); }
-  footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 0.9rem; color: var(--dim); display: grid; gap: 8px; }
-  a { color: var(--accent); }
-</style>
+<meta property="og:image" content="https://oauramos.github.io/omega-zero/logo/bootlogo-pixel-640x480.png">
+<meta name="twitter:card" content="summary_large_image">
+<!--
+  omega-zero's site, drawn with the UI kit the console's menus are drawn from: kit/ is
+  assets/ui and logo/ is assets/logo, linked here so the page opens straight from disk, and
+  copied in whole when .github/workflows/pages.yml publishes the site. site.css lays the page
+  out on the kit's art pixels and site.js drives what moves.
+-->
+<script>document.documentElement.classList.add('js')</script>
+<link rel="stylesheet" href="kit/foundation/fonts.css">
+<link rel="stylesheet" href="kit/foundation/tokens.css">
+<link rel="stylesheet" href="site.css">
+<script src="kit/foundation/pixel.js"></script>
+<script src="kit/foundation/backdrop.js"></script>
+<script src="kit/foundation/palette.js"></script>
+<script src="kit/components/omega-modal.js"></script>
+<script src="kit/components/omega-panel.js"></script>
+<script src="kit/components/omega-row.js"></script>
+<script src="kit/components/action-left.js"></script>
+<script src="kit/components/action-right.js"></script>
+<script src="kit/components/omega-bar.js"></script>
+<script src="kit/components/omega-button.js"></script>
+<script src="kit/components/omega-screen.js"></script>
+<script src="kit/components/omega-card.js"></script>
+<script src="kit/components/omega-code.js"></script>
+<script src="site.js" defer></script>
 </head>
 <body>
-<main>
-  <h1>omega-zero</h1>
-  <p>A Game Boy-centric frontend for Anbernic H700 handhelds running
+<div class="omega-backdrop page-backdrop" data-moving aria-hidden="true"></div>
+<a class="skip" href="#screens">Skip to the screens</a>
+
+<header class="hero column">
+  <h1 class="logo"><picture>
+    <source media="(max-width: 451px)" srcset="logo/omega-zero-logo-small.png" width="324" height="180">
+    <img src="logo/omega-zero-logo.png" width="420" height="232" alt="omega-zero">
+  </picture></h1>
+  <p class="tagline">A Game Boy-centric frontend for Anbernic H700 handhelds running
     <a href="https://github.com/pvaibhav/BaseOS">BaseOS</a>. It plays GBA, GBC and GB games, and
     only those, on a shelf of cartridges you slide into a slot.</p>
+  <nav class="buttons" aria-label="Get omega-zero">
+    <omega-button primary><a href="https://github.com/oauramos/omega-zero/releases/latest">DOWNLOAD</a></omega-button>
+    <omega-button><a href="https://github.com/oauramos/omega-zero/wiki/Installing">INSTALL</a></omega-button>
+    <omega-button><a href="https://github.com/oauramos/omega-zero/wiki">WIKI</a></omega-button>
+    <omega-button><a href="https://github.com/oauramos/omega-zero">SOURCE</a></omega-button>
+  </nav>
   <p class="dim">Made for the RG35XX SP first; the rest of the H700 family follows.</p>
-  <div class="actions">
-    <a class="btn" href="https://github.com/oauramos/omega-zero/releases/latest">Download</a>
-    <a class="btn ghost" href="https://github.com/oauramos/omega-zero/wiki/Installing">How to install</a>
-    <a class="btn ghost" href="https://github.com/oauramos/omega-zero/wiki">Wiki</a>
-    <a class="btn ghost" href="https://github.com/oauramos/omega-zero">Source</a>
-  </div>
-  <div class="shots">
-    <figure>
-      <img src="media/shelf.png" alt="The shelf of GBA carts on a 640 by 480 screen, with the top bar and the slot below" width="640" height="480">
-      <figcaption>The shelf on the RG35XX SP.</figcaption>
-    </figure>
-    <figure>
-      <img src="media/insert.gif" alt="A cart sliding down into the slot at full size" width="640" height="480" loading="lazy">
-      <figcaption>A cart going in.</figcaption>
-    </figure>
-    <figure>
-      <img src="media/game.png" alt="A GBA game filling the width of the screen over the console's logo" width="640" height="480" loading="lazy">
-      <figcaption>A GBA game, over the console's body.</figcaption>
-    </figure>
-  </div>
-  <footer>
-    <p>omega-zero is free software under the GPL-3.0-or-later.</p>
-    <p>Game Boy, Game Boy Color and Game Boy Advance are trademarks of Nintendo. Anbernic is a
-      trademark of its owner. This project is not affiliated with either.</p>
-  </footer>
+</header>
+
+<main class="column">
+  <section id="screens" class="viewer" aria-labelledby="screens-title">
+    <h2 id="screens-title" class="sr-only">Screens</h2>
+    <div class="shots">
+      <figure class="shot" id="shot-shelf" data-label="SHELF">
+        <omega-screen led><img src="media/shelf.png" width="640" height="480"
+          alt="The shelf: a row of GBA carts, Emerald in the middle over the slot, the top bar with Wi-Fi, ssh, the clock and the battery, and the bottom bar with SELECT CONTROLS and START SETTINGS"></omega-screen>
+        <figcaption>The shelf. The cart you are on floats and sways; A slides it into the slot and
+          the game starts. SELECT opens CONTROLS, START opens Settings.</figcaption>
+      </figure>
+      <figure class="shot" id="shot-insert" data-label="INSERT">
+        <omega-screen led><img src="media/insert.webp" width="640" height="480" loading="lazy"
+          alt="Emerald sliding down off the shelf and into the slot at full size"></omega-screen>
+        <figcaption>A cart going in: the shelf slides away and the cart drops into the slot at
+          full size.</figcaption>
+      </figure>
+      <figure class="shot" id="shot-game" data-label="IN GAME">
+        <omega-screen led><img src="media/game.png" width="640" height="480" loading="lazy"
+          alt="A test pattern standing in for a GBA game, filling the width of the screen over the console's body with the GAME BOY ADVANCE logo, and the volume bar over its top"></omega-screen>
+        <figcaption>In a game. GBA fills the width of a 640x480 screen through a sharp scaler, over
+          the console's body; Game Boy stays at 3x through an LCD mask.</figcaption>
+      </figure>
+      <figure class="shot" id="shot-settings" data-label="SETTINGS">
+        <omega-screen led><img src="media/settings.png" width="640" height="480" loading="lazy"
+          alt="Settings: a window with two panels, CONFIGS (Fast Forward 6X, Fast Forward Sound, Colour Correction, Rumble, Labels) and GENERAL (Date and Time, Network, Bluetooth, Theme, About), over the grid"></omega-screen>
+        <figcaption>Settings, on START, in the style of Mega Man Zero's menus. CONFIGS holds Fast
+          Forward, Fast Forward Sound, Colour Correction, Rumble and Labels; GENERAL holds Date &amp;
+          Time, Network, Bluetooth, Theme and About.</figcaption>
+      </figure>
+      <figure class="shot" id="shot-controls" data-label="CONTROLS">
+        <omega-screen led><img src="media/controls.png" width="640" height="480" loading="lazy"
+          alt="CONTROLS: what every button does on the shelf and in a game, in two columns on one panel"></omega-screen>
+        <figcaption>A tap of SELECT on the shelf lists what every button does, on the shelf and in
+          a game, on one panel.</figcaption>
+      </figure>
+      <figure class="shot" id="shot-network" data-label="NETWORK">
+        <omega-screen led><img src="media/network.png" width="640" height="480" loading="lazy"
+          alt="Network: Wi-Fi, Network Time and SSH all ON, and AVAILABLE NETWORKS listing Home (connected), Café Wi-Fi, Upstairs 5G and PrinterSetup with their padlocks and signal"></omega-screen>
+        <figcaption>Network switches Wi-Fi, Network Time and SSH. Each network shows its signal, a
+          padlock if it has a passphrase, and CONNECTED, JOINING or SAVED; Y forgets a saved
+          one.</figcaption>
+      </figure>
+      <figure class="shot" id="shot-bluetooth" data-label="BLUETOOTH">
+        <omega-screen led><img src="media/bluetooth.png" width="640" height="480" loading="lazy"
+          alt="Bluetooth: the radio ON, and DEVICES listing a gamepad (connected), headphones (paired), a keyboard and a device known only by its address"></omega-screen>
+        <figcaption>Bluetooth lists the devices paired, then those it finds. A pairs a new one and
+          connects it; Y forgets a paired one.</figcaption>
+      </figure>
+      <figure class="shot" id="shot-theme" data-label="THEME">
+        <omega-screen led><img src="media/theme.png" width="640" height="480" loading="lazy"
+          alt="Theme: Background (Plates, lit), Motion Moving, Colour Night and Font Bold, over the plates pattern"></omega-screen>
+        <figcaption>Theme picks the background's pattern, its motion and its colour, and the font
+          of the bottom bar's big words, Bold or Thin.</figcaption>
+      </figure>
+      <figure class="shot" id="shot-amber" data-label="AMBER">
+        <omega-screen led><img src="media/amber.png" width="640" height="480" loading="lazy"
+          alt="Settings again, in Amber: the window, its panels and the bottom bar in Mega Man Zero's own orange and brown"></omega-screen>
+        <figcaption>The menus, both bars and the slot take their colours from Theme's colour. Night
+          is grey; Amber is Mega Man Zero's own.</figcaption>
+      </figure>
+      <figure class="shot" id="shot-slide" data-label="SLIDES">
+        <omega-screen led><img src="media/slide.png" width="640" height="480" loading="lazy"
+          alt="Halfway from the shelf to Settings: the carts going out to the left as the Settings window comes in from the right"></omega-screen>
+        <figcaption>Every move between screens slides, over a background that keeps moving. From
+          the shelf, the carts go out to the left as Settings comes in from the right.</figcaption>
+      </figure>
+    </div>
+    <omega-modal class="picker-modal">
+      <omega-panel label="SCREENS" active>
+        <div class="picker" role="tablist" aria-orientation="vertical" aria-label="Screens"></div>
+      </omega-panel>
+    </omega-modal>
+  </section>
+
+  <section id="theme" class="split" aria-labelledby="theme-title">
+    <omega-modal class="theme-modal">
+      <omega-panel label="THEME" active>
+        <h2 id="theme-title" class="sr-only">Theme</h2>
+        <div class="settings">
+          <div class="setting" data-setting="style" role="slider" tabindex="0" aria-label="Background">
+            <omega-row label="BACKGROUND" carets></omega-row>
+          </div>
+          <div class="setting" data-setting="motion" role="slider" tabindex="0" aria-label="Motion">
+            <omega-row label="MOTION" carets></omega-row>
+          </div>
+          <div class="setting" data-setting="colour" role="slider" tabindex="0" aria-label="Colour">
+            <omega-row label="COLOUR" carets></omega-row>
+          </div>
+          <div class="setting" data-setting="font" role="slider" tabindex="0" aria-label="Font">
+            <omega-row label="FONT" carets></omega-row>
+          </div>
+        </div>
+      </omega-panel>
+    </omega-modal>
+    <div class="prose">
+      <p>The menus take their colours from the background's, and so does this page. Pick a row and
+        change it with Left and Right, as on the handheld: Amber is Mega Man Zero's own colours,
+        Night plain greys.</p>
+      <p class="dim">The page drifts like the shelf unless your system asks for less motion.</p>
+    </div>
+  </section>
+
+  <section id="highlights" aria-labelledby="highlights-title">
+    <omega-modal>
+      <omega-panel label="HIGHLIGHTS" active>
+        <h2 id="highlights-title" class="sr-only">Highlights</h2>
+        <div class="cards">
+          <omega-card icon="cart">
+            <h3 slot="title">The shelf</h3>
+            <p>Solid carts in their own plastics with real label scans. The one you are on floats
+              and sways, and slides into the slot at full size. The boot logo fades into it.</p>
+          </omega-card>
+          <omega-card icon="chip">
+            <h3 slot="title">Two GBA cores</h3>
+            <p>mGBA and gpSP, chosen per cart. GBA fills a 640x480 screen; Game Boy stays at 3x.</p>
+          </omega-card>
+          <omega-card icon="rewind">
+            <h3 slot="title">Pick up, rewind</h3>
+            <p>Resume on boot, save states with a switcher, rewind, fast-forward, turbo
+              buttons.</p>
+          </omega-card>
+          <omega-card icon="link">
+            <h3 slot="title">Link play</h3>
+            <p>Two handhelds over Wi-Fi, for Pokémon trades, Advance Wars, Mario Kart and
+              Tetris.</p>
+          </omega-card>
+          <omega-card icon="window">
+            <h3 slot="title">Settings</h3>
+            <p>On START, in windows in the style of Mega Man Zero's menus that slide from screen
+              to screen.</p>
+          </omega-card>
+          <omega-card icon="gamepad">
+            <h3 slot="title">Controls</h3>
+            <p>A tap of SELECT lists what every button does, on the shelf and in a game.</p>
+          </omega-card>
+          <omega-card icon="wifi">
+            <h3 slot="title">Network</h3>
+            <p>Home Wi-Fi with SSH and SFTP, switched ON and OFF, and INFO with the login and
+              root's own random password. Network time, and cart labels from ScreenScraper.</p>
+          </omega-card>
+          <omega-card icon="bluetooth">
+            <h3 slot="title">Bluetooth</h3>
+            <p>On handhelds that have it: pair a device and connect it, forget it. Game sound and
+              gamepads over Bluetooth are still to come.</p>
+          </omega-card>
+          <omega-card icon="theme">
+            <h3 slot="title">Theme</h3>
+            <p>A pixel font, and a background you choose, whose colour the menus, both bars and
+              the slot take.</p>
+          </omega-card>
+        </div>
+      </omega-panel>
+    </omega-modal>
+  </section>
+
+  <section id="devices" class="split" aria-labelledby="devices-title">
+    <omega-modal class="devices-modal">
+      <omega-panel label="SUPPORTED" active>
+        <h2 id="devices-title" class="sr-only">Supported devices</h2>
+        <omega-row label="RG35XX SP" value="640X480" lit></omega-row>
+        <omega-row label="RG SP" value="720X480"></omega-row>
+      </omega-panel>
+      <omega-panel label="UNTESTED">
+        <omega-row label="RG34XX SP" value="720X480"></omega-row>
+        <omega-row label="RG34XX" value="720X480"></omega-row>
+        <omega-row label="RG35XX PLUS" value="640X480"></omega-row>
+        <omega-row label="RG35XX 2024" value="640X480"></omega-row>
+        <omega-row label="RG35XX H" value="640X480"></omega-row>
+        <omega-row label="RG35XX PRO" value="640X480"></omega-row>
+        <omega-row label="RG40XX H" value="640X480"></omega-row>
+        <omega-row label="RG40XX V" value="640X480"></omega-row>
+      </omega-panel>
+      <omega-panel label="EXPERIMENTAL">
+        <omega-row label="RG CUBEXX" value="720X720"></omega-row>
+        <omega-row label="RG28XX" value="480X640"></omega-row>
+      </omega-panel>
+    </omega-modal>
+    <div class="prose">
+      <p>One build runs on all of them: omega-zero reads the model from BaseOS at boot and lays
+        itself out for its panel.</p>
+      <p>The RG35XX SP is the main target, in daily use. The RG SP is supported, not yet retested
+        on hardware. The RG28XX's panel is mounted turned, and omega-zero turns it back.</p>
+      <p>Own an untested one? A device report is the most useful thing you can send.</p>
+      <div class="buttons">
+        <omega-button><a href="https://github.com/oauramos/omega-zero/wiki/Device-Reports">DEVICE REPORT</a></omega-button>
+      </div>
+    </div>
+  </section>
+
+  <section id="start" aria-labelledby="start-title">
+    <omega-modal>
+      <omega-panel label="QUICK START" active>
+        <h2 id="start-title" class="sr-only">Quick start</h2>
+        <div class="steps">
+          <ol>
+            <li>Write the <a href="https://github.com/pvaibhav/BaseOS/releases/latest">BaseOS
+              image</a> for your model to a microSD card, put it in SD1 and boot once.</li>
+            <li>Copy the contents of the
+              <a href="https://github.com/oauramos/omega-zero/releases/latest">latest release</a>
+              to the root of that card.</li>
+            <li>Put your games in Games/GBA, Games/GB and Games/GBC.</li>
+            <li>Boot. On the shelf, START opens Settings and a tap of SELECT shows every
+              button.</li>
+          </ol>
+          <omega-code label="THE CARD"><pre>Games/GBA/    your GBA games
+Games/GB/     your Game Boy games
+Games/GBC/    your Game Boy Color games
+Labels/       cart labels
+Overlays/     your own overlays
+Saves/        saves
+States/       save states
+System/       omega-zero itself</pre></omega-code>
+          <p>Two cards, updating, controls and everything else are in the
+            <a href="https://github.com/oauramos/omega-zero/wiki">wiki</a>.</p>
+        </div>
+      </omega-panel>
+    </omega-modal>
+  </section>
+
+  <section id="credits" aria-labelledby="credits-title">
+    <omega-modal>
+      <omega-panel label="CREDITS" active>
+        <h2 id="credits-title" class="sr-only">Credits and licence</h2>
+        <div class="steps">
+          <ul>
+            <li>omega-zero is based on <a href="https://github.com/BrandonKowalski/slot">slot</a> by
+              <a href="https://github.com/BrandonKowalski">Brandon T. Kowalski</a>, released under
+              the GPL-3.0: the shelf, the carts, their sounds and much of the code began there,
+              and have been modified since October 2026.</li>
+            <li><a href="https://github.com/pvaibhav/BaseOS">BaseOS</a> by pvaibhav.</li>
+            <li>Emulation by <a href="https://mgba.io">mGBA</a> (MPL-2.0) and
+              <a href="https://github.com/libretro/gpsp">gpSP</a> (GPL-2.0). Their licences,
+              patches and gpSP's source ship in System/licenses/.</li>
+            <li>Type is <a href="https://github.com/qwerasd205/PixelCode">Pixel Code</a> by Qwerasd
+              (SIL OFL 1.1) and the <a href="https://www.nerdfonts.com">Nerd Fonts</a> symbols. The
+              LCD mask is derived from GigaHerz's LCD3x.</li>
+            <li>Cart labels come from <a href="https://www.screenscraper.fr">ScreenScraper</a>,
+              fetched with your own account.</li>
+          </ul>
+          <p>omega-zero is free software under the GPL-3.0-or-later. It is written with Claude, and
+            reviewed and tested by its maintainer. This page is drawn with its
+            <a href="kit/storybook.html">UI kit</a>.</p>
+          <p class="dim">Game Boy, Game Boy Color and Game Boy Advance are trademarks of Nintendo.
+            Anbernic is a trademark of its owner. This project is not affiliated with either.</p>
+        </div>
+      </omega-panel>
+    </omega-modal>
+  </section>
 </main>
+
+<footer class="site-bar">
+  <div class="omega-backdrop bar-strip" data-moving aria-hidden="true"></div>
+  <omega-bar>
+    <a slot="left" class="bar-link" href="https://github.com/oauramos/omega-zero/wiki" aria-label="Wiki">
+      <action-left label="WIKI" hint="B"></action-left></a>
+    <a slot="right" class="bar-link" href="https://github.com/oauramos/omega-zero/releases/latest" aria-label="Download">
+      <action-right label="DOWNLOAD" hint="A"></action-right></a>
+  </omega-bar>
+</footer>
 </body>
 </html>
