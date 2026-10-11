@@ -42,6 +42,12 @@ pub const FORGET: Hint<'static> = Hint {
     word: "FORGET",
 };
 
+/// Y on one of Network's own rows, WI-FI, NETWORK TIME or SSH: it opens the row's panel.
+pub const INFO: Hint<'static> = Hint {
+    key: "Y",
+    word: "INFO",
+};
+
 /// X on Network while Wi-Fi is on, and on Bluetooth while the radio is on: it looks once for
 /// what is in reach, networks or devices. Neither looks by itself.
 pub const SCAN: Hint<'static> = Hint {
@@ -119,7 +125,7 @@ pub fn actions_on(phase: &Phase) -> Option<Actions> {
         | Phase::Controls
         | Phase::Network(_)
         | Phase::Bluetooth(_)
-        | Phase::Ssh(_)
+        | Phase::Info(_)
         | Phase::Labels(_)
         | Phase::Background(_)
         | Phase::SetClock { .. }

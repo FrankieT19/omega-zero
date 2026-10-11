@@ -8,6 +8,7 @@ pub mod bar;
 pub mod bluetooth;
 pub mod clock;
 pub mod controls;
+pub mod info;
 pub mod keyboard;
 pub mod labels;
 pub mod lone;

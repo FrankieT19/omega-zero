@@ -3,12 +3,13 @@
   are, and which screen a row opens. player.js does the moving between them, and opens the power
   menu on any screen when POWER is held; this file only answers each press with nothing,
   { go: <screen> } to go deeper or { back: true }. A screen whose bar hints follow its cursor or
-  its state (Network's X SCAN with Wi-Fi on and Y FORGET on the network joined, Bluetooth's X
-  SCAN while the radio is on and Y FORGET on a paired device) says them with hint().
+  its state (Network's X SCAN with Wi-Fi on, Y INFO on NETWORK's rows and Y FORGET on the network
+  joined, Bluetooth's X SCAN while the radio is on and Y FORGET on a paired device) says them with
+  hint().
 
-  The settings that show on more than one screen (Wi-Fi, SSH, Network's scan, Bluetooth and its
-  devices, the date, the backdrop, the bar's font) live once, in FlowScreens.model, and every
-  screen showing one follows it.
+  The settings that show on more than one screen (Wi-Fi, Network Time, SSH, Network's scan,
+  Bluetooth and its devices, the date, the backdrop, the bar's font) live once, in
+  FlowScreens.model, and every screen showing one follows it.
 */
 window.FlowScreens = (() => {
   // ---- the settings, shared ----
@@ -28,6 +29,7 @@ window.FlowScreens = (() => {
 
   const model = {
     wifi: true,
+    ntp: true,            // the clock set from the network
     ssh: true,            // the SSH server running
     network: 'Home',      // the network joined
     joining: 'Home',      // the one the keyboard asks the passphrase of
@@ -50,12 +52,13 @@ window.FlowScreens = (() => {
   }
   const onChange = listener => listeners.add(listener);
 
-  // How a row with data-set shows a setting, and reads it back: undefined for a value that is no
-  // setting, as SSH's INFO, which only leads to its screen.
+  // How a row with data-set shows a setting, and reads it back. A switch is ON or OFF.
+  const SWITCH = { show: on => (on ? 'ON' : 'OFF'), read: value => value === 'ON' };
   const CODECS = {
-    wifi: { show: on => (on ? 'ON' : 'OFF'), read: value => value === 'ON' },
-    ssh: { show: on => (on ? 'ON' : 'OFF'), read: value => (value === 'INFO' ? undefined : value === 'ON') },
-    bluetooth: { show: on => (on ? 'ON' : 'OFF'), read: value => value === 'ON' },
+    wifi: SWITCH,
+    ntp: SWITCH,
+    ssh: SWITCH,
+    bluetooth: SWITCH,
     moving: { show: on => (on ? 'MOVING' : 'STILL'), read: value => value === 'MOVING' },
     style: { show: name => name.toUpperCase(), read: value => value.toLowerCase() },
     colour: { show: name => name.toUpperCase(), read: value => value.toLowerCase() },
@@ -65,6 +68,8 @@ window.FlowScreens = (() => {
   const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   const two = n => String(n).padStart(2, '0');
   const daysIn = (year, month) => new Date(year, month, 0).getDate();
+  // a zone as Date & Time shows it: UTC+00:00
+  const zoneOf = zone => `UTC${zone < 0 ? '-' : '+'}${two(Math.abs(zone))}:00`;
 
   // ---- a menu: rows, top to bottom across its panels, one under the cursor ----
 
@@ -97,15 +102,8 @@ window.FlowScreens = (() => {
     }
 
     move(by) {
-      this.settle();
       this.cursor = Math.max(0, Math.min(this.rows.length - 1, this.cursor + by));
       this.light();
-    }
-
-    // the cursor's row showing its setting again, not a value that only leads somewhere
-    settle() {
-      const key = this.row.dataset.set;
-      if (key) this.row.setAttribute('value', CODECS[key].show(model[key]));
     }
 
     // ◀ ▶ step a row's value through its data-values, round and round
@@ -116,18 +114,16 @@ window.FlowScreens = (() => {
       const value = values[(at + by + values.length) % values.length];
       this.row.setAttribute('value', value);
       const key = this.row.dataset.set;
-      const setting = key && CODECS[key].read(value);
-      if (key && setting !== undefined) set(key, setting);
+      if (key) set(key, CODECS[key].read(value));
     }
 
-    // the cursor onto the row that opens `screen`, as it was when that screen was opened: on
-    // the value that opens it, for a row that opens it on one alone
+    // the cursor onto the row that opens `screen`, as it was when that screen was opened: with
+    // A, or with Y on the row whose panel it is
     focus(screen) {
-      const at = this.rows.findIndex(row => row.dataset.opens === screen &&
+      const at = this.rows.findIndex(row => (row.dataset.opens === screen || row.dataset.info === screen) &&
         (row.localName !== 'omega-list-row' || row.getAttribute('label') === model.joining));
       if (at < 0) return;
       this.cursor = at;
-      if (this.row.dataset.opensOn) this.row.setAttribute('value', this.row.dataset.opensOn);
       this.light();
     }
 
@@ -137,18 +133,30 @@ window.FlowScreens = (() => {
         case 'down': return this.move(1);
         case 'left': return this.change(-1);
         case 'right': return this.change(1);
-        case 'a': return this.open();
+        case 'a': return this.confirm();
+        case 'y': return this.info();
         case 'b': return { back: true };
       }
+    }
+
+    // A on a setting that is a switch, ON or OFF, turns it the other way, as ◀ ▶ do; on any
+    // other row it opens the row's screen
+    confirm() {
+      if (this.row.dataset.set && this.row.dataset.values === 'ON|OFF') return this.change(1);
+      return this.open();
     }
 
     open() {
       const screen = this.row.dataset.opens;
       if (!screen || this.row.hasAttribute('dim')) return;
-      const on = this.row.dataset.opensOn;
-      if (on && this.row.getAttribute('value') !== on) return;
       if (this.row.localName === 'omega-list-row') set('joining', this.row.getAttribute('label'));
       return { go: screen };
+    }
+
+    // Y on a row with a panel of its own (data-info) opens it
+    info() {
+      const screen = this.row.dataset.info;
+      if (screen) return { go: screen };
     }
   }
 
@@ -170,15 +178,6 @@ window.FlowScreens = (() => {
   class Still {
     constructor(page) { this.page = page; }
     press(key) { if (key === 'b') return { back: true }; }
-  }
-
-  // SSH's login, opened from its row on INFO: B goes back to a row showing SSH's state again.
-  class Login extends Still {
-    constructor(page, menu) { super(page); this.menu = menu; }
-    press(key) {
-      if (key === 'b') this.menu.settle();
-      return super.press(key);
-    }
   }
 
   // The screen after the power menu's choice, shown until the handheld goes down: nothing can be
@@ -212,7 +211,7 @@ window.FlowScreens = (() => {
       const { year, month, day, hour, minute, zone } = model.date;
       const text = {
         year: String(year), month: two(month), day: two(day), hour: two(hour), minute: two(minute),
-        zone: `UTC${zone < 0 ? '-' : '+'}${two(Math.abs(zone))}:00`,
+        zone: zoneOf(zone),
       };
       const parts = [['year'], ' - ', ['month'], ' - ', ['day'], '   ', ['hour'], ' : ', ['minute'], '   ', ['zone']];
       this.line.replaceChildren(...parts.map(part => {
@@ -424,8 +423,10 @@ window.FlowScreens = (() => {
       this.light();
     }
 
-    // X SCAN in the bar while Wi-Fi is on, and beside it Y FORGET on the network joined.
+    // X SCAN in the bar while Wi-Fi is on, and beside it Y INFO on NETWORK's rows, which says so
+    // with Wi-Fi off too, or Y FORGET on the network joined.
     hint() {
+      if (this.row.dataset.info) return model.wifi ? 'X SCAN | Y INFO' : 'Y INFO';
       if (!model.wifi) return null;
       return this.row.dataset.network === model.network ? 'X SCAN | Y FORGET' : 'X SCAN';
     }
@@ -668,13 +669,14 @@ window.FlowScreens = (() => {
 
   function build(screen) {
     const page = name => screen.querySelector(`[data-screen="${name}"]`);
-    const network = new Network(page('network'));
     const screens = {
       shelf: new Shelf(page('shelf')),
       settings: new Settings(page('settings')),
       controls: new Still(page('controls')),
-      network,
-      ssh: new Login(page('ssh'), network),
+      network: new Network(page('network')),
+      wifi: new Still(page('wifi')),
+      time: new Still(page('time')),
+      ssh: new Still(page('ssh')),
       keyboard: new Keyboard(page('keyboard')),
       bluetooth: new Bluetooth(page('bluetooth')),
       labels: new Menu(page('labels')),
@@ -687,8 +689,13 @@ window.FlowScreens = (() => {
     };
 
     // what shows a setting, drawn again from the model
+    // The panels Y opens on Network's rows, and the value of a row of one, by its label.
+    const panel = name => page(name).querySelector('.info');
+    const fill = (name, label, value) =>
+      panel(name).querySelector(`omega-row[label="${label}"]`).setAttribute('value', value);
+
     function show() {
-      const { date, wifi, ssh } = model;
+      const { date, wifi, ntp, ssh } = model;
       for (const row of screen.querySelectorAll('[data-set]')) {
         row.setAttribute('value', CODECS[row.dataset.set].show(model[row.dataset.set]));
       }
@@ -696,8 +703,19 @@ window.FlowScreens = (() => {
         `${MONTHS[date.month - 1]} ${date.day} ${two(date.hour)}:${two(date.minute)}`);
       screen.querySelector('[data-show="network"]').setAttribute('value', wifi ? model.network.toUpperCase() : 'OFF');
       screens.network.draw();
-      page('ssh').querySelector('.ssh').classList.toggle('offline', !ssh || !wifi);
-      page('ssh').querySelector('.when-offline .note').textContent =
+      // each panel its rows, or, offline, what to do first: WI-FI's needs Wi-Fi on, SSH's SSH
+      // and Wi-Fi, NETWORK TIME's only itself, and without Wi-Fi it waits for one
+      panel('wifi').classList.toggle('offline', !wifi);
+      fill('wifi', 'NETWORK', model.network);
+      panel('time').classList.toggle('offline', !ntp);
+      fill('time', 'STATUS', wifi ? 'SYNCED' : 'WAITING');
+      fill('time', 'DATE', `${date.year}-${two(date.month)}-${two(date.day)}`);
+      fill('time', 'TIME', `${two(date.hour)}:${two(date.minute)}`);
+      fill('time', 'ZONE', zoneOf(date.zone));
+      panel('time').querySelector('.when-online .note').textContent =
+        wifi ? 'Set the zone in Date & Time' : 'Join a Wi-Fi network first.';
+      panel('ssh').classList.toggle('offline', !ssh || !wifi);
+      panel('ssh').querySelector('.when-offline .note').textContent =
         ssh ? 'Join a Wi-Fi network first.' : 'Turn SSH on first.';
       page('keyboard').querySelector('omega-panel').setAttribute('label', `PASSPHRASE FOR ${model.joining.toUpperCase()}`);
       // Settings' BLUETOOTH: the device connected, else whether the radio is on
@@ -725,7 +743,7 @@ window.FlowScreens = (() => {
     settings: 'shelf', controls: 'shelf',
     network: 'settings', bluetooth: 'settings', labels: 'settings', datetime: 'settings',
     background: 'settings', about: 'settings',
-    ssh: 'network', keyboard: 'network',
+    wifi: 'network', time: 'network', ssh: 'network', keyboard: 'network',
     power: 'shelf', restarting: 'power', poweroff: 'power',
   };
 

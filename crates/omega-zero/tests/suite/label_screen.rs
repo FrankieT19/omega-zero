@@ -141,6 +141,7 @@ impl Rig {
             ssid: Some(b"Home".to_vec()),
             ip: Some("192.168.1.20".into()),
             rssi: Some(-50),
+            mac: None,
             hostname: "rg35xxsp".into(),
             ntp: true,
             ntp_synced: true,

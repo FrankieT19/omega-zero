@@ -54,7 +54,8 @@
   const screens = FlowScreens.build(screen);
 
   const NAMES = {
-    shelf: 'Shelf', settings: 'Settings', network: 'Network', ssh: 'SSH', keyboard: 'Keyboard',
+    shelf: 'Shelf', settings: 'Settings', network: 'Network', wifi: 'Wi-Fi', time: 'Network Time',
+    ssh: 'SSH', keyboard: 'Keyboard',
     bluetooth: 'Bluetooth', labels: 'Labels', datetime: 'Date & Time', background: 'Theme', about: 'About',
     controls: 'Controls', power: 'Power', restarting: 'Restarting', poweroff: 'Power Off',
   };
@@ -297,6 +298,7 @@
     if (!model.moving) q.set('moving', '0');
     if (model.font !== 'bold') q.set('font', model.font);
     if (!model.wifi) q.set('wifi', 'off');
+    if (!model.ntp) q.set('ntp', 'off');
     if (FlowScreens.scanState() !== 'none') q.set('scan', FlowScreens.scanState());
     if (FlowScreens.bluetoothState() !== 'on') q.set('bt', FlowScreens.bluetoothState());
     if (state.slow) q.set('slow', '1');
@@ -331,6 +333,7 @@
     FlowScreens.set('moving', q.get('moving') !== '0');
     FlowScreens.set('font', pick('font', FONTS, 'bold'));
     FlowScreens.set('wifi', q.get('wifi') !== 'off');
+    FlowScreens.set('ntp', q.get('ntp') !== 'off');
     FlowScreens.scanAs(pick('scan', FlowScreens.SCAN, 'none'));
     FlowScreens.bluetoothAs(pick('bt', FlowScreens.BT, 'on'));
     state.slow = q.get('slow') === '1';

@@ -50,8 +50,9 @@ is the most useful thing you can send.
   screen, over a background that keeps moving: CONFIGS (Fast Forward, Fast Forward Sound, Colour
   Correction, Rumble, Labels) and GENERAL (Date & Time, Network, Bluetooth, Theme, About).
 - A tap of SELECT opens CONTROLS: what every button does, on the shelf and in a game, on one panel.
-- Network: home Wi-Fi, network time, and SSH and SFTP. SSH steps through ON, OFF and INFO, which
-  shows the login and root's own random password. Cart labels are fetched from ScreenScraper.
+- Network: home Wi-Fi, network time, and SSH and SFTP, each ON or OFF. Y on one opens its panel:
+  SSH's shows the login and root's own random password. Cart labels are fetched from
+  ScreenScraper.
 - Bluetooth, on handhelds that have it: pair a device and connect it, or forget it. Game sound and
   gamepads over Bluetooth are still to come.
 - Theme: the background's pattern, its motion and its colour, which the menus, both bars and the

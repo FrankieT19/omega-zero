@@ -132,6 +132,14 @@ network found with its bars and padlock, which stay until the next scan's answer
 Network is left. The bar says `X SCAN` while Wi-Fi is on, and `X SCAN` `Y FORGET` on the network
 joined. With Wi-Fi off the list is empty and the note says "Wi-Fi is off.".
 
+NETWORK's three rows, WI-FI, NETWORK TIME and SSH, are switches, ON or OFF: Left, Right and A
+turn each the other way. Y on one opens its own panel, a lone one like SSH's login, and B comes
+back to the row. WI-FI's shows the network joined, its signal, the handheld's IP, host name and
+MAC; NETWORK TIME's whether the clock is synced, with the date, time and zone Date & Time has;
+SSH's the login. With nothing to show (Wi-Fi off, SSH off, Network Time off) a panel says what to
+do first; NETWORK TIME's, with no Wi-Fi, keeps its rows and waits for one. On these rows the bar
+says `X SCAN` `Y INFO`, or `Y INFO` alone with Wi-Fi off.
+
 Settings > Bluetooth is a modal like Network's: BLUETOOTH, its one row switching the radio ON
 or OFF with Left and Right, and DEVICES, while it is on the devices paired, then those a look
 finds, each with its name in its own case, what it is to the handheld (CONNECTED, CONNECTING,
@@ -158,14 +166,15 @@ headless Chrome screenshot lands on the same frame:
 
 | Key | Values |
 |---|---|
-| `screen` | `shelf`, `settings`, `controls`, `network`, `ssh`, `keyboard`, `bluetooth`, `labels`, `datetime`, `background` (THEME), `about`, `power` (POWER held), `restarting`, `poweroff` |
+| `screen` | `shelf`, `settings`, `controls`, `network`, `wifi` (Y on WI-FI), `time` (Y on NETWORK TIME), `ssh` (Y on SSH), `keyboard`, `bluetooth`, `labels`, `datetime`, `background` (THEME), `about`, `power` (POWER held), `restarting`, `poweroff` |
 | `from` | slide into `screen` from this one, deeper or back as the tree has it; `dir=in` or `dir=out` forces the way. For `power`, the screen POWER was held on (the shelf when there is none) |
 | `t` | with `from`: hold the slide at this time, 0 to 1 |
 | `size` | `640x480` (default), `720x480`, `720x720` |
 | `colour` | `night` (default), `slate`, `navy`, `teal`, `green`, `plum`, `crimson`, `amber` |
 | `style`, `moving` | the backdrop, as Settings > Theme sets it: `style=plates`, `moving=0` |
 | `font` | `thin`: the bottom bar's labels in the thin font, as Settings > Theme > Font sets it |
-| `wifi` | `off`: SSH shows what it says offline, and Network lists no networks |
+| `wifi` | `off`: WI-FI and SSH show what they say offline, NETWORK TIME waits for Wi-Fi, and Network lists no networks |
+| `ntp` | `off`: Network Time off, and NETWORK TIME's panel shows what it says offline |
 | `scan` | Network's scan: `none` (default, as it opens), `running` (looking, standing still) or `done` (the networks found) |
 | `bt` | Bluetooth: `on` (default) as the screen opens, before any look, with the two paired devices; `off`; `empty` (nothing paired, before any look); `looking` (a look under way, held, the keyboard found so far); `found` (after it, the band found too); or `pairing` (after it, the keyboard pairing, the cursor on it) |
 | `row` | the cursor's row on `screen`, from 0 |

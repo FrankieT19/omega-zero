@@ -1,9 +1,11 @@
-//! The Network modal and the SSH panel, laid out as assets/ui/flow.html lays them out.
+//! The Network modal and the panels Y opens from its rows, laid out as assets/ui/flow.html lays
+//! them out.
 //!
 //! Network is a modal of two panels: NETWORK, as tall as its rows (Wi-Fi, Network Time, SSH),
 //! and AVAILABLE NETWORKS under it, taking the rest of the modal, its networks scrolling a whole
-//! row at a time when there are more than it holds, and short notes under them. SSH is a lone
-//! panel in the middle of the page, 200 art pixels wide, as tall as its lines and its note.
+//! row at a time when there are more than it holds, and short notes under them. Each row's own
+//! panel (WI-FI, NETWORK TIME, SSH) is a lone panel in the middle of the page, 200 art pixels
+//! wide, as tall as its lines and its note.
 //!
 //! Everything here is in art pixels (two screen pixels each). The faces are the kit's, baked by
 //! the frontend at art resolution and drawn at 2x with `kit::pixel::quad`; the modal and its
@@ -24,10 +26,9 @@ pub type Face = (TexId, u32, u32);
 /// The modal's panels' titles, top first.
 pub const NETWORK_TITLE: &str = "NETWORK";
 pub const AVAILABLE_TITLE: &str = "AVAILABLE NETWORKS";
-pub const SSH_TITLE: &str = "SSH";
 
-/// How wide the SSH panel is (flow.css's `.lone.small`).
-pub const SSH_W: u32 = 200;
+/// How wide a row's panel is (flow.css's `.lone.small`).
+pub const INFO_W: u32 = 200;
 
 /// A note is text that is not a row (flow.css's `.note`): it starts three pixels into the well,
 /// four below the rows over it, one `LINE` to each of its lines. Last in a well it keeps two
@@ -124,7 +125,7 @@ pub fn network_title(panel: usize, pal: &Palette) -> UndoFace {
 }
 
 /// How wide each panel's rows are: as wide as its well and a pixel more each side, the kit's
-/// rule for every row. flow.html's list (in a `.list`) and SSH's lines (in a `.when-online`)
+/// rule for every row. flow.html's list (in a `.list`) and a panel's lines (in a `.when-online`)
 /// miss that pixel, being no panel's own children; the kit's rule wins.
 pub fn network_row_widths(wells: &[[u32; 4]; 2]) -> [u32; 2] {
     wells.map(|[_, _, w, _]| row_width(w))
@@ -169,38 +170,40 @@ impl NetworkFaces {
     }
 }
 
-/// Where the SSH panel goes for `lines` lines and a note under them: `lines` rows, then the
+/// Where a row's panel goes for `lines` lines and a note under them: `lines` rows, then the
 /// note, or the note on its own.
-pub fn ssh_rect(lines: usize) -> [u32; 4] {
+pub fn info_rect(lines: usize) -> [u32; 4] {
     let foot = if lines == 0 {
         NOTE_FOOT_ALONE
     } else {
         NOTE_FOOT
     };
     let content = lines as u32 * ROW_H + NOTE_TOP + LINE + foot;
-    centred(SSH_W, panel_height(content))
+    centred(INFO_W, panel_height(content))
 }
 
-/// The SSH panel for `lines` lines, in `pal`: its title lit, as the only panel there is.
-pub fn ssh_chrome(lines: usize, pal: &Palette) -> PanelFace {
-    let [_, _, w, h] = ssh_rect(lines);
-    panel_face(w, h, SSH_TITLE, true, pal)
+/// A row's panel titled `title` for `lines` lines, in `pal`: its title lit, as the only panel
+/// there is.
+pub fn info_chrome(title: &str, lines: usize, pal: &Palette) -> PanelFace {
+    let [_, _, w, h] = info_rect(lines);
+    panel_face(w, h, title, true, pal)
 }
 
-/// The SSH panel's faces, for `lines` lines.
-pub struct SshFaces {
+/// A row's panel's faces, for `lines` lines.
+pub struct InfoFaces {
     /// The panel, its title lit: it is the only one.
     pub chrome: Face,
-    /// The panel's `[x, y, w, h]`, as `ssh_rect` has it.
+    /// The panel's `[x, y, w, h]`, as `info_rect` has it.
     pub at: [u32; 4],
     /// Its well, `[x, y, w, h]` in the panel's art pixels.
     pub well: [u32; 4],
-    /// IP, HOST, USER, PASSWORD and PORT, top first; none with SSH off or without a network.
+    /// Its lines, top first: SSH's IP, HOST, USER, PASSWORD and PORT, say. None while there is
+    /// nothing to tell, the note then saying why.
     pub lines: Vec<Face>,
     pub note: Option<Face>,
 }
 
-impl SshFaces {
+impl InfoFaces {
     /// The panel over whatever is already drawn: the backdrop.
     pub fn draw(&self, out: &mut Vec<Draw>) {
         let [px, py, _, _] = self.at;

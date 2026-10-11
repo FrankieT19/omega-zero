@@ -9,7 +9,8 @@ use omega_input::{Action, Btn, Millis};
 use omega_store::{read_app_state, write_app_state, AppState};
 use omega_ui::SettingsRow;
 use omega_zero::app::{App, Phase};
-use omega_zero::screens::ssh::{SshScreen, SshView};
+use omega_zero::screens::info::{InfoScreen, InfoView};
+use omega_zero::screens::ssh::SshScreen;
 use omega_zero::ssh::{SshServer, Trouble, SETTLE_MS};
 use omega_zero::wifi::{Status, WifiJob, WifiJobs, WifiNews};
 use omega_zero::wifi_screen::{Sel, SettingLine, Watch};
@@ -205,20 +206,22 @@ impl Rig {
         self.ssh_row().value.expect("the SSH row shows no value")
     }
 
-    /// The SSH screen, by way of the row's INFO: a step back from ON, or on from OFF, so SSH
-    /// stays as it was.
+    /// The SSH panel, by way of Y on the row, which leaves SSH as it was.
     fn open_ssh(&mut self) {
         self.open_ssh_row();
         let on = self.a.ssh_on();
-        self.press(if on { Btn::Left } else { Btn::Right });
-        assert_eq!(self.ssh_value(), "INFO");
-        assert_eq!(self.a.ssh_on(), on, "on the way to INFO SSH was switched");
-        self.press(Btn::A);
+        self.press(Btn::Y);
+        assert_eq!(self.a.ssh_on(), on, "Y switched SSH");
         assert!(
-            matches!(self.a.phase(), Phase::Ssh(_)),
-            "A on INFO did not open SSH: {:?}",
+            matches!(self.a.phase(), Phase::Info(InfoScreen::Ssh(_))),
+            "Y did not open SSH: {:?}",
             self.a.phase()
         );
+    }
+
+    /// The open panel's lines and note.
+    fn panel(&self) -> InfoView {
+        self.a.info_view().expect("the SSH panel is not showing")
     }
 
     fn saved_ssh(&self) -> bool {
@@ -233,6 +236,7 @@ fn status(hostname: &str) -> Status {
         ssid: Some(b"Home".to_vec()),
         ip: Some("192.168.1.20".into()),
         rssi: Some(-50),
+        mac: Some("e4:5f:01:2a:9c:33".into()),
         hostname: hostname.into(),
         ntp: true,
         ntp_synced: true,
@@ -247,7 +251,7 @@ fn off() -> AppState {
 }
 
 #[test]
-fn the_ssh_row_steps_on_off_info_round_and_round_both_ways() {
+fn the_ssh_row_is_on_or_off_and_left_and_right_switch_it() {
     let mut r = Rig::new();
     r.open_ssh_row();
     assert_eq!(
@@ -260,42 +264,31 @@ fn the_ssh_row_steps_on_off_info_round_and_round_both_ways() {
         }
     );
     let mut steps = Vec::new();
-    for btn in [Btn::Right, Btn::Right, Btn::Right] {
+    for btn in [Btn::Right, Btn::Right, Btn::Left, Btn::Left] {
         r.press(btn);
         steps.push((r.ssh_value(), r.a.ssh_on()));
     }
     assert_eq!(
         steps,
-        [("OFF", false), ("INFO", false), ("ON", true)],
-        "Right"
-    );
-    let mut steps = Vec::new();
-    for btn in [Btn::Left, Btn::Left, Btn::Left] {
-        r.press(btn);
-        steps.push((r.ssh_value(), r.a.ssh_on()));
-    }
-    assert_eq!(
-        steps,
-        [("INFO", true), ("OFF", false), ("ON", true)],
-        "Left"
+        [("OFF", false), ("ON", true), ("OFF", false), ("ON", true)],
     );
     assert_eq!(
         r.server.asked(),
         [Asked::Stop, Asked::Start, Asked::Stop, Asked::Start],
-        "INFO started or stopped the server"
     );
     assert!(r.on_ssh_row(), "the cursor left the row");
 }
 
 #[test]
-fn landing_on_on_or_off_is_kept_on_the_card() {
+fn on_or_off_is_kept_on_the_card() {
     let mut r = Rig::new();
     assert!(r.saved_ssh(), "SSH is not on to begin with");
     r.open_ssh_row();
     r.press(Btn::Right);
     assert!(!r.saved_ssh(), "OFF was not kept");
-    r.press(Btn::Right);
-    assert!(!r.saved_ssh(), "INFO changed what was kept");
+    r.press(Btn::Y);
+    r.press(Btn::B);
+    assert!(!r.saved_ssh(), "the panel changed what was kept");
     r.press(Btn::Right);
     assert!(r.saved_ssh(), "ON was not kept");
 }
@@ -313,41 +306,44 @@ fn a_on_on_or_off_switches_ssh_as_it_does_wifi() {
 }
 
 #[test]
-fn a_on_info_opens_the_login_and_b_comes_back_to_the_row_showing_the_state() {
+fn y_opens_the_login_and_b_comes_back_to_the_row_as_it_was() {
     for (state, shown) in [(AppState::default(), "ON"), (off(), "OFF")] {
         let mut r = Rig::with(state, |_| Server::default());
         r.open_ssh_row();
         assert_eq!(r.ssh_value(), shown, "the row opened on another value");
-        // INFO is a step back from ON and a step on from OFF
-        r.press(if shown == "ON" { Btn::Left } else { Btn::Right });
-        assert_eq!(r.ssh_value(), "INFO");
-        assert_eq!(r.a.ssh_on(), shown == "ON", "INFO switched SSH");
         r.server.forget_asked();
-        r.press(Btn::A);
-        assert!(matches!(r.a.phase(), Phase::Ssh(_)), "{:?}", r.a.phase());
+        r.press(Btn::Y);
+        assert!(
+            matches!(r.a.phase(), Phase::Info(InfoScreen::Ssh(_))),
+            "{:?}",
+            r.a.phase()
+        );
         r.press(Btn::B);
         assert!(
             r.on_ssh_row(),
             "B did not go back to the SSH row: {:?}",
             r.a.phase()
         );
-        assert_eq!(r.ssh_value(), shown, "came back to INFO, not the state");
-        assert!(r.server.asked().is_empty(), "INFO switched SSH");
+        assert_eq!(r.ssh_value(), shown);
+        assert!(r.server.asked().is_empty(), "the panel switched SSH");
         r.press(Btn::B);
         assert_eq!(r.a.settings_row(), Some(SettingsRow::Network));
     }
 }
 
 #[test]
-fn the_row_shows_the_state_again_once_the_cursor_leaves_info() {
+fn no_value_of_the_row_leads_anywhere() {
     let mut r = Rig::new();
     r.open_ssh_row();
-    r.press(Btn::Left);
-    assert_eq!(r.ssh_value(), "INFO");
-    r.press(Btn::Up);
-    assert_eq!(r.ssh_value(), "ON", "INFO stayed with the cursor gone");
-    r.press(Btn::Down);
-    assert_eq!(r.ssh_value(), "ON", "INFO came back with the cursor");
+    for btn in [Btn::Right, Btn::A, Btn::Left, Btn::A] {
+        r.press(btn);
+        assert!(r.on_ssh_row(), "{btn:?} left the row: {:?}", r.a.phase());
+        assert!(
+            ["ON", "OFF"].contains(&r.ssh_value()),
+            "{:?}",
+            r.ssh_value()
+        );
+    }
 }
 
 #[test]
@@ -378,7 +374,6 @@ fn switching_ssh_on_ends_the_stopping_at_once() {
     let mut r = Rig::with(off(), |_| Server::default());
     r.open_ssh_row();
     r.press(Btn::Right);
-    r.press(Btn::Right);
     assert!(r.a.ssh_on());
     r.server.forget_asked();
     while r.now < SETTLE_MS {
@@ -406,8 +401,6 @@ fn the_top_bar_shows_ssh_while_it_is_on_and_a_network_is_joined() {
     r.press(Btn::Right);
     assert!(!r.a.links().ssh, "lit with SSH off");
     r.press(Btn::Right);
-    assert!(!r.a.links().ssh, "INFO lit it");
-    r.press(Btn::Right);
     assert!(r.a.links().ssh, "not lit once on again");
 }
 
@@ -416,10 +409,10 @@ fn joined_it_says_how_to_log_in() {
     let mut r = Rig::new();
     r.join("rg35xxsp");
     r.open_ssh();
-    let view = r.a.ssh_view().expect("the SSH screen is not showing");
     assert_eq!(
-        view,
-        SshView {
+        r.panel(),
+        InfoView {
+            title: "SSH",
             lines: vec![
                 ("IP", "192.168.1.20".to_string()),
                 ("HOST", "rg35xxsp.local".to_string()),
@@ -436,7 +429,7 @@ fn joined_it_says_how_to_log_in() {
 fn offline_it_asks_for_a_network_first() {
     let mut r = Rig::new();
     r.open_ssh();
-    let view = r.a.ssh_view().expect("the SSH screen is not showing");
+    let view = r.panel();
     assert!(view.lines.is_empty(), "{view:?}");
     assert_eq!(view.note, "Join a Wi-Fi network first.");
 }
@@ -446,7 +439,7 @@ fn with_ssh_off_it_asks_for_it_on_first() {
     let mut r = Rig::with(off(), |_| Server::default());
     r.join("rg35xxsp");
     r.open_ssh();
-    let view = r.a.ssh_view().expect("the SSH screen is not showing");
+    let view = r.panel();
     assert!(view.lines.is_empty(), "{view:?}");
     assert_eq!(view.note, "Turn SSH on first.");
 }
@@ -472,11 +465,11 @@ fn the_password_is_read_from_the_cards_baseos_conf_when_the_screen_opens() {
     .unwrap();
     r.join("rg35xxsp");
     r.open_ssh();
-    let Phase::Ssh(screen) = r.a.phase() else {
-        panic!("not on the SSH screen");
+    let Phase::Info(InfoScreen::Ssh(screen)) = r.a.phase() else {
+        panic!("not on the SSH panel");
     };
     assert_eq!(screen.password, "hunter2");
-    let view = r.a.ssh_view().unwrap();
+    let view = r.panel();
     assert_eq!(view.lines[3], ("PASSWORD", "hunter2".to_string()));
 }
 
@@ -524,7 +517,7 @@ fn a_card_with_no_password_gets_one_on_the_login_at_once() {
     );
     r.join("rg35xxsp");
     r.open_ssh();
-    let view = r.a.ssh_view().unwrap();
+    let view = r.panel();
     assert_eq!(view.lines[2], ("USER", "root".to_string()));
     assert_eq!(view.lines[3], ("PASSWORD", made));
     assert_eq!(view.note, "SFTP uses the same login");
@@ -541,7 +534,7 @@ fn a_password_that_could_not_be_saved_leaves_root_its_own_and_says_so() {
     );
     r.join("rg35xxsp");
     r.open_ssh();
-    let view = r.a.ssh_view().unwrap();
+    let view = r.panel();
     assert_eq!(view.lines[3], ("PASSWORD", "root".to_string()));
     assert_eq!(view.note, Trouble::NotSaved.note());
 }
@@ -557,7 +550,7 @@ fn a_password_the_system_would_not_take_says_it_needs_a_restart() {
     });
     r.join("rg35xxsp");
     r.open_ssh();
-    let view = r.a.ssh_view().unwrap();
+    let view = r.panel();
     assert_ne!(view.lines[3].1, "root", "the card's new one is not shown");
     assert_eq!(view.note, Trouble::NotApplied.note());
 }
@@ -574,7 +567,7 @@ fn every_note_fits_the_panel() {
     ];
     let pal = omega_ui::kit::palette::palette(0);
     for lines in [0, 5] {
-        let well = omega_ui::network::ssh_chrome(lines, pal).well;
+        let well = omega_ui::network::info_chrome("SSH", lines, pal).well;
         for note in notes {
             let face = omega_ui::kit::text::text_face(note, pal.dim);
             assert!(

@@ -1,4 +1,4 @@
-//! The Network modal and the SSH panel: where flow.html puts their panels, rows and notes, how
+//! The Network modal and its rows' panels: where flow.html puts their panels, rows and notes, how
 //! many networks the list shows and how it scrolls, and the one face the modal is baked as.
 //! flow.html's Network screen (#screen=network), as network/make-refs.sh screenshots it in each
 //! #scan= state, is put together here from the kit's faces and held to the screenshots pixel for
@@ -13,9 +13,9 @@ use omega_ui::kit::panel::{panel_face, title_face};
 use omega_ui::kit::row::{row_face, row_rect, row_width, Row, ROW_H};
 use omega_ui::kit::text::text_face;
 use omega_ui::network::{
-    network_chrome, network_panels, network_row_widths, network_title, network_window,
-    networks_shown, ssh_chrome, ssh_rect, NetworkFaces, SshFaces, AVAILABLE_TITLE, NOTE_IN,
-    NOTE_TOP, SSH_W,
+    info_chrome, info_rect, network_chrome, network_panels, network_row_widths, network_title,
+    network_window, networks_shown, InfoFaces, NetworkFaces, AVAILABLE_TITLE, INFO_W, NOTE_IN,
+    NOTE_TOP,
 };
 use omega_ui::{Draw, TexId, UndoFace};
 
@@ -33,8 +33,9 @@ fn at_640x480_everything_is_where_flow_puts_it() {
     assert_eq!(networks_shown(3, 0), 8, "116 pixels of well hold 8 rows");
     assert_eq!(networks_shown(3, 1), 7);
     assert_eq!(networks_shown(3, 2), 6);
-    assert_eq!(ssh_rect(5), [60, 60, 200, 104]);
-    assert_eq!(ssh_rect(0), [60, 91, 200, 42]);
+    assert_eq!(info_rect(5), [60, 60, 200, 104]);
+    assert_eq!(info_rect(4), [60, 67, 200, 91]);
+    assert_eq!(info_rect(0), [60, 91, 200, 42]);
 }
 
 #[test]
@@ -145,8 +146,8 @@ fn every_row_reaches_a_pixel_into_its_well() {
     assert_eq!(top, row_width(chrome.wells[0][2]));
     assert_eq!(list, row_width(chrome.wells[1][2]));
     assert_eq!(top, chrome.wells[0][2] + 2);
-    let ssh = ssh_chrome(5, palette(0));
-    assert_eq!((ssh.face.w, ssh.face.h), (SSH_W, ssh_rect(5)[3]));
+    let ssh = info_chrome("SSH", 5, palette(0));
+    assert_eq!((ssh.face.w, ssh.face.h), (INFO_W, info_rect(5)[3]));
 }
 
 fn tex(n: usize) -> TexId {
@@ -204,11 +205,11 @@ fn the_modal_draws_its_rows_down_its_wells_and_notes_under_the_list() {
 }
 
 #[test]
-fn ssh_draws_its_lines_then_its_note_in_the_middle_of_the_page() {
-    for lines in [5, 0] {
-        let panel = ssh_chrome(lines, palette(0));
-        let at = ssh_rect(lines);
-        let faces = SshFaces {
+fn a_rows_panel_draws_its_lines_then_its_note_in_the_middle_of_the_page() {
+    for lines in [5, 4, 0] {
+        let panel = info_chrome("NETWORK TIME", lines, palette(0));
+        let at = info_rect(lines);
+        let faces = InfoFaces {
             chrome: (tex(1), panel.face.w, panel.face.h),
             at,
             well: panel.well,
