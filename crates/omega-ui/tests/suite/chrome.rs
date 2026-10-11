@@ -2,7 +2,7 @@ use omega_store::{Cart, Platform};
 use omega_ui::{
     cart_box, draw_empty_slot, edge, foot_y, housing, icon_box, opening, out_h, out_w, recess,
     shelf_box, slot_top, stage_y, ChromeColours, Draw, Pose, Shelf, SlotChrome, TexId, ALERT_PX,
-    CART_H, CART_W, GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, SLOT_RAISE, TOP_BAR_H,
+    CART_H, CART_W, GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, SLOT_RAISE, SPRITE_PX, TOP_BAR_H,
 };
 
 fn centre_x() -> f32 {
@@ -886,8 +886,8 @@ fn the_slot_has_a_thumb_scoop_across_its_middle() {
     for pair in edges.windows(2) {
         let step = (pair[1].1 - pair[0].1).abs();
         assert!(
-            step <= 1.01,
-            "the curve steps {step}px at x {}: that reads as a jag",
+            step <= SPRITE_PX as f32,
+            "the curve steps {step}px at x {}: more than an art pixel reads as a jag",
             pair[1].0
         );
     }
@@ -896,6 +896,30 @@ fn the_slot_has_a_thumb_scoop_across_its_middle() {
         out.iter().any(|d| is_lip(d) && quad(d).y > slit.y),
         "the scoop has no lit rim, so the plastic has no edge"
     );
+}
+
+/// The slot is pixel art on the UI's grid: every band of it, the scoop's curve among them,
+/// starts and ends on a whole art pixel, so none of its edges is drawn half a pixel soft.
+#[test]
+fn every_edge_of_the_slot_is_on_the_art_grid() {
+    let on_grid = |v: f32| v.rem_euclid(SPRITE_PX as f32) == 0.0;
+    let mut empty = Vec::new();
+    draw_empty_slot(&ChromeColours::default(), &mut empty);
+    for seat in [0.0, 0.5, 1.0] {
+        let slot: Vec<Quad> = empty
+            .iter()
+            .chain(chrome(&cart(), seat).iter().filter(|d| !is_cart(d)))
+            .filter(|d| matches!(d, Draw::Rect { .. }))
+            .map(quad)
+            .collect();
+        assert!(slot.len() > 8, "no slot drawn");
+        for q in slot {
+            assert!(
+                [q.x, q.y, q.w, q.h].into_iter().all(on_grid),
+                "{q:?} is off the art grid"
+            );
+        }
+    }
 }
 
 #[test]
