@@ -21,13 +21,14 @@ const NIGHT: u8 = 0;
 /// The panels' titles, top first.
 const TITLES: [&str; 2] = ["BLUETOOTH", "DEVICES"];
 
-/// flow.html's devices: a name, what it is to the handheld, and its kind.
+/// flow.html's devices: a name, what it is to the handheld, and its kind. The first two are
+/// paired; a look finds the other two, the keyboard first.
 type Device<'a> = (&'a str, Option<&'a str>, DeviceKind);
 const DEVICES: [Device; 4] = [
     ("8BitDo SN30 Pro", Some("CONNECTED"), DeviceKind::Gamepad),
     ("WH-1000XM4", Some("PAIRED"), DeviceKind::Audio),
     ("Keychron K3", None, DeviceKind::Keyboard),
-    ("4C:4C:6B:1A:80:D3", None, DeviceKind::Other),
+    ("Mi Smart Band 4", None, DeviceKind::Other),
 ];
 
 /// What the screen shows: the radio's value, the devices, the row under the cursor (0 the
@@ -40,18 +41,19 @@ struct Shown<'a> {
 }
 
 /// Each of flow.html's #bt= states, as its ref is named.
-fn states() -> [(&'static str, Shown<'static>); 4] {
+fn states() -> [(&'static str, Shown<'static>); 6] {
     let mut pairing = DEVICES.to_vec();
     pairing[2].1 = Some("PAIRING");
+    let on = |devices: &[Device<'static>], note| Shown {
+        radio: "ON",
+        devices: devices.to_vec(),
+        lit: 0,
+        note,
+    };
     [
         (
             "on",
-            Shown {
-                radio: "ON",
-                devices: DEVICES.to_vec(),
-                lit: 0,
-                note: None,
-            },
+            on(&DEVICES[..2], Some("Press X to look for devices.")),
         ),
         (
             "off",
@@ -62,6 +64,9 @@ fn states() -> [(&'static str, Shown<'static>); 4] {
                 note: Some("Bluetooth is off."),
             },
         ),
+        ("empty", on(&[], Some("Press X to look for devices."))),
+        ("looking", on(&DEVICES[..3], Some("Looking for devices…"))),
+        ("found", on(&DEVICES, None)),
         (
             "pairing",
             Shown {
@@ -69,15 +74,6 @@ fn states() -> [(&'static str, Shown<'static>); 4] {
                 devices: pairing,
                 lit: 3,
                 note: None,
-            },
-        ),
-        (
-            "empty",
-            Shown {
-                radio: "ON",
-                devices: Vec::new(),
-                lit: 0,
-                note: Some("Looking for devices…"),
             },
         ),
     ]
@@ -217,7 +213,8 @@ fn bluetooth_is_flows_pixel_for_pixel() {
 }
 
 /// The screen's two panels share Network's layout with one setting: BLUETOOTH hugs its row and
-/// DEVICES takes the rest of the modal, with room for every device flow.html shows and a note.
+/// DEVICES takes the rest of the modal, with room for every device flow.html shows and a note,
+/// as while a look finds them.
 #[test]
 fn devices_has_room_for_flows_devices_and_a_note() {
     let [top, list] = network_panels(1);

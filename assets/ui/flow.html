@@ -169,9 +169,9 @@
             </div>
           </section>
 
-          <!-- Settings > Bluetooth: the radio, and while it is on every device it knows or finds,
-               each with its kind's icon; the devices and the note under them are drawn by
-               screens.js from what it holds -->
+          <!-- Settings > Bluetooth: the radio, and while it is on the devices paired and those a
+               look with X finds, each with its kind's icon; the devices and the note under them
+               are drawn by screens.js from what it holds -->
           <section class="part page away" data-screen="bluetooth">
             <div class="modal-area">
               <omega-modal>
@@ -240,6 +240,7 @@
         </div>
         <div class="face">
           <button data-key="y">Y</button>
+          <button data-key="x">X</button>
           <button data-key="b">B</button>
           <button data-key="a">A</button>
         </div>
@@ -304,8 +305,9 @@
         <table>
           <tr><th>Button</th><th>Keys</th><th>Does</th></tr>
           <tr><td>↑ ↓ ← →</td><td><kbd>arrows</kbd></td><td>Move the cursor; ← → change a value</td></tr>
-          <tr><td>A</td><td><kbd>X</kbd> <kbd>A</kbd></td><td>Confirm: open a row's screen, press a key; on Bluetooth, pair and connect a device, or disconnect it</td></tr>
+          <tr><td>A</td><td><kbd>A</kbd></td><td>Confirm: open a row's screen, press a key; on Bluetooth, pair and connect a device, or disconnect it</td></tr>
           <tr><td>B</td><td><kbd>Z</kbd> <kbd>B</kbd> <kbd>Esc</kbd></td><td>Back one screen; on the keyboard, delete (back once the field is empty)</td></tr>
+          <tr><td>X</td><td><kbd>X</kbd></td><td>Bluetooth: look for devices, for a few seconds</td></tr>
           <tr><td>Y</td><td><kbd>Y</kbd></td><td>Bluetooth: forget a paired device</td></tr>
           <tr><td>START</td><td><kbd>Enter</kbd></td><td>Shelf → Settings; Settings → shelf; keyboard: done</td></tr>
           <tr><td>SELECT</td><td><kbd>Space</kbd> <kbd>right Shift</kbd></td><td>Shelf → Controls</td></tr>
@@ -327,7 +329,7 @@
           <tr><td>moving</td><td><code>1</code> (default) or <code>0</code></td></tr>
           <tr><td>font</td><td><code>bold</code> (default) or <code>thin</code>: the bottom bar's labels, as Theme › Font draws them</td></tr>
           <tr><td>wifi</td><td><code>on</code> (default) or <code>off</code>: SSH shows its offline variant, the networks dim</td></tr>
-          <tr><td>bt</td><td>Bluetooth: <code>on</code> (default) with four devices, <code>off</code>, <code>pairing</code> (the keyboard pairing, the cursor on it) or <code>empty</code> (none found yet)</td></tr>
+          <tr><td>bt</td><td>Bluetooth: <code>on</code> (default) as the screen opens, before any look, with the two paired devices; <code>off</code>; <code>empty</code> (nothing paired, before any look); <code>looking</code> (a look under way, held, the keyboard found so far); <code>found</code> (after it, the band found too); or <code>pairing</code> (after it, the keyboard pairing, the cursor on it)</td></tr>
           <tr><td>row</td><td>The cursor's row on <code>screen</code>, from 0 (the key, for the keyboard; the field, for Date &amp; Time)</td></tr>
           <tr><td>slow</td><td><code>1</code>: slides at a fifth of their speed</td></tr>
           <tr><td>shot</td><td><code>1</code>: the screen alone at the window's top left, for screenshots</td></tr>
