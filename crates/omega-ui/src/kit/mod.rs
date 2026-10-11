@@ -10,4 +10,5 @@ pub mod palette;
 pub mod panel;
 pub mod pixel;
 pub mod row;
+pub mod saves;
 pub mod text;

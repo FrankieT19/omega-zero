@@ -36,6 +36,7 @@ mod render_link_art;
 mod render_row_edges;
 mod render_shelf_wrap;
 mod render_sticker;
+mod saves;
 mod shelf;
 mod shell;
 mod spin;

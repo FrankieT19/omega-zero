@@ -22,6 +22,7 @@
 <script src="components/omega-list-row.js"></script>
 <script src="components/omega-bar.js"></script>
 <script src="components/omega-gauge.js"></script>
+<script src="components/omega-saves.js"></script>
 <script src="components/omega-button.js"></script>
 <script src="components/omega-screen.js"></script>
 <script src="components/omega-card.js"></script>
@@ -157,7 +158,8 @@
   .outlined omega-bar::part(key), .outlined omega-bar::part(word),
   .outlined omega-gauge::part(tab), .outlined omega-gauge::part(label), .outlined omega-gauge::part(slant),
   .outlined omega-gauge::part(strip), .outlined omega-gauge::part(well), .outlined omega-gauge::part(cells),
-  .outlined omega-gauge::part(icon) {
+  .outlined omega-gauge::part(icon),
+  .outlined omega-saves::part(panel), .outlined omega-saves::part(age), .outlined omega-saves::part(dots) {
     outline: 1px dashed var(--area); outline-offset: -1px;
   }
 
@@ -566,6 +568,43 @@
         </div>
 <pre><code>&lt;omega-gauge label="VOLUME" value="55" max="100" cells="20" icon="volume"&gt;&lt;/omega-gauge&gt;
 &lt;omega-gauge label="BRIGHTNESS" value="6" max="9" cells="9" icon="brightness"&gt;&lt;/omega-gauge&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-saves&gt;</h3><code>components/omega-saves.js</code></header>
+        <p class="dim">Which save state the switcher shows (MENU ×2 in a game), over its screenshot at
+          the top in the middle, under the top bar: a panel titled SAVE STATES, how long ago the save
+          shown was made in its well, and under that a dot for each save the cart has, newest first,
+          the one shown lit. Its tab is only as wide as its title, and it is as wide as the title,
+          the age or the dots need, 41 art pixels tall; the switcher gives it the room of the widest
+          age among its saves, so it holds still as the selection moves. The age starts in line with
+          the title, the dots a row past its line, where a descender reaches, and the well shows as
+          much under them as over the age's capitals.</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">the newest of four, the third, the last of ten</span>
+          <div style="display: flex; flex-wrap: wrap; gap: calc(6 * var(--u)); align-items: flex-start">
+            <omega-saves age="Just now" count="4"></omega-saves>
+            <omega-saves age="4 min ago" count="4" at="2"></omega-saves>
+            <omega-saves age="3 hr ago" count="10" at="9"></omega-saves>
+          </div>
+          <span class="tag">half a day old: its day and time; and one save, held as wide as that</span>
+          <div style="display: flex; flex-wrap: wrap; gap: calc(6 * var(--u)); align-items: flex-start">
+            <omega-saves age="2026-08-08 20:00" count="3" at="2"></omega-saves>
+            <omega-saves age="Just now" style="width: calc(108 * var(--u))"></omega-saves>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>age</td><td>How long ago the save shown was made, in cream: <code>Just now</code>, <code>4 min ago</code>, <code>3 hr ago</code>, or its day and time once it is half a day old.</td></tr>
+            <tr><td>count</td><td>How many saves there are, a dot for each, 5 art pixels round and 3 apart; a cart keeps up to 10. Default 1.</td></tr>
+            <tr><td>at</td><td>Which of them is shown, from 0, the newest: its dot is lit in <code>--oz-cream</code>, the rest are <code>--oz-plate</code>. Default 0.</td></tr>
+            <tr><td>label</td><td>The title in the tab. Default <code>SAVE STATES</code>.</td></tr>
+            <tr><td>::part</td><td><code>panel</code> (the <code>&lt;omega-panel&gt;</code>), <code>age</code>, <code>dots</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-saves age="4 min ago" count="4" at="1"&gt;&lt;/omega-saves&gt;
+&lt;omega-saves age="Just now" count="2" style="width: calc(108 * var(--u))"&gt;&lt;/omega-saves&gt;</code></pre>
       </article>
 
       <article class="card wide">
