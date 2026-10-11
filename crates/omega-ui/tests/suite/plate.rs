@@ -1,6 +1,6 @@
 use omega_ui::{
-    arrows_hint_face, arrows_hint_width, hint_face, hint_width, title_face, UndoFace, ARROW_GAP,
-    CAP, CAP_GAP, HINT_GAP, HINT_H, TITLE_H, TITLE_W,
+    arrows_hint_face, arrows_hint_width, hint_face, hint_width, UndoFace, ARROW_GAP, CAP, CAP_GAP,
+    HINT_H,
 };
 
 fn opaque(face: &UndoFace, x: u32, y: u32) -> bool {
@@ -38,34 +38,9 @@ fn the_label_is_drawn_and_stays_inside_the_hint() {
 }
 
 #[test]
-fn the_title_is_drawn_and_stays_inside_its_face() {
-    for text in [
-        "just now",
-        "4 min ago",
-        "2026-08-08 20:00",
-        "2026-08-09_14-32-05",
-    ] {
-        let face = title_face(text);
-        assert_eq!((face.w, face.h), (TITLE_W, TITLE_H));
-        assert!(
-            (0..face.h).any(|y| (0..face.w).any(|x| ink(&face, x, y))),
-            "{text} was never drawn"
-        );
-        for y in 0..face.h {
-            assert!(!ink(&face, face.w - 1, y), "{text} overran its face");
-        }
-    }
-}
-
-#[test]
-fn grouping_reads_as_pairs() {
-    let inside = std::hint::black_box(CAP_GAP) as f32;
-    let between = std::hint::black_box(HINT_GAP);
-    assert!(
-        between >= inside * 2.0,
-        "gap inside a pair is {CAP_GAP}px and between pairs {HINT_GAP}px: they will not group"
-    );
-    assert!(inside >= 4.0, "the cap is crowding its word at {inside}px");
+fn the_cap_keeps_clear_of_its_word() {
+    let inside = std::hint::black_box(CAP_GAP);
+    assert!(inside >= 4, "the cap is crowding its word at {inside}px");
 }
 
 fn cap_pixels(face: &UndoFace, cap_x: u32) -> Vec<u8> {

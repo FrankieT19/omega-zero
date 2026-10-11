@@ -1,50 +1,28 @@
 use std::sync::OnceLock;
 
-use crate::draw::{out_w, Draw, TexId};
+use crate::draw::{out_w, TexId};
 use crate::text;
 
 pub const HINT_H: u32 = 24;
 pub const CAP: u32 = 20;
 const CAP_PAD: u32 = 4;
 const CAP_MAX_W: f32 = 80.0;
-pub const HINT_GAP: f32 = 14.0;
 
 pub const CAP_GAP: u32 = 5;
 const EDGE: u32 = 2;
 pub const HINT_EDGE: u32 = EDGE;
 const LABEL_MAX_W: f32 = 200.0;
 
-pub const TITLE_W: u32 = 360;
-pub const TITLE_H: u32 = 24;
-
 const INK: [u8; 3] = [0xf6, 0xf4, 0xef];
 const CAP_INK: [u8; 3] = [0x1a, 0x19, 0x17];
 const KEY_PX: f32 = 18.0;
 const LABEL_PX: f32 = 18.0;
 const LABEL_MIN_PX: f32 = 9.0;
-const TITLE_PX: f32 = 18.0;
-const TITLE_MIN_PX: f32 = 9.0;
 
 pub struct UndoFace {
     pub rgba: Vec<u8>,
     pub w: u32,
     pub h: u32,
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct Hint {
-    pub key: &'static str,
-    pub label: String,
-}
-
-pub fn hint_row(legend: &[(&'static str, &'static str)]) -> Vec<Hint> {
-    legend
-        .iter()
-        .map(|(key, label)| Hint {
-            key,
-            label: label.to_string(),
-        })
-        .collect()
 }
 
 pub fn cap_width(key: &str) -> u32 {
@@ -131,27 +109,6 @@ pub fn word_face_in(text: &str, ink: [u8; 3]) -> UndoFace {
     UndoFace { rgba, w, h: HINT_H }
 }
 
-pub fn hint_quad(x: f32, y: f32, w: f32, face: Option<TexId>) -> Draw {
-    let h = HINT_H as f32;
-    match face {
-        Some(tex) => Draw::Tex {
-            x,
-            y,
-            w,
-            h,
-            tex,
-            alpha: 1.0,
-        },
-        None => Draw::Rect {
-            x,
-            y,
-            w,
-            h,
-            colour: [1.0, 1.0, 1.0, 0.12],
-        },
-    }
-}
-
 pub const LEGEND_GAP: f32 = 36.0;
 
 pub fn centred_hints(hints: &[(TexId, u32)], gap: f32) -> Vec<(TexId, u32, f32)> {
@@ -180,19 +137,6 @@ fn band_width(label: &str) -> u32 {
         .map(|l| text::line_width(font, l, layout.px, layout.tracking))
         .fold(0.0, f32::max);
     (ink.ceil() as u32).clamp(1, LABEL_MAX_W as u32)
-}
-
-pub fn title_face(text: &str) -> UndoFace {
-    let mut rgba = vec![0u8; (TITLE_W * TITLE_H * 4) as usize];
-    if let Some(font) = text::label_font() {
-        let layout = text::fit(font, text, TITLE_W as f32, 1, TITLE_PX, TITLE_MIN_PX);
-        text::draw_centred(&mut rgba, TITLE_W, TITLE_H, &layout, INK);
-    }
-    UndoFace {
-        rgba,
-        w: TITLE_W,
-        h: TITLE_H,
-    }
 }
 
 pub(crate) fn blit(dst: &mut [u8], dst_w: u32, src: &[u8], src_w: u32, src_h: u32, x: u32, y: u32) {

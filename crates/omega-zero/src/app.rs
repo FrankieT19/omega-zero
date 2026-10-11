@@ -306,9 +306,9 @@ pub enum Phase {
     },
 }
 
-/// What a bar across the top prints beside its icons: the time, the battery's figure, and the
-/// bolt shown while the handheld charges. The shelf's top bar and the switcher each have their
-/// own, baked in their own ink.
+/// What the bar across the top prints beside its icons: the time, the battery's figure, and the
+/// bolt shown while the handheld charges, baked in its ink. The save-state switcher shows the
+/// same bar.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Readouts {
     pub clock: omega_ui::Printed,
@@ -370,16 +370,12 @@ pub struct App {
     pub(crate) sfx: Option<Sfx>,
     pub(crate) polaroids: Option<Polaroids>,
     pub(crate) pending: Option<(PendingUndo, Millis)>,
-    pub(crate) legend_faces: Vec<TexId>,
-    pub(crate) undo_face: Option<TexId>,
     pub(crate) clock_panel: Option<Lone>,
     pub(crate) settings_faces: Option<SettingsFaces>,
     pub(crate) sticker_face: Option<TexId>,
     pub(crate) wallpaper: Option<TexId>,
     /// The top bar's clock, figure and bolt, baked in its ink.
     pub(crate) top_readouts: Readouts,
-    /// The switcher's, which keep the white they have over the game.
-    pub(crate) switcher_readouts: Readouts,
     pub(crate) shelf_platform: omega_ui::Printed,
     pub(crate) name_pending: bool,
     pub(crate) slot_letter: Option<char>,
@@ -519,14 +515,11 @@ impl App {
             sfx: None,
             polaroids: None,
             pending: None,
-            legend_faces: Vec::new(),
-            undo_face: None,
             clock_panel: None,
             settings_faces: None,
             sticker_face: None,
             wallpaper: None,
             top_readouts: Readouts::default(),
-            switcher_readouts: Readouts::default(),
             shelf_platform: omega_ui::Printed::default(),
             name_pending: false,
             slot_letter: None,
@@ -728,11 +721,6 @@ impl App {
     /// The top bar's clock, figure and bolt, baked in `chrome_colours().ink`.
     pub fn set_top_readouts(&mut self, readouts: Readouts) {
         self.top_readouts = readouts;
-    }
-
-    /// The switcher's clock, figure and bolt, in white.
-    pub fn set_switcher_readouts(&mut self, readouts: Readouts) {
-        self.switcher_readouts = readouts;
     }
 
     pub fn set_shelf_platform_face(&mut self, face: TexId, w: u32) {
@@ -1697,10 +1685,6 @@ impl App {
         self.labels.tick();
         self.take_labels();
         self.play_hold();
-        let offer = self.undo_label();
-        if let Some(p) = &mut self.polaroids {
-            p.set_undo(offer);
-        }
         if self.doze_expired() {
             self.on_doze_timeout();
         }
@@ -1916,7 +1900,7 @@ impl App {
     /// back with the shelf.
     fn top_bar_reach(&self) -> f32 {
         let shows = |phase: &Phase| match phase {
-            Phase::Shelf | Phase::Ejecting { .. } => true,
+            Phase::Shelf | Phase::Ejecting { .. } | Phase::Polaroids { .. } => true,
             Phase::Inserting { resumed, .. } => !resumed,
             _ => false,
         };
@@ -1975,12 +1959,14 @@ impl App {
             }
             Phase::Playing { cart } if self.screen < 1.0 => self.chrome(cart, 0.0, out),
             Phase::Playing { .. } => self.push_game(out),
+            // the save states over the game, under the shelf's top bar; the bar along the bottom
+            // is drawn after every screen
             Phase::Polaroids { .. } => {
                 self.push_game(out);
                 if let Some(p) = &self.polaroids {
-                    let r = self.switcher_readouts;
-                    p.draw(self.battery, r.percent, r.bolt, r.clock, out);
+                    p.draw(out);
                 }
+                self.draw_top_bar(out);
             }
             Phase::Doze { .. } => out.push(Draw::Rect {
                 x: 0.0,
@@ -2966,11 +2952,8 @@ impl App {
             return;
         };
         let cart = std::mem::take(cart);
-        let mut p = Polaroids::new(entries);
-        p.set_undo(self.undo_label());
-        self.polaroids = Some(p);
+        self.polaroids = Some(Polaroids::new(entries));
         self.phase = Phase::Polaroids { cart };
-        self.push_hint_faces();
     }
 
     fn close_polaroids(&mut self) {
@@ -3098,24 +3081,6 @@ impl App {
         }
     }
 
-    pub fn set_legend_faces(&mut self, faces: Vec<TexId>) {
-        self.legend_faces = faces;
-        self.push_hint_faces();
-    }
-
-    pub fn set_undo_face(&mut self, face: Option<TexId>) {
-        self.undo_face = face;
-        self.push_hint_faces();
-    }
-
-    fn push_hint_faces(&mut self) {
-        let mut faces = self.legend_faces.clone();
-        faces.extend(self.undo_face);
-        if let Some(p) = &mut self.polaroids {
-            p.set_hint_faces(faces);
-        }
-    }
-
     /// What shows over the screen for a moment or while it lasts: the gauge, the toast and the
     /// badge in the corner.
     pub fn hud(&self) -> &Hud {
@@ -3182,22 +3147,15 @@ impl App {
         }
     }
 
-    pub fn polaroid_stamp(&self) -> Option<&str> {
-        self.polaroids
-            .as_ref()
-            .and_then(|p| p.selected())
-            .map(|e| e.stamp.as_str())
+    /// The save-state switcher while it is open.
+    pub fn polaroids(&self) -> Option<&Polaroids> {
+        self.polaroids.as_ref()
     }
 
-    pub fn polaroid_title(&self, now: &str) -> String {
-        self.polaroids
-            .as_ref()
-            .map_or_else(String::new, |p| p.title(now))
-    }
-
-    pub fn set_polaroid_title_face(&mut self, face: TexId) {
+    /// The switcher's SAVE STATES panel, uploaded as `tex`, `w` by `h` art pixels.
+    pub fn set_polaroid_panel(&mut self, tex: TexId, w: u32, h: u32) {
         if let Some(p) = &mut self.polaroids {
-            p.set_title_face(Some(face));
+            p.set_panel_face(tex, w, h);
         }
     }
 }

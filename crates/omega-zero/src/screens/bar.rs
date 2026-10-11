@@ -2,7 +2,10 @@
 //! each end and, between them over whatever is behind the bar, the keys a screen has beyond its
 //! two actions shown as hints. The shelf's actions are SELECT CONTROLS and START SETTINGS, a
 //! menu's B RETURN and A CONFIRM. Setting the clock on first boot has nowhere to go back to, so
-//! its left action is the kit's empty one: the bar keeps its shape and offers only CONFIRM.
+//! its left action is the kit's empty one: the bar keeps its shape and offers only CONFIRM. The
+//! save-state switcher over a game has B RETURN and A LOAD, with Y DELETE between them and, while
+//! the last save or load can still be undone, X UNDO SAVE or X UNDO LOAD; the bar comes and goes
+//! with the switcher, at once.
 //!
 //! The hints never move with the screens. When a slide's two ends have different actions, the
 //! old ones sink out of the screen over its first half and the new ones rise into place over
@@ -25,7 +28,7 @@ use omega_ui::kit::bar::{action_swap, BarLayout, Hint, SINK};
 use omega_ui::kit::pixel::quad;
 use omega_ui::{ease, Millis, CATCH_OUT, SPRITE_PX};
 
-use crate::app::{App, Phase};
+use crate::app::{App, PendingUndo, Phase};
 use crate::core_picker::CorePicker;
 use crate::screens::labels::labels_hints;
 use crate::screens::power::PowerScreen;
@@ -49,6 +52,22 @@ pub const SCAN: Hint<'static> = Hint {
     word: "SCAN",
 };
 
+/// Y in the save-state switcher: it deletes the save shown.
+pub const DELETE: Hint<'static> = Hint {
+    key: "Y",
+    word: "DELETE",
+};
+
+/// X in the save-state switcher while the last save, or the last load, can still be undone.
+pub const UNDO_SAVE: Hint<'static> = Hint {
+    key: "X",
+    word: "UNDO SAVE",
+};
+pub const UNDO_LOAD: Hint<'static> = Hint {
+    key: "X",
+    word: "UNDO LOAD",
+};
+
 /// Which pair of actions the bar shows at its ends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Actions {
@@ -59,10 +78,17 @@ pub enum Actions {
     /// A menu with no way back, the clock set on first boot: A CONFIRM alone, the left action
     /// empty.
     Confirm,
+    /// The save-state switcher's: B RETURN to the game, A LOAD the save shown.
+    Switcher,
 }
 
 impl Actions {
-    pub const ALL: [Actions; 3] = [Actions::Shelf, Actions::Menu, Actions::Confirm];
+    pub const ALL: [Actions; 4] = [
+        Actions::Shelf,
+        Actions::Menu,
+        Actions::Confirm,
+        Actions::Switcher,
+    ];
 
     pub fn index(self) -> usize {
         self as usize
@@ -73,9 +99,10 @@ impl Actions {
         match (self, side) {
             (Actions::Shelf, Side::Left) => ("CONTROLS", "SELECT"),
             (Actions::Shelf, Side::Right) => ("SETTINGS", "START"),
-            (Actions::Menu, Side::Left) => ("RETURN", "B"),
+            (Actions::Menu | Actions::Switcher, Side::Left) => ("RETURN", "B"),
             (Actions::Menu | Actions::Confirm, Side::Right) => ("CONFIRM", "A"),
             (Actions::Confirm, Side::Left) => ("", ""),
+            (Actions::Switcher, Side::Right) => ("LOAD", "A"),
         }
     }
 }
@@ -103,12 +130,13 @@ pub struct BarSet {
 /// `Actions::ALL`'s order. The hints are those of the screen they are shown on.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BarFaces {
-    pub sets: [BarSet; 3],
-    pub hints: [Option<TexId>; 3],
+    pub sets: [BarSet; Actions::ALL.len()],
+    pub hints: [Option<TexId>; Actions::ALL.len()],
 }
 
-/// The actions the bar shows on `phase` at rest, or None where there is no bar: in a game, its
-/// menus and its photos, and asleep. A cart going in or coming out still has the shelf's.
+/// The actions the bar shows on `phase` at rest, or None where there is no bar: in a game and
+/// its menus, and asleep. A cart going in or coming out still has the shelf's, and the save
+/// states over a game have their own.
 pub fn actions_on(phase: &Phase) -> Option<Actions> {
     match phase {
         Phase::Shelf | Phase::Inserting { .. } | Phase::Ejecting { .. } => Some(Actions::Shelf),
@@ -124,7 +152,8 @@ pub fn actions_on(phase: &Phase) -> Option<Actions> {
         | Phase::Background(_)
         | Phase::SetClock { .. }
         | Phase::About => Some(Actions::Menu),
-        Phase::Playing { .. } | Phase::Polaroids { .. } | Phase::Doze { .. } => None,
+        Phase::Polaroids { .. } => Some(Actions::Switcher),
+        Phase::Playing { .. } | Phase::Doze { .. } => None,
     }
 }
 
@@ -227,8 +256,9 @@ impl App {
     /// The keys `phase` has beyond its two actions, for between them: on Network X SCAN while
     /// Wi-Fi is on and Y FORGET on a saved network (`network_hints`), on Bluetooth X SCAN while
     /// the radio is on and Y FORGET on a paired device (`bluetooth_hints`), on Labels START FETCH
-    /// or START STOP and Y SIGN OUT (`labels_bar_hints`'), and on the shelf, while the core picker
-    /// over it shows RETURN and CONFIRM, ◀▶ SWAP. They are asked of `phase` rather than the
+    /// or START STOP and Y SIGN OUT (`labels_bar_hints`'), on the shelf, while the core picker
+    /// over it shows RETURN and CONFIRM, ◀▶ SWAP, and in the save states Y DELETE, and X UNDO SAVE
+    /// or X UNDO LOAD while that can be undone. They are asked of `phase` rather than the
     /// screen on show so a slide can show the hints of the screen it leaves. A screen with more
     /// keys adds them here; Settings and SSH have none, and the keyboard keeps its own line in
     /// its modal.
@@ -240,7 +270,19 @@ impl App {
             Phase::Labels(screen) if screen.typing.is_none() => {
                 labels_hints(&screen.view(&self.labels, self.online()).legend)
             }
+            Phase::Polaroids { .. } => [DELETE].into_iter().chain(self.undo_hint()).collect(),
             _ => Vec::new(),
+        }
+    }
+
+    /// X's hint in the save states while the last save or load can still be undone.
+    fn undo_hint(&self) -> Option<Hint<'static>> {
+        if !self.undo_available(self.now()) {
+            return None;
+        }
+        match self.pending.as_ref()?.0 {
+            PendingUndo::Save { .. } => Some(UNDO_SAVE),
+            PendingUndo::Load { .. } => Some(UNDO_LOAD),
         }
     }
 
@@ -273,10 +315,10 @@ impl App {
 
     /// Each pair of actions, uploaded: what the room for the hints between them is laid out
     /// from.
-    pub fn set_bar_sets(&mut self, sets: [BarSet; 3]) {
+    pub fn set_bar_sets(&mut self, sets: [BarSet; Actions::ALL.len()]) {
         self.bar_faces = Some(BarFaces {
             sets,
-            hints: [None; 3],
+            hints: [None; Actions::ALL.len()],
         });
     }
 

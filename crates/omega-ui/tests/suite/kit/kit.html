@@ -15,6 +15,7 @@
     kit.html?c=list-row&w=150&label=Keychron%20K3&device=keyboard
     kit.html?c=bar&w=320&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET
     kit.html?c=text&tone=dim&text=SFTP%20uses%20the%20same%20login
+    kit.html?c=saves&age=4%20min%20ago&count=4&at=1      the save-state switcher's panel
     kit.html?c=flow&screen=ssh                           a panel as flow.html builds it
     kit.html?c=gauge&label=VOLUME&value=55&max=100&cells=20&icon=volume
     kit.html?c=toast&label=SAVE%20STATE&text=State%20saved
@@ -22,12 +23,12 @@
 
   An action takes its label, font, hint and room. row and list-row take omega-row's and
   omega-list-row's attributes, bar omega-bar's hint and font and its two actions' words and hints
-  (a side left out is the empty action). text is a line of Pixel Code as flow.html sets a panel's
-  notes and the Controls panel's columns, in the --oz-<tone> colour, a newline in it a <br>, and
-  ◀ ▶ ▲ ▼ … drawn as flow/art.js's glyphs, as flow.html draws them (the web font has none). flow is
-  one of flow.html's lone panels, its markup copied here (ssh, labels, controls) and drawn
-  with flow/flow.css. gauge, toast and badge take omega-gauge's, omega-toast's and
-  omega-badge's attributes.
+  (a side left out is the empty action), saves omega-saves's and a width w to hold it to. text is
+  a line of Pixel Code as flow.html sets a panel's notes and the Controls panel's columns, in the
+  --oz-<tone> colour, a newline in it a <br>, and ◀ ▶ ▲ ▼ … drawn as flow/art.js's glyphs, as
+  flow.html draws them (the web font has none). flow is one of flow.html's lone panels, its markup
+  copied here (ssh, labels, controls) and drawn with flow/flow.css. gauge, toast and badge take
+  omega-gauge's, omega-toast's and omega-badge's attributes.
 
   The colours are palette.js's RAMP as written, set straight on the page, so the faces and the
   screenshots are drawn in exactly the same ones whatever palette.js makes of a backdrop colour.
@@ -55,6 +56,7 @@
 <script src="../../../../../assets/ui/components/omega-gauge.js"></script>
 <script src="../../../../../assets/ui/components/omega-toast.js"></script>
 <script src="../../../../../assets/ui/components/omega-badge.js"></script>
+<script src="../../../../../assets/ui/components/omega-saves.js"></script>
 <script src="../../../../../assets/ui/flow/art.js"></script>
 <style>
   :root { --u: 1px; }
@@ -204,6 +206,13 @@
       bar.append(action);
     }
     kit.append(bar);
+  } else if (c === 'saves') {
+    const saves = document.createElement('omega-saves');
+    // inline-flex stands on a line's baseline: put it at the line's top, the page's
+    saves.style.verticalAlign = 'top';
+    if (q.get('w')) saves.style.width = `calc(${q.get('w')} * var(--u))`;
+    attrs(saves, ['label', 'age', 'count', 'at'], []);
+    kit.append(saves);
   } else if (c === 'text') {
     flowStyles();
     const line = document.createElement('div');

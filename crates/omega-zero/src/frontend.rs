@@ -7,7 +7,7 @@ use omega_ui::{
     arrows_hint_face, bezel_mark_face, cart_face, cart_mesh, cart_shadow, chip_face,
     chip_shadow_face, gb_cart_shadow, hint_face, icon_face, mark_height, mark_rect, menu_face, rim,
     socket_face, wallpaper_face, CartMeshes, CartModel, GbShell, Icon, UndoFace, ALERT_PX,
-    BEZEL_FILL, LEGEND,
+    BEZEL_FILL,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
@@ -55,7 +55,7 @@ use sync_network::{sync_network, NetworkTexes};
 use sync_power::{sync_power, PowerPanels};
 use sync_settings::{sync_settings, SettingsTexes};
 use sync_ssh::{sync_ssh, SshTexes};
-use sync_switcher::{sync_switcher, Faces, Switcher};
+use sync_switcher::{sync_switcher, Switcher};
 use sync_top_bar::{sync_top_bar, TopBarTexes};
 
 const DOZE_TIMEOUT: Duration = Duration::from_secs(180);
@@ -68,7 +68,6 @@ pub struct Frontend {
     last: Instant,
     draws: Vec<Draw>,
     polaroid_texes: Vec<TexId>,
-    title_tex: Option<TexId>,
     faces: FaceBuilder,
     link_art: LinkArtBuilder,
     link_art_done: bool,
@@ -76,7 +75,6 @@ pub struct Frontend {
     core_board_tex: Option<TexId>,
     core_lid_tex: Option<TexId>,
     core_built: Option<String>,
-    undo_tex: Option<TexId>,
     switcher: Switcher,
     clocks: Clocks,
     top_bar: TopBarTexes,
@@ -135,7 +133,6 @@ impl Frontend {
             last: now,
             draws: Vec::new(),
             polaroid_texes: Vec::new(),
-            title_tex: None,
             faces: FaceBuilder::spawn(),
             link_art: LinkArtBuilder::spawn(),
             link_art_done: false,
@@ -143,7 +140,6 @@ impl Frontend {
             core_board_tex: None,
             core_lid_tex: None,
             core_built: None,
-            undo_tex: None,
             switcher: Switcher::default(),
             clocks: Clocks::default(),
             top_bar: TopBarTexes::default(),
@@ -245,8 +241,6 @@ impl Frontend {
         self.session.app_mut().set_link_step_faces(steps);
         let fails = menu_faces(compositor, LinkFail::SHOWN.iter().map(|f| f.line()));
         self.session.app_mut().set_link_fail_faces(fails);
-        let legend = legend_faces(compositor, &LEGEND);
-        self.session.app_mut().set_legend_faces(legend);
         let shadow = cart_shadow();
         let id = compositor.create_texture(shadow.w, shadow.h, &shadow.rgba);
         self.session.app_mut().set_cart_shadow(id);
@@ -366,11 +360,7 @@ impl Frontend {
         sync_switcher(
             self.session.app_mut(),
             compositor,
-            Faces {
-                pool: &mut self.polaroid_texes,
-                title: &mut self.title_tex,
-                undo: &mut self.undo_tex,
-            },
+            &mut self.polaroid_texes,
             &mut self.switcher,
         );
         self.drop_boot_logo(compositor);
@@ -588,16 +578,6 @@ fn menu_faces<'a>(
         .map(|label| {
             let f = menu_face(label);
             (compositor.create_texture(f.w, f.h, &f.rgba), f.w, f.h)
-        })
-        .collect()
-}
-
-fn legend_faces(compositor: &mut Compositor, legend: &[(&str, &str)]) -> Vec<TexId> {
-    legend
-        .iter()
-        .map(|(key, label)| {
-            let f = hint_face(key, label);
-            compositor.create_texture(f.w, f.h, &f.rgba)
         })
         .collect()
 }

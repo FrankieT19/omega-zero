@@ -60,7 +60,6 @@ pub use draw::{out_h, out_w, Draw, MeshId, TexId};
 pub use footer::Printed;
 pub use hud::{
     CornerBadge, FfState, Gauge, Hud, HudFace, HudKind, LinkBadge, Millis, HUD_INK, HUD_MS, MARGIN,
-    PLATE_H,
 };
 pub use icon::{icon_box, icon_face, Icon};
 pub use keyboard::{
@@ -77,11 +76,11 @@ pub use link_art::{
     PLUG_H, PLUG_TIP_X, PLUG_W, PORT_H, PORT_W,
 };
 pub use plate::{
-    arrows_hint_face, arrows_hint_width, cap_width, centred_hints, hint_face, hint_quad, hint_row,
-    hint_width, title_face, word_cap_top, word_face, word_face_in, word_tail, word_width, Hint,
-    UndoFace, ARROW_GAP, CAP, CAP_GAP, HINT_EDGE, HINT_GAP, HINT_H, LEGEND_GAP, TITLE_H, TITLE_W,
+    arrows_hint_face, arrows_hint_width, cap_width, centred_hints, hint_face, hint_width,
+    word_cap_top, word_face, word_face_in, word_tail, word_width, UndoFace, ARROW_GAP, CAP,
+    CAP_GAP, HINT_EDGE, HINT_H, LEGEND_GAP,
 };
-pub use polaroids::{photo_face, PhotoFace, Polaroids, DOT, LEGEND, PHOTO_H, PHOTO_W};
+pub use polaroids::{photo_face, PhotoFace, Polaroids, PHOTO_H, PHOTO_W};
 pub use power_menu::PowerChoice;
 pub use quick_menu::{
     menu_face, quick_caret_face, quick_value_face, MENU_H, MENU_INK, MENU_PAD, QUICK_EDGE,

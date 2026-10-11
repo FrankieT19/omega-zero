@@ -102,6 +102,18 @@ shoot bar-confirm-320 320 19 'c=bar&w=320&right=CONFIRM&right-hint=A'
 shoot bar-shelf-thin-320 320 19 'c=bar&w=320&font=thin&left=CONTROLS&left-hint=SELECT&right=SETTINGS&right-hint=START'
 shoot bar-menu-thin-320 320 19 'c=bar&w=320&font=thin&left=RETURN&left-hint=B&right=CONFIRM&right-hint=A&hint=Y%20FORGET'
 
+# the save-state switcher's: its bar, B RETURN and A LOAD, with Y DELETE and X UNDO SAVE between
+# them or Y DELETE alone; and its panel, as wide as the title, the dots or the date, or held wider
+for w in 320 360; do
+  shoot bar-switcher-$w $w 19 "c=bar&w=$w&left=RETURN&left-hint=B&right=LOAD&right-hint=A&hint=Y%20DELETE%20%7C%20X%20UNDO%20SAVE"
+done
+shoot bar-switcher-delete-320 320 19 'c=bar&w=320&left=RETURN&left-hint=B&right=LOAD&right-hint=A&hint=Y%20DELETE'
+shoot saves-just-now 90 41 'c=saves&age=Just%20now'
+shoot saves-four 90 41 'c=saves&age=4%20min%20ago&count=4&at=1'
+shoot saves-ten 90 41 'c=saves&age=3%20hr%20ago&count=10&at=9'
+shoot saves-date 108 41 'c=saves&age=2026-08-08%2020%3A00&count=3&at=2'
+shoot saves-held 108 41 'c=saves&w=108&age=Just%20now&count=2'
+
 # lines of text as flow.html sets them, the Controls panel's arrows as flow/art.js draws them
 shoot text-sftp 144 11 'c=text&tone=dim&text=SFTP%20uses%20the%20same%20login'
 shoot text-offline 162 11 'c=text&tone=dim&text=Join%20a%20Wi-Fi%20network%20first.'

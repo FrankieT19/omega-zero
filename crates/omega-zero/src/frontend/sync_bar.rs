@@ -16,12 +16,12 @@ use crate::screens::bar::{Actions, BarSet};
 #[derive(Default)]
 pub(crate) struct BarTexes {
     /// Each pair of actions' faces, left then right.
-    actions: [[Option<TexId>; 2]; 3],
+    actions: [[Option<TexId>; 2]; Actions::ALL.len()],
     /// The palette colour and the font the actions were made in.
     actions_built: Option<(u8, Font)>,
-    hints: [Option<TexId>; 3],
+    hints: [Option<TexId>; Actions::ALL.len()],
     /// The palette colour and the hints each face between a pair was made with.
-    hints_built: [Option<(u8, Vec<Hint<'static>>)>; 3],
+    hints_built: [Option<(u8, Vec<Hint<'static>>)>; Actions::ALL.len()],
 }
 
 pub(crate) fn sync_bar(app: &mut App, compositor: &mut Compositor, texes: &mut BarTexes) {

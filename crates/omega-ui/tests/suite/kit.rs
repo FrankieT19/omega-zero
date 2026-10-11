@@ -643,7 +643,7 @@ fn a_list_of_devices_lines_up_its_values_and_icons() {
 /// The bar `w` art pixels wide as omega-bar draws it with these actions, one width, and hints:
 /// the hints between the actions and the actions at the ends, on a face `TALL` high whose row
 /// `RISE` is the bar's top, clear everywhere else.
-fn bar(w: u32, left: (&str, &str), right: (&str, &str), hints: &[Hint]) -> UndoFace {
+pub(crate) fn bar(w: u32, left: (&str, &str), right: (&str, &str), hints: &[Hint]) -> UndoFace {
     bar_in(Font::Bold, w, left, right, hints)
 }
 

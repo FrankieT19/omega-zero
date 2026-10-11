@@ -29,11 +29,6 @@ pub type Millis = u64;
 pub const HUD_MS: Millis = 1500;
 const FADE_MS: Millis = 250;
 
-/// The save-state switcher's dark bands across the top and the bottom of the screen: how tall
-/// they are and their colour. The HUD draws none.
-pub const PLATE_H: f32 = 40.0;
-pub(crate) const PLATE: [f32; 4] = [0.0, 0.0, 0.0, 0.72];
-
 /// The white the save-state switcher prints in, and the top bar on a card whose theme sets the
 /// chrome.
 pub const HUD_INK: [u8; 3] = [0xf5, 0xf2, 0xef];

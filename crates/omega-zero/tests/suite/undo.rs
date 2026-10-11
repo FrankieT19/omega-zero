@@ -3,6 +3,7 @@ use crate::common;
 use common::{app_playing_in, app_playing_with, tmp_root_with_carts, CoreSnapshot};
 use omega_input::{Action, Btn};
 use omega_store::{Core, Platform, StateRing};
+use omega_zero::screens::bar::{DELETE, UNDO_LOAD, UNDO_SAVE};
 
 #[test]
 fn undoing_a_save_removes_it_and_restores_the_evicted_entry() {
@@ -124,7 +125,7 @@ fn ejecting_the_cart_takes_its_undo_with_it() {
 }
 
 #[test]
-fn the_plate_is_drawn_only_over_the_switcher_and_only_while_the_offer_stands() {
+fn the_undo_is_offered_only_over_the_switcher_and_only_while_it_stands() {
     let d = tmp_root_with_carts(&["Emerald"]);
     let mut a = app_playing_in(d.path(), "Emerald");
     a.apply_at(Action::SaveState, 1_000);
@@ -136,16 +137,20 @@ fn the_plate_is_drawn_only_over_the_switcher_and_only_while_the_offer_stands() {
         "the offer expired before it was tested"
     );
     assert!(playing.is_empty(), "the offer reached the game");
+    assert!(a.bar_hints_shown().is_empty(), "the game has hints");
 
     a.apply_at(Action::Polaroids, 4_000);
-    let mut open = Vec::new();
-    a.draw(&mut open);
+    assert_eq!(a.bar_hints_shown(), [DELETE, UNDO_SAVE]);
     a.tick_ms(40_000);
-    let mut expired = Vec::new();
-    a.draw(&mut expired);
-    assert_eq!(
-        open.len(),
-        expired.len() + 1,
-        "the plate outlived the offer"
-    );
+    assert_eq!(a.bar_hints_shown(), [DELETE], "the undo outlived the offer");
+}
+
+#[test]
+fn the_switcher_offers_to_undo_a_load_as_a_load() {
+    let d = tmp_root_with_carts(&["Emerald"]);
+    let mut a = app_playing_in(d.path(), "Emerald");
+    a.apply_at(Action::SaveState, 1_000);
+    a.apply_at(Action::LoadState, 2_000);
+    a.apply_at(Action::Polaroids, 3_000);
+    assert_eq!(a.bar_hints_shown(), [DELETE, UNDO_LOAD]);
 }

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The save states, MENU ×2 in a game, are drawn in the menus' pixel art. The shelf's top bar
+  stands over the screenshot in place of a dark strip of their own; a SAVE STATES panel at the
+  top in the middle says how long ago the save shown was made, with a dot for each save under
+  it, the one shown lit; and the bar along the bottom has B RETURN and A LOAD, with Y DELETE
+  between them and, while the last save or load can still be undone, X UNDO SAVE or X UNDO
+  LOAD. Nothing over the screenshot is see-through any more.
 - The carts are low-poly models drawn the way a PlayStation drew 3D: a face and a side for
   every cut of the outline, each lit on its own, corners that land on the 2-pixel grid as they
   turn, textures mapped without perspective, and colour in 15 bits through the PlayStation's

@@ -1,10 +1,7 @@
 use std::path::Path;
 
-use omega_power::{Battery, Charge};
 use omega_store::StateEntry;
-use omega_ui::{
-    out_w, photo_face, Draw, PhotoFace, Polaroids, Printed, TexId, PHOTO_H, PHOTO_W, PLATE_H,
-};
+use omega_ui::{photo_face, PhotoFace, Polaroids, PHOTO_H, PHOTO_W};
 
 fn entry(dir: &Path, stamp: &str) -> StateEntry {
     StateEntry {
@@ -12,10 +9,6 @@ fn entry(dir: &Path, stamp: &str) -> StateEntry {
         state: dir.join(format!("{stamp}.state")),
         thumb: dir.join(format!("{stamp}.png")),
     }
-}
-
-fn switcher() -> Polaroids {
-    Polaroids::new(Vec::new())
 }
 
 fn write_png(path: &Path, w: u32, h: u32, rgb: [u8; 3]) {
@@ -49,6 +42,33 @@ fn relative_time_reads_off_the_stamp() {
     assert_eq!(
         Polaroids::relative_time("2026-08-09_11-36-05", now),
         "3 hr ago"
+    );
+}
+
+#[test]
+fn the_panel_says_the_age_with_a_capital() {
+    let now = "2026-08-09_14-36-05";
+    let age = |stamp| Polaroids::age_of(stamp, now);
+    assert_eq!(age("2026-08-09_14-36-00"), "Just now");
+    assert_eq!(age("2026-08-09_14-32-05"), "4 min ago");
+    assert_eq!(age("2026-08-08_20-00-00"), "2026-08-08 20:00");
+}
+
+#[test]
+fn every_save_has_its_age_newest_first() {
+    let d = Path::new("/nonexistent");
+    let mut p = Polaroids::new(vec![
+        entry(d, "2026-08-09_14-36-00"),
+        entry(d, "2026-08-09_14-26-05"),
+    ]);
+    let now = "2026-08-09_14-36-05";
+    assert_eq!(p.ages(now), ["Just now", "10 min ago"]);
+    assert_eq!(p.age(now), "Just now");
+    p.right();
+    assert_eq!(
+        p.age(now),
+        "10 min ago",
+        "the age did not follow the selection"
     );
 }
 
@@ -110,122 +130,4 @@ fn the_index_clamps_at_both_ends() {
         p.selected().map(|e| e.stamp.as_str()),
         Some("2026-08-09_00-00-01")
     );
-}
-
-#[test]
-fn the_gauge_stays_clear_of_the_title_on_the_left() {
-    let p = switcher();
-    let mut out = Vec::new();
-    p.draw(
-        Some(Battery {
-            percent: 68,
-            charge: Charge::Charging,
-        }),
-        Printed { face: None, w: 30 },
-        Some(TexId::from_raw(7)),
-        Printed::default(),
-        &mut out,
-    );
-    let gauge: Vec<_> = out
-        .iter()
-        .filter_map(|d| match *d {
-            Draw::Rect { x, y, w, .. } | Draw::Tex { x, y, w, .. }
-                if y < PLATE_H && w < out_w() as f32 =>
-            {
-                Some((x, w))
-            }
-            _ => None,
-        })
-        .collect();
-    assert!(!gauge.is_empty(), "no gauge drew at the left margin at all");
-    let leftmost = gauge.iter().map(|(x, _)| *x).fold(f32::MAX, f32::min);
-    assert_eq!(leftmost, 16.0, "the plate margin is 16");
-    let rightmost = gauge.iter().map(|(x, w)| x + w).fold(0.0, f32::max);
-    assert!(
-        rightmost < 180.0,
-        "the gauge reached into the title's texture"
-    );
-}
-
-#[test]
-fn the_clock_stays_clear_of_the_title_on_the_right() {
-    let p = switcher();
-    let mut out = Vec::new();
-    p.draw(
-        None,
-        Printed::default(),
-        None,
-        Printed { face: None, w: 40 },
-        &mut out,
-    );
-    let clock: Vec<_> = out
-        .iter()
-        .filter_map(|d| match *d {
-            Draw::Rect { x, y, w, .. } | Draw::Tex { x, y, w, .. } if y < PLATE_H && x > 540.0 => {
-                Some((x, w))
-            }
-            _ => None,
-        })
-        .collect();
-    assert!(!clock.is_empty(), "no clock drew past the title at all");
-    let leftmost = clock.iter().map(|(x, _)| *x).fold(f32::MAX, f32::min);
-    assert!(
-        leftmost > 540.0,
-        "the clock reached into the title's texture"
-    );
-    let rightmost = clock.iter().map(|(x, w)| x + w).fold(0.0, f32::max);
-    assert_eq!(rightmost, out_w() as f32 - 16.0, "the plate margin is 16");
-}
-
-#[test]
-fn a_switcher_with_no_gauge_still_shows_its_clock() {
-    let p = switcher();
-    let mut out = Vec::new();
-    p.draw(
-        None,
-        Printed::default(),
-        None,
-        Printed { face: None, w: 40 },
-        &mut out,
-    );
-    assert!(
-        out.iter()
-            .any(|d| matches!(d, Draw::Rect { y, w, .. } if *y < PLATE_H && *w == 40.0)),
-        "the clock's placeholder did not draw when there was no gauge"
-    );
-}
-
-#[test]
-fn nothing_on_the_plate_moves_when_the_charge_state_changes() {
-    let p = switcher();
-    let percent = Printed { face: None, w: 30 };
-    let clock = Printed { face: None, w: 40 };
-    let mut idle = Vec::new();
-    p.draw(
-        Some(Battery {
-            percent: 68,
-            charge: Charge::Discharging,
-        }),
-        percent,
-        None,
-        clock,
-        &mut idle,
-    );
-    let mut charging = Vec::new();
-    p.draw(
-        Some(Battery {
-            percent: 68,
-            charge: Charge::Charging,
-        }),
-        percent,
-        Some(TexId::from_raw(7)),
-        clock,
-        &mut charging,
-    );
-    for q in &idle {
-        assert!(
-            charging.contains(q),
-            "{q:?} moved or vanished when charging started"
-        );
-    }
 }

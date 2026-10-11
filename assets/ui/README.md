@@ -31,6 +31,7 @@ assets/ui/
     ├── omega-gauge.js     <omega-gauge>     a level on one line: a title tab, then cells and an icon
     ├── omega-toast.js     <omega-toast>     what just happened: a lone panel's tab and one line
     ├── omega-badge.js     <omega-badge>     what a game is doing: a key cap, a sprite and a word
+    ├── omega-saves.js     <omega-saves>     which save state the switcher shows: its age, a dot each
     ├── action-left.js     <action-left>     the bottom bar's left action
     ├── action-right.js    <action-right>    the same, mirrored
     ├── omega-button.js    <omega-button>    a page's link or button, drawn as the bar's pill
@@ -61,6 +62,7 @@ classic scripts, no build step, so it works from `file://`.
 <script src="components/omega-gauge.js"></script>
 <script src="components/omega-toast.js"></script>   <!-- after omega-panel.js, which it is drawn with -->
 <script src="components/omega-badge.js"></script>
+<script src="components/omega-saves.js"></script>  <!-- after omega-panel.js -->
 
 <div class="omega-backdrop" data-style="plates" data-moving></div>  <!-- Grid without data-style -->
 
@@ -75,6 +77,7 @@ classic scripts, no build step, so it works from `file://`.
 <omega-gauge label="VOLUME" value="55" max="100" cells="20" icon="volume"></omega-gauge>
 <omega-toast label="SAVE STATE" text="State saved"></omega-toast>
 <omega-badge icon="fastforward" text="×4" lit></omega-badge>
+<omega-saves age="4 min ago" count="4" at="1"></omega-saves>
 <omega-bar hint="Y RESET">
   <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
   <action-right slot="right" label="SETTINGS" hint="START"></action-right>
@@ -197,6 +200,14 @@ flow.html#screen=network&from=settings&t=0.5&colour=amber&shot=1
 
 is Settings halfway through sliding out to the right for Network, in Amber, ready for a
 screenshot the size of the panel.
+
+## The save states
+
+The save-state switcher, MENU ×2 in a game, is drawn from the kit over the screenshot of the
+save it shows, which is drawn as the game is: the shelf's top bar, `<omega-saves>` at the top in
+the middle 8 art pixels under it, and the bar with B RETURN and A LOAD, Y DELETE between them
+and, while the last save or load can still be undone, X UNDO SAVE or X UNDO LOAD. Left and Right
+move between the saves; the panel says how old the one shown is and lights its dot.
 
 ## The rules
 
