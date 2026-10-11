@@ -7,8 +7,9 @@ use omega_store::Theme;
 use crate::cart::{cart_box, label_colour, label_text, CART_W, SEATED_W};
 use crate::footer::Printed;
 use crate::kit::palette::Palette;
-use crate::kit::pixel::keyed;
-use crate::plate::{UndoFace, HINT_H};
+use crate::kit::pixel::{keyed, ACCENT, CAP};
+use crate::kit::text::{text_face, AIR, WORD_H};
+use crate::plate::UndoFace;
 use crate::shelf::{foot_y, shelf_box, shelf_scale};
 use crate::spin::{self, Pose};
 use crate::sprite::SPRITE_PX;
@@ -471,17 +472,28 @@ fn for_each_scoop_span(mut span: impl FnMut(f32, f32, f32)) {
     }
 }
 
+/// The shelf's name, or the letter it jumped to, as the slot prints it in its hole: Pixel
+/// Code's capitals a face pixel to an art pixel, in the palette's dim colour, to upload NEAREST.
+pub fn slot_name_face(name: &str, pal: &Palette) -> UndoFace {
+    text_face(&name.to_uppercase(), pal.dim)
+}
+
+/// `name`, a `slot_name_face` `name.w` art pixels wide, in the slot's hole at `alpha`: its ink
+/// in the middle of the screen and its capitals in the middle of the hole, each to the nearest
+/// art pixel, at two screen pixels to one of its own.
 pub fn draw_slot_name(name: Printed, alpha: f32, out: &mut Vec<Draw>) {
     let (Some(tex), true) = (name.face, alpha > 0.0) else {
         return;
     };
-    let (w, h) = (name.w as f32, HINT_H as f32);
+    let ink = name.w.saturating_sub(AIR) as f32 * ART;
     let hole = scoop_y() + scoop_d() - slit_y();
+    let caps = CAP as f32 * ART;
+    let caps_top = on_grid(slit_y() + (hole - caps) / 2.0);
     out.push(Draw::Tex {
-        x: cx() - w / 2.0,
-        y: slit_y() + (hole - h) / 2.0,
-        w,
-        h,
+        x: on_grid(cx() - ink / 2.0),
+        y: caps_top - ACCENT as f32 * ART,
+        w: name.w as f32 * ART,
+        h: WORD_H as f32 * ART,
         tex,
         alpha,
     });

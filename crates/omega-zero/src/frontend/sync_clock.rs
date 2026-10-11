@@ -4,10 +4,10 @@
 //! (sync_top_bar.rs).
 
 use omega_gfx::{Compositor, TexId};
-use omega_ui::{alert_face, bolt_face, hhmm, word_face, Field, HUD_INK};
+use omega_ui::{alert_face, bolt_face, hhmm, slot_name_face, word_face, Field, HUD_INK};
 
 use crate::app::App;
-use crate::frontend::faces::{upload, Printing};
+use crate::frontend::faces::{upload, upload_nearest, Printing};
 use crate::frontend::lone::Baked;
 use crate::screens::clock::clock_face;
 
@@ -21,7 +21,8 @@ pub(crate) struct Clocks {
     percent: Printing<String>,
     /// What the switcher was last handed, its bolt among them.
     switcher: crate::app::Readouts,
-    platform: String,
+    /// The slot's name and the palette colour it was baked in, and its texture.
+    platform: (String, u8),
     platform_tex: Option<TexId>,
     /// The refused cart's alert, baked again when the palette changes.
     alert: Baked<u8>,
@@ -50,17 +51,16 @@ pub(crate) fn sync_clock(app: &mut App, compositor: &mut Compositor, clocks: &mu
     if let Some(clock) = clocks.clock.print(compositor, hhmm(app.wall_secs()), word) {
         switcher.clock = clock;
     }
-    let platform_shown = app.slot_text().unwrap_or_default();
-    if platform_shown != clocks.platform {
-        clocks.platform = platform_shown.clone();
-        if platform_shown.is_empty() {
+    let named = (app.slot_text().unwrap_or_default(), colour);
+    if named != clocks.platform {
+        if named.0.is_empty() {
             app.clear_shelf_platform();
         } else {
-            let face = word_face(&platform_shown);
-            let w = face.w;
-            let id = upload(compositor, &mut clocks.platform_tex, face);
-            app.set_shelf_platform_face(id, w);
+            let face = slot_name_face(&named.0, app.palette());
+            let id = upload_nearest(compositor, &mut clocks.platform_tex, &face);
+            app.set_shelf_platform_face(id, face.w);
         }
+        clocks.platform = named;
     }
     if let Some(battery) = app.battery() {
         let figure = format!("{}%", battery.percent);

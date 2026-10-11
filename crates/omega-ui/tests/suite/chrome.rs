@@ -1,10 +1,12 @@
 use omega_store::{Cart, Platform};
 use omega_ui::kit::palette::palette;
+use omega_ui::kit::pixel::{ACCENT, CAP};
+use omega_ui::kit::text::{text_face, AIR, WORD_H};
 use omega_ui::{
-    alert_face, cart_box, draw_empty_slot, edge, foot_y, housing, opening, out_h, out_w, recess,
-    shelf_box, slot_top, stage_y, ChromeColours, Draw, Pose, Shelf, SlotChrome, TexId, ALERT_H,
-    ALERT_W, CART_H, CART_W, GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, SLOT_RAISE, SPRITE_PX,
-    TOP_BAR_H,
+    alert_face, cart_box, draw_empty_slot, draw_slot_name, edge, foot_y, housing, opening, out_h,
+    out_w, recess, shelf_box, slot_name_face, slot_top, stage_y, ChromeColours, Draw, Pose,
+    Printed, Shelf, SlotChrome, TexId, ALERT_H, ALERT_W, CART_H, CART_W, GB_LABEL_H, GB_LABEL_Y,
+    LABEL_H, LABEL_Y, SLOT_RAISE, SPRITE_PX, TOP_BAR_H,
 };
 
 fn centre_x() -> f32 {
@@ -1177,4 +1179,69 @@ fn every_colours_slot_steps_down_from_its_housing_into_the_hole() {
             "{name}: the lip vanishes into the hole"
         );
     }
+}
+
+/// The shelf's name in the slot is the kit's text: Pixel Code's capitals a face pixel to an art
+/// pixel, every one solid, in the palette's dim colour, whatever case it was handed in.
+#[test]
+fn the_slot_name_is_the_kits_capitals_in_the_dim_colour() {
+    for name in ["night", "amber"] {
+        let pal = palette(omega_store::colour_index(name).expect("a backdrop colour"));
+        let face = slot_name_face("Game Boy", pal);
+        let kit = text_face("GAME BOY", pal.dim);
+        assert_eq!((face.w, face.h), (kit.w, WORD_H), "{name}");
+        assert!(
+            face.rgba == kit.rgba,
+            "{name}: not the kit's capitals in the dim colour"
+        );
+    }
+}
+
+/// The top of the slit and the bottom of the scoop: the hole the name is printed in.
+fn hole() -> (f32, f32) {
+    let mut out = Vec::new();
+    draw_empty_slot(&ChromeColours::default(), &mut out);
+    let dark: Vec<Quad> = out.iter().filter_map(as_mouth).collect();
+    let top = dark.iter().map(|q| q.y).fold(f32::INFINITY, f32::min);
+    let bottom = dark.iter().map(|q| q.y + q.h).fold(0.0, f32::max);
+    (top, bottom)
+}
+
+/// The name lands on whole art pixels at two screen pixels to one of its own, its ink in the
+/// middle of the screen and its capitals in the middle of the hole, each to an art pixel.
+#[test]
+fn the_slot_name_is_drawn_on_the_art_grid_in_the_middle_of_the_hole() {
+    let px = SPRITE_PX as f32;
+    let tex = TexId::from_raw(5);
+    let (top, bottom) = hole();
+    for text in ["GAME BOY ADVANCE", "GAME BOY", "M"] {
+        let w = text_face(text, [255; 3]).w;
+        let mut out = Vec::new();
+        draw_slot_name(Printed::new(tex, w), 0.5, &mut out);
+        let [x, y, dw, dh, alpha] = match out.as_slice() {
+            [Draw::Tex {
+                x, y, w, h, alpha, ..
+            }] => [*x, *y, *w, *h, *alpha],
+            _ => panic!("{text} is not drawn as one face: {out:?}"),
+        };
+        assert_eq!([dw, dh, alpha], [w as f32 * px, WORD_H as f32 * px, 0.5]);
+        assert!(
+            [x, y].iter().all(|v| v.rem_euclid(px) == 0.0),
+            "{text} at {x}, {y} is off the art grid"
+        );
+        let ink_middle = x + (w - AIR) as f32 * px / 2.0;
+        assert!(
+            (ink_middle - out_w() as f32 / 2.0).abs() <= px / 2.0,
+            "{text}'s ink is centred on {ink_middle}"
+        );
+        let caps = y + ACCENT as f32 * px;
+        let (above, below) = (caps - top, bottom - (caps + CAP as f32 * px));
+        assert!(
+            (above - below).abs() <= px,
+            "{text}'s capitals stand {above} px under the slit and {below} px over the scoop"
+        );
+    }
+    let mut out = Vec::new();
+    draw_slot_name(Printed::new(tex, 10), 0.0, &mut out);
+    assert!(out.is_empty(), "a name faded out is still drawn");
 }

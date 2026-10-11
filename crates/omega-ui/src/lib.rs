@@ -100,8 +100,8 @@ pub use shell::{
 pub use silhouette::{gb_silhouette, silhouette, GbShell};
 pub use slot_chrome::{
     alert_face, draw_empty_slot, draw_slot_name, ease, edge, housing, opening, recess, set_theme,
-    slot_top, ChromeColours, SlotChrome, ALERT_H, ALERT_W, BAR_H, CATCH_OUT, LIP_H, MOUTH_H,
-    MOUTH_W, SLOT_RAISE,
+    slot_name_face, slot_top, ChromeColours, SlotChrome, ALERT_H, ALERT_W, BAR_H, CATCH_OUT, LIP_H,
+    MOUTH_H, MOUTH_W, SLOT_RAISE,
 };
 pub use spin::{
     cart_mesh, posed_cart, posed_face, push_cart_side, CartMeshes, CartModel, Pose, OUTLINE_INSET,
