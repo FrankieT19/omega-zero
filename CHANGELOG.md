@@ -56,6 +56,10 @@
   whether Bluetooth is on, bringing it up at boot, and the top bar lights its icon while it is.
   Pairing asks nothing on screen, which most gamepads and headphones take. Game sound over
   Bluetooth headphones and Bluetooth gamepads as controllers are still to come.
+- Holding POWER opens POWER, a panel like the other menus over the background, with RESTART and
+  POWER OFF and B RETURN and A CONFIRM on the bar; B goes back to where you were, a game
+  included. After a choice, in place of the black screen, a RESTART or POWER OFF panel says
+  "Restarting…" or "Turning off…" until the handheld goes down, and the bar sinks away.
 
 ### For developers
 
