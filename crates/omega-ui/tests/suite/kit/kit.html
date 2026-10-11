@@ -18,6 +18,7 @@
     kit.html?c=saves&age=4%20min%20ago&count=4&at=1      the save-state switcher's panel
     kit.html?c=flow&screen=ssh                           a panel as flow.html builds it
     kit.html?c=gauge&label=VOLUME&value=55&max=100&cells=20&icon=volume
+    kit.html?c=hints&label=SAVE&hint=Y%20DELETE%20%7C%20X%20UNDO%20SAVE&w=180   held 180 wide
     kit.html?c=toast&label=SAVE%20STATE&text=State%20saved
     kit.html?c=badge&icon=fastforward&text=%C3%974&lit
     kit.html?c=link&piece=plug&role=join                 a piece of the link screen's art
@@ -29,7 +30,8 @@
   --oz-<tone> colour, a newline in it a <br>, and ◀ ▶ ▲ ▼ … drawn as flow/art.js's glyphs, as
   flow.html draws them (the web font has none). flow is one of flow.html's lone panels, its markup
   copied here (ssh, labels, controls) and drawn with flow/flow.css. gauge, toast and badge take
-  omega-gauge's, omega-toast's and omega-badge's attributes.
+  omega-gauge's, omega-toast's and omega-badge's attributes, hints omega-hints's and a width w to
+  hold it to.
 
   The colours are palette.js's RAMP as written, set straight on the page, so the faces and the
   screenshots are drawn in exactly the same ones whatever palette.js makes of a backdrop colour.
@@ -55,6 +57,7 @@
 <script src="../../../../../assets/ui/components/action-right.js"></script>
 <script src="../../../../../assets/ui/components/omega-bar.js"></script>
 <script src="../../../../../assets/ui/components/omega-gauge.js"></script>
+<script src="../../../../../assets/ui/components/omega-hints.js"></script>
 <script src="../../../../../assets/ui/components/omega-toast.js"></script>
 <script src="../../../../../assets/ui/components/omega-badge.js"></script>
 <script src="../../../../../assets/ui/components/omega-saves.js"></script>
@@ -230,11 +233,12 @@
       }
     }
     kit.append(line);
-  } else if (c === 'gauge' || c === 'toast' || c === 'badge') {
+  } else if (c === 'gauge' || c === 'toast' || c === 'badge' || c === 'hints') {
     // a flex item, so the inline element stands at the top left and not on a line's baseline
     kit.style.display = 'flex';
     const el = document.createElement(`omega-${c}`);
-    attrs(el, ['label', 'value', 'max', 'cells', 'icon', 'text'], ['lit']);
+    attrs(el, ['label', 'value', 'max', 'cells', 'icon', 'text', 'hint'], ['lit']);
+    if (q.get('w')) el.style.width = `calc(${q.get('w')} * var(--u))`;
     kit.append(el);
   } else if (c === 'link') {
     const link = document.createElement('omega-link');

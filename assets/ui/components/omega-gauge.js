@@ -26,6 +26,10 @@
   icon. It is as wide as all that; place it from outside. Areas, each a div that ::part()
   reaches: gauge, tab, label, slant, strip, well, cells, icon.
 
+  Its chrome, everything round what the well holds, is OmegaGauge, which <omega-hints>
+  (omega-hints.js) is drawn with too: OmegaGauge.STYLE and OmegaGauge.markup(part, well) for its
+  shadow root, OmegaGauge.paint(root, label) for its sprites and its title.
+
   Needs everything in foundation/ on the page (see README.md); its colours follow palette.js.
 */
 (() => {
@@ -126,9 +130,9 @@
     return Array.from({ length: OmegaPixel.CAP }, () => row);
   }
 
-  const template = document.createElement('template');
-  template.innerHTML = `
-    <style>
+  // The chrome's style: the frame, the tab and its title, the slant, the strip, and the well
+  // inset in it, for whatever the well holds to lay itself out in.
+  const STYLE = `
       /* text-rendering: Pixel Code drawn without the browser's hinting, as in a panel */
       :host { display: inline-flex; text-rendering: geometricPrecision; }
       :host([hidden]) { display: none; }
@@ -177,14 +181,41 @@
       }
       .well {
         display: flex;
-        align-items: center;
-        gap: calc(3 * var(--u));
         padding: 0 calc(2 * var(--u));
         border: var(--u) solid transparent;
         border-image-slice: 1 fill;
         border-image-repeat: stretch;
         image-rendering: pixelated;
-      }
+      }`;
+
+  // The chrome's markup, the outermost area named `part`, round `well`, what the well holds.
+  function markup(part, well) {
+    return `
+    <div class="gauge" part="${part}">
+      <div class="tab" part="tab"><div class="label" part="label"><span></span></div></div>
+      <div class="slant" part="slant"></div>
+      <div class="strip" part="strip">
+        <div class="well" part="well">${well}</div>
+      </div>
+    </div>`;
+  }
+
+  // The chrome's sprites in `root`'s host's colours, and `label` in its tab.
+  function paint(root, label) {
+    const { sprite, mirror } = OmegaPixel;
+    const part = name => root.querySelector(`.${name}`);
+    part('gauge').style.borderImageSource = sprite(mirror(FRAME), root.host);
+    part('well').style.borderImageSource = sprite(mirror(WELL), root.host);
+    part('slant').style.backgroundImage = sprite(slant(), root.host);
+    part('label').firstElementChild.textContent = label;
+  }
+
+  window.OmegaGauge = { STYLE, markup, paint };
+
+  const template = document.createElement('template');
+  template.innerHTML = `
+    <style>${STYLE}
+      .well { align-items: center; gap: calc(3 * var(--u)); }
       .cells, .icon {
         flex: none;
         height: calc(${OmegaPixel.CAP} * var(--u));
@@ -193,17 +224,10 @@
       }
       .icon { width: calc(7 * var(--u)); }
       .icon[hidden] { display: none; }
-    </style>
-    <div class="gauge" part="gauge">
-      <div class="tab" part="tab"><div class="label" part="label"><span></span></div></div>
-      <div class="slant" part="slant"></div>
-      <div class="strip" part="strip">
-        <div class="well" part="well">
+    </style>${markup('gauge', `
           <div class="cells" part="cells"></div>
           <div class="icon" part="icon"></div>
-        </div>
-      </div>
-    </div>`;
+        `)}`;
 
   customElements.define('omega-gauge', class extends OmegaPixel.Element {
     static observedAttributes = ['label', 'value', 'max', 'cells', 'icon'];
@@ -214,12 +238,9 @@
     }
 
     paint() {
-      const { sprite, mirror } = OmegaPixel;
+      const { sprite } = OmegaPixel;
       const part = name => this.shadowRoot.querySelector(`.${name}`);
-      part('gauge').style.borderImageSource = sprite(mirror(FRAME), this);
-      part('well').style.borderImageSource = sprite(mirror(WELL), this);
-      part('slant').style.backgroundImage = sprite(slant(), this);
-      part('label').firstElementChild.textContent = this.getAttribute('label') ?? '';
+      paint(this.shadowRoot, this.getAttribute('label') ?? '');
 
       const n = Math.max(1, Math.round(+(this.getAttribute('cells') ?? 20)) || 20);
       const max = +(this.getAttribute('max') ?? 100) || 100;

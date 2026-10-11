@@ -3024,6 +3024,13 @@ impl App {
             p.set_panel_face(tex, w, h);
         }
     }
+
+    /// The switcher's line of keys, uploaded as `tex`, `w` by `h` art pixels.
+    pub fn set_polaroid_keys(&mut self, tex: TexId, w: u32, h: u32) {
+        if let Some(p) = &mut self.polaroids {
+            p.set_keys_face(tex, w, h);
+        }
+    }
 }
 
 fn trusted_write(

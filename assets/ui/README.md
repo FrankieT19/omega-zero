@@ -32,6 +32,7 @@ assets/ui/
     ├── omega-toast.js     <omega-toast>     what just happened: a lone panel's tab and one line
     ├── omega-badge.js     <omega-badge>     what a game is doing: a key cap, a sprite and a word
     ├── omega-saves.js     <omega-saves>     which save state the switcher shows: its age, a dot each
+    ├── omega-hints.js     <omega-hints>     keys on a line of their own: a title tab, then the keys
     ├── omega-link.js      <omega-link>      the link screen's art: the port, the plug, the adapter …
     ├── action-left.js     <action-left>     the bottom bar's left action
     ├── action-right.js    <action-right>    the same, mirrored
@@ -61,6 +62,7 @@ classic scripts, no build step, so it works from `file://`.
 <script src="components/action-right.js"></script>
 <script src="components/omega-bar.js"></script>
 <script src="components/omega-gauge.js"></script>
+<script src="components/omega-hints.js"></script>   <!-- after omega-gauge.js and omega-bar.js -->
 <script src="components/omega-toast.js"></script>   <!-- after omega-panel.js, which it is drawn with -->
 <script src="components/omega-badge.js"></script>
 <script src="components/omega-saves.js"></script>  <!-- after omega-panel.js -->
@@ -79,6 +81,7 @@ classic scripts, no build step, so it works from `file://`.
 <omega-toast label="SAVE STATE" text="State saved"></omega-toast>
 <omega-badge icon="fastforward" text="×4" lit></omega-badge>
 <omega-saves age="4 min ago" count="4" at="1"></omega-saves>
+<omega-hints label="SAVE" hint="Y DELETE | X UNDO SAVE"></omega-hints>
 <omega-bar hint="Y RESET">
   <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
   <action-right slot="right" label="SETTINGS" hint="START"></action-right>
@@ -213,9 +216,19 @@ screenshot the size of the panel.
 
 The save-state switcher, MENU ×2 in a game, is drawn from the kit over the screenshot of the
 save it shows, which is drawn as the game is: the shelf's top bar, `<omega-saves>` at the top in
-the middle 8 art pixels under it, and the bar with B RETURN and A LOAD, Y DELETE between them
-and, while the last save or load can still be undone, X UNDO SAVE or X UNDO LOAD. Left and Right
-move between the saves; the panel says how old the one shown is and lights its dot.
+the middle 8 art pixels under it, and the bar with B RETURN and A LOAD and nothing between them.
+Its other keys would sit on the screenshot there, so they stand on a line of their own,
+`<omega-hints label="SAVE">`, in the middle 4 art pixels above the tops of the bar's actions: Y
+DELETE and, while the last save or load can still be undone, X UNDO SAVE or X UNDO LOAD. The line
+keeps the room of its widest keys while the switcher is open, so when the undo runs out X goes
+and Y DELETE stays where it was. Left and Right move between the saves; the panel says how old
+the one shown is and lights its dot.
+
+`<omega-hints>` is for any keys that would sit on a picture: it is `<omega-gauge>`'s chrome, the
+frame, the title tab and its slant, and the well, with the keys in the well drawn as
+`<omega-bar>` draws its hints, a dark cap and then the word, on the title's rows. The two share
+their code: `OmegaGauge` in omega-gauge.js and `OmegaBar` in omega-bar.js, as `gauge_chrome`
+and `draw_hints` do in Rust (crates/omega-ui/src/kit/hints.rs).
 
 ## The link screen
 

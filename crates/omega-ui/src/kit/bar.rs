@@ -86,8 +86,16 @@ pub fn hints_width(hints: &[Hint]) -> u32 {
 /// left when they are wider than it.
 pub fn hints_face(w: u32, hints: &[Hint], pal: &Palette) -> UndoFace {
     let mut face = blank(w, BAR);
-    let y = HINTS_TOP as i32;
-    let mut x = ((w as i32 - hints_width(hints) as i32) / 2).max(0);
+    let x = ((w as i32 - hints_width(hints) as i32) / 2).max(0);
+    draw_hints(&mut face, hints, x, HINTS_TOP as i32, pal);
+    face
+}
+
+/// `hints` drawn over `face` on a line of 10 whose top left is (`x`, `y`), as the bar draws them:
+/// each key's dark cap from a row above the line's capitals to a row below them, its letters
+/// and its word in cream, the first cap starting at `x`.
+pub fn draw_hints(face: &mut UndoFace, hints: &[Hint], x: i32, y: i32, pal: &Palette) {
+    let mut x = x;
     for (i, hint) in hints.iter().enumerate() {
         if i > 0 {
             x += (BETWEEN - 1) as i32;
@@ -96,16 +104,15 @@ pub fn hints_face(w: u32, hints: &[Hint], pal: &Palette) -> UndoFace {
         // the cap starts a row above the capitals, which are ACCENT rows down the hint's line
         let cap_y = y + (ACCENT - (KEY_H as usize - CAP) / 2) as i32;
         let cap = [x, cap_y, cap_width(hint.key) as i32, KEY_H as i32];
-        nine_slice(&mut face, &KEY, cap, [0, 1, 0, 1], [0, 1, 0, 1], pal);
-        ink(&mut face, &letters(hint.key, ADVANCE), x + 2, y, pal.cream);
+        nine_slice(face, &KEY, cap, [0, 1, 0, 1], [0, 1, 0, 1], pal);
+        ink(face, &letters(hint.key, ADVANCE), x + 2, y, pal.cream);
         x += cap[2];
         if !hint.word.is_empty() {
             x += GAP as i32;
-            ink(&mut face, &letters(hint.word, ADVANCE), x, y, pal.cream);
+            ink(face, &letters(hint.word, ADVANCE), x, y, pal.cream);
             x += text_width(hint.word) as i32;
         }
     }
-    face
 }
 
 /// Where a bar's pieces go, in art pixels from the bar's top left (the bar is `BAR` tall and
