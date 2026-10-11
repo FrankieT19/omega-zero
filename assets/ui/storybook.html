@@ -21,6 +21,7 @@
 <script src="components/omega-row.js"></script>
 <script src="components/omega-list-row.js"></script>
 <script src="components/omega-bar.js"></script>
+<script src="components/omega-pill.js"></script>
 <script src="components/omega-gauge.js"></script>
 <script src="components/omega-hints.js"></script>
 <script src="components/omega-toast.js"></script>
@@ -767,19 +768,69 @@
             <action-left slot="left" label="BACK" hint="B"></action-left>
             <action-right slot="right" label="JOIN" hint="A"></action-right>
           </omega-bar>
+          <span class="tag">the shelf's: its system in a pill between the actions, no hints</span>
+          <omega-bar class="bar-box">
+            <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
+            <omega-pill slot="middle" text="GBA" centred></omega-pill>
+            <action-right slot="right" label="SETTINGS" hint="START"></action-right>
+          </omega-bar>
         </div>
         <div class="table">
           <table>
             <tr><th>API</th><th>What it does</th></tr>
             <tr><td>hint</td><td>A key and what it does, the first word the key: <code>Y FORGET</code>, <code>START FETCH</code>. Two with a <code>|</code> between: <code>Y FORGET | X EDIT</code>.</td></tr>
             <tr><td>font</td><td><code>bold</code> (or none) or <code>thin</code>, given to both actions: see The bar's font.</td></tr>
-            <tr><td>slot</td><td><code>left</code> for the <code>&lt;action-left&gt;</code>, <code>right</code> for the <code>&lt;action-right&gt;</code>.</td></tr>
+            <tr><td>slot</td><td><code>left</code> for the <code>&lt;action-left&gt;</code>, <code>right</code> for the <code>&lt;action-right&gt;</code>; <code>middle</code> for what stands between them in place of hints, the shelf's <code>&lt;omega-pill centred&gt;</code>, at the bar's top across the whole room between the actions. A bar with one has no hints.</td></tr>
             <tr><td>::part</td><td><code>bar</code>, <code>middle</code> (the room between the actions), <code>hints</code>, <code>hint</code>, <code>key</code>, <code>word</code></td></tr>
           </table>
         </div>
 <pre><code>&lt;omega-bar hint="Y FORGET | X EDIT"&gt;
   &lt;action-left slot="left" label="BACK" hint="B"&gt;&lt;/action-left&gt;
   &lt;action-right slot="right" label="JOIN" hint="A"&gt;&lt;/action-right&gt;
+&lt;/omega-bar&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>&lt;omega-pill&gt;</h3><code>components/omega-pill.js</code></header>
+        <p class="dim">The bar's button pill standing on its own, both its ends rounded, a word in its
+          dark middle: on the shelf, the shelf's system, GBA, GB or GBC, in the bar's
+          <code>middle</code> between its two actions, in the middle of the screen. It is always
+          there on the shelf, even with only one shelf. L1 and R1 change the system, and the pill
+          rises into place with the new one over 220 ms; a letter jumped to with Up or Down shows
+          in it for about 2.2 s, then the system rises back. It sinks with the shelf's actions when
+          the bar changes them, and is gone while the core picker is open. 15 art pixels tall, the
+          bar's height, with 3 dark pixels either side of the word's ink, on the rows the buttons
+          print their hints on: <code>pill_face</code> in
+          <code>crates/omega-ui/src/kit/action.rs</code> draws the same pixels.</p>
+        <div class="preview actions omega-backdrop">
+          <span class="tag">the three systems, and a letter jumped to</span>
+          <div style="display: flex; flex-wrap: wrap; gap: calc(6 * var(--u)); align-items: start">
+            <omega-pill text="GBA"></omega-pill>
+            <omega-pill text="GB"></omega-pill>
+            <omega-pill text="GBC"></omega-pill>
+            <omega-pill text="M"></omega-pill>
+          </div>
+          <span class="tag">on the shelf, between the bar's actions</span>
+          <omega-bar class="bar-box">
+            <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
+            <omega-pill slot="middle" text="GBC" centred></omega-pill>
+            <action-right slot="right" label="SETTINGS" hint="START"></action-right>
+          </omega-bar>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>API</th><th>What it does</th></tr>
+            <tr><td>text</td><td>The word, in capitals, in <code>--oz-cream</code>: the system, <code>GBA</code>, <code>GB</code>, <code>GBC</code>, or a letter, <code>M</code>. The pill is 6 art pixels wide a letter and 7 more: 25 for GBA, 13 for a letter. Without it nothing is drawn, as the shelf shows no pill until it knows its system.</td></tr>
+            <tr><td>centred</td><td>In the middle of what holds it, half of what is over before it rounded up to a whole art pixel: its middle column on the screen's middle, as <code>bar.rs</code> puts it. In the bar's <code>middle</code>, between two actions of one width, that is the screen's middle too.</td></tr>
+            <tr><td>::part</td><td><code>pill</code>, <code>text</code></td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-pill text="GBA"&gt;&lt;/omega-pill&gt;
+
+&lt;omega-bar&gt;
+  &lt;action-left slot="left" label="CONTROLS" hint="SELECT"&gt;&lt;/action-left&gt;
+  &lt;omega-pill slot="middle" text="GBA" centred&gt;&lt;/omega-pill&gt;
+  &lt;action-right slot="right" label="SETTINGS" hint="START"&gt;&lt;/action-right&gt;
 &lt;/omega-bar&gt;</code></pre>
       </article>
 

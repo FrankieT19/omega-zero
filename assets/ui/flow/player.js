@@ -10,20 +10,23 @@
       mirror way: START sends the shelf out to the left and brings Settings in from the right,
       and back sends Settings out to the right and brings the shelf in from the left. Only that
       pair goes the mirror way: the screens under Settings, and Controls, go deeper and back.
-    Leaving the shelf, its top bar goes up (dy = −p·36), its carts across the way the slide goes
-      (dx = ±p·(W + the widest cart): right for Controls, left for Settings) and its slot down
-      behind the bottom bar (dy = +p·110), while the menu comes in from the other side. Coming
-      back, the same with q = 1 − p.
+    Leaving the shelf, its top bar goes up (dy = −p·36) and its carts across the way the slide
+      goes (dx = ±p·(W + the widest cart): right for Controls, left for Settings), while the menu
+      comes in from the other side. Coming back, the same with q = 1 − p.
     The bottom bar never leaves. When its actions change (shelf and menus), the old ones sink out
       of the screen over p 0 to 0.5 and the new ones rise into place over p 0.5 to 1; between two
       menus they stay put. Its hint changes with the screen, and its font the moment Theme's FONT
       does. Only on the screen after the power menu's choice, where nothing can be pressed, does
       the whole bar sink away, dy = even(p·38), as it does on the device when a cart goes in.
+    The shelf's pill, its system between the shelf's actions, is there whenever they are and
+      sinks with them. A new word in it, the system L1 and R1 go to or a letter Up and Down jump
+      to, rises into place over PILL_IN_MS 220, sunk 2·round((1 − ease(t))·19) pixels, and a
+      letter gives way to the system again, rising in the same way, LETTER_MS 2200 after it came.
     Holding POWER (P) opens the power menu deeper from whatever screen is shown, and its B goes
       back to that screen. The power menu and the screens after its choice slide down rather than
       across: going deeper, the screen on show drops out of the bottom, dy = +even(p·H), as the
-      next comes down from the top, dy = −even((1 − p)·H), the shelf as one, its top bar, carts
-      and slot together; going back is the mirror, up out of the top and up from the bottom.
+      next comes down from the top, dy = −even((1 − p)·H), the shelf as one, its top bar and
+      carts together; going back is the mirror, up out of the top and up from the bottom.
 
   Everything is placed with left and top in whole pixels, a frame at a time, from
   requestAnimationFrame: no transforms and no CSS transitions, so nothing ever lands between
@@ -35,22 +38,25 @@
   const even = x => 2 * Math.round(x / 2) + 0;   // + 0: never -0px
   const FRAME_MS = 1000 / 60;
 
-  // The shelf's parts' sizes in pixels (flow.css): its top bar; how far its slot rises from the
-  // screen's bottom, its own 80 and the bottom bar's 30 under it; the widest cart.
+  // The shelf's parts' sizes in pixels (flow.css): its top bar; the widest cart.
   const TOP_H = 36;
-  const SLOT_RISE = 110;
   const WIDEST = 360;
   // An action's 15 art pixels and the 4 its notch rises above them: how far it sinks to be gone.
   const SINK = 19 * 2;
+  // How long the pill takes to rise into place with a new word, and how long after it came a
+  // letter gives way to the system, as app.rs has them (PILL_IN_MS, and PLATFORM_NAME_IN_MS +
+  // _HOLD_MS + _OUT_MS).
+  const PILL_IN_MS = 220;
+  const LETTER_MS = 2200;
 
   const screen = document.getElementById('screen');
   const backdrop = screen.querySelector('.backdrop');
   const bar = screen.querySelector('omega-bar');
   const actions = [bar.querySelector('action-left'), bar.querySelector('action-right')];
+  const pill = bar.querySelector('omega-pill');
   const shelf = {
     top: screen.querySelector('.shelf-top'),
     carts: screen.querySelector('.shelf-carts'),
-    slot: screen.querySelector('.shelf-slot'),
   };
   const page = name => screen.querySelector(`.page[data-screen="${name}"]`);
   const { model, PARENT, GOING } = FlowScreens;
@@ -81,8 +87,14 @@
   const POWERS = ['power', ...GOING];
   const drops = ({ from, to }) => POWERS.includes(from) || POWERS.includes(to);
 
-  const state = { current: 'shelf', slide: null, slow: false, armed: false };
+  // what the bar shows too: its actions (SHELF_BAR or MENU_BAR) and how far they are sunk, in
+  // pixels
+  const state = { current: 'shelf', slide: null, slow: false, armed: false, actions: null, sunk: 0 };
   const duration = () => SLIDE_MS * (state.slow ? 5 : 1);
+  // the pill's word: when it started rising into place (none once it is there), whether a letter
+  // in it stays there (the URL asks for a still), whether a frame is coming for it, and whether
+  // the URL is what put it there
+  const word = { since: null, held: false, running: false, reading: false };
   const size = () => screen.dataset.size.split('x').map(Number);
 
   // ---- placing ----
@@ -90,11 +102,10 @@
   // The shelf `k` of the way out, its carts off to the right (side 1) or the left (side −1): 0
   // at rest, 1 gone.
   function placeShelf(k, side) {
-    const [W, H] = size();
+    const [W] = size();
     shelf.top.style.top = `${-even(k * TOP_H)}px`;
     shelf.carts.style.left = `${side * even(k * (W + WIDEST)) + 0}px`;
     shelf.carts.style.top = `${TOP_H}px`;
-    shelf.slot.style.top = `${H - SLOT_RISE + even(k * SLOT_RISE)}px`;
   }
 
   // A screen `dx` pixels across; the shelf instead `k` of the way out, its carts to `side`.
@@ -104,18 +115,16 @@
     page(name).style.top = '0px';
   }
 
-  // A screen `dy` pixels down, the shelf as one: its top bar, carts and slot together.
+  // A screen `dy` pixels down, the shelf as one: its top bar and carts together.
   function placeDown(name, dy) {
     if (name !== 'shelf') {
       page(name).style.left = '0px';
       page(name).style.top = `${dy}px`;
       return;
     }
-    const [, H] = size();
     shelf.top.style.top = `${dy}px`;
     shelf.carts.style.left = '0px';
     shelf.carts.style.top = `${TOP_H + dy}px`;
-    shelf.slot.style.top = `${H - SLOT_RISE + dy}px`;
   }
 
   // Only these screens' parts shown; the rest are hidden, keeping their layout.
@@ -126,7 +135,9 @@
   }
 
   // The bar's actions, touched only when they change: a new label is a new sprite.
-  function setActions({ left, right }) {
+  function setActions(which) {
+    const { left, right } = which;
+    state.actions = which;
     actions.forEach((action, i) => {
       const [label, hint] = i ? right : left;
       if (action.getAttribute('label') !== label) action.setAttribute('label', label);
@@ -135,6 +146,50 @@
   }
   function sinkActions(dy) {
     for (const action of actions) action.style.top = `${dy}px`;
+    state.sunk = dy;
+    placePill();
+  }
+
+  // ---- the shelf's pill ----
+
+  // How far below its place the pill's word still is as it rises in, in pixels.
+  function rising(now) {
+    if (word.since === null) return 0;
+    const t = Math.min(1, (now - word.since) / (PILL_IN_MS * (state.slow ? 5 : 1)));
+    return 2 * Math.round(((1 - ease(t)) * SINK) / 2);
+  }
+
+  // The pill with the shelf's actions, sunk as far as they are and as far as its word still has
+  // to rise, never further than out of sight.
+  function placePill(now = performance.now()) {
+    pill.hidden = state.actions !== SHELF_BAR;
+    pill.style.top = `${Math.min(SINK, state.sunk + rising(now))}px`;
+  }
+
+  // The pill's word, the letter jumped to or else the system; `rise` brings it up into place.
+  function setWord(rise) {
+    pill.setAttribute('text', model.letter ?? model.system);
+    word.since = rise ? performance.now() : null;
+    if (rise) word.held = false;
+    placePill();
+    if (rise) runWord();
+  }
+
+  // The pill's word rising, a frame at a time, and a letter giving way to the system when its
+  // time is up.
+  function runWord() {
+    if (word.running) return;
+    word.running = true;
+    requestAnimationFrame(function frame(now) {
+      const slow = state.slow ? 5 : 1;
+      const passing = () => model.letter && !word.held;
+      if (passing() && now - word.since >= LETTER_MS * slow) FlowScreens.set('letter', null);
+      placePill(now);
+      // done once the word is in place, unless it is a letter still to give way
+      if (now - word.since >= PILL_IN_MS * slow && !passing()) word.since = null;
+      if (word.since !== null) requestAnimationFrame(frame);
+      else word.running = false;
+    });
   }
   // The whole bar, hints and actions, `dy` pixels down out of the screen.
   function dropBar(dy) {
@@ -304,7 +359,7 @@
         ? `leaving dy ${leaving}px  arriving dy ${arriving}px  actions ${sunk}px down`
         : shelfK === null
         ? `leaving dx ${leaving}px  arriving dx ${arriving}px  actions ${sunk}px down`
-        : `shelf: top ${-even(shelfK * TOP_H)}px  carts ${carts}px  slot ${even(shelfK * SLOT_RISE)}px  ` +
+        : `shelf: top ${-even(shelfK * TOP_H)}px  carts ${carts}px  ` +
           `menu dx ${menuDx}px  actions ${sunk}px down`,
     ].join('\n');
   }
@@ -332,6 +387,8 @@
     if (!model.ntp) q.set('ntp', 'off');
     if (FlowScreens.scanState() !== 'none') q.set('scan', FlowScreens.scanState());
     if (FlowScreens.bluetoothState() !== 'on') q.set('bt', FlowScreens.bluetoothState());
+    if (model.system !== 'GBA') q.set('system', model.system.toLowerCase());
+    if (model.letter && word.held) q.set('letter', model.letter);
     if (state.slow) q.set('slow', '1');
     if (document.body.classList.contains('shot')) q.set('shot', '1');
     history.replaceState(null, '', `#${q}`.replaceAll('%2C', ','));
@@ -367,6 +424,13 @@
     FlowScreens.set('ntp', q.get('ntp') !== 'off');
     FlowScreens.scanAs(pick('scan', FlowScreens.SCAN, 'none'));
     FlowScreens.bluetoothAs(pick('bt', FlowScreens.BT, 'on'));
+    // the pill at rest with what the URL says, a letter in it held there
+    word.reading = true;
+    const systems = FlowScreens.SYSTEMS.map(name => name.toLowerCase());
+    FlowScreens.shelfAs(pick('system', systems, 'gba').toUpperCase(), pick('letter', FlowScreens.INITIALS, null));
+    word.reading = false;
+    setWord(false);
+    word.held = Boolean(model.letter);
     state.slow = q.get('slow') === '1';
     syncControls();
 
@@ -478,6 +542,8 @@
     if (key === 'moving' && backdrop.hasAttribute('data-moving') !== model.moving) backdrop.toggleAttribute('data-moving', model.moving);
     if (key === 'colour' && document.documentElement.dataset.colour !== model.colour) OmegaPalette.apply(model.colour);
     if (key === 'font') bar.setAttribute('font', model.font);
+    // a new system or letter rises into the pill, but not one the URL put there
+    if ((key === 'system' || key === 'letter') && !word.reading) setWord(true);
     // a device paired or forgotten under the cursor, or Network's scan, changes the hint
     if (!state.slide) setHint(state.current);
     syncControls();
@@ -493,7 +559,7 @@
   const KEYS = {
     ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
     a: 'a', z: 'b', b: 'b', Escape: 'b', x: 'x', s: 'x', y: 'y', Enter: 'start', ' ': 'select',
-    p: 'power',
+    l: 'l1', r: 'r1', p: 'power',
   };
   document.addEventListener('keydown', e => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;

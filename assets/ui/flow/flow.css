@@ -79,7 +79,7 @@ td:first-child { white-space: nowrap; font-family: var(--mono); font-size: 0.8re
 .dpad [data-key="left"] { grid-area: 2 / 1; }
 .dpad [data-key="right"] { grid-area: 2 / 3; }
 .dpad [data-key="down"] { grid-area: 3 / 2; }
-.meta { display: grid; gap: 6px; }
+.meta, .shoulders { display: grid; gap: 6px; }
 .face { display: grid; grid-template-columns: repeat(2, 44px); gap: 6px; }
 .face button { height: 40px; border-radius: 20px; }
 /* Y over B and X over A, as on the handheld */
@@ -101,13 +101,12 @@ body.shot .screen { margin: 0; outline: 0; }
 body.shot .screen-scroll { padding: 0; overflow: visible; }
 
 /* Everything that slides is one of these, placed by player.js. From the back: the backdrop,
-   which never moves; the shelf's carts, slot and top bar; the menus; then the bottom bar, which
-   never leaves (the slot sinks out behind it). A part not on the screen is hidden, not removed,
-   so it keeps its layout. */
+   which never moves; the shelf's carts and top bar; the menus; then the bottom bar, which never
+   leaves, with the shelf's pill in it. A part not on the screen is hidden, not removed, so it
+   keeps its layout. */
 .part { position: absolute; left: 0; top: 0; width: 100%; }
 .part.away { visibility: hidden; }
-.shelf-carts { top: 36px; height: calc(100% - 36px - 110px); z-index: 1; }
-.shelf-slot { top: calc(100% - 110px); height: 80px; z-index: 1; }
+.shelf-carts { top: 36px; height: calc(100% - 36px - 15 * var(--u)); z-index: 1; }
 .shelf-top { height: 36px; z-index: 1; }
 .page { height: calc(100% - 15 * var(--u)); z-index: 2; }
 .screen > omega-bar { position: absolute; left: 0; bottom: 0; width: 100%; z-index: 3; }
@@ -137,29 +136,24 @@ body.shot .screen-scroll { padding: 0; overflow: visible; }
 }
 
 /* the carts (shelf.rs): the one under the cursor in the middle, lit, the ones beside it 0.78 of
-   its size and one cart width (360px) to either side, so they peek in at the screen's edges */
+   its size and one cart width (360px) to either side, so they peek in at the screen's edges. The
+   lit one is centred between the top bar and the bottom bar as rest_y has it, its middle 207px
+   above the bar, half the room between the two bars on a 480-tall screen (a taller screen keeps
+   the shelf there, over the bar, as stage_y does), rounded down to a whole art pixel; the ones
+   beside it stand on the same floor, as foot_y has them. */
 .cart { position: absolute; background: no-repeat 0 0 / 100% 100%; image-rendering: pixelated; }
 .cart.lit {
   width: calc(180 * var(--u)); height: calc(106 * var(--u));
-  left: calc(50% - 90 * var(--u)); top: round(down, 50% - 53 * var(--u), var(--u));
+  left: calc(50% - 90 * var(--u)); top: round(down, 100% - 207px - 53 * var(--u), var(--u));
   background-image: var(--flow-cart-lit);
 }
 .cart.side {
   width: calc(140 * var(--u)); height: calc(82 * var(--u));
-  top: round(down, 50% - 41 * var(--u), var(--u));
+  top: calc(round(down, 100% - 207px - 53 * var(--u), var(--u)) + 24 * var(--u));
   background-image: var(--flow-cart-side);
 }
 .cart.prev { left: calc(50% - 360px - 70 * var(--u)); }
 .cart.next { left: calc(50% + 360px - 70 * var(--u)); }
-
-/* the slot (slot_chrome.rs): an 80px band standing on the bottom bar, the mouth dark in it */
-.shelf-slot { box-sizing: border-box; background: var(--oz-well); border-top: var(--u) solid var(--oz-edge); }
-.shelf-slot .mouth {
-  position: absolute; box-sizing: border-box;
-  left: calc(50% - 95 * var(--u)); top: calc(8 * var(--u));
-  width: calc(190 * var(--u)); height: calc(12 * var(--u));
-  background: var(--oz-dark); border: var(--u) solid var(--oz-edge);
-}
 
 /* ---- the menus ---- */
 
