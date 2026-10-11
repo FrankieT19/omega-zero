@@ -1,5 +1,6 @@
-//! The shelf: the carts in a row over the background, the slot under them and the bar across
-//! the top. Each is a layer of its own as the shelf slides away to a menu and back.
+//! The shelf: the carts in a row over the background and the bar across the top. Each is a
+//! layer of its own as the shelf slides away to a menu and back. The bar across the bottom, with
+//! the shelf's system in its pill, is drawn over every screen (bar.rs).
 
 use omega_ui::{ease, Draw, TopBar};
 
@@ -11,9 +12,8 @@ const CORE_PICKER_DIM: f32 = 0.614;
 
 impl App {
     /// The shelf, its carts moved `off.carts_dx` across and `off.carts_dy` down, its top bar
-    /// `off.bar_dy` and its slot `off.slot_dy` down.
+    /// `off.bar_dy` down.
     pub(crate) fn draw_shelf(&self, off: Offsets, out: &mut Vec<Draw>) {
-        let colours = self.chrome_colours();
         let carts = out.len();
         match (self.core_picker_shown(), self.selected_stem()) {
             (Some(picker), Some(stem)) => {

@@ -291,7 +291,20 @@ pub fn pill_face(text: &str, pal: &Palette) -> UndoFace {
     let w = inner + 2;
     let mut face = blank(w, BAR);
     let slice = [0, PILL_END, 0, PILL_END];
-    nine_slice(&mut face, &rows, [0, 0, w as i32, BAR as i32], slice, slice, pal);
-    ink(&mut face, &letters(text, ADVANCE), 4, HINT_TOP as i32, pal.cream);
+    nine_slice(
+        &mut face,
+        &rows,
+        [0, 0, w as i32, BAR as i32],
+        slice,
+        slice,
+        pal,
+    );
+    ink(
+        &mut face,
+        &letters(text, ADVANCE),
+        4,
+        HINT_TOP as i32,
+        pal.cream,
+    );
     face
 }

@@ -2,9 +2,10 @@ use omega_gfx::{out_w, Draw, MeshId, TexId, FOCAL};
 use omega_store::{Cart, Platform};
 
 use crate::cart::{cart_box, gb_shell_of, label_colour, label_text, CART_H};
+use crate::chrome::BAR_H;
 use crate::hud::Millis;
+use crate::motion::ease;
 use crate::silhouette::GbShell;
-use crate::slot_chrome::{ease, BAR_H};
 use crate::spin::{self, CartMeshes, Pose};
 use crate::stage::{stage_y, MOCKUP_H};
 use crate::status_bar::TOP_BAR_H;
@@ -12,8 +13,7 @@ use crate::status_bar::TOP_BAR_H;
 const SIDE_SCALE: f32 = 0.78;
 const SIDE_ALPHA: f32 = 0.55;
 /// How big a Game Boy pak stands on the shelf, as a share of its own size: at its own size it
-/// is taller than the room between the bar across the top and the slot. It comes up to its own
-/// size on the way in.
+/// would stand too tall beside a GBA cart. It keeps this size on its way into the handheld.
 pub const GB_SHELF_SCALE: f32 = 0.8;
 
 /// How big a cart for `platform` stands on the shelf, as a share of its own size.
@@ -31,8 +31,8 @@ pub fn shelf_box(platform: Platform) -> (f32, f32) {
     (w as f32 * scale, h as f32 * scale)
 }
 
-/// Where a cart `h` tall stands on the shelf, between the bar across the top and the slot on
-/// the bar across the bottom: a pak taller than a GBA cart is centred there, and anything
+/// Where a cart `h` tall stands on the shelf, between the bar across the top and the bar across
+/// the bottom: a pak taller than a GBA cart is centred there, and anything
 /// shorter stands on the floor a GBA cart centred there would. A pak shrunk on the shelf is
 /// still taller than a GBA cart, so it is centred where it would stand at its own size.
 pub fn rest_y(h: f32) -> f32 {
@@ -370,7 +370,7 @@ impl Shelf {
         self.age = (self.age + dt).rem_euclid(LOOP_S);
     }
 
-    /// The row over an empty slot in the greys the slot was drawn in before the kit's palette.
+    /// The row, none of its carts held.
     pub fn draw(&self, shake: f32, out: &mut Vec<Draw>) {
         self.draw_row(None, shake, 0.0, 1.0, out);
     }

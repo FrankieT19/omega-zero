@@ -6,9 +6,8 @@
 //! from the left. Only those two slides go the mirror way: the screens under Settings, and the
 //! Controls panel under the shelf, go deeper and back. The backdrop under them never moves.
 //!
-//! The shelf slides in three layers rather than as one: its carts leave across, the way the
-//! slide goes, its top bar up off the screen and its slot down, and they come back the same
-//! ways.
+//! The shelf slides in two layers rather than as one: its carts leave across, the way the
+//! slide goes, and its top bar up off the screen, and they come back the same ways.
 //!
 //! The power screens slide down rather than across (`dropping`): the POWER menu comes down from
 //! the top as the screen it was held on drops out of the bottom, the shelf as one with all its
@@ -21,9 +20,6 @@ use crate::app::Phase;
 
 /// How long a slide takes.
 pub const SLIDE_MS: Millis = 280;
-
-/// How far the slot's band and its name drop to be off the screen.
-pub const SLOT_DROP: f32 = 122.0;
 
 /// Which way a move goes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,7 +83,7 @@ pub fn widest_cart() -> f32 {
 
 /// How far each layer of a screen is moved while it slides. A menu screen moves as one, `dx`
 /// across and `dy` down; the shelf moves its carts `carts_dx` across and `carts_dy` down, its top
-/// bar `bar_dy` down (up, being negative) and its slot `slot_dy` down.
+/// bar `bar_dy` down (up, being negative).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Offsets {
     pub dx: f32,
@@ -95,7 +91,6 @@ pub struct Offsets {
     pub carts_dx: f32,
     pub carts_dy: f32,
     pub bar_dy: f32,
-    pub slot_dy: f32,
 }
 
 impl Offsets {
@@ -106,7 +101,6 @@ impl Offsets {
         carts_dx: 0.0,
         carts_dy: 0.0,
         bar_dy: 0.0,
-        slot_dy: 0.0,
     };
 }
 
@@ -137,7 +131,6 @@ pub fn offsets(dir: Dir, end: End, p: f32, w: f32) -> Offsets {
         dx: across(dir, end, p, w),
         carts_dx: across(dir, end, p, w + widest_cart()),
         bar_dy: -even(gone * TOP_BAR_H),
-        slot_dy: even(gone * SLOT_DROP),
         ..Offsets::NONE
     }
 }
@@ -146,7 +139,7 @@ pub fn offsets(dir: Dir, end: End, p: f32, w: f32) -> Offsets {
 /// rather than across, as the power screens slide: going deeper, the screen left behind drops
 /// out of the bottom as the one it opens comes down from the top; going back, the screen goes
 /// up out of the top as the one it came from rises back from the bottom. The shelf moves as one,
-/// its carts, top bar and slot together.
+/// its carts and top bar together.
 pub fn dropping(dir: Dir, end: End, p: f32, h: f32) -> Offsets {
     // as far down as a slide the same way goes across, the screen left behind going down
     // where it would go right
@@ -155,7 +148,6 @@ pub fn dropping(dir: Dir, end: End, p: f32, h: f32) -> Offsets {
         dy,
         carts_dy: dy,
         bar_dy: dy,
-        slot_dy: dy,
         ..Offsets::NONE
     }
 }

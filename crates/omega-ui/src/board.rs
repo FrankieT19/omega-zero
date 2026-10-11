@@ -14,10 +14,10 @@ use omega_store::{Cart, Core};
 
 use crate::cart::{clean_label, CartFace, CART_H, CART_W};
 use crate::kit::pixel::{blank, fill, ink, letters, ACCENT, ADVANCE, CAP, LINE};
+use crate::motion::ease;
 use crate::plate::UndoFace;
 use crate::shelf::foot_y;
 use crate::shell::shell_for;
-use crate::slot_chrome::ease;
 use crate::sprite::SPRITE_PX;
 
 /// The board's face, the back of the shell and the board in it.
@@ -498,7 +498,7 @@ pub fn board_x() -> f32 {
 }
 
 /// The open board stands between the lid resting above it and the legend under it, all of it
-/// between the bar across the top and the slot's bar.
+/// between the bar across the top and the bar across the bottom.
 pub fn board_y() -> f32 {
     140.0 + stage_y()
 }
@@ -512,8 +512,7 @@ pub const HOP_LIFT: f32 = 8.0;
 
 pub const SLIDE_SHARE: f32 = 160.0 / 420.0;
 /// How far the cart slides up off the board before its lid lifts away: short of where the lid
-/// comes to rest, so the lift still carries it up. The slot on the bottom bar stands the cart
-/// higher than the mockup did, and a quarter would now take it past the lid's rest.
+/// comes to rest, so the lift still carries it up. A quarter would take it past the lid's rest.
 pub const SLIDE_UP: f32 = CART_H as f32 / 5.0;
 
 pub fn slide_of(progress: f32) -> f32 {
