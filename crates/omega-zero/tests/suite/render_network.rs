@@ -1,8 +1,9 @@
 #![cfg(target_os = "macos")]
 
 //! The Network modal and the SSH panel as the frontend draws them, held pixel for pixel to the
-//! kit's faces put where flow.html puts them, over a plain backdrop. Set SCRATCH_PNG_DIR to a
-//! folder to have each frame written there.
+//! kit's faces put where flow.html puts them, over a plain backdrop, and Network before, during
+//! and after X's scan to flow.html's own screenshots of it (omega-ui's tests/suite/network/ref).
+//! Set SCRATCH_PNG_DIR to a folder to have each frame written there.
 
 use crate::common;
 
@@ -38,13 +39,25 @@ impl InputSource for Script {
     }
 }
 
-/// A radio that comes up when asked and says only what the test tells it.
+#[derive(Default)]
+struct RadioState {
+    news: Vec<WifiNews>,
+    /// What a scan hears, or None to leave every scan unanswered.
+    heard: Option<Vec<Seen>>,
+}
+
+/// A radio that comes up when asked, says what the test tells it, and answers a scan with the
+/// networks it hears.
 #[derive(Clone, Default)]
-struct Radio(Arc<Mutex<Vec<WifiNews>>>);
+struct Radio(Arc<Mutex<RadioState>>);
 
 impl Radio {
     fn say(&self, news: WifiNews) {
-        self.0.lock().unwrap().push(news);
+        self.0.lock().unwrap().news.push(news);
+    }
+
+    fn hears(&self, heard: Option<Vec<Seen>>) {
+        self.0.lock().unwrap().heard = heard;
     }
 }
 
@@ -54,13 +67,20 @@ impl WifiJobs for Radio {
     }
 
     fn ask(&mut self, job: WifiJob) {
-        if job == WifiJob::Up {
-            self.say(WifiNews::Started(true));
+        let mut radio = self.0.lock().unwrap();
+        match job {
+            WifiJob::Up => radio.news.push(WifiNews::Started(true)),
+            WifiJob::Scan => {
+                if let Some(seen) = radio.heard.clone() {
+                    radio.news.push(WifiNews::Seen(seen));
+                }
+            }
+            _ => {}
         }
     }
 
     fn news(&mut self) -> Vec<WifiNews> {
-        std::mem::take(&mut self.0.lock().unwrap())
+        std::mem::take(&mut self.0.lock().unwrap().news)
     }
 }
 
@@ -69,7 +89,7 @@ impl WifiJobs for Radio {
 enum Online {
     /// Wi-Fi off.
     Off,
-    /// On, flow.html's three networks in reach, none joined.
+    /// On, flow.html's three networks in reach of a scan, none joined.
     Unjoined,
     /// On and joined to Home, as flow.html has it.
     Joined,
@@ -79,6 +99,7 @@ struct Rig {
     _d: TempDir,
     f: Frontend,
     input: Script,
+    radio: Radio,
 }
 
 impl Rig {
@@ -102,7 +123,7 @@ impl Rig {
                 ("Café Wi-Fi", -70, false),
                 ("Upstairs 5G", -80, true),
             ];
-            radio.say(WifiNews::Seen(
+            radio.hears(Some(
                 seen.iter()
                     .map(|&(ssid, rssi, secured)| Seen {
                         ssid: ssid.as_bytes().to_vec(),
@@ -134,6 +155,7 @@ impl Rig {
             _d: d,
             f,
             input: Script(VecDeque::new()),
+            radio,
         }
     }
 
@@ -158,9 +180,16 @@ impl Rig {
         panic!("Settings has no {row:?} row");
     }
 
+    /// Network, as it opens: nothing scanned.
     fn open_network(&mut self) {
         self.settings_at(SettingsRow::Network);
         self.tap(Btn::A);
+    }
+
+    /// Network, and X's scan answered.
+    fn open_network_scanned(&mut self) {
+        self.open_network();
+        self.tap(Btn::X);
     }
 
     /// The SSH screen: down to SSH's row, back round from ON to INFO, then A.
@@ -308,6 +337,78 @@ fn flows_networks(joined: bool) -> [ListRow<'static>; 3] {
     ]
 }
 
+/// Home as the list shows it before a scan: joined, with no signal or padlock, which only a
+/// scan hears.
+fn home_unscanned() -> ListRow<'static> {
+    ListRow {
+        signal: None,
+        lock: false,
+        ..flows_networks(true)[0]
+    }
+}
+
+/// Network as it opens, joined to Home: the list holds Home alone, CONNECTED, and the note says
+/// to press X, as flow.html's #scan=none.
+#[test]
+fn network_before_a_scan_holds_the_network_joined_and_says_to_press_x() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    for (colour, name) in [(NIGHT, "night"), (AMBER, "amber")] {
+        let mut r = Rig::new(colour, Online::Joined);
+        r.f.upload_faces(&mut c);
+        r.open_network();
+        let px = r.frame(&mut c, &format!("network-unscanned-{name}"));
+        let settings = [
+            setting("WI-FI", "ON", true),
+            setting("NETWORK TIME", "ON", false),
+            setting("SSH", "ON", false),
+        ];
+        let art = network_art(
+            &settings,
+            &[home_unscanned()],
+            &["Press X to look for networks."],
+            palette(colour),
+        );
+        let [x, y, _, _] = modal_rect();
+        shows(&px, &art, [x, y], &format!("network unscanned, {name}"));
+    }
+}
+
+/// X's scan under way: Home still alone, and the note says it is looking, as flow.html's
+/// #scan=running.
+#[test]
+fn network_while_it_scans_says_it_is_looking() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    let mut r = Rig::new(NIGHT, Online::Joined);
+    r.radio.hears(None);
+    r.f.upload_faces(&mut c);
+    r.open_network();
+    r.tap(Btn::X);
+    let px = r.frame(&mut c, "network-scanning-night");
+    let settings = [
+        setting("WI-FI", "ON", true),
+        setting("NETWORK TIME", "ON", false),
+        setting("SSH", "ON", false),
+    ];
+    let art = network_art(
+        &settings,
+        &[home_unscanned()],
+        &["Looking for networks…"],
+        palette(NIGHT),
+    );
+    let [x, y, _, _] = modal_rect();
+    shows(&px, &art, [x, y], "network scanning");
+}
+
 #[test]
 fn the_modal_sits_where_flow_puts_it() {
     if (out_w(), out_h()) == (640, 480) {
@@ -341,7 +442,7 @@ fn network_joined_draws_flows_modal() {
     for (colour, name) in [(NIGHT, "night"), (AMBER, "amber")] {
         let mut r = Rig::new(colour, Online::Joined);
         r.f.upload_faces(&mut c);
-        r.open_network();
+        r.open_network_scanned();
         let px = r.frame(&mut c, &format!("network-joined-{name}"));
         let pal = palette(colour);
         let settings = [
@@ -365,7 +466,7 @@ fn the_ssh_row_steps_through_off_and_info_with_its_carets() {
     };
     let mut r = Rig::new(NIGHT, Online::Joined);
     r.f.upload_faces(&mut c);
-    r.open_network();
+    r.open_network_scanned();
     r.tap(Btn::Down);
     r.tap(Btn::Down);
     let pal = palette(NIGHT);
@@ -418,7 +519,7 @@ fn the_lit_network_is_banded_and_its_panel_active() {
     };
     let mut r = Rig::new(AMBER, Online::Unjoined);
     r.f.upload_faces(&mut c);
-    r.open_network();
+    r.open_network_scanned();
     for _ in 0..4 {
         r.tap(Btn::Down);
     }
@@ -575,7 +676,7 @@ fn a_new_backdrop_colour_re_tints_the_modal() {
     };
     let mut r = Rig::new(NIGHT, Online::Joined);
     r.f.upload_faces(&mut c);
-    r.open_network();
+    r.open_network_scanned();
     let [mx, my, _, _] = modal_rect();
     // the frame colour, inside the modal's corner where no panel covers it
     let frame_at = |px: &[u8]| at(px, 2 * (mx + 3), 2 * (my + 3));
@@ -594,7 +695,7 @@ fn a_new_backdrop_colour_re_tints_the_modal() {
         "the colour did not change"
     );
     r.tap(Btn::B);
-    r.open_network();
+    r.open_network_scanned();
     let px = r.frame(&mut c, "network-tint-after");
     assert_eq!(
         frame_at(&px),
@@ -608,4 +709,76 @@ fn a_new_backdrop_colour_re_tints_the_modal() {
     ];
     let art = network_art(&settings, &flows_networks(true), &[], palette(AMBER));
     shows(&px, &art, [mx, my], "re-tinted to Amber");
+}
+
+/// flow.html's screenshot of Network in its #scan= state `scan` on this canvas, in Night
+/// (omega-ui's tests/suite/network/ref): the modal alone, one pixel to an art pixel, clear
+/// wherever `face` is, as its cut corners show the backdrop.
+fn flow_shot(scan: &str, face: &UndoFace) -> UndoFace {
+    let path = format!(
+        "{}/../omega-ui/tests/suite/network/ref/flow-network-{scan}-{}x{}.png",
+        env!("CARGO_MANIFEST_DIR"),
+        out_w(),
+        out_h()
+    );
+    let file = std::fs::File::open(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
+    let mut decoder = png::Decoder::new(std::io::BufReader::new(file));
+    decoder.set_transformations(png::Transformations::normalize_to_color8());
+    let mut reader = decoder.read_info().expect("a PNG");
+    let mut buf = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buf).expect("its pixels");
+    let channels = info.color_type.samples();
+    assert_eq!((info.width, info.height), (face.w, face.h), "{path}");
+    let rgba = buf[..info.buffer_size()]
+        .chunks(channels)
+        .zip(face.rgba.chunks(4))
+        .flat_map(|(px, kit)| [px[0], px[1], px[2], kit[3]])
+        .collect();
+    UndoFace {
+        rgba,
+        w: info.width,
+        h: info.height,
+    }
+}
+
+/// Network as it opens, while X's scan runs and once it is done is flow.html's screenshot of it
+/// in each #scan= state, to the screen pixel.
+#[test]
+fn the_modal_before_during_and_after_a_scan_is_flows_screenshot_of_it() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    let settings = [
+        setting("WI-FI", "ON", true),
+        setting("NETWORK TIME", "ON", false),
+        setting("SSH", "ON", false),
+    ];
+    let unscanned = [home_unscanned()];
+    for (scan, networks, notes) in [
+        (
+            "none",
+            &unscanned[..],
+            &["Press X to look for networks."][..],
+        ),
+        ("running", &unscanned[..], &["Looking for networks…"][..]),
+        ("done", &flows_networks(true)[..], &[][..]),
+    ] {
+        let mut r = Rig::new(NIGHT, Online::Joined);
+        if scan == "running" {
+            r.radio.hears(None);
+        }
+        r.f.upload_faces(&mut c);
+        r.open_network();
+        if scan != "none" {
+            r.tap(Btn::X);
+        }
+        let name = format!("flow-network-{scan}");
+        let px = r.frame(&mut c, &name);
+        let face = network_art(&settings, networks, notes, palette(NIGHT));
+        let [x, y, _, _] = modal_rect();
+        shows(&px, &flow_shot(scan, &face), [x, y], &name);
+    }
 }

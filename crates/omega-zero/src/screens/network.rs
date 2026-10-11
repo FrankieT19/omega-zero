@@ -1,13 +1,21 @@
 //! Network, opened from Settings: switching Wi-Fi, network time and SSH, the way into the SSH
-//! screen, and the networks in reach.
+//! screen, and the networks in reach, looked for when X asks.
 
 use omega_input::Action;
+use omega_ui::kit::bar::Hint;
 use omega_ui::network::NetworkFaces;
 use omega_ui::{Draw, SettingsRow};
 
 use crate::app::{App, Phase};
 use crate::nav::Dir;
-use crate::wifi_screen::{NetworkView, Outcome as WifiOutcome, Typing};
+use crate::screens::bar::FORGET;
+use crate::wifi_screen::{NetworkView, Outcome as WifiOutcome, Typing, WifiScreen};
+
+/// X on Network while Wi-Fi is on: it looks once for the networks in reach.
+pub const SCAN: Hint<'static> = Hint {
+    key: "X",
+    word: "SCAN",
+};
 
 impl App {
     pub(crate) fn network_input(&mut self, action: Action) {
@@ -65,6 +73,17 @@ impl App {
             Phase::Network(screen) if screen.typing.is_none() => screen.forgets(&self.wifi),
             _ => false,
         }
+    }
+
+    /// Network's keys beyond the bar's two actions while no passphrase is being typed: X SCAN
+    /// while Wi-Fi is on, and beside it Y FORGET on a saved network (`network_forgets`' rule).
+    pub(crate) fn network_hints(&self, screen: &WifiScreen) -> Vec<Hint<'static>> {
+        if screen.typing.is_some() {
+            return Vec::new();
+        }
+        let scan = self.wifi.enabled().then_some(SCAN);
+        let forget = screen.forgets(&self.wifi).then_some(FORGET);
+        scan.into_iter().chain(forget).collect()
     }
 
     pub fn set_network_faces(&mut self, faces: NetworkFaces) {

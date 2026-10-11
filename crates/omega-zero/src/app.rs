@@ -1313,13 +1313,13 @@ impl App {
         }
     }
 
-    /// How closely the radio is watched: the Network screen looks for networks, Settings and
-    /// SSH name the one joined, and the shelf's top bar and Labels only need to know whether
-    /// there is one.
+    /// How closely the radio is watched: the Network screen, and SSH opened from it, keep what
+    /// X's scans found, Settings names the network joined, and the shelf's top bar and Labels
+    /// only need to know whether there is one.
     pub fn wifi_watch(&self) -> Watch {
         match self.phase {
-            Phase::Network(_) => Watch::Networks,
-            Phase::Settings { .. } | Phase::Ssh(_) => Watch::Status,
+            Phase::Network(_) | Phase::Ssh(_) => Watch::Networks,
+            Phase::Settings { .. } => Watch::Status,
             Phase::Shelf | Phase::Inserting { .. } | Phase::Ejecting { .. } | Phase::Labels(_) => {
                 Watch::Glance
             }

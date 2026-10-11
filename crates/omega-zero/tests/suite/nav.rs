@@ -344,9 +344,9 @@ fn ssh_and_the_passphrase_slide_in_over_network_and_back() {
     press(&mut a, Btn::Start);
     walk_to(&mut a, SettingsRow::Network);
     press(&mut a, Btn::A);
-    // one tick asks the radio to look, the next hears what it found
+    // X asks the radio to look, and the next tick hears what it found
+    press(&mut a, Btn::X);
     a.tick_ms(1_000);
-    a.tick_ms(1_016);
     let network = Phase::Network(WifiScreen::default());
     let at = |a: &App| match a.phase() {
         Phase::Network(s) => s.sel.clone(),

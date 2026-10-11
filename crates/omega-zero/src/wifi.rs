@@ -21,7 +21,6 @@ pub const REFRESH_MS: Millis = 2_000;
 /// While only the top bar shows whether a network is joined, how often the link is glanced at.
 /// A glance reads one file, so the bar follows a network joined or lost within a second.
 pub const GLANCE_MS: Millis = 1_000;
-pub const SCAN_MS: Millis = 12_000;
 
 /// What `wifi.sh status` says.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -72,6 +71,10 @@ pub enum WifiJob {
     /// Whether a network is joined, as the kernel says of the link: a read of one file, where
     /// `Refresh` runs the script twice.
     Glance,
+    /// One look for the networks in reach: `wifi.sh scan`, which asks wpa_supplicant to scan and
+    /// then reads what it heard. Only X on the Network screen asks for one, never a timer: while
+    /// the radio scans its driver will not calibrate, and on the RG35XX SP a reboot after a run of
+    /// them has sometimes hung in the kernel.
     Scan,
     Join {
         ssid: Vec<u8>,
