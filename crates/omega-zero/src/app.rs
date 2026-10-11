@@ -11,6 +11,7 @@ use omega_store::{
     Platform, StateEntry, StateRing, Theme, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, RING_MAX, VOLUME_MAX,
 };
 use omega_ui::kit::action::Font;
+use omega_ui::kit::fade::stepped;
 use omega_ui::{
     backdrop_shift, board_from, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease, grown,
     lid_at, lid_from, lift_of, on_board, posed_cart, posed_face, push_cart_side, shelf_cart_at,
@@ -86,7 +87,6 @@ const SHUTDOWN_SHOW_MS: Millis = SLIDE_MS + 120;
 const PLATFORM_NAME_IN_MS: Millis = 200;
 const PLATFORM_NAME_HOLD_MS: Millis = 1200;
 const PLATFORM_NAME_OUT_MS: Millis = 800;
-const PLATFORM_NAME_ALPHA: f32 = 0.4;
 /// The core picker's lid, the cart's own face, turned `turn` as it lifts and spun `yaw` as it
 /// leaves the shelf. Unspun, it is drawn exactly as it was before carts swayed.
 fn push_lid(out: &mut Vec<Draw>, at: (f32, f32, f32, f32), tex: TexId, turn: f32, yaw: f32) {
@@ -630,6 +630,8 @@ impl App {
         self.name_pending = true;
     }
 
+    /// How much of the slot's name shows: it comes in, holds in the palette's dim colour and
+    /// goes, each way in the kit's four steps.
     pub(crate) fn slot_name_alpha(&self) -> f32 {
         let Some(at) = self.shelf_named else {
             return 0.0;
@@ -643,7 +645,7 @@ impl App {
             let out = t - PLATFORM_NAME_IN_MS - PLATFORM_NAME_HOLD_MS;
             1.0 - (out as f32 / PLATFORM_NAME_OUT_MS as f32).min(1.0)
         };
-        PLATFORM_NAME_ALPHA * ease(level)
+        stepped(ease(level))
     }
 
     fn next_shelf(&self, by: i32) -> Option<usize> {
@@ -2033,6 +2035,8 @@ impl App {
         self.alert_alpha() > 0.0
     }
 
+    /// How much of the refused cart's alert shows: all of it until the cart is `ALERT_HOLD` of
+    /// the way out, then fading in the kit's four steps until it is gone at `ALERT_GONE`.
     pub fn alert_alpha(&self) -> f32 {
         let (Some(from), Phase::Ejecting { t, .. }) = (self.refused_from, &self.phase) else {
             return 0.0;
@@ -2042,7 +2046,7 @@ impl App {
             return 0.0;
         }
         let u = ((t - from) / span).clamp(0.0, 1.0);
-        ((ALERT_GONE - u) / (ALERT_GONE - ALERT_HOLD)).clamp(0.0, 1.0)
+        stepped((ALERT_GONE - u) / (ALERT_GONE - ALERT_HOLD))
     }
 
     pub fn set_alert_face(&mut self, face: TexId) {

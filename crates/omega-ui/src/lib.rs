@@ -37,7 +37,7 @@ pub use backdrop::{
     backdrop_speed, draw_backdrop, draw_pattern, draw_solid, wallpaper_face, BACKDROP_PALETTE,
 };
 pub use barcode::{code39, CODE39_NARROW, CODE39_WIDE};
-pub use battery::{bolt_face, draw_gauge, gauge_width, GAUGE_H, GAUGE_W, WALL};
+pub use battery::{bolt_face, draw_gauge, gauge_width, FIGURE_AT, GAUGE_H, GAUGE_W, WALL};
 pub use bezel::{
     bezel_mark_face, mark_height, mark_rect, overlay_clear, overlay_face, overlay_path, rim,
     BEZEL_FILL, BEZEL_INK, RIM_W,
@@ -76,16 +76,12 @@ pub use link_art::{
     PLUG_H, PLUG_TIP_X, PLUG_W, PORT_H, PORT_W,
 };
 pub use plate::{
-    arrows_hint_face, arrows_hint_width, cap_width, centred_hints, hint_face, hint_width,
-    word_cap_top, word_face, word_face_in, word_tail, word_width, UndoFace, ARROW_GAP, CAP,
-    CAP_GAP, HINT_EDGE, HINT_H, LEGEND_GAP,
+    arrows_hint_face, arrows_hint_width, cap_width, hint_face, hint_width, word_cap_top, word_face,
+    word_width, UndoFace, ARROW_GAP, CAP, CAP_GAP, HINT_EDGE, HINT_H,
 };
 pub use polaroids::{photo_face, PhotoFace, Polaroids, PHOTO_H, PHOTO_W};
 pub use power_menu::PowerChoice;
-pub use quick_menu::{
-    menu_face, quick_caret_face, quick_value_face, MENU_H, MENU_INK, MENU_PAD, QUICK_EDGE,
-    QUICK_PITCH,
-};
+pub use quick_menu::{menu_face, MENU_H, MENU_INK, MENU_PAD};
 pub use refusal::Refusal;
 pub use settings_menu::{
     configs_in, settings_frame, settings_panels, settings_row_face, settings_row_rects,
@@ -100,14 +96,15 @@ pub use shell::{
 };
 pub use silhouette::{gb_silhouette, silhouette, GbShell};
 pub use slot_chrome::{
-    draw_empty_slot, draw_slot_name, ease, edge, housing, opening, recess, set_theme, slot_top,
-    ChromeColours, SlotChrome, ALERT_PX, BAR_H, CATCH_OUT, LIP_H, MOUTH_H, MOUTH_W, SLOT_RAISE,
+    alert_face, draw_empty_slot, draw_slot_name, ease, edge, housing, opening, recess, set_theme,
+    slot_name_face, slot_top, ChromeColours, SlotChrome, ALERT_H, ALERT_W, BAR_H, CATCH_OUT, LIP_H,
+    MOUTH_H, MOUTH_W, SLOT_RAISE,
 };
 pub use spin::{
     cart_mesh, posed_cart, posed_face, push_cart_side, CartMeshes, CartModel, Pose, OUTLINE_INSET,
     THICK,
 };
-pub use sprite::{CELL_PX, SPRITE_PX};
+pub use sprite::{CELL, CELL_PX, SPRITE_PX};
 pub use stage::{stage_x, stage_y, MOCKUP_H, MOCKUP_W};
 pub use status_bar::{link_face, Link, LinkFaces, Links, TopBar, LINK_OFF, LINK_ON, TOP_BAR_H};
 pub use sticker::{

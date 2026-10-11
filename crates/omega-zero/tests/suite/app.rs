@@ -502,6 +502,38 @@ fn the_switch_changes_the_name_on_the_band_and_says_nothing() {
     );
 }
 
+/// The name a switch prints in the slot comes, holds whole and goes in the kit's four steps,
+/// never in between.
+#[test]
+fn the_name_in_the_slot_fades_in_the_kits_four_steps() {
+    let mut a = app_with_platforms(&[(Platform::Gba, "Emerald"), (Platform::Gb, "Tetris")]);
+    let name = TexId::from_raw(4_242);
+    a.apply(Action::GbaDown(Btn::R1));
+    a.set_shelf_platform_face(name, 48);
+    let mut seen = Vec::new();
+    for _ in 0..180 {
+        a.update(1.0 / 60.0);
+        let mut out = Vec::new();
+        a.draw(&mut out);
+        let alpha = out
+            .iter()
+            .find_map(|d| match *d {
+                Draw::Tex { tex, alpha, .. } if tex == name => Some(alpha),
+                _ => None,
+            })
+            .unwrap_or(0.0);
+        assert!(
+            [0.0, 0.25, 0.5, 0.75, 1.0].contains(&alpha),
+            "the name is drawn at {alpha}, between the fade's steps"
+        );
+        if seen.last() != Some(&alpha) {
+            seen.push(alpha);
+        }
+    }
+    assert!(seen.contains(&1.0), "the name never showed whole: {seen:?}");
+    assert_eq!(seen.last(), Some(&0.0), "the name never went: {seen:?}");
+}
+
 #[test]
 fn a_card_on_one_shelf_names_nothing_because_there_is_nowhere_to_switch_to() {
     let mut alone = app_with_platforms(&[(Platform::Gba, "Emerald"), (Platform::Gba, "Fusion")]);

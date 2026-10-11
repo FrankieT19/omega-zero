@@ -1,6 +1,6 @@
 //! The boot logo fading into the shelf: drawn over everything on the shelf's first frame, where
-//! and as big as the bootloader drew it, eased out over half a second, ended at once by a
-//! press, which is then handled, and shown only by a boot that lands on the shelf.
+//! and as big as the bootloader drew it, eased out over half a second in four even steps, ended
+//! at once by a press, which is then handled, and shown only by a boot that lands on the shelf.
 
 use crate::common;
 
@@ -74,11 +74,20 @@ fn the_logo_eases_out_over_half_a_second() {
     assert!(alpha(FADE_MS / 4.0) > 0.75, "it does not ease in");
     assert!(alpha(3.0 * FADE_MS / 4.0) < 0.25, "it does not ease out");
     let mut was = 1.0;
+    let mut steps = vec![1.0];
     for ms in 0..=500 {
         let now = alpha(ms as f32);
         assert!(now <= was, "it came back at {ms} ms");
+        if now != was {
+            steps.push(now);
+        }
         was = now;
     }
+    assert_eq!(
+        steps,
+        [1.0, 0.75, 0.5, 0.25, 0.0],
+        "it does not fade in the kit's four even steps"
+    );
 }
 
 #[test]

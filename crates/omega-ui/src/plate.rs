@@ -1,6 +1,5 @@
 use std::sync::OnceLock;
 
-use crate::draw::{out_w, TexId};
 use crate::text;
 
 pub const HINT_H: u32 = 24;
@@ -17,7 +16,7 @@ const INK: [u8; 3] = [0xf6, 0xf4, 0xef];
 const CAP_INK: [u8; 3] = [0x1a, 0x19, 0x17];
 const KEY_PX: f32 = 18.0;
 const LABEL_PX: f32 = 18.0;
-const LABEL_MIN_PX: f32 = 9.0;
+const LABEL_MIN_PX: f32 = 18.0;
 
 pub struct UndoFace {
     pub rgba: Vec<u8>,
@@ -82,48 +81,14 @@ pub fn word_cap_top() -> f32 {
     })
 }
 
-/// The clear columns a `word_face` keeps right of its ink: the face's spacing after its last
-/// letter. The same for every word, since every letter of a monospaced face is spaced alike.
-pub fn word_tail() -> f32 {
-    static TAIL: OnceLock<f32> = OnceLock::new();
-    *TAIL.get_or_init(|| {
-        let face = word_face("0");
-        let inked =
-            |x: u32| (0..face.h).any(|y| face.rgba[((y * face.w + x) * 4 + 3) as usize] > 0);
-        (0..face.w).rev().take_while(|&x| !inked(x)).count() as f32
-    })
-}
-
 pub fn word_face(text: &str) -> UndoFace {
-    word_face_in(text, INK)
-}
-
-/// `text` as `word_face` prints it, in `ink`: the top bar's clock and figure, in its ink.
-pub fn word_face_in(text: &str, ink: [u8; 3]) -> UndoFace {
     let w = word_width(text);
     let mut rgba = vec![0u8; (w * HINT_H * 4) as usize];
     if let Some(font) = text::label_font() {
         let layout = text::fit(font, text, w as f32, 1, LABEL_PX, LABEL_MIN_PX);
-        text::draw_centred(&mut rgba, w, HINT_H, &layout, ink);
+        text::draw_centred(&mut rgba, w, HINT_H, &layout, INK);
     }
     UndoFace { rgba, w, h: HINT_H }
-}
-
-pub const LEGEND_GAP: f32 = 36.0;
-
-pub fn centred_hints(hints: &[(TexId, u32)], gap: f32) -> Vec<(TexId, u32, f32)> {
-    let seen = |w: u32| w.saturating_sub(HINT_EDGE) as f32;
-    let total = hints.iter().map(|&(_, w)| seen(w)).sum::<f32>()
-        + gap * hints.len().saturating_sub(1) as f32;
-    let mut x = ((out_w() as f32 - total) / 2.0).round();
-    hints
-        .iter()
-        .map(|&(tex, w)| {
-            let at = x.round();
-            x += seen(w) + gap;
-            (tex, w, at)
-        })
-        .collect()
 }
 
 fn band_width(label: &str) -> u32 {

@@ -33,10 +33,16 @@ const BOLT: Rows = [
     ".##....",
 ];
 
-/// The bolt shown beside the capsule while the handheld charges, one cell square, in `ink`.
+/// The bolt shown beside the capsule while the handheld charges, one cell square, in `ink`, a
+/// texel to an art pixel: upload it NEAREST, as `draw_gauge` draws it at two screen pixels to
+/// one of its own.
 pub fn bolt_face(ink: [u8; 3]) -> UndoFace {
     sprite_face(&BOLT, ink)
 }
+
+/// How far right of the gauge's left edge its figure starts: past the bolt's room, the capsule
+/// and its nub, and a gap.
+pub const FIGURE_AT: f32 = BOLT_W + BOLT_GAP + GAUGE_W + NUB_W + GAP;
 
 /// How wide the gauge is drawn with `percent` beside it, from the room left for the bolt
 /// on its left to the end of the figure.
@@ -115,25 +121,15 @@ pub fn draw_gauge(
         });
     }
 
-    if percent.w > 0 {
-        let px = cx + GAUGE_W + NUB_W + GAP;
-        let py = y - word_cap_top();
-        out.push(match percent.face {
-            Some(tex) => Draw::Tex {
-                x: px,
-                y: py,
-                w: percent.w as f32,
-                h: HINT_H as f32,
-                tex,
-                alpha: 1.0,
-            },
-            None => Draw::Rect {
-                x: px,
-                y: py,
-                w: percent.w as f32,
-                h: HINT_H as f32,
-                colour: [1.0, 1.0, 1.0, 0.08],
-            },
+    // a figure not printed yet leaves its room empty
+    if let (true, Some(tex)) = (percent.w > 0, percent.face) {
+        out.push(Draw::Tex {
+            x: x + FIGURE_AT,
+            y: y - word_cap_top(),
+            w: percent.w as f32,
+            h: HINT_H as f32,
+            tex,
+            alpha: 1.0,
         });
     }
 }

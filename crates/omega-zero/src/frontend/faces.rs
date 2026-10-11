@@ -1,7 +1,6 @@
 //! What the screens' syncs share: the uploads that reuse a texture as what it shows changes.
 
 use omega_gfx::{Compositor, TexId};
-use omega_ui::{Printed, UndoFace};
 
 pub(crate) fn upload(
     compositor: &mut Compositor,
@@ -49,41 +48,5 @@ pub(crate) fn upload_nearest(
             *held = Some(id);
             id
         }
-    }
-}
-
-/// A word printed into a texture of its own, and what it was printed from, so its sync prints
-/// it again only when that changes: what it says, or the ink it is in.
-pub(crate) struct Printing<K> {
-    tex: Option<TexId>,
-    from: Option<K>,
-}
-
-impl<K> Default for Printing<K> {
-    fn default() -> Self {
-        Printing {
-            tex: None,
-            from: None,
-        }
-    }
-}
-
-impl<K: PartialEq> Printing<K> {
-    /// The word `face` prints from `from`, uploaded into this texture when it was last printed
-    /// from something else; None while it still shows `from`.
-    pub(crate) fn print(
-        &mut self,
-        compositor: &mut Compositor,
-        from: K,
-        face: impl FnOnce(&K) -> UndoFace,
-    ) -> Option<Printed> {
-        if self.from.as_ref() == Some(&from) {
-            return None;
-        }
-        let face = face(&from);
-        let w = face.w;
-        let tex = upload(compositor, &mut self.tex, face);
-        self.from = Some(from);
-        Some(Printed::new(tex, w))
     }
 }

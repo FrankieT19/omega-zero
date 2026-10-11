@@ -21,7 +21,6 @@ mod kit;
 mod kit_hud;
 mod kit_layout;
 mod label;
-mod legend;
 mod letters;
 mod link_art;
 mod network;

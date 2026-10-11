@@ -6,6 +6,7 @@
 
 use omega_gfx::{out_h, out_w};
 use omega_input::Action;
+use omega_ui::kit::fade::stepped;
 use omega_ui::{ease, Draw, TexId};
 
 use crate::app::{App, Phase};
@@ -29,9 +30,10 @@ pub(crate) struct BootFade {
 }
 
 /// How opaque the logo is `elapsed` ms into its fade: wholly as it starts, eased out to nothing
-/// by the time it is over.
+/// by the time it is over, in the kit's four steps (`kit::fade::stepped`) as the 16-bit
+/// consoles faded, never in between.
 pub fn alpha(elapsed: f32) -> f32 {
-    1.0 - ease((elapsed / FADE_MS).clamp(0.0, 1.0))
+    stepped(1.0 - ease((elapsed / FADE_MS).clamp(0.0, 1.0)))
 }
 
 /// Whether `action` is a press, which ends the fade. A release is not, nor is the lid found
