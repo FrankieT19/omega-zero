@@ -2,7 +2,7 @@
 
 <p align="center">A Game Boy-centric frontend for Anbernic H700 handhelds running
 <a href="https://github.com/pvaibhav/BaseOS">BaseOS</a>. It plays GBA, GBC and GB games, and
-only those, on a shelf of cartridges you slide into a slot.</p>
+only those, on a shelf of cartridges that go down into the handheld when you play them.</p>
 
 <p align="center">
 <a href="https://oauramos.github.io/omega-zero/"><b>Site</b></a> ·
@@ -41,8 +41,8 @@ is the most useful thing you can send.
 ## Highlights
 
 - A shelf of carts in their own plastics with real label scans, modelled low-poly and drawn the
-  way a PlayStation drew 3D. The one you are on floats and sways, and slides into the slot at
-  full size; Game Boy carts stand at 80% and grow as they go in. At power-on, an opening in the
+  way a PlayStation drew 3D. The one you are on floats and sways; A pulls it down out of the
+  screen into the handheld, and the game comes on like a tube TV. At power-on, an opening in the
   style of Mega Man X5's boot terminal tells you the handheld's memory, chip and battery, then
   fades into the shelf.
 - Two GBA cores, mGBA and gpSP, chosen per cart. GBA fills a 640x480 screen; Game Boy stays at 3x.
@@ -57,9 +57,8 @@ is the most useful thing you can send.
   ScreenScraper.
 - Bluetooth, on handhelds that have it: pair a device and connect it, or forget it. Game sound and
   gamepads over Bluetooth are still to come.
-- Theme: the background's pattern, its motion and its colour, which the menus, both bars and the
-  slot take (Night is grey, Amber is Mega Man Zero's own), and the bottom bar's font, Bold or
-  Thin.
+- Theme: the background's pattern, its motion and its colour, which the menus and both bars take
+  (Night is grey, Amber is Mega Man Zero's own), and the bottom bar's font, Bold or Thin.
 - A pixel font, a top bar with the radios, clock and battery, and a bottom bar with the buttons.
 
 <img src="site/media/readme/screens.png" width="760" alt="">
@@ -118,12 +117,10 @@ omega-zero is made by **Otávio ([@oauramos](https://github.com/oauramos))**.
 - Cart labels come from [ScreenScraper](https://www.screenscraper.fr), fetched with your own
   account.
 
-omega-zero is licensed under the GPL-3.0-or-later; see [LICENSE](LICENSE). It is written with
-Claude, and reviewed and tested by its maintainer. The site and these pictures are drawn with its
+omega-zero is licensed under the GPL-3.0-or-later; see [LICENSE](LICENSE). It began in October
+2026 as a modified version of a GPL-3.0 program. It is written with Claude, and reviewed and tested
+by its maintainer. The site and these pictures are drawn with its
 UI kit, [`assets/ui`](assets/ui).
 
 Game Boy, Game Boy Color and Game Boy Advance are trademarks of Nintendo. Anbernic is a trademark
 of its owner. This project is not affiliated with either.
-
-<sub>Based on [slot](https://github.com/BrandonKowalski/slot), released under the GPL-3.0, and
-modified since October 2026.</sub>

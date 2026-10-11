@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- The slot under the shelf is gone: a cart goes into the handheld itself. From the middle of the
+  shelf it rises a little, then is pulled down out of the bottom of the screen, and the game
+  comes on as a tube TV does: a dot, a line across, then the picture opening white and fading to
+  its colours. Leaving a game plays it backwards, and a cart the core turns away goes back out
+  the same way under its warning sign.
+- The carts stand in the middle between the top bar and the bottom bar, at their usual sizes. A
+  Game Boy cart no longer grows on its way in.
+- The shelf's system, GBA, GB or GBC, is in a pill between the bottom bar's buttons, always. It
+  rises in as L1 or R1 changes shelf, and a letter jumped to with Up or Down shows in it for two
+  seconds.
+- Config/theme.txt's `recess` and `opening` coloured only the slot and are no longer read.
+
 ## omega-zero 0.0.3
 
 Settings in the style of Mega Man Zero's menus, with Network, Bluetooth, Theme and a POWER menu;
