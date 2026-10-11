@@ -13,6 +13,7 @@ use omega_ui::{overlay_clear, overlay_face, overlay_path};
 use crate::face_builder::FaceBuilder;
 use crate::frontend::faces::upload_nearest;
 use crate::list_view::ListView;
+use crate::screens::about::AboutView;
 use crate::session::Session;
 use crate::wallpaper;
 
@@ -37,7 +38,7 @@ mod sync_switcher;
 mod sync_top_bar;
 
 use lone::Baked;
-use sync_about::{sync_about, AboutFace};
+use sync_about::sync_about;
 use sync_background::{sync_background, BackdropTex};
 use sync_bar::{sync_bar, BarTexes};
 use sync_bluetooth::{sync_bluetooth, BluetoothTexes};
@@ -73,7 +74,8 @@ pub struct Frontend {
     switcher: Switcher,
     clocks: Clocks,
     top_bar: TopBarTexes,
-    about: AboutFace,
+    /// About's modal, baked as one face.
+    about: Baked<(AboutView, u8)>,
     settings: SettingsTexes,
     bezel_marks: Vec<BezelMark>,
     overlays: Vec<Overlay>,
@@ -137,7 +139,7 @@ impl Frontend {
             switcher: Switcher::default(),
             clocks: Clocks::default(),
             top_bar: TopBarTexes::default(),
-            about: AboutFace::default(),
+            about: Baked::default(),
             settings: SettingsTexes::default(),
             bezel_marks: Vec::new(),
             overlays: Vec::new(),

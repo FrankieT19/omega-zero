@@ -36,10 +36,12 @@
   colours. The title and the cores' names are in Pixel Code at its own size and spacing. The
   chip hops between the sockets a pixel at a time, level, and the shadows under it and under
   the lid are checker dither.
-- About's sticker is pixel art laid out for the screen it is on, never shrunk to fit: its words
-  in Pixel Code at its own size, the ANBERNIC RG SP wordmark and the DC symbol as sprites, the
-  barcode's bars whole pixels wide. The credits run beside the barcode and then across the
-  sticker, name Otávio (@oauramos) as the author, and end on slot's, in grey.
+- About is a window like Settings, drawn in the menus' kit in place of the sticker. OMEGA-ZERO
+  lists the version, the build (its commit, with -DIRTY after it for a build with changes not
+  committed), the author, Otávio (@oauramos), the handheld as BaseOS names it, and how full its
+  battery is and whether it is charging. CREDITS under it says what omega-zero is made with and
+  on, a line each, and ends on slot's, in the dim colour. The barcode, the ANBERNIC wordmark and
+  the made-up rating lines are gone.
 - A bar along the bottom of the shelf: SELECT CONTROLS on the left, START SETTINGS on the
   right. The slot sits a bar higher to make room for it.
 - Game Boy carts stand at 80% of their size on the shelf and grow to full size as they go into
@@ -70,7 +72,7 @@
   password you set there yourself is kept.
 - Cart Labels is no longer on the Wi-Fi screen: it is Labels, in Settings.
 - Theme, Date & Time and Labels are panels over the background, and the passphrase
-  keyboard is a window. About is the same sticker as before.
+  keyboard is a window.
 - In the menus the bottom bar says B RETURN and A CONFIRM. A screen's own keys sit in the middle
   of it: Y FORGET on Network, START FETCH and Y SIGN OUT on Labels. Between its two ends there is
   nothing but those keys, over the background.

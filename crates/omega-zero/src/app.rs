@@ -332,7 +332,7 @@ pub struct App {
     pub(crate) pending: Option<(PendingUndo, Millis)>,
     pub(crate) clock_panel: Option<Lone>,
     pub(crate) settings_faces: Option<SettingsFaces>,
-    pub(crate) sticker_face: Option<TexId>,
+    pub(crate) about_modal: Option<Lone>,
     pub(crate) wallpaper: Option<TexId>,
     /// The top bar's clock, figure and bolt, baked in its ink.
     pub(crate) top_readouts: Readouts,
@@ -475,7 +475,7 @@ impl App {
             pending: None,
             clock_panel: None,
             settings_faces: None,
-            sticker_face: None,
+            about_modal: None,
             wallpaper: None,
             top_readouts: Readouts::default(),
             shelf_platform: omega_ui::Printed::default(),

@@ -57,6 +57,7 @@ mod power;
 mod power_screens;
 mod refusal;
 mod render;
+mod render_about;
 mod render_bar;
 mod render_bluetooth;
 mod render_boot_logo;

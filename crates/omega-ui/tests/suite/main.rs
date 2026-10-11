@@ -3,8 +3,6 @@
 //! tests/, beside this folder: theme sets the slot's palette, which a process sets only once.
 
 mod backdrop;
-mod barcode;
-mod barcode_scan;
 mod battery;
 mod bezel;
 mod bluetooth;
@@ -27,17 +25,14 @@ mod palette;
 mod polaroids;
 mod quick_menu;
 mod refusal;
-mod render_about;
 mod render_board;
 mod render_gb_cart;
 mod render_row_edges;
 mod render_shelf_wrap;
-mod render_sticker;
 mod saves;
 mod shelf;
 mod shell;
 mod spin;
-mod sticker;
 mod switcher;
 mod toast;
 mod top_bar;
