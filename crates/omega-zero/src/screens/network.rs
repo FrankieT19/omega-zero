@@ -8,14 +8,8 @@ use omega_ui::{Draw, SettingsRow};
 
 use crate::app::{App, Phase};
 use crate::nav::Dir;
-use crate::screens::bar::FORGET;
+use crate::screens::bar::{FORGET, SCAN};
 use crate::wifi_screen::{NetworkView, Outcome as WifiOutcome, Typing, WifiScreen};
-
-/// X on Network while Wi-Fi is on: it looks once for the networks in reach.
-pub const SCAN: Hint<'static> = Hint {
-    key: "X",
-    word: "SCAN",
-};
 
 impl App {
     pub(crate) fn network_input(&mut self, action: Action) {

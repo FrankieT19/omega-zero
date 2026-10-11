@@ -19,7 +19,7 @@ use omega_zero::bluetooth::{
 use omega_zero::bluetooth_screen::{DeviceLine, Lit, Sel, Summary, Watch, DOING_MS, NOTE_MS};
 use omega_zero::nav::Dir;
 use omega_zero::screens::bar::FORGET;
-use omega_zero::screens::bluetooth::SCAN;
+use omega_zero::screens::bar::SCAN;
 use omega_zero::wifi_screen::SettingLine;
 use tempfile::TempDir;
 

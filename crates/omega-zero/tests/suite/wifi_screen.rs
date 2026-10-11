@@ -14,7 +14,7 @@ use omega_ui::Layer;
 use omega_ui::SettingsRow;
 use omega_zero::app::{App, Phase};
 use omega_zero::screens::bar::FORGET;
-use omega_zero::screens::network::SCAN;
+use omega_zero::screens::bar::SCAN;
 use omega_zero::wifi::{
     Saved, Seen, Status, WifiJob, WifiJobs, WifiNews, GLANCE_MS, JOIN_TIMEOUT_MS,
 };

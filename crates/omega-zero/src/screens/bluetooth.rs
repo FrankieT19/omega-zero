@@ -15,13 +15,7 @@ use crate::app::{App, Phase};
 use crate::bluetooth::BluetoothJobs;
 use crate::bluetooth_screen::{Bluetooth, BluetoothScreen, BluetoothView, Outcome, Summary, Watch};
 use crate::nav::Dir;
-use crate::screens::bar::FORGET;
-
-/// X while Bluetooth is on: one look for the devices in reach.
-pub const SCAN: Hint<'static> = Hint {
-    key: "X",
-    word: "SCAN",
-};
+use crate::screens::bar::{FORGET, SCAN};
 
 /// The modal's panels' titles, top first.
 pub const BLUETOOTH_TITLE: &str = "BLUETOOTH";

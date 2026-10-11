@@ -36,6 +36,13 @@ pub const FORGET: Hint<'static> = Hint {
     word: "FORGET",
 };
 
+/// X on Network while Wi-Fi is on, and on Bluetooth while the radio is on: it looks once for
+/// what is in reach, networks or devices. Neither looks by itself.
+pub const SCAN: Hint<'static> = Hint {
+    key: "X",
+    word: "SCAN",
+};
+
 /// Which pair of actions the bar shows at its ends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Actions {
@@ -171,10 +178,11 @@ impl App {
         })
     }
 
-    /// The keys `phase` has beyond its two actions, for between them: Y FORGET on a saved network
-    /// (`network_forgets`' rule) and on a paired Bluetooth device (`bluetooth_forgets`'), on Labels START FETCH or START STOP and Y SIGN OUT
-    /// (`labels_bar_hints`'), and on the shelf, while the core picker over it shows RETURN and
-    /// CONFIRM, ◀▶ SWAP. They are asked of `phase` rather than the screen on show so a slide
+    /// The keys `phase` has beyond its two actions, for between them: on Network X SCAN while
+    /// Wi-Fi is on and Y FORGET on a saved network (`network_hints`), on Bluetooth X SCAN while
+    /// the radio is on and Y FORGET on a paired device (`bluetooth_hints`), on Labels START FETCH
+    /// or START STOP and Y SIGN OUT (`labels_bar_hints`'), and on the shelf, while the core picker
+    /// over it shows RETURN and CONFIRM, ◀▶ SWAP. They are asked of `phase` rather than the screen on show so a slide
     /// can show the hints of the screen it leaves. A screen with more keys adds them here;
     /// Settings and SSH have none, and the keyboard keeps its own line in its modal.
     pub fn bar_hints(&self, phase: &Phase) -> Vec<Hint<'static>> {
