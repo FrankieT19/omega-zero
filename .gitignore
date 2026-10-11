@@ -24,3 +24,6 @@
 
 # The console's root password, for scripts/console.sh.
 /.console-password
+
+# Playwright MCP snapshots and console logs from browser checks.
+/.playwright-mcp
