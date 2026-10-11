@@ -117,11 +117,16 @@ pub fn word_tail() -> f32 {
 }
 
 pub fn word_face(text: &str) -> UndoFace {
+    word_face_in(text, INK)
+}
+
+/// `text` as `word_face` prints it, in `ink`: the top bar's clock and figure, in its ink.
+pub fn word_face_in(text: &str, ink: [u8; 3]) -> UndoFace {
     let w = word_width(text);
     let mut rgba = vec![0u8; (w * HINT_H * 4) as usize];
     if let Some(font) = text::label_font() {
         let layout = text::fit(font, text, w as f32, 1, LABEL_PX, LABEL_MIN_PX);
-        text::draw_centred(&mut rgba, w, HINT_H, &layout, INK);
+        text::draw_centred(&mut rgba, w, HINT_H, &layout, ink);
     }
     UndoFace { rgba, w, h: HINT_H }
 }

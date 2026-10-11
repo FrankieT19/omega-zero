@@ -1,33 +1,41 @@
-use omega_gfx::{out_h, out_w, Draw, TexId};
+//! The clock: its words on the shelf and in Settings, and the picker that sets it, at first
+//! boot and from Settings' Date & Time.
+//!
+//! The picker is one line of Pixel Code on the kit's grid, as flow.html's Date & Time draws it:
+//! `2026 - 10 - 10   16 : 00   UTC+00:00`, each field a box of its own so the one under the
+//! cursor is underlined, a one-pixel bar in the frame's bright colour two rows below its
+//! capitals. The line is a face at art resolution in the kit's palette, for the Date & Time
+//! panel to hold.
+
 use omega_store::{
     civil_from_days, days_from_civil, days_in_month, parse_stamp, UTC_OFFSET_MAX, UTC_OFFSET_MIN,
 };
 
-use crate::plate::{blit, centred_hints, hint_width, UndoFace, HINT_H, LEGEND_GAP};
-use crate::text;
+use crate::kit::palette::Palette;
+use crate::kit::pixel::{blank, fill, ink, letters, ADVANCE};
+use crate::plate::UndoFace;
 
 const DAY: i64 = 86_400;
 
 const YEAR_MIN: i64 = 2000;
 const YEAR_MAX: i64 = 2099;
 
-const INK: [u8; 3] = [0xf6, 0xf4, 0xef];
-const BACKDROP: [f32; 4] = [0.06, 0.06, 0.07, 1.0];
-
 const OFFSET_STEP: i64 = 30;
 
-const CELLS: [u32; 11] = [88, 22, 52, 22, 52, 36, 52, 22, 52, 36, 128];
-const FIELD_CELL: [usize; 6] = [0, 2, 4, 6, 8, 10];
+/// What stands between one field of the line and the next: a dash between the date's, a colon
+/// between the time's, and three spaces either side of the time.
+const BETWEEN: [&str; 5] = [" - ", " - ", "   ", " : ", "   "];
 
-const PICKER_H: u32 = 44;
-const PICKER_PX: f32 = 27.0;
-const PICKER_MIN_PX: f32 = 9.0;
-const CARET_H: f32 = 4.0;
-const CARET_GAP: f32 = 6.0;
-const HINT_DROP: f32 = 48.0;
+/// How many letters the line is, whatever it says: every field is always as wide.
+pub const LINE_LETTERS: u32 = 36;
 
-const SET_CLOCK_KEY: &str = "A";
-const SET_CLOCK_LABEL: &str = "set the clock";
+/// How far under the line's top the underline is: its row 11, a row clear of the line's own 10
+/// (whose capitals are rows 2 to 8).
+pub const UNDERLINE_Y: u32 = 11;
+
+/// The line's face: 6 art pixels a letter across, and down to the underline.
+pub const LINE_W: u32 = LINE_LETTERS * ADVANCE as u32;
+pub const LINE_H: u32 = UNDERLINE_Y + 1;
 
 pub fn clock_label(stamp: &str) -> String {
     parse_stamp(stamp).map(hhmm).unwrap_or_default()
@@ -188,39 +196,69 @@ impl ClockPicker {
         )
     }
 
-    pub fn face(&self) -> UndoFace {
-        let w = picker_w();
-        let mut rgba = vec![0u8; (w * PICKER_H * 4) as usize];
-        for (i, cell) in CELLS.iter().enumerate() {
-            let text = self.cell_text(i);
-            if text.is_empty() {
-                continue;
-            }
-            let mut buf = vec![0u8; (cell * PICKER_H * 4) as usize];
-            if let Some(font) = text::label_font() {
-                let layout = text::fit(font, &text, *cell as f32, 1, PICKER_PX, PICKER_MIN_PX);
-                text::draw_centred(&mut buf, *cell, PICKER_H, &layout, INK);
-            }
-            blit(&mut rgba, w, &buf, *cell, PICKER_H, cell_x(i), 0);
-        }
-        UndoFace {
-            rgba,
-            w,
-            h: PICKER_H,
-        }
+    /// The line as it reads, field by field.
+    pub fn line(&self) -> String {
+        self.parts().into_iter().map(|(text, _)| text).collect()
     }
 
-    fn cell_text(&self, cell: usize) -> String {
-        match cell {
-            0 => format!("{:04}", self.year),
-            1 | 3 => "-".into(),
-            2 => format!("{:02}", self.month),
-            4 => format!("{:02}", self.day),
-            6 => format!("{:02}", self.hour),
-            7 => ":".into(),
-            8 => format!("{:02}", self.minute),
-            10 => format!("UTC{}", self.offset_text()),
-            _ => String::new(),
+    /// The line's parts, left to right: each field's text with the field, and what stands
+    /// between two fields with none.
+    fn parts(&self) -> Vec<(String, Option<Field>)> {
+        let mut parts = Vec::new();
+        for (i, field) in Field::ALL.iter().enumerate() {
+            parts.push((self.field_text(*field), Some(*field)));
+            if let Some(between) = BETWEEN.get(i) {
+                parts.push((between.to_string(), None));
+            }
+        }
+        parts
+    }
+
+    /// The line in Pixel Code in the panel's cream, the field under the cursor underlined in
+    /// the frame's bright colour, on a clear face `LINE_W` by `LINE_H`: put its top at the
+    /// line's top.
+    ///
+    /// Each part is set on its own, as flow.html sets each in a box of its own. So the colon
+    /// between the hour and the minute, alone in its box, stands where a colon does, and only
+    /// the offset's, between figures, is raised a pixel (see `kit::pixel::letters`).
+    pub fn face(&self, pal: &Palette) -> UndoFace {
+        let mut face = blank(LINE_W, LINE_H);
+        let mut x = 0;
+        for (text, _) in self.parts() {
+            ink(&mut face, &letters(&text, ADVANCE), x, 0, pal.cream);
+            x += (text.chars().count() * ADVANCE) as i32;
+        }
+        let [x, y, w, h] = self.underline();
+        fill(
+            &mut face,
+            [x as i32, y as i32, w as i32, h as i32],
+            pal.frame_hi,
+        );
+        face
+    }
+
+    /// Where the underline is, `[x, y, w, h]` in the line face's art pixels: under the field
+    /// the cursor is on, as wide as its letters but for the last one's blank column.
+    pub fn underline(&self) -> [u32; 4] {
+        let mut x = 0;
+        for (text, field) in self.parts() {
+            let w = (text.chars().count() * ADVANCE) as u32;
+            if field == Some(self.cursor()) {
+                return [x, UNDERLINE_Y, w - 1, 1];
+            }
+            x += w;
+        }
+        [0, UNDERLINE_Y, 0, 1]
+    }
+
+    fn field_text(&self, field: Field) -> String {
+        match field {
+            Field::Year => format!("{:04}", self.year),
+            Field::Month => format!("{:02}", self.month),
+            Field::Day => format!("{:02}", self.day),
+            Field::Hour => format!("{:02}", self.hour),
+            Field::Minute => format!("{:02}", self.minute),
+            Field::Offset => format!("UTC{}", self.offset_text()),
         }
     }
 
@@ -229,85 +267,6 @@ impl ClockPicker {
         let mins = self.offset_min.abs();
         format!("{sign}{:02}:{:02}", mins / 60, mins % 60)
     }
-
-    pub fn draw(
-        &self,
-        line: Option<TexId>,
-        hint: Option<TexId>,
-        back: Option<(TexId, u32)>,
-        out: &mut Vec<Draw>,
-    ) {
-        out.push(Draw::Rect {
-            x: 0.0,
-            y: 0.0,
-            w: out_w() as f32,
-            h: out_h() as f32,
-            colour: BACKDROP,
-        });
-        let w = picker_w() as f32;
-        let x = (out_w() as f32 - w) / 2.0;
-        let y = (out_h() as f32 - PICKER_H as f32) / 2.0 - HINT_DROP / 2.0;
-        if let Some(tex) = line {
-            out.push(Draw::Tex {
-                x,
-                y,
-                w,
-                h: PICKER_H as f32,
-                tex,
-                alpha: 1.0,
-            });
-        }
-        let cell = FIELD_CELL[self.cursor];
-        out.push(Draw::Rect {
-            x: x + cell_x(cell) as f32,
-            y: y + PICKER_H as f32 + CARET_GAP,
-            w: CELLS[cell] as f32,
-            h: CARET_H,
-            colour: [
-                INK[0] as f32 / 255.0,
-                INK[1] as f32 / 255.0,
-                INK[2] as f32 / 255.0,
-                1.0,
-            ],
-        });
-        let hint_y = y + PICKER_H as f32 + HINT_DROP;
-        let hw = hint_width(SET_CLOCK_KEY, SET_CLOCK_LABEL);
-        let (Some(back), Some(tex)) = (back, hint) else {
-            if let Some(tex) = hint {
-                out.push(Draw::Tex {
-                    x: (out_w() as f32 - hw as f32) / 2.0,
-                    y: hint_y,
-                    w: hw as f32,
-                    h: HINT_H as f32,
-                    tex,
-                    alpha: 1.0,
-                });
-            }
-            return;
-        };
-        for (tex, w, x) in centred_hints(&[back, (tex, hw)], LEGEND_GAP) {
-            out.push(Draw::Tex {
-                x,
-                y: hint_y,
-                w: w as f32,
-                h: HINT_H as f32,
-                tex,
-                alpha: 1.0,
-            });
-        }
-    }
-}
-
-pub fn set_clock_hint_face() -> UndoFace {
-    crate::plate::hint_face(SET_CLOCK_KEY, SET_CLOCK_LABEL)
-}
-
-fn picker_w() -> u32 {
-    CELLS.iter().sum()
-}
-
-fn cell_x(cell: usize) -> u32 {
-    CELLS[..cell].iter().sum()
 }
 
 fn wrap(v: i64, lo: i64, hi: i64) -> i64 {

@@ -23,10 +23,14 @@ impl Default for Theme {
 
 impl Theme {
     pub fn read(root: &Path) -> Self {
-        match std::fs::read_to_string(root.join("Config").join(THEME_FILE)) {
-            Ok(text) => Self::parse(&text),
-            Err(_) => Theme::default(),
-        }
+        Self::read_override(root).unwrap_or_default()
+    }
+
+    /// The card's Config/theme.txt, when it has one: the shelf's chrome is then drawn in it
+    /// rather than in the colours the player picked.
+    pub fn read_override(root: &Path) -> Option<Self> {
+        let text = std::fs::read_to_string(root.join("Config").join(THEME_FILE)).ok()?;
+        Some(Self::parse(&text))
     }
 
     pub fn parse(text: &str) -> Self {

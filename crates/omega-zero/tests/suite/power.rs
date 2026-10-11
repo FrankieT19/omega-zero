@@ -7,12 +7,13 @@ use common::{
     app_playing_in, boot, clocked, panel, session_with_platform, tmp_root_with_carts,
     tmp_root_with_real_carts, StubSnapshot,
 };
-use omega_gfx::Draw;
+use omega_gfx::{Draw, TexId};
 use omega_input::{Action, Btn, Millis, RawEvent, POWER_HOLD_MS};
 use omega_store::{read_app_state, write_app_state, AppState, Core, Platform, StateRing};
 use omega_ui::PowerChoice;
 use omega_zero::app::Phase;
 use omega_zero::emu::Speed;
+use omega_zero::screens::lone::Lone;
 use omega_zero::session::Session;
 
 use omega_zero::link_radio::{RadioJob, RadioJobs};
@@ -142,58 +143,6 @@ fn the_backlight_follows_brightness_from_boot() {
 }
 
 #[test]
-fn the_menu_covers_the_screen_in_the_case_materials() {
-    let d = tmp_root_with_carts(&["Emerald"]);
-    let mut a = app_playing_in(d.path(), "Emerald");
-    a.apply(Action::PowerHold);
-
-    let mut out = Vec::new();
-    a.draw(&mut out);
-
-    match out.first() {
-        Some(Draw::Rect { w, h, colour, .. }) => {
-            assert_eq!(
-                *colour,
-                omega_ui::opening(),
-                "the ground is the case's opening"
-            );
-            assert!(*w > 0.0 && *h > 0.0, "and it covers the panel");
-        }
-        other => panic!("the menu drew {other:?} rather than a ground"),
-    }
-    assert_eq!(
-        out.len(),
-        1,
-        "nothing of the previous phase survives the menu"
-    );
-}
-
-#[test]
-fn a_power_off_draws_a_shutdown_screen_over_everything() {
-    let d = tmp_root_with_carts(&["Emerald"]);
-    let mut a = app_playing_in(d.path(), "Emerald");
-    a.apply(Action::PowerHold);
-    a.apply(Action::GbaDown(Btn::Down));
-    a.apply(Action::GbaDown(Btn::A));
-
-    let mut out = Vec::new();
-    a.draw(&mut out);
-
-    match out.first() {
-        Some(Draw::Rect { w, h, colour, .. }) => {
-            assert_eq!(*colour, [0.0, 0.0, 0.0, 1.0], "the shutdown is black");
-            assert!(*w > 0.0 && *h > 0.0, "and covers the panel");
-        }
-        other => panic!("the shutdown drew {other:?} rather than a panel of black"),
-    }
-    assert_eq!(
-        out.len(),
-        1,
-        "nothing of the previous phase survives the shutdown screen"
-    );
-}
-
-#[test]
 fn a_hold_opens_the_menu_and_commits_nothing() {
     let d = tmp_root_with_carts(&["Emerald"]);
     let mut a = app_playing_in(d.path(), "Emerald");
@@ -275,11 +224,22 @@ fn the_shutdown_screen_is_up_before_the_machine_may_stop() {
         "but the binary may not act until the screen has been presented"
     );
 
+    let going = TexId::from_raw(961);
+    a.set_going_panel(Lone {
+        tex: going,
+        w: 200,
+        h: 42,
+    });
     let mut out = Vec::new();
     a.draw(&mut out);
     assert!(
-        matches!(out.first(), Some(Draw::Rect { colour, .. }) if *colour == [0.0, 0.0, 0.0, 1.0]),
+        out.iter()
+            .any(|d| matches!(*d, Draw::Tex { tex, .. } if tex == going)),
         "and the screen is what the loop is drawing in the meantime"
+    );
+    assert!(
+        !out.iter().any(|d| matches!(d, Draw::Game)),
+        "with nothing of the game under it"
     );
 
     a.tick_ms(600_000);
@@ -301,7 +261,7 @@ fn a_dozing_device_powers_off_by_itself_rather_than_waiting_for_the_lid() {
     );
     assert!(
         a.ready_to_power_off(),
-        "the shutdown screen has had its 250 ms and the machine is still not allowed to stop"
+        "the shutdown screen has had its time and the machine is still not allowed to stop"
     );
 }
 

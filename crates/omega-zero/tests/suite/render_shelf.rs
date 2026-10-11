@@ -8,9 +8,8 @@ use omega_gfx::{out_h, out_w, Compositor, HeadlessSurface, TexId};
 use omega_input::{Action, Btn};
 use omega_store::{write_app_state, AppState, Core, Platform};
 use omega_ui::{
-    arrows_hint_face, board_face, cart_face, cart_shadow, chip_face, chip_shadow_face, clean_label,
-    edge, gb_cart_shadow, hint_face, housing, label_colour, opening, padded, recess, socket_face,
-    GbShell, TURN_PAD,
+    board_face, cart_face, cart_shadow, chip_face, chip_shadow_face, clean_label, gb_cart_shadow,
+    label_colour, padded, socket_face, ChromeColours, GbShell, TURN_PAD,
 };
 use omega_zero::app::App;
 use tempfile::TempDir;
@@ -65,16 +64,6 @@ fn upload_faces(app: &mut App, c: &mut Compositor) {
     let chip_shadow = chip_shadow_face();
     let chip_shadow = tex(c, chip_shadow.w, chip_shadow.h, &chip_shadow.rgba);
     app.set_core_part_faces(sockets, chips, blank, chip_shadow);
-
-    let legend = [
-        hint_face("B", "Cancel"),
-        arrows_hint_face("Swap"),
-        hint_face("A", "Choose"),
-    ]
-    .into_iter()
-    .map(|f| (tex(c, f.w, f.h, &f.rgba), f.w))
-    .collect();
-    app.set_core_legend_faces(legend);
 
     let highlighted = app.selected_stem().map(str::to_string);
     let Some(cart) = app
@@ -259,7 +248,10 @@ fn resumed_shot(
 }
 
 fn cartridge_rows(px: &[u8]) -> Option<(usize, usize)> {
-    let flat = [[0.0, 0.0, 0.0, 1.0], housing(), opening(), edge(), recess()];
+    // the slot in the default backdrop colour's palette
+    let colour = AppState::default().backdrop_colour;
+    let c = ChromeColours::of(omega_ui::kit::palette::palette(colour));
+    let flat = [[0.0, 0.0, 0.0, 1.0], c.housing, c.opening, c.edge, c.recess];
     let cart = |o: usize| {
         !flat
             .iter()

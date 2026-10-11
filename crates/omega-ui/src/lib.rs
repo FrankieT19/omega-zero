@@ -11,12 +11,15 @@ mod footer;
 mod hud;
 mod icon;
 mod keyboard;
+pub mod kit;
 mod link_art;
+pub mod network;
 mod plate;
 mod polaroids;
 mod power_menu;
 mod quick_menu;
 mod refusal;
+mod settings_menu;
 mod shelf;
 mod shell;
 mod silhouette;
@@ -28,7 +31,6 @@ mod status_bar;
 mod sticker;
 pub mod text;
 mod toast;
-mod wifi_menu;
 
 pub use backdrop::{
     backdrop_colour_name, backdrop_pattern_face, backdrop_period, backdrop_rgb, backdrop_shift,
@@ -53,7 +55,7 @@ pub use cart::{
     GB_CART_H, GB_CART_W, GB_LABEL_H, GB_LABEL_W, GB_LABEL_X, GB_LABEL_Y, LABEL_H, LABEL_W,
     LABEL_X, LABEL_Y,
 };
-pub use clock::{clock_label, date_time_text, hhmm, set_clock_hint_face, ClockPicker, Field};
+pub use clock::{clock_label, date_time_text, hhmm, ClockPicker, Field};
 pub use draw::{out_h, out_w, Draw, TexId};
 pub use footer::Printed;
 pub use hud::{
@@ -62,9 +64,10 @@ pub use hud::{
 };
 pub use icon::{badge_face, icon_box, icon_face, Badge, Icon};
 pub use keyboard::{
-    bottom_key_face, bottom_label, field_face, key_glyph_face, key_on, key_rect, prompt_face,
-    row_len, Key, Keyboard, KeyboardFaces, KeyboardScreen, Layer, BOTTOM, KEY_COLS, KEY_H,
-    KEY_ROWS, KEY_W, MAX_TEXT, SHIFT_INK,
+    bottom_label, field_face, key_box, key_label, key_on, key_rect, keyboard_place, keyboard_title,
+    keys_face, lit_key_face, row_len, window_face, Key, Keyboard, KeyboardFaces, KeyboardLook,
+    KeyboardPlace, KeyboardScreen, KeyboardStale, Layer, BOTTOM, FIELD_H, KEYS_H, KEYS_W, KEY_COLS,
+    KEY_GAP, KEY_H, KEY_ROWS, KEY_W, MAX_TEXT,
 };
 pub use link_art::{
     arcs, arrow_left_x, arrow_right_x, arrow_y, clicks_x, clicks_y, link_art, port_y, LinkArt,
@@ -73,18 +76,22 @@ pub use link_art::{
 };
 pub use plate::{
     arrows_hint_face, arrows_hint_width, cap_width, centred_hints, hint_face, hint_quad, hint_row,
-    hint_width, title_face, word_cap_top, word_face, word_tail, word_width, Hint, UndoFace,
-    ARROW_GAP, CAP, CAP_GAP, HINT_EDGE, HINT_GAP, HINT_H, LEGEND_GAP, TITLE_H, TITLE_W,
+    hint_width, title_face, word_cap_top, word_face, word_face_in, word_tail, word_width, Hint,
+    UndoFace, ARROW_GAP, CAP, CAP_GAP, HINT_EDGE, HINT_GAP, HINT_H, LEGEND_GAP, TITLE_H, TITLE_W,
 };
 pub use polaroids::{photo_face, PhotoFace, Polaroids, DOT, LEGEND, PHOTO_H, PHOTO_W};
-pub use power_menu::{menu_face, PowerChoice, MENU_H, MENU_INK, MENU_PAD};
+pub use power_menu::PowerChoice;
 pub use quick_menu::{
-    quick_caret_face, quick_label_face, quick_legend_faces, quick_rows_shown, quick_top,
-    quick_top_of, quick_value_face, quick_window, QuickMenu, QuickMenuFaces, QuickRow, QuickValue,
-    QUICK_EDGE, QUICK_PITCH,
+    menu_face, quick_caret_face, quick_value_face, MENU_H, MENU_INK, MENU_PAD, QUICK_EDGE,
+    QUICK_PITCH,
 };
 pub use refusal::Refusal;
-pub use shelf::{foot_y, rest_y, sway_reach, Shelf};
+pub use settings_menu::{
+    configs_in, settings_frame, settings_panels, settings_row_face, settings_row_rects,
+    settings_row_width, settings_title_face, FaceAt, QuickValue, Rebake, RowShown, SettingsBaked,
+    SettingsFaces, SettingsFrame, SettingsGroup, SettingsMenu, SettingsRow,
+};
+pub use shelf::{foot_y, rest_y, shelf_box, shelf_scale, sway_reach, Shelf, GB_SHELF_SCALE};
 pub use shell::{
     gb_table_shells, gba_shell_for, lookup_order_is_exact_then_family_then_default, shell_for,
     shell_presets, table_keys, Finish, Shell, DEFAULT_SHELL, DMG_SHELL, DUAL_MODE_SHELL,
@@ -92,8 +99,8 @@ pub use shell::{
 };
 pub use silhouette::{gb_silhouette, silhouette, GbShell};
 pub use slot_chrome::{
-    draw_empty_slot, draw_slot_name, ease, edge, housing, opening, recess, set_theme, SlotChrome,
-    ALERT_PX, LIP_H, MOUTH_H, MOUTH_W,
+    draw_empty_slot, draw_slot_name, ease, edge, housing, opening, recess, set_theme, slot_top,
+    ChromeColours, SlotChrome, ALERT_PX, BAR_H, CATCH_OUT, LIP_H, MOUTH_H, MOUTH_W, SLOT_RAISE,
 };
 pub use spin::{posed_face, push_cart_side, Pose, OUTLINE_INSET, THICK};
 pub use sprite::{CELL_PX, SPRITE_PX};
@@ -104,7 +111,3 @@ pub use sticker::{
     CREDITS, DC, HOME, ORIGIN, STICKER_H, STICKER_W,
 };
 pub use toast::{toast_box, toast_face, toast_rect, Toast};
-pub use wifi_menu::{
-    network_name_face, plain_face, signal_face, signal_glyph, status_fits, wifi_rows_shown,
-    wifi_status_face, wifi_window, WifiMenuFaces, WifiRowFaces,
-};

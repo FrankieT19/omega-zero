@@ -1,9 +1,10 @@
 use omega_store::{scan, Platform};
 use omega_ui::{
     cart_face, clean_label, foot_y, gb_label_panel, gb_silhouette, label_colour, label_panel,
-    label_text, out_h, rest_y, seated_box, shell_for, silhouette, stage_y, Finish, GbShell, CART_H,
-    CART_W, GB_CART_H, GB_CART_W, GB_LABEL_H, GB_LABEL_W, GB_LABEL_X, GB_LABEL_Y, LABEL_H, LABEL_W,
-    LABEL_X, LABEL_Y, MOUTH_H, PLATE_H, TOP_BAR_H,
+    label_text, rest_y, seated_box, shelf_box, shell_for, silhouette, slot_top, stage_y,
+    sway_reach, Finish, GbShell, BAR_H, CART_H, CART_W, GB_CART_H, GB_CART_W, GB_LABEL_H,
+    GB_LABEL_W, GB_LABEL_X, GB_LABEL_Y, GB_SHELF_SCALE, LABEL_H, LABEL_W, LABEL_X, LABEL_Y,
+    SLOT_RAISE, TOP_BAR_H,
 };
 use tempfile::TempDir;
 
@@ -472,26 +473,52 @@ fn a_game_boy_cart_face_is_drawn_at_the_game_boy_size() {
 }
 
 #[test]
-fn every_cartridge_is_centred_on_the_row_and_clears_both_the_plate_and_the_slot() {
-    let lip = out_h() as f32 - MOUTH_H;
+fn every_cartridge_is_centred_on_the_row_and_clears_both_the_top_bar_and_the_slot() {
+    let lip = slot_top();
     let ceiling = stage_y() + TOP_BAR_H;
-    for (name, h) in [("the GBA cart", CART_H), ("the Game Boy pak", GB_CART_H)] {
-        let (top, foot) = (rest_y(h as f32), foot_y(h as f32));
-        assert_eq!(
-            top + foot,
-            ceiling + lip,
+    for (name, platform) in [
+        ("the GBA cart", Platform::Gba),
+        ("the Game Boy pak", Platform::Gb),
+    ] {
+        let h = shelf_box(platform).1;
+        let (top, foot) = (rest_y(h), foot_y(h));
+        assert!(
+            (top + foot - (ceiling + lip)).abs() < 0.01,
             "{name} stands at {top}..{foot}, which is not centred between the top bar at \
              {ceiling} and the slot at {lip}"
         );
         assert!(
-            top > PLATE_H,
-            "{name}'s top edge at {top} is under the {PLATE_H}px HUD plate"
+            top >= ceiling,
+            "{name}'s top edge at {top} is under the top bar at {ceiling}"
         );
         assert!(
             foot < lip,
             "{name}'s foot at {foot} has reached the lip at {lip}: it is standing in the slot"
         );
     }
+}
+
+#[test]
+fn a_pak_stands_at_four_fifths_under_the_slot_on_the_bar_and_sways_clear_of_both_bars() {
+    assert_eq!(
+        (GB_SHELF_SCALE, SLOT_RAISE),
+        (0.8, BAR_H),
+        "the shelf is not the layout chosen for it: paks at 80% under a slot on the bar"
+    );
+    let (w, h) = shelf_box(Platform::Gb);
+    let reach = sway_reach(w, h);
+    let (top, foot) = (rest_y(h), foot_y(h));
+    let (ceiling, lip) = (stage_y() + TOP_BAR_H, slot_top());
+    assert!(
+        top - reach >= ceiling,
+        "the swaying pak reaches {} under the top bar at {ceiling}",
+        top - reach
+    );
+    assert!(
+        foot + reach <= lip,
+        "the swaying pak reaches {} past the lip at {lip}",
+        foot + reach
+    );
 }
 
 #[test]

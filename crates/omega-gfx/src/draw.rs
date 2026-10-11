@@ -72,6 +72,79 @@ pub enum Draw {
     },
 }
 
+impl Draw {
+    /// The same draw moved `dx` across and `dy` down the canvas, a spun face's clip with it, so
+    /// a group laid out from (0, 0) can be put anywhere. The game and a shot fill their own
+    /// rects, which stay put.
+    pub fn shifted(self, dx: f32, dy: f32) -> Draw {
+        match self {
+            Draw::Rect { x, y, w, h, colour } => Draw::Rect {
+                x: x + dx,
+                y: y + dy,
+                w,
+                h,
+                colour,
+            },
+            Draw::Tex {
+                x,
+                y,
+                w,
+                h,
+                tex,
+                alpha,
+            } => Draw::Tex {
+                x: x + dx,
+                y: y + dy,
+                w,
+                h,
+                tex,
+                alpha,
+            },
+            Draw::Turned {
+                x,
+                y,
+                w,
+                h,
+                tex,
+                alpha,
+                turn,
+            } => Draw::Turned {
+                x: x + dx,
+                y: y + dy,
+                w,
+                h,
+                tex,
+                alpha,
+                turn,
+            },
+            Draw::Spun {
+                x,
+                y,
+                w,
+                h,
+                tex,
+                colour,
+                turn,
+                yaw,
+                depth,
+                clip,
+            } => Draw::Spun {
+                x: x + dx,
+                y: y + dy,
+                w,
+                h,
+                tex,
+                colour,
+                turn,
+                yaw,
+                depth,
+                clip: clip.map(|[cx, cy, cw, ch]| [cx + dx, cy + dy, cw, ch]),
+            },
+            Draw::Game | Draw::Shot { .. } => self,
+        }
+    }
+}
+
 /// A linked sprite program and where its uniforms are.
 struct Program {
     prog: gl::types::GLuint,
@@ -290,5 +363,83 @@ impl Drop for Sprites {
             gl::DeleteProgram(self.plain.prog);
             gl::DeleteProgram(self.spun.prog);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TEX: TexId = TexId(3);
+
+    #[test]
+    fn a_shifted_rect_tex_or_turned_face_moves_and_keeps_its_size() {
+        let rect = Draw::Rect {
+            x: 10.0,
+            y: 20.0,
+            w: 30.0,
+            h: 40.0,
+            colour: [0.1, 0.2, 0.3, 0.4],
+        };
+        assert_eq!(
+            rect.shifted(4.0, -6.0),
+            Draw::Rect {
+                x: 14.0,
+                y: 14.0,
+                w: 30.0,
+                h: 40.0,
+                colour: [0.1, 0.2, 0.3, 0.4],
+            }
+        );
+        let tex = |x, y| Draw::Tex {
+            x,
+            y,
+            w: 30.0,
+            h: 40.0,
+            tex: TEX,
+            alpha: 0.5,
+        };
+        assert_eq!(tex(10.0, 20.0).shifted(4.0, -6.0), tex(14.0, 14.0));
+        let turned = |x, y| Draw::Turned {
+            x,
+            y,
+            w: 30.0,
+            h: 40.0,
+            tex: TEX,
+            alpha: 0.5,
+            turn: 0.25,
+        };
+        assert_eq!(turned(10.0, 20.0).shifted(4.0, -6.0), turned(14.0, 14.0));
+    }
+
+    #[test]
+    fn a_shifted_spun_face_takes_its_clip_with_it() {
+        let spun = |x, y, clip| Draw::Spun {
+            x,
+            y,
+            w: 30.0,
+            h: 40.0,
+            tex: TEX,
+            colour: [1.0; 4],
+            turn: 0.1,
+            yaw: 0.2,
+            depth: 5.0,
+            clip,
+        };
+        assert_eq!(
+            spun(10.0, 20.0, Some([0.0, 8.0, 100.0, 50.0])).shifted(2.0, 3.0),
+            spun(12.0, 23.0, Some([2.0, 11.0, 100.0, 50.0]))
+        );
+        assert_eq!(
+            spun(10.0, 20.0, None).shifted(2.0, 3.0),
+            spun(12.0, 23.0, None)
+        );
+    }
+
+    #[test]
+    fn the_game_and_a_shot_stay_put() {
+        assert_eq!(Draw::Game.shifted(5.0, 5.0), Draw::Game);
+        let shot = Draw::Shot { tex: TEX };
+        assert_eq!(shot.shifted(5.0, 5.0), shot);
     }
 }

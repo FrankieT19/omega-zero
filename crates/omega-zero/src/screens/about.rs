@@ -1,0 +1,28 @@
+//! About, opened from Settings: the handheld's label, with the build's serial on it.
+
+use omega_input::{Action, Btn};
+use omega_ui::{draw_sticker, Draw, SettingsRow, TexId};
+
+use crate::app::{App, Phase};
+use crate::nav::Dir;
+
+impl App {
+    pub(crate) fn about_input(&mut self, action: Action) {
+        if action == Action::GbaDown(Btn::B) || action == Action::QuickMenu {
+            self.go(
+                Phase::Settings {
+                    row: SettingsRow::About,
+                },
+                Dir::Back,
+            )
+        }
+    }
+
+    pub fn set_sticker_face(&mut self, face: TexId) {
+        self.sticker_face = Some(face);
+    }
+
+    pub(crate) fn draw_about(&self, out: &mut Vec<Draw>) {
+        draw_sticker(self.sticker_face, out);
+    }
+}

@@ -2,7 +2,7 @@ use omega_gfx::{Draw, TexId};
 use omega_power::{Battery, Charge};
 
 use crate::footer::Printed;
-use crate::hud::HUD_INK;
+use crate::kit::palette::rgba;
 use crate::plate::{word_cap_top, UndoFace, HINT_H};
 use crate::sprite::{sprite_face, Rows, CELL_PX, SPRITE_PX};
 
@@ -33,16 +33,9 @@ const BOLT: Rows = [
     ".##....",
 ];
 
-const INK: [f32; 4] = [
-    HUD_INK[0] as f32 / 255.0,
-    HUD_INK[1] as f32 / 255.0,
-    HUD_INK[2] as f32 / 255.0,
-    1.0,
-];
-
-/// The bolt shown beside the capsule while the handheld charges, one cell square.
-pub fn bolt_face() -> UndoFace {
-    sprite_face(&BOLT, HUD_INK)
+/// The bolt shown beside the capsule while the handheld charges, one cell square, in `ink`.
+pub fn bolt_face(ink: [u8; 3]) -> UndoFace {
+    sprite_face(&BOLT, ink)
 }
 
 /// How wide the gauge is drawn with `percent` beside it, from the room left for the bolt
@@ -65,19 +58,21 @@ fn filled(percent: u8, cols: u32) -> u32 {
     }
 }
 
-/// The gauge with the top of its capsule at `y`; the bolt and the figure stand on the same
-/// line, all three exactly `GAUGE_H` tall.
+/// The gauge with the top of its capsule at `y`, the capsule drawn in `ink`; the bolt and the
+/// figure, baked in the same ink, stand on the same line, all three exactly `GAUGE_H` tall.
 pub fn draw_gauge(
     x: f32,
     y: f32,
     battery: Option<Battery>,
     percent: Printed,
     bolt: Option<TexId>,
+    ink: [u8; 3],
     out: &mut Vec<Draw>,
 ) {
     let Some(b) = battery else {
         return;
     };
+    let ink = rgba(ink, 1.0);
 
     let rect = |x: f32, y: f32, w: f32, h: f32, out: &mut Vec<Draw>| {
         out.push(Draw::Rect {
@@ -85,7 +80,7 @@ pub fn draw_gauge(
             y,
             w,
             h,
-            colour: INK,
+            colour: ink,
         });
     };
 

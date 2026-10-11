@@ -1,21 +1,42 @@
 use omega_gfx::{out_w, Draw, TexId, FOCAL};
-use omega_store::Cart;
+use omega_store::{Cart, Platform};
 
-use crate::cart::{cart_box, gb_shell_of, label_colour, label_text, CART_H, CART_W};
+use crate::cart::{cart_box, gb_shell_of, label_colour, label_text, CART_H};
 use crate::hud::Millis;
 use crate::silhouette::GbShell;
-use crate::slot_chrome::{draw_empty_slot, ease, MOUTH_H};
+use crate::slot_chrome::{draw_empty_slot, ease, ChromeColours, MOUTH_H, SLOT_RAISE};
 use crate::spin::{self, Pose};
 use crate::stage::{stage_y, MOCKUP_H};
 use crate::status_bar::TOP_BAR_H;
 
 const SIDE_SCALE: f32 = 0.78;
 const SIDE_ALPHA: f32 = 0.55;
-/// Where a cart `h` tall stands on the shelf, between the bar across the top and the slot's
-/// bar across the bottom: a pak taller than a GBA cart is centred there, and anything shorter
-/// stands on the floor a GBA cart centred there would.
+/// How big a Game Boy pak stands on the shelf, as a share of its own size: at its own size it
+/// is taller than the room between the bar across the top and the slot. It comes up to its own
+/// size on the way in.
+pub const GB_SHELF_SCALE: f32 = 0.8;
+
+/// How big a cart for `platform` stands on the shelf, as a share of its own size.
+pub fn shelf_scale(platform: Platform) -> f32 {
+    match platform {
+        Platform::Gba => 1.0,
+        Platform::Gb | Platform::Gbc => GB_SHELF_SCALE,
+    }
+}
+
+/// The size a cart for `platform` stands on the shelf at, and spaces its neighbours by.
+pub fn shelf_box(platform: Platform) -> (f32, f32) {
+    let (w, h) = cart_box(platform);
+    let scale = shelf_scale(platform);
+    (w as f32 * scale, h as f32 * scale)
+}
+
+/// Where a cart `h` tall stands on the shelf, between the bar across the top and the slot on
+/// the bar across the bottom: a pak taller than a GBA cart is centred there, and anything
+/// shorter stands on the floor a GBA cart centred there would. A pak shrunk on the shelf is
+/// still taller than a GBA cart, so it is centred where it would stand at its own size.
 pub fn rest_y(h: f32) -> f32 {
-    let (top, floor) = (TOP_BAR_H, MOCKUP_H - MOUTH_H);
+    let (top, floor) = (TOP_BAR_H, MOCKUP_H - SLOT_RAISE - MOUTH_H);
     let y = if h > CART_H as f32 {
         top + (floor - top - h) / 2.0
     } else {
@@ -273,14 +294,20 @@ impl Shelf {
         Some((self.index as i32 + off).rem_euclid(n) as usize)
     }
 
+    /// Where the selected cart's left edge is on the row right now, and how big it is drawn
+    /// there as a share of its own size.
     pub fn selected_at(&self) -> (f32, f32) {
-        let w = self
+        let platform = self
             .carts
             .get(self.index)
-            .map_or(CART_W, |c| cart_box(c.platform).0) as f32;
+            .map_or(Platform::Gba, |c| c.platform);
+        let w = shelf_box(platform).0;
         let offset = self.scroll_target() - self.scroll;
         let scale = shrink(offset);
-        (out_w() as f32 / 2.0 + offset * w - w * scale / 2.0, scale)
+        (
+            out_w() as f32 / 2.0 + offset * w - w * scale / 2.0,
+            scale * shelf_scale(platform),
+        )
     }
 
     /// How the selected cart is held right now, wherever it is in the row.
@@ -330,9 +357,10 @@ impl Shelf {
         self.age = (self.age + dt).rem_euclid(LOOP_S);
     }
 
+    /// The row over an empty slot in the greys the slot was drawn in before the kit's palette.
     pub fn draw(&self, shake: f32, out: &mut Vec<Draw>) {
         self.draw_row(None, shake, 0.0, 1.0, out);
-        draw_empty_slot(out);
+        draw_empty_slot(&ChromeColours::default(), out);
     }
 
     pub fn draw_row(
@@ -358,15 +386,15 @@ impl Shelf {
             let t = offset.abs().min(1.0);
             let scale = shrink(offset);
             let alpha = (1.0 + (SIDE_ALPHA - 1.0) * t) * (1.0 - recede);
-            let (cw, ch) = cart_box(cart.platform);
-            let (w, h) = (cw as f32 * scale, ch as f32 * scale);
+            let (cw, ch) = shelf_box(cart.platform);
+            let (w, h) = (cw * scale, ch * scale);
             let away = offset.signum() * (1.0 + offset.abs());
-            let x = out_w() as f32 / 2.0 + offset * cw as f32 - w / 2.0 + away * PART * recede;
+            let x = out_w() as f32 / 2.0 + offset * cw - w / 2.0 + away * PART * recede;
             if x + w <= 0.0 || x >= out_w() as f32 || alpha <= 0.0 {
                 continue;
             }
             let x = x + shake;
-            let y = foot_y(ch as f32) - h;
+            let y = foot_y(ch) - h;
             let face = self.faces.get(i).copied();
             // A cart still waiting for its face stands still: only a face can turn.
             let pose = match face {

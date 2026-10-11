@@ -92,6 +92,7 @@ fn queue() -> &'static Sender<RadioJob> {
 fn link_command(root: &Path, verb: &str) -> Command {
     let mut cmd = Command::new("/bin/sh");
     cmd.arg(root.join("System/link.sh")).arg("link").arg(verb);
+    crate::spawn::as_a_daemon(&mut cmd);
     cmd
 }
 

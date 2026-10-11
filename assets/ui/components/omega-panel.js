@@ -11,8 +11,10 @@
 
   It grows to share its parent's height (flex: 1 1 0), so two panels split a modal evenly unless
   one is given a bigger flex-grow. --omega-tab-width sets how wide the tab is (121 art pixels by
-  default, and never narrower than its title). Areas, each a div that ::part() reaches: panel,
-  header, tab, label, slant, strip, body.
+  default, and never narrower than its title). The well keeps 2 art pixels clear above its content
+  and 3 at the sides, where text starts in line with the title; <omega-row>s and <omega-list-row>s
+  in it reach a pixel into the sides, so a lit row's band has 2 pixels of well all round. Areas,
+  each a div that ::part() reaches: panel, header, tab, label, slant, strip, body.
 
   Needs everything in foundation/ on the page (see README.md); its colours follow palette.js.
 */
@@ -44,7 +46,9 @@
   const template = document.createElement('template');
   template.innerHTML = `
     <style>
-      :host { display: flex; flex: 1 1 0; min-height: 0; min-width: 0; }
+      /* text-rendering: Pixel Code drawn without the browser's hinting, which smears its edges by
+         part of a pixel even where it sits on whole pixels */
+      :host { display: flex; flex: 1 1 0; min-height: 0; min-width: 0; text-rendering: geometricPrecision; }
       :host([hidden]) { display: none; }
 
       .panel {
@@ -108,6 +112,9 @@
         font: 400 calc(9 * var(--u)) / calc(10 * var(--u)) var(--oz-font);
         overflow: hidden;
       }
+      /* rows reach a pixel into the well's sides, so a lit row's band has two pixels of well
+         around it on every side, as it has above the first row */
+      ::slotted(omega-row), ::slotted(omega-list-row) { margin: 0 calc(-1 * var(--u)); }
     </style>
     <div class="panel" part="panel">
       <div class="header" part="header">

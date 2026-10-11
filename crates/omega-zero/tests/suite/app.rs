@@ -10,13 +10,14 @@ use omega_retro::ButtonMask;
 use omega_store::{write_app_state, AppState, Cart, Core, Platform};
 use omega_ui::{
     board_at, grown, lid_at, lid_from, on_board, opening, shelf_cart_at, Draw, Icon, Placed, TexId,
-    BOARD_W, CART_H, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, HINT_EDGE, HINT_H, LID_TURN, SLIDE_UP,
-    SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
+    BOARD_W, CART_H, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, LID_TURN, SLIDE_UP, SOCKET_H,
+    SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
 };
 use omega_ui::{stage_x, stage_y};
 use omega_zero::app::{App, Phase, EJECT_S, INSERT_S, SEATED_AT};
 use omega_zero::audio::Sfx;
 use omega_zero::emu::{EmuHandle, Speed};
+use omega_zero::screens::bar::SWAP;
 use omega_zero::session::Session;
 use omega_zero::video_mode::{video_mode_for, VideoMode, VIDEO_MODE_FILE};
 
@@ -714,7 +715,7 @@ fn eject_is_the_insert_backwards() {
 }
 
 #[test]
-fn the_quick_menu_opens_from_the_shelf_and_nowhere_else() {
+fn settings_opens_from_the_shelf_and_nowhere_else() {
     let d = common::tmp_root_with_carts(&["Emerald", "Fusion"]);
     let (mut s, _motor) = common::session_with_platform(d.path());
 
@@ -727,7 +728,7 @@ fn the_quick_menu_opens_from_the_shelf_and_nowhere_else() {
         .apply(omega_input::Action::GbaDown(omega_input::Btn::Start));
     assert!(matches!(
         s.app().phase(),
-        omega_zero::app::Phase::QuickMenu { .. }
+        omega_zero::app::Phase::Settings { .. }
     ));
 
     s.app_mut()
@@ -736,13 +737,13 @@ fn the_quick_menu_opens_from_the_shelf_and_nowhere_else() {
     s.app_mut()
         .apply(omega_input::Action::GbaDown(omega_input::Btn::Start));
     assert!(
-        !matches!(s.app().phase(), omega_zero::app::Phase::QuickMenu { .. }),
+        !matches!(s.app().phase(), omega_zero::app::Phase::Settings { .. }),
         "a menu opened over a seated cart"
     );
 }
 
 #[test]
-fn both_b_and_menu_take_the_about_screen_back_to_the_quick_menu() {
+fn both_b_and_menu_take_the_about_screen_back_to_settings() {
     let d = common::tmp_root_with_carts(&["Emerald", "Fusion"]);
     for out in [
         omega_input::Action::GbaDown(omega_input::Btn::B),
@@ -751,7 +752,7 @@ fn both_b_and_menu_take_the_about_screen_back_to_the_quick_menu() {
         let (mut s, _motor) = common::session_with_platform(d.path());
         s.app_mut()
             .apply(omega_input::Action::GbaDown(omega_input::Btn::Start));
-        for _ in 0..omega_ui::QuickRow::About.index() {
+        for _ in 0..omega_ui::SettingsRow::About.index() {
             s.app_mut()
                 .apply(omega_input::Action::GbaDown(omega_input::Btn::Down));
         }
@@ -760,8 +761,8 @@ fn both_b_and_menu_take_the_about_screen_back_to_the_quick_menu() {
         assert!(matches!(s.app().phase(), omega_zero::app::Phase::About));
         s.app_mut().apply(out);
         assert_eq!(
-            s.app().quick_menu(),
-            Some(omega_ui::QuickRow::About),
+            s.app().settings_row(),
+            Some(omega_ui::SettingsRow::About),
             "{out:?} did not take the label back to the menu"
         );
     }
@@ -1088,7 +1089,6 @@ struct PickerFaces {
     chips: [TexId; 2],
     blank: TexId,
     shadow: TexId,
-    legend: [(TexId, u32); 3],
 }
 
 fn fake_boot_faces(app: &mut App) -> PickerFaces {
@@ -1100,10 +1100,8 @@ fn fake_boot_faces(app: &mut App) -> PickerFaces {
         chips: [id(904), id(905)],
         blank: id(906),
         shadow: id(907),
-        legend: [(id(908), 60), (id(909), 90), (id(910), 80)],
     };
     app.set_core_part_faces(f.sockets.to_vec(), f.chips.to_vec(), f.blank, f.shadow);
-    app.set_core_legend_faces(f.legend.to_vec());
     f
 }
 
@@ -1264,9 +1262,6 @@ fn assert_plain_shelf(out: &[Draw], f: &PickerFaces, when: &str) {
         f.chips[1],
         f.blank,
         f.shadow,
-        f.legend[0].0,
-        f.legend[1].0,
-        f.legend[2].0,
     ];
     let drawn: Vec<TexId> = out
         .iter()
@@ -1368,24 +1363,9 @@ fn the_open_cart_rests_over_the_shelf_with_its_lid_turned() {
     );
     assert!(shadow_i < lid_i, "the lid's shadow is drawn over the lid");
 
-    let [cancel, swap, choose] = f.legend;
-    let at = |tex| tex_at(&out, tex).expect("a legend hint is missing").1;
-    let seen = |w: u32| (w - HINT_EDGE) as f32;
-    assert_eq!(
-        at(cancel.0),
-        [174.0 + sx, 362.0 + sy, cancel.1 as f32, HINT_H as f32]
-    );
-    assert_eq!(
-        at(swap.0)[0] + seen(swap.1) / 2.0,
-        360.0 + sx,
-        "Swap is off the panel's centre"
-    );
-    assert_eq!(
-        at(choose.0)[0] + seen(choose.1),
-        546.0 + sx,
-        "Choose does not end at the cart's edge"
-    );
-    assert_eq!((at(swap.0)[1], at(choose.0)[1]), (362.0 + sy, 362.0 + sy));
+    // B and A are the bar's RETURN and CONFIRM, and it shows the swap between them: the
+    // picker draws no hint of its own
+    assert_eq!(app.bar_hints_shown(), [SWAP], "the swap is not on the bar");
 }
 
 #[test]

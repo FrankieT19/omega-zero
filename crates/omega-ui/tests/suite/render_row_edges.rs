@@ -4,7 +4,9 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use omega_gfx::{Compositor, HeadlessSurface};
 use omega_store::{Cart, Platform};
-use omega_ui::{cart_face, cart_shadow, out_h, out_w, Draw, Shelf, SlotChrome, TexId, CART_W};
+use omega_ui::{
+    cart_face, cart_shadow, out_h, out_w, ChromeColours, Draw, Shelf, SlotChrome, TexId, CART_W,
+};
 
 static GL: Mutex<()> = Mutex::new(());
 
@@ -187,6 +189,7 @@ fn the_slot_takes_over_the_cart_where_the_row_had_it() {
     let mut after = Vec::new();
     s.draw_row(Some(&cart.stem), 0.0, 0.0, 1.0, &mut after);
     SlotChrome {
+        colours: ChromeColours::default(),
         cart: &cart,
         face: Some(faces[s.index]),
         rest,

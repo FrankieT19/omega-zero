@@ -16,6 +16,7 @@ use omega_ui::BEZEL_FILL;
 use omega_zero::frontend::Frontend;
 use omega_zero::label_sync::{LabelJob, LabelJobs, LabelNews, Quota};
 use omega_zero::video_mode::{screen, VideoMode};
+use omega_zero::wifi::{SimWifi, WifiJob, WifiJobs, WifiNews};
 
 const FPS: f64 = 60.0;
 
@@ -26,8 +27,17 @@ const SETTLE: Duration = Duration::from_secs(2);
 
 const LIT_FRAMES: u32 = 600;
 
+/// How many frames the desktop's radio takes to answer a scan, as the handheld's takes seconds.
+const SCAN_FRAMES: u32 = 30;
+
 const SCRIPT: &str = "
-wait 120
+wait 1
+shot boot-logo
+wait 15
+shot boot-fade-half
+wait 15
+shot boot-fade-end
+wait 89
 settle
 shot shelf-gba
 frames shelf-drift 90
@@ -36,6 +46,22 @@ wait 40
 shot shelf-scrolled
 tap left
 wait 40
+down start
+wait 8
+shot slide-to-settings
+up start
+wait 60
+down b
+wait 8
+shot slide-to-shelf
+up b
+wait 60
+tap select
+wait 8
+shot slide-to-controls
+wait 60
+tap b
+wait 60
 tap x
 settle
 wait 90
@@ -44,7 +70,15 @@ tap b
 wait 60
 tap start
 wait 60
-shot quick-menu
+shot settings
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
 tap down
 wait 10
 tap down
@@ -81,20 +115,25 @@ tap up
 wait 10
 tap right
 wait 10
+tap up
+wait 10
+tap right
+wait 10
+settle
+wait 10
+shot theme-thin
 tap b
 wait 30
-tap up
-wait 10
-tap up
-wait 10
-tap up
-wait 10
-tap up
-wait 10
-tap up
-wait 10
+tap b
+wait 60
 settle
-shot quick-menu-scrolled
+shot shelf-thin
+tap start
+wait 60
+tap down
+wait 10
+tap down
+wait 10
 tap down
 wait 10
 tap down
@@ -110,12 +149,41 @@ wait 10
 tap a
 settle
 wait 30
-shot wifi-off
+tap up
+wait 10
+tap left
+wait 10
+tap b
+wait 30
+tap down
+wait 10
+settle
+shot settings-scrolled
+tap up
+wait 10
+tap up
+wait 10
+tap up
+wait 10
+down a
+wait 8
+shot slide-to-network
+up a
+settle
+wait 30
+shot network-off
 tap a
 wait 30
 settle
 wait 30
-shot wifi-list
+shot network-unscanned
+tap x
+wait 4
+settle
+shot network-scanning
+wait 40
+settle
+shot network-list
 tap down
 wait 10
 tap down
@@ -149,7 +217,80 @@ tap start
 wait 30
 settle
 wait 30
-shot wifi-joined
+shot network-joined
+tap up
+wait 10
+tap right
+wait 10
+settle
+shot network-ssh-off
+tap left
+wait 10
+tap left
+wait 10
+settle
+shot network-ssh-info
+tap a
+settle
+wait 30
+shot ssh
+tap b
+wait 30
+tap b
+wait 30
+settle
+wait 10
+shot settings-network
+tap down
+wait 10
+settle
+shot settings-bluetooth
+tap a
+settle
+wait 30
+shot bluetooth-off
+tap a
+wait 30
+settle
+wait 30
+shot bluetooth
+tap x
+wait 10
+settle
+shot bluetooth-looking
+wait 730
+settle
+shot bluetooth-found
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
+tap a
+wait 10
+settle
+shot bluetooth-pairing
+tap up
+wait 10
+tap up
+wait 10
+tap up
+wait 10
+tap a
+wait 10
+tap b
+wait 30
+tap up
+wait 10
+tap up
+wait 10
+tap a
+settle
+wait 60
+shot clock
+tap b
+wait 60
 tap up
 wait 10
 tap a
@@ -180,19 +321,14 @@ tap a
 wait 10
 tap b
 wait 30
-tap b
-wait 30
-settle
-wait 10
-shot quick-menu-wifi
 tap down
 wait 10
-tap a
-settle
-wait 60
-shot clock
-tap b
-wait 60
+tap down
+wait 10
+tap down
+wait 10
+tap down
+wait 10
 tap down
 wait 10
 tap a
@@ -201,6 +337,12 @@ wait 90
 look about
 tap b
 wait 60
+tap b
+wait 60
+tap select
+wait 60
+settle
+shot controls
 tap b
 wait 60
 tap r1
@@ -261,6 +403,19 @@ wait 30
 hold power 80
 wait 60
 shot power-menu
+tap a
+wait 30
+shot restarting
+boot
+wait 120
+lit
+hold power 80
+wait 60
+tap down
+wait 10
+tap a
+wait 30
+shot powering-off
 ";
 
 /// A ScreenScraper that answers a sync with one in progress, for the Labels screen's shots.
@@ -291,6 +446,51 @@ impl LabelJobs for ShownLabels {
     }
 }
 
+/// The desktop's radio with each scan's answer held for `SCAN_FRAMES`, so a shot can show the
+/// Network screen while it looks.
+#[derive(Default)]
+struct HeldScans {
+    sim: SimWifi,
+    /// What the radio said alongside a scan, told at once.
+    told: Vec<WifiNews>,
+    /// The networks a scan heard, and how many more frames before they are told.
+    held: Option<(Vec<WifiNews>, u32)>,
+}
+
+impl WifiJobs for HeldScans {
+    fn present(&self) -> bool {
+        self.sim.present()
+    }
+
+    fn ask(&mut self, job: WifiJob) {
+        let scan = job == WifiJob::Scan;
+        self.sim.ask(job);
+        if scan {
+            let (seen, rest): (Vec<_>, Vec<_>) = self
+                .sim
+                .news()
+                .into_iter()
+                .partition(|n| matches!(n, WifiNews::Seen(_)));
+            self.told.extend(rest);
+            self.held = Some((seen, SCAN_FRAMES));
+        }
+    }
+
+    fn news(&mut self) -> Vec<WifiNews> {
+        let mut news = std::mem::take(&mut self.told);
+        news.extend(self.sim.news());
+        if let Some((seen, frames)) = &mut self.held {
+            if *frames == 0 {
+                news.append(seen);
+                self.held = None;
+            } else {
+                *frames -= 1;
+            }
+        }
+        news
+    }
+}
+
 enum Step {
     Settle,
     Lit,
@@ -301,6 +501,8 @@ enum Step {
     Look(String),
     /// Wait `n` frames like `wait`, writing each one out as OUT/<name>-NNN.png.
     Frames(String, u32),
+    /// Boot the frontend again on the same card, as the handheld does after a restart.
+    Boot,
 }
 
 fn btn(name: &str) -> Btn {
@@ -336,6 +538,7 @@ fn parse(script: &str) -> Vec<Step> {
             [] => {}
             ["wait", ..] => steps.push(Step::Wait(n(1, 1))),
             ["settle"] => steps.push(Step::Settle),
+            ["boot"] => steps.push(Step::Boot),
             ["lit"] => steps.push(Step::Lit),
             ["tap", b, ..] | ["hold", b, ..] => {
                 steps.push(Step::Down(btn(b)));
@@ -390,10 +593,33 @@ fn settle(frontend: &mut Frontend, compositor: &mut Compositor) {
     }
 }
 
+/// The frontend booted on the card at `root`, its faces up and the boot logo over its first
+/// frames, as the handheld boots it.
+fn booted(root: &Path, compositor: &mut Compositor) -> Frontend {
+    let mut frontend = Frontend::boot(Box::new(SimPlatform::at(root.into()).stopped_at(CLOCK)));
+    frontend.upload_faces(compositor);
+    let system = root.join("System");
+    if let Some(logo) = omega_zero::bootlogo::shown(&system, (out_w(), out_h())) {
+        frontend.show_boot_logo(compositor, &logo);
+    }
+    frontend.drive_emulator();
+    frontend
+        .app_mut()
+        .set_label_jobs(Box::new(ShownLabels::default()));
+    frontend
+        .app_mut()
+        .set_wifi_jobs(Box::new(HeldScans::default()));
+    frontend
+}
+
 fn card(dir: &Path) {
     for sub in omega_zero::root::DIRS {
         std::fs::create_dir_all(dir.join(sub)).expect("create the card's folders");
     }
+    // the boot logo omega-zero ships for this canvas, as the card carries it
+    let logo = format!("bootlogo-{}x{}.bmp", out_w(), out_h());
+    let shipped = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../card/System");
+    std::fs::copy(shipped.join(&logo), dir.join("System").join(&logo)).expect("copy the boot logo");
     for title in ["Emerald", "Fire Red", "Minish Cap", "Zelda"] {
         let mut rom = vec![0u8; 0x100];
         let header = title.to_uppercase();
@@ -435,6 +661,17 @@ fn still_frame() -> Vec<u8> {
         }
     }
     xrgb
+}
+
+/// The canvas as the panel shows it. Its alpha is what blending left there, which the panel
+/// never shows: a translucent plate over the backdrop would come out looking pale in a
+/// picture viewer, so every pixel is written opaque.
+fn panel_frame(compositor: &Compositor) -> Vec<u8> {
+    let mut rgba = compositor.read_frame();
+    for px in rgba.chunks_exact_mut(4) {
+        px[3] = 0xff;
+    }
+    rgba
 }
 
 fn write_png(path: &Path, rgba: &[u8]) {
@@ -498,14 +735,7 @@ fn main() {
 
     let surface = HeadlessSurface::new().expect("headless GL");
     let mut compositor = Compositor::new(&surface).expect("compositor");
-    let mut frontend = Frontend::boot(Box::new(
-        SimPlatform::at(root.path().into()).stopped_at(CLOCK),
-    ));
-    frontend.upload_faces(&mut compositor);
-    frontend.drive_emulator();
-    frontend
-        .app_mut()
-        .set_label_jobs(Box::new(ShownLabels::default()));
+    let mut frontend = booted(root.path(), &mut compositor);
 
     // SCREENS_SCRIPT runs another script in place of the built-in one, for one-off previews.
     let script = std::env::var("SCREENS_SCRIPT")
@@ -532,7 +762,7 @@ fn main() {
             Step::Frames(name, n) => {
                 for i in 0..n {
                     tick(&mut frontend, &mut compositor, &mut input, &mut frame);
-                    let rgba = compositor.read_frame();
+                    let rgba = panel_frame(&compositor);
                     write_png(&out.join(format!("{name}-{i:03}.png")), &rgba);
                 }
             }
@@ -546,11 +776,12 @@ fn main() {
             Step::Down(b) => input.0.push(RawEvent::Down(b)),
             Step::Up(b) => input.0.push(RawEvent::Up(b)),
             Step::Settle => settle(&mut frontend, &mut compositor),
+            Step::Boot => frontend = booted(root.path(), &mut compositor),
             Step::Shot(name) | Step::Look(name) => {
                 settle(&mut frontend, &mut compositor);
                 compositor.upload_game(&still_frame());
                 frontend.compose(&mut compositor);
-                let rgba = compositor.read_frame();
+                let rgba = panel_frame(&compositor);
                 write_png(&out.join(format!("{name}.png")), &rgba);
                 if let (Some(baseline), true) = (&baseline, shots.contains(&name)) {
                     if let Err(e) = compare(&name, &rgba, baseline) {
@@ -575,7 +806,7 @@ fn main() {
                 compositor.set_screen_power(power);
                 compositor.begin_frame();
                 compositor.draw_list(&[Draw::Game]);
-                let rgba = compositor.read_frame();
+                let rgba = panel_frame(&compositor);
                 write_png(&out.join(format!("{name}.png")), &rgba);
                 if let Some(baseline) = &baseline {
                     if let Err(e) = compare(&name, &rgba, baseline) {

@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>omega-zero flow</title>
+<!--
+  Every new omega-zero screen, put together from the kit, and a player that walks between them
+  with the slides the device will draw: the shelf, Settings and everything under it, the
+  Controls panel, and the power menu with the screens after it. Open it straight from disk; it
+  needs no server or build. The URL's hash picks the screen, the panel size, the colour and any
+  moment of a slide (see "The URL" on the page), so a still of any of them can be taken with
+  headless Chrome. The placeholders for what Rust draws (the carts, the slot, the top bar, the
+  About sticker) are flat on purpose.
+-->
+<link rel="stylesheet" href="foundation/fonts.css">
+<link rel="stylesheet" href="foundation/tokens.css">
+<link rel="stylesheet" href="flow/flow.css">
+<script src="foundation/pixel.js"></script>
+<script src="foundation/backdrop.js"></script>
+<script src="foundation/palette.js"></script>
+<script src="components/omega-modal.js"></script>
+<script src="components/omega-panel.js"></script>
+<script src="components/action-left.js"></script>
+<script src="components/action-right.js"></script>
+<!-- being drawn for the kit: until they are here, flow/stubs.js stands in for each -->
+<script src="components/omega-row.js"></script>
+<script src="components/omega-list-row.js"></script>
+<script src="components/omega-bar.js"></script>
+<script src="flow/stubs.js"></script>
+<script src="flow/art.js"></script>
+</head>
+<body>
+<main>
+  <div class="intro">
+    <h1>omega-zero flow</h1>
+    <p class="dim">Every new screen of omega-zero's menus, built from the kit in
+      <a href="storybook.html">storybook.html</a>, and the slides between them as the device draws
+      them: 280 ms, smootherstep, every frame on whole art pixels. Walk it with the keys or the
+      buttons under the screen. Going deeper slides the screen out to the right and the next in from
+      the left; going back is the mirror. Settings stands beside the shelf rather than under it, so
+      the slides between the two go the other way round: the shelf out to the left and Settings in
+      from the right, and back again Settings out to the right and the shelf in from the left. The
+      screens under Settings, and Controls, slide the usual way. The backdrop behind them never
+      moves with them, and the bottom bar never leaves, but for the screen after the power menu's
+      choice, where nothing can be pressed and it sinks away.</p>
+  </div>
+
+  <div class="layout">
+    <div class="device">
+      <div class="screen-scroll">
+        <div class="screen" id="screen" data-size="640x480">
+          <div class="backdrop omega-backdrop" data-style="grid" data-moving></div>
+
+          <!-- the shelf, drawn by Rust on the device: three parts that leave it three ways -->
+          <div class="part shelf-carts" data-screen="shelf">
+            <div class="cart side prev"></div>
+            <div class="cart lit"></div>
+            <div class="cart side next"></div>
+          </div>
+          <div class="part shelf-slot" data-screen="shelf"><div class="mouth"></div></div>
+          <div class="part shelf-top" data-screen="shelf">
+            <div class="wifi"></div>
+            <div class="clock">16:00</div>
+            <div class="battery"><div class="gauge"></div><div>86%</div></div>
+          </div>
+
+          <!-- Settings, from the shelf's START -->
+          <section class="part page away" data-screen="settings">
+            <div class="modal-area">
+              <omega-modal>
+                <omega-panel label="CONFIGS" class="hug">
+                  <omega-row label="FAST FORWARD" value="6X" carets data-values="2X|3X|4X|6X"></omega-row>
+                  <omega-row label="FAST FORWARD SOUND" value="OFF" carets data-values="OFF|ON"></omega-row>
+                  <omega-row label="COLOUR CORRECTION" value="OFF" carets data-values="OFF|ON"></omega-row>
+                  <omega-row label="RUMBLE" value="ON" carets data-values="ON|OFF"></omega-row>
+                  <omega-row label="LABELS" opens data-opens="labels"></omega-row>
+                </omega-panel>
+                <omega-panel label="GENERAL">
+                  <omega-row label="DATE &amp; TIME" value="OCT 10 16:00" opens data-opens="datetime" data-show="date"></omega-row>
+                  <omega-row label="NETWORK" value="HOME" opens data-opens="network" data-show="network"></omega-row>
+                  <omega-row label="BLUETOOTH" value="8BITDO SN30 PRO" opens data-opens="bluetooth" data-show="bluetooth"></omega-row>
+                  <omega-row label="THEME" opens data-opens="background"></omega-row>
+                  <omega-row label="ABOUT" opens data-opens="about"></omega-row>
+                </omega-panel>
+              </omega-modal>
+            </div>
+          </section>
+
+          <!-- Controls, from the shelf's SELECT: what every button does -->
+          <section class="part page away" data-screen="controls">
+            <omega-panel label="CONTROLS" active class="lone controls-panel">
+              <div class="columns">
+                <div class="keymap" style="--keys: 6; --does: 11">
+                  <h3>SHELF</h3>
+                  <span class="k">A</span><span>PLAY</span>
+                  <span class="k">HOLD A</span><span>CLEAN START</span>
+                  <span class="k">X</span><span>CORE</span>
+                  <span class="k">START</span><span>SETTINGS</span>
+                  <span class="k">SELECT</span><span>CONTROLS</span>
+                  <span class="k"><i class="g left"></i><i class="g right"></i></span><span>BROWSE</span>
+                  <span class="k"><i class="g up"></i><i class="g down"></i></span><span>LETTER</span>
+                  <span class="k">L1 R1</span><span>SHELF</span>
+                </div>
+                <div class="keymap" style="--keys: 12; --does: 15">
+                  <h3>IN GAME</h3>
+                  <span class="k">L2</span><span>REWIND</span>
+                  <span class="k">R2</span><span>FAST FORWARD</span>
+                  <span class="k">MENU ×2</span><span>SAVE STATES</span>
+                  <span class="k">HOLD MENU</span><span>EJECT</span>
+                  <span class="k">SELECT+MENU</span><span>LINK</span>
+                  <span class="k">SELECT+<i class="g up"></i><i class="g down"></i></span><span>BRIGHTNESS</span>
+                  <span class="k">SELECT+<i class="g left"></i><i class="g right"></i></span><span>BLUE LIGHT</span>
+                  <span class="k">SELECT+L1/R1</span><span>LOAD/SAVE STATE</span>
+                  <span class="k">SELECT+Y</span><span>COLOUR</span>
+                  <span class="k">VOL+ VOL-</span><span>MUTE</span>
+                  <span class="k">HOLD POWER</span><span>POWER MENU</span>
+                </div>
+              </div>
+            </omega-panel>
+          </section>
+
+          <!-- Settings > Network: NETWORK's rows, then the networks known, drawn by screens.js from
+               what it holds: before a scan the one joined, and once X's scan is done every one it
+               found with its bars and padlock; the note under them says to press X, that it is
+               looking, or that Wi-Fi is off -->
+          <section class="part page away" data-screen="network">
+            <div class="modal-area">
+              <omega-modal>
+                <omega-panel label="NETWORK" class="hug">
+                  <omega-row label="WI-FI" value="ON" carets data-values="ON|OFF" data-set="wifi"></omega-row>
+                  <omega-row label="NETWORK TIME" value="ON" carets data-values="ON|OFF"></omega-row>
+                  <omega-row label="SSH" value="ON" carets data-values="ON|OFF|INFO" data-set="ssh" data-opens="ssh" data-opens-on="INFO"></omega-row>
+                </omega-panel>
+                <omega-panel label="AVAILABLE NETWORKS">
+                  <div class="list">
+                    <p class="note" hidden></p>
+                  </div>
+                </omega-panel>
+              </omega-modal>
+            </div>
+          </section>
+
+          <!-- Settings > Network > SSH on INFO: the login, or, with SSH off or no Wi-Fi, what to do
+               first. The password is the six digits omega-zero makes up on a card that sets none. -->
+          <section class="part page away" data-screen="ssh">
+            <omega-panel label="SSH" active class="lone small ssh">
+              <div class="when-online">
+                <omega-row label="IP" value="192.168.1.20"></omega-row>
+                <omega-row label="HOST" value="rg35xxsp.local"></omega-row>
+                <omega-row label="USER" value="root"></omega-row>
+                <omega-row label="PASSWORD" value="482913"></omega-row>
+                <omega-row label="PORT" value="22"></omega-row>
+                <p class="note">SFTP uses the same login</p>
+              </div>
+              <div class="when-offline"><p class="note">Join a Wi-Fi network first.</p></div>
+            </omega-panel>
+          </section>
+
+          <!-- Settings > Network > a network: its passphrase -->
+          <section class="part page away" data-screen="keyboard">
+            <div class="modal-area">
+              <omega-modal>
+                <omega-panel label="PASSPHRASE FOR HOME" active class="keyboard-panel">
+                  <div class="typing">
+                    <div class="field-box"><span class="typed"></span><span class="cursor"></span></div>
+                    <div class="keys"></div>
+                    <div class="hint-line" style="--chars: 38"><b>B</b> DELETE  <b>X</b> SHIFT  <b>Y</b> SPACE  <b>START</b> DONE</div>
+                  </div>
+                </omega-panel>
+              </omega-modal>
+            </div>
+          </section>
+
+          <!-- Settings > Bluetooth: the radio, and while it is on the devices paired and those a
+               look with X finds, each with its kind's icon; the devices and the note under them
+               are drawn by screens.js from what it holds -->
+          <section class="part page away" data-screen="bluetooth">
+            <div class="modal-area">
+              <omega-modal>
+                <omega-panel label="BLUETOOTH" class="hug">
+                  <omega-row label="BLUETOOTH" value="ON" carets data-values="ON|OFF" data-set="bluetooth"></omega-row>
+                </omega-panel>
+                <omega-panel label="DEVICES" class="devices">
+                  <p class="note" hidden></p>
+                </omega-panel>
+              </omega-modal>
+            </div>
+          </section>
+
+          <!-- Settings > Labels -->
+          <section class="part page away" data-screen="labels">
+            <omega-panel label="LABELS" active class="lone labels-panel">
+              <omega-row label="SCREENSCRAPER" value="SIGN IN"></omega-row>
+              <omega-row label="FETCH LABELS"></omega-row>
+              <p class="note">Sign in with your free ScreenScraper account<br>to fetch the real labels of your carts.</p>
+            </omega-panel>
+          </section>
+
+          <!-- Settings > Date & Time -->
+          <section class="part page away" data-screen="datetime">
+            <omega-panel label="DATE &amp; TIME" active class="lone datetime-panel">
+              <div class="picker"></div>
+            </omega-panel>
+          </section>
+
+          <!-- Settings > Theme: changes the real backdrop behind every screen, and the bar's font -->
+          <section class="part page away" data-screen="background">
+            <omega-panel label="THEME" active class="lone small">
+              <omega-row label="BACKGROUND" value="GRID" carets data-values="GRID|PLATES|DOTTED|DITHER|RIVETS|BITS|SOLID" data-set="style"></omega-row>
+              <omega-row label="MOTION" value="MOVING" carets data-values="MOVING|STILL" data-set="moving"></omega-row>
+              <omega-row label="COLOUR" value="NIGHT" carets data-values="NIGHT|SLATE|NAVY|TEAL|GREEN|PLUM|CRIMSON|AMBER" data-set="colour"></omega-row>
+              <omega-row label="FONT" value="BOLD" carets data-values="BOLD|THIN" data-set="font"></omega-row>
+            </omega-panel>
+          </section>
+
+          <!-- Settings > About: a sticker Rust draws, here a plain plate -->
+          <section class="part page away" data-screen="about">
+            <div class="lone about-plate">
+              <p>OMEGA-ZERO</p>
+              <p>0.0.2</p>
+              <p class="small">THE STICKER RUST DRAWS</p>
+            </div>
+          </section>
+
+          <!-- Holding POWER, on any screen: restart or power off. It opens deeper from the screen
+               it was held on, and B goes back there. -->
+          <section class="part page away" data-screen="power">
+            <omega-panel label="POWER" active class="lone small">
+              <omega-row label="RESTART" data-opens="restarting"></omega-row>
+              <omega-row label="POWER OFF" data-opens="poweroff"></omega-row>
+            </omega-panel>
+          </section>
+
+          <!-- POWER's choice, shown until the handheld goes down: nothing can be pressed, so the
+               bar sinks away -->
+          <section class="part page away" data-screen="restarting">
+            <omega-panel label="RESTART" active class="lone small going">
+              <p class="note">Restarting<i class="g ellipsis"></i></p>
+            </omega-panel>
+          </section>
+          <section class="part page away" data-screen="poweroff">
+            <omega-panel label="POWER OFF" active class="lone small going">
+              <p class="note">Turning off<i class="g ellipsis"></i></p>
+            </omega-panel>
+          </section>
+
+          <omega-bar>
+            <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
+            <action-right slot="right" label="SETTINGS" hint="START"></action-right>
+          </omega-bar>
+        </div>
+      </div>
+
+      <div class="pad" aria-label="The handheld's buttons">
+        <div class="dpad">
+          <button data-key="up" aria-label="Up">↑</button>
+          <button data-key="left" aria-label="Left">←</button>
+          <button data-key="right" aria-label="Right">→</button>
+          <button data-key="down" aria-label="Down">↓</button>
+        </div>
+        <div class="meta">
+          <button data-key="select">SELECT</button>
+          <button data-key="start">START</button>
+          <button data-key="power" title="Holding POWER">POWER</button>
+        </div>
+        <div class="face">
+          <button data-key="y">Y</button>
+          <button data-key="x">X</button>
+          <button data-key="b">B</button>
+          <button data-key="a">A</button>
+        </div>
+      </div>
+      <div class="readout" id="readout"></div>
+    </div>
+
+    <div class="sidebar">
+      <div class="card">
+        <h2>Screens</h2>
+        <p class="dim">Jump straight to one, without a slide.</p>
+        <div class="screens" id="screens"></div>
+      </div>
+
+      <div class="card">
+        <h2>Settings › Theme, and the panel</h2>
+        <div class="controls">
+          <fieldset class="group"><legend>Background</legend><div class="seg" id="styles"></div></fieldset>
+          <fieldset class="group"><legend>Colour</legend><div class="seg" id="colours"></div></fieldset>
+          <label class="check"><input type="checkbox" id="moving" checked> moving</label>
+          <fieldset class="group">
+            <legend>Font</legend>
+            <div class="seg">
+              <label><input type="radio" name="font" value="bold" checked><span>Bold</span></label>
+              <label><input type="radio" name="font" value="thin"><span>Thin</span></label>
+            </div>
+          </fieldset>
+        </div>
+        <div class="controls">
+          <fieldset class="group">
+            <legend>panel</legend>
+            <div class="seg">
+              <label><input type="radio" name="size" value="640x480" checked><span>640×480</span></label>
+              <label><input type="radio" name="size" value="720x480"><span>720×480</span></label>
+              <label><input type="radio" name="size" value="720x720"><span>720×720</span></label>
+            </div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>zoom</legend>
+            <div class="seg">
+              <label><input type="radio" name="zoom" value="1" checked><span>1×</span></label>
+              <label><input type="radio" name="zoom" value="2"><span>2×</span></label>
+            </div>
+          </fieldset>
+          <label class="check"><input type="checkbox" id="wifi" checked> Wi-Fi on</label>
+          <label class="check"><input type="checkbox" id="bluetooth" checked> Bluetooth on</label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Frames</h2>
+        <div class="controls">
+          <label class="check"><input type="checkbox" id="slow"> slow motion ×5</label>
+          <button id="step" title="Hold the slide and move it one frame on (1/60 s of its own time)">step one frame</button>
+        </div>
+        <p class="dim">Step holds the slide under way, or the next one, and moves it a frame at a
+          time. A key pressed during a slide finishes it at once, then does what it does.</p>
+      </div>
+
+      <div class="card">
+        <h2>Keys</h2>
+        <table>
+          <tr><th>Button</th><th>Keys</th><th>Does</th></tr>
+          <tr><td>↑ ↓ ← →</td><td><kbd>arrows</kbd></td><td>Move the cursor; ← → change a value</td></tr>
+          <tr><td>A</td><td><kbd>A</kbd></td><td>Confirm: open a row's screen, press a key; on Bluetooth, pair and connect a device, or disconnect it</td></tr>
+          <tr><td>B</td><td><kbd>Z</kbd> <kbd>B</kbd> <kbd>Esc</kbd></td><td>Back one screen; on the keyboard, delete (back once the field is empty)</td></tr>
+          <tr><td>X</td><td><kbd>X</kbd> or <kbd>S</kbd></td><td>Network: look for networks, once. Bluetooth: look for devices, for a few seconds</td></tr>
+          <tr><td>Y</td><td><kbd>Y</kbd></td><td>Bluetooth: forget a paired device</td></tr>
+          <tr><td>START</td><td><kbd>Enter</kbd></td><td>Shelf → Settings; Settings → shelf; keyboard: done</td></tr>
+          <tr><td>SELECT</td><td><kbd>Space</kbd> <kbd>right Shift</kbd></td><td>Shelf → Controls</td></tr>
+          <tr><td>POWER, held</td><td><kbd>P</kbd></td><td>Any screen → the power menu; its A restarts or powers off, its B goes back to the screen it was held on</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>The URL</h2>
+        <p class="dim">The hash picks what is shown, so a still of any screen, or of any moment of a
+          slide, can be taken with headless Chrome. The page keeps it up to date as you walk.</p>
+        <table>
+          <tr><th>Key</th><th>What it does</th></tr>
+          <tr><td>screen</td><td><code>shelf</code>, <code>settings</code>, <code>controls</code>, <code>network</code>, <code>ssh</code>, <code>keyboard</code>, <code>bluetooth</code>, <code>labels</code>, <code>datetime</code>, <code>background</code> (Theme), <code>about</code>, <code>power</code> (holding POWER), <code>restarting</code>, <code>poweroff</code></td></tr>
+          <tr><td>from</td><td>Slide into <code>screen</code> from this one, deeper or back as the tree has it (<code>dir=in</code> or <code>out</code> to force it). For <code>power</code>, the screen POWER was held on, which its B goes back to (the shelf when there is none).</td></tr>
+          <tr><td>t</td><td>With <code>from</code>: hold the slide at this time, 0 to 1 (eased into p).</td></tr>
+          <tr><td>size</td><td><code>640x480</code> (default), <code>720x480</code>, <code>720x720</code></td></tr>
+          <tr><td>colour</td><td><code>night</code> (default), <code>slate</code>, <code>navy</code>, <code>teal</code>, <code>green</code>, <code>plum</code>, <code>crimson</code>, <code>amber</code></td></tr>
+          <tr><td>style</td><td><code>grid</code> (default), <code>plates</code>, <code>dotted</code>, <code>dither</code>, <code>rivets</code>, <code>bits</code>, <code>solid</code></td></tr>
+          <tr><td>moving</td><td><code>1</code> (default) or <code>0</code></td></tr>
+          <tr><td>font</td><td><code>bold</code> (default) or <code>thin</code>: the bottom bar's labels, as Theme › Font draws them</td></tr>
+          <tr><td>wifi</td><td><code>on</code> (default) or <code>off</code>: SSH shows its offline variant, Network lists no networks and says Wi-Fi is off</td></tr>
+          <tr><td>scan</td><td>Network's scan: <code>none</code> (default, as it opens: Home alone, and the note to press X), <code>running</code> (looking, standing still) or <code>done</code> (the three networks found)</td></tr>
+          <tr><td>bt</td><td>Bluetooth: <code>on</code> (default) as the screen opens, before any look, with the two paired devices; <code>off</code>; <code>empty</code> (nothing paired, before any look); <code>looking</code> (a look under way, held, the keyboard found so far); <code>found</code> (after it, the band found too); or <code>pairing</code> (after it, the keyboard pairing, the cursor on it)</td></tr>
+          <tr><td>row</td><td>The cursor's row on <code>screen</code>, from 0 (the key, for the keyboard; the field, for Date &amp; Time)</td></tr>
+          <tr><td>slow</td><td><code>1</code>: slides at a fifth of their speed</td></tr>
+          <tr><td>shot</td><td><code>1</code>: the screen alone at the window's top left, for screenshots</td></tr>
+        </table>
+<pre><code>flow.html#screen=network&amp;from=settings&amp;t=0.5&amp;colour=amber&amp;shot=1</code></pre>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="flow/screens.js"></script>
+<script src="flow/player.js"></script>
+</body>
+</html>

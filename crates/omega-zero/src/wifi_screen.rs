@@ -1,24 +1,27 @@
-//! The Wi-Fi screen, opened from the quick menu: switching Wi-Fi and network time, the
-//! networks in reach, and typing a passphrase for a new one.
+//! The Network screen, opened from Settings: switching Wi-Fi, network time and SSH, the way to
+//! SSH's login, the networks in reach, and typing a passphrase for a new one.
 
 use omega_input::{Action, Btn, Millis};
-use omega_ui::{wifi_window, Keyboard};
+use omega_ui::network::{network_window, networks_shown};
+use omega_ui::Keyboard;
 
-use crate::list_view::{LegendHint, ListView, RowLabel, RowValue, ViewRow};
 use crate::wifi::{
     bars, passphrase_ok, shown, AskFail, Saved, Seen, Status, WifiJob, WifiJobs, WifiNews,
-    GLANCE_MS, JOIN_TIMEOUT_MS, REFRESH_MS, SCAN_MS,
+    GLANCE_MS, JOIN_TIMEOUT_MS, REFRESH_MS,
 };
 
 /// How closely the radio is being watched, which sets how often it is asked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Watch {
     Idle,
-    /// The top bar shows whether a network is joined: it is asked now and then.
+    /// The top bar shows whether a network is joined: the link is glanced at every second, and
+    /// the status is asked again only when a glance finds the link otherwise than it says.
     Glance,
     /// Something on screen names the network: its status is kept fresh.
     Status,
-    /// The Wi-Fi screen is open: the networks in reach are looked for too.
+    /// The Network screen is open, or the SSH screen opened from it: its status is kept fresh,
+    /// and what a scan finds is kept until it closes. Nothing scans by itself: X on the screen
+    /// asks for each scan.
     Networks,
 }
 
@@ -48,7 +51,7 @@ pub struct Entry {
     pub state: EntryState,
 }
 
-/// What the quick menu says beside Wi-Fi.
+/// What Settings says beside Network.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Summary {
     Off,
@@ -61,15 +64,20 @@ pub struct Wifi {
     jobs: Box<dyn WifiJobs>,
     enabled: bool,
     status: Status,
-    seen: Vec<Seen>,
-    empty_scans: u8,
+    /// What the last scan heard, while the Network screen stays open: None until X has asked
+    /// for one, and again once the screen closes or Wi-Fi goes off.
+    seen: Option<Vec<Seen>>,
     saved: Vec<Saved>,
     joining: Option<(Vec<u8>, Millis)>,
     note: Option<Note>,
     refreshing: bool,
+    /// A scan is on the worker. It finishes there whatever the screen does meanwhile.
     scanning: bool,
+    glancing: bool,
+    /// Whether the last glance found a network joined, until a status newer than it comes.
+    glanced: Option<bool>,
     refresh_at: Millis,
-    scan_at: Millis,
+    glance_at: Millis,
 }
 
 impl Wifi {
@@ -78,15 +86,16 @@ impl Wifi {
             jobs,
             enabled: false,
             status: Status::default(),
-            seen: Vec::new(),
-            empty_scans: 0,
+            seen: None,
             saved: Vec::new(),
             joining: None,
             note: None,
             refreshing: false,
             scanning: false,
+            glancing: false,
+            glanced: None,
             refresh_at: 0,
-            scan_at: 0,
+            glance_at: 0,
         }
     }
 
@@ -124,10 +133,9 @@ impl Wifi {
         if on {
             self.jobs.ask(WifiJob::Up);
             self.refresh_at = now;
-            self.scan_at = now;
         } else {
             self.jobs.ask(WifiJob::Down);
-            self.seen.clear();
+            self.seen = None;
             self.status = Status {
                 hostname: std::mem::take(&mut self.status.hostname),
                 ntp: self.status.ntp,
@@ -157,6 +165,21 @@ impl Wifi {
         self.jobs.ask(WifiJob::Select(id));
     }
 
+    /// X on the Network screen: one look for the networks in reach, whose answer the list takes
+    /// in. Nothing while Wi-Fi is off or a scan is already under way.
+    pub fn scan(&mut self) {
+        if !self.enabled || self.scanning {
+            return;
+        }
+        self.scanning = true;
+        self.jobs.ask(WifiJob::Scan);
+    }
+
+    /// A scan asked for by X has not answered yet.
+    pub fn scanning(&self) -> bool {
+        self.scanning
+    }
+
     pub fn forget(&mut self, id: u32) {
         let gone = self
             .saved
@@ -171,10 +194,15 @@ impl Wifi {
     }
 
     /// Takes what the radio has said since the last tick, settles a join that has finished,
-    /// and asks again whatever is being watched.
+    /// and asks again whatever is being watched. It never asks for a scan.
     pub fn tick(&mut self, now: Millis, watch: Watch) {
         for news in self.jobs.news() {
-            self.take(news, now);
+            self.take(news, now, watch);
+        }
+        // Closed, the Network screen forgets what its scans found: opened again, it starts from
+        // the network joined and the saved ones.
+        if watch != Watch::Networks {
+            self.seen = None;
         }
         if let Some((ssid, since)) = &self.joining {
             let refused = self.saved.iter().any(|s| s.ssid == *ssid && s.refused);
@@ -191,25 +219,29 @@ impl Wifi {
         if !self.enabled {
             return;
         }
+        let stale = self.glanced.is_some_and(|up| up != self.status.joined());
         // How long after a status is due for the screen that names the network the next is
-        // asked for: none at all while nothing on screen shows the radio.
+        // asked for: none at all while nothing on screen shows the radio, and for the top bar
+        // only once a glance has found the link otherwise than the last status said.
         let later = match watch {
             _ if self.joining.is_some() => Some(0),
             Watch::Idle => None,
-            Watch::Glance => Some(GLANCE_MS - REFRESH_MS),
+            Watch::Glance => stale.then_some(0),
             Watch::Status | Watch::Networks => Some(0),
         };
         if later.is_some_and(|later| now >= self.refresh_at + later) && !self.refreshing {
             self.refreshing = true;
             self.jobs.ask(WifiJob::Refresh);
         }
-        if watch == Watch::Networks && !self.scanning && now >= self.scan_at {
-            self.scanning = true;
-            self.jobs.ask(WifiJob::Scan);
+        // The top bar needs only whether a network is joined, which a glance tells for the
+        // price of one file read, so it can be asked every second.
+        if watch == Watch::Glance && !self.glancing && !self.refreshing && now >= self.glance_at {
+            self.glancing = true;
+            self.jobs.ask(WifiJob::Glance);
         }
     }
 
-    fn take(&mut self, news: WifiNews, now: Millis) {
+    fn take(&mut self, news: WifiNews, now: Millis, watch: Watch) {
         match news {
             WifiNews::Started(true) => {
                 if self.note == Some(Note::NoRadio) {
@@ -222,11 +254,20 @@ impl Wifi {
                 }
             }
             WifiNews::Status(status) => {
+                // A status is as new as any glance taken before it.
+                self.glanced = None;
                 if self.enabled {
                     self.status = status;
                 } else {
                     self.status.hostname = status.hostname;
                     self.status.ntp = status.ntp;
+                }
+            }
+            WifiNews::Glanced(up) => {
+                self.glancing = false;
+                self.glance_at = now + GLANCE_MS;
+                if self.enabled {
+                    self.glanced = Some(up);
                 }
             }
             WifiNews::Saved(saved) => {
@@ -236,16 +277,10 @@ impl Wifi {
             }
             WifiNews::Seen(seen) => {
                 self.scanning = false;
-                self.scan_at = now + SCAN_MS;
-                // A scan the radio was too busy for comes back empty: keep what was heard
-                // until a second one agrees.
-                if seen.is_empty() && self.empty_scans == 0 && self.enabled {
-                    self.empty_scans = 1;
-                    return;
-                }
-                self.empty_scans = 0;
-                if self.enabled {
-                    self.seen = seen;
+                // A scan that finishes once the screen has closed, or Wi-Fi has gone off, is
+                // for nobody.
+                if self.enabled && watch == Watch::Networks {
+                    self.seen = Some(seen);
                 }
             }
             WifiNews::Asked(Ok(())) => {}
@@ -278,8 +313,9 @@ impl Wifi {
             .or(self.status.ssid.as_ref().filter(|_| handshaking))
     }
 
-    /// The networks to offer: the one joined or being joined first, then those in reach,
-    /// strongest first, then the saved ones out of reach.
+    /// The networks to offer: the one joined or being joined first, then those the last scan
+    /// heard, strongest first, then the saved ones it did not. Before a scan that is the one
+    /// joined and the saved ones, with no signal.
     pub fn entries(&self) -> Vec<Entry> {
         if !self.enabled {
             return Vec::new();
@@ -299,6 +335,7 @@ impl Wifi {
         let mut out: Vec<Entry> = self
             .seen
             .iter()
+            .flatten()
             .map(|s| {
                 let saved = saved_id(&s.ssid);
                 Entry {
@@ -321,6 +358,21 @@ impl Wifi {
                 });
             }
         }
+        // the network the status says is joined or being joined, should no list name it yet
+        for ssid in [self.joining_ssid(), self.joined_ssid()]
+            .into_iter()
+            .flatten()
+        {
+            if !out.iter().any(|e| e.ssid == *ssid) {
+                out.push(Entry {
+                    ssid: ssid.clone(),
+                    rssi: None,
+                    secured: true,
+                    saved: None,
+                    state: state(ssid, None),
+                });
+            }
+        }
         out.sort_by_key(|e| match e.state {
             EntryState::Joined | EntryState::Joining => 0,
             _ if e.rssi.is_some() => 1,
@@ -337,56 +389,105 @@ impl Wifi {
         }
     }
 
-    /// The lines under the list, each short enough for a 640-wide screen.
-    pub fn status_lines(&self) -> Vec<String> {
+    /// The notes under the networks, a line each, short enough for the list's panel at 640x480:
+    /// a scan under way, why a join went wrong, what is under way, or what to do next. Joined,
+    /// addressed and scanned there is nothing to say: the network's row says CONNECTED, and SSH
+    /// has the address.
+    pub fn notes(&self) -> Vec<String> {
         if !self.present() {
             return vec!["This handheld has no Wi-Fi.".into()];
         }
         if !self.enabled {
             return vec!["Wi-Fi is off.".into()];
         }
+        // X was the last thing asked: its scan says it is under way over anything else
+        if self.scanning {
+            return vec!["Looking for networks…".into()];
+        }
         match &self.note {
             Some(Note::NoRadio) => return vec!["The Wi-Fi radio did not start.".into()],
             Some(Note::WrongPassphrase(s)) => {
                 return vec![
-                    format!("Could not join {}.", shown(s)),
+                    format!("Could not join {}.", noted(s)),
                     "Wrong passphrase?".into(),
                 ]
             }
-            Some(Note::NoJoin(s)) => return vec![format!("Could not join {}.", shown(s))],
+            Some(Note::NoJoin(s)) => return vec![format!("Could not join {}.", noted(s))],
             None => {}
         }
         if let Some(ssid) = self.joining_ssid() {
-            return vec![format!("Joining {}…", shown(ssid))];
+            return vec![format!("Joining {}…", noted(ssid))];
         }
-        let Some(ssid) = self.joined_ssid() else {
-            return vec!["Not connected. Pick a network to join.".into()];
-        };
-        let Some(ip) = &self.status.ip else {
-            return vec![
-                format!("Joined {}.", shown(ssid)),
-                "Waiting for an address…".into(),
-            ];
-        };
-        let mut lines = vec![format!("Connected to {} as {ip}", shown(ssid))];
-        let host = &self.status.hostname;
-        lines.push(if host.is_empty() {
-            format!("SSH and SFTP: root@{ip}")
+        let joined = self.joined_ssid().is_some();
+        if joined && self.status.ip.is_none() {
+            return vec!["Waiting for an address…".into()];
+        }
+        if self.seen.is_none() {
+            return vec!["Press X to look for networks.".into()];
+        }
+        if joined {
+            return Vec::new();
+        }
+        vec![if self.entries().is_empty() {
+            "No networks found. Press X to look again.".into()
         } else {
-            format!("SSH and SFTP: root@{host}.local")
-        });
-        lines
+            "Not connected. Pick a network to join.".into()
+        }]
     }
 }
 
-/// A row of the Wi-Fi screen, held by what it is rather than where it is, so a scan that
+/// The most of a network's name a note says: with the words around it, a note then fits the
+/// list's panel at 640x480 (43 letters).
+const NOTED: usize = 24;
+
+/// A network's name as a note says it, cut short with an ellipsis when it is long.
+fn noted(ssid: &[u8]) -> String {
+    let name = shown(ssid);
+    if name.chars().count() <= NOTED {
+        return name;
+    }
+    let cut: String = name.chars().take(NOTED - 1).collect();
+    format!("{}…", cut.trim_end())
+}
+
+/// A row of the Network screen, held by what it is rather than where it is, so a scan that
 /// reorders the list leaves the cursor on the same network.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Sel {
     Wifi,
     Clock,
-    Labels,
+    /// SSH, on or off, and on INFO the way into how to log in over it.
+    Ssh,
     Network(Vec<u8>),
+}
+
+/// What the SSH row shows: whether SSH is on, or INFO, which is no state of its own but the way
+/// into the SSH screen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SshValue {
+    On,
+    Off,
+    Info,
+}
+
+impl SshValue {
+    /// The order Left and Right step through, round and round.
+    const ALL: [SshValue; 3] = [SshValue::On, SshValue::Off, SshValue::Info];
+
+    fn label(self) -> &'static str {
+        match self {
+            SshValue::On => "ON",
+            SshValue::Off => "OFF",
+            SshValue::Info => "INFO",
+        }
+    }
+
+    /// The value `by` steps on, Right forward and Left back.
+    fn step(self, by: isize) -> SshValue {
+        let n = Self::ALL.len() as isize;
+        let at = Self::ALL.iter().position(|v| *v == self).unwrap_or(0) as isize;
+        Self::ALL[(at + by).rem_euclid(n) as usize]
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -403,9 +504,12 @@ pub struct WifiScreen {
     pub sel: Sel,
     /// Where the cursor was, for when its network drops out of the list.
     pub at: usize,
-    /// The first row in view.
+    /// The first network in view, in a list longer than its panel.
     pub first: usize,
     pub typing: Option<Typing>,
+    /// The SSH row shows INFO, for A to open the SSH screen. It shows SSH's state again once
+    /// the cursor leaves it, and whenever the screen is opened afresh.
+    pub info: bool,
 }
 
 impl Default for WifiScreen {
@@ -415,6 +519,7 @@ impl Default for WifiScreen {
             at: 0,
             first: 0,
             typing: None,
+            info: false,
         }
     }
 }
@@ -423,8 +528,54 @@ impl Default for WifiScreen {
 pub enum Outcome {
     Stay,
     Close,
-    /// Open the Labels screen, which fetches cart labels over Wi-Fi.
-    Labels,
+    /// Open the SSH screen, which says how to reach the handheld.
+    Ssh,
+    /// Switch SSH on or off.
+    SwitchSsh(bool),
+}
+
+/// A row of the NETWORK panel, as a kit row shows it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SettingLine {
+    pub label: &'static str,
+    pub value: Option<&'static str>,
+    /// Left and Right change its value: carets either side of it while it is lit.
+    pub carets: bool,
+    /// It opens a screen of its own.
+    pub opens: bool,
+}
+
+/// A network in the AVAILABLE NETWORKS list, as a kit list row shows it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NetworkLine {
+    /// Its name, in its own case.
+    pub name: String,
+    /// What it is to the handheld: CONNECTED, JOINING or SAVED.
+    pub value: Option<&'static str>,
+    /// The bars lit, 0 to 3, while it is in reach.
+    pub signal: Option<u8>,
+    /// It needs a passphrase.
+    pub lock: bool,
+}
+
+/// The row under the cursor: one of NETWORK's, or one of the networks in view.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lit {
+    Setting(usize),
+    Network(usize),
+}
+
+/// What the Network modal shows, for its faces to be made from.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NetworkView {
+    /// NETWORK's rows: Wi-Fi, then while it is on Network Time and SSH.
+    pub settings: Vec<SettingLine>,
+    /// The networks in view, top first: as many as AVAILABLE NETWORKS holds, from the first
+    /// in view on.
+    pub networks: Vec<NetworkLine>,
+    pub lit: Lit,
+    /// The notes under the networks, a line each.
+    pub notes: Vec<String>,
 }
 
 impl WifiScreen {
@@ -432,22 +583,51 @@ impl WifiScreen {
         let mut rows = vec![Sel::Wifi];
         if wifi.enabled() {
             rows.push(Sel::Clock);
-            rows.push(Sel::Labels);
+            rows.push(Sel::Ssh);
             rows.extend(wifi.entries().into_iter().map(|e| Sel::Network(e.ssid)));
         }
         rows
     }
 
-    /// The cursor's row now, settling it on a neighbour if its network has gone.
-    fn settle(&mut self, rows: &[Sel]) -> usize {
+    /// The cursor's row now, settling it on a neighbour if its network has gone, and the list
+    /// scrolled, a whole row at a time, so that a network under the cursor is in view.
+    fn settle(&mut self, rows: &[Sel], wifi: &Wifi) -> usize {
         let at = rows
             .iter()
             .position(|r| *r == self.sel)
             .unwrap_or(self.at.min(rows.len() - 1));
         self.sel = rows[at].clone();
         self.at = at;
-        self.first = wifi_window(at, rows.len(), self.first);
+        let settings = settings_of(rows);
+        let networks = rows.len() - settings;
+        let in_view = networks_shown(settings, wifi.notes().len());
+        // the cursor up in NETWORK leaves the list where it was
+        let lit = at.checked_sub(settings).unwrap_or(self.first);
+        self.first = network_window(lit, networks, self.first, in_view);
+        if self.sel != Sel::Ssh {
+            self.info = false;
+        }
         at
+    }
+
+    /// What the SSH row shows, with SSH `on` or not.
+    fn ssh_value(&self, on: bool) -> SshValue {
+        match (self.info, on) {
+            (true, _) => SshValue::Info,
+            (false, true) => SshValue::On,
+            (false, false) => SshValue::Off,
+        }
+    }
+
+    /// Left or Right on the SSH row: landing on ON or OFF switches SSH so, landing on INFO
+    /// leaves it as it is.
+    fn step_ssh(&mut self, ssh_on: bool, by: isize) -> Outcome {
+        let value = self.ssh_value(ssh_on).step(by);
+        self.info = value == SshValue::Info;
+        match value {
+            SshValue::Info => Outcome::Stay,
+            on_off => Outcome::SwitchSsh(on_off == SshValue::On),
+        }
     }
 
     fn entry(&self, wifi: &Wifi) -> Option<Entry> {
@@ -457,13 +637,15 @@ impl WifiScreen {
         wifi.entries().into_iter().find(|e| e.ssid == *ssid)
     }
 
-    pub fn input(&mut self, wifi: &mut Wifi, action: Action, now: Millis) -> Outcome {
+    /// Takes a press, with SSH `ssh_on` or not.
+    pub fn input(&mut self, wifi: &mut Wifi, ssh_on: bool, action: Action, now: Millis) -> Outcome {
         if self.typing.is_some() {
             self.type_input(wifi, action, now);
             return Outcome::Stay;
         }
         let rows = self.rows(wifi);
-        let at = self.settle(&rows);
+        let at = self.settle(&rows, wifi);
+        let mut outcome = Outcome::Stay;
         match action {
             Action::GbaDown(Btn::B) | Action::QuickMenu => return Outcome::Close,
             Action::GbaDown(Btn::Up) => self.sel = rows[(at + rows.len() - 1) % rows.len()].clone(),
@@ -474,18 +656,29 @@ impl WifiScreen {
             Action::GbaDown(Btn::Left | Btn::Right | Btn::A) if self.sel == Sel::Clock => {
                 wifi.set_ntp(!wifi.ntp());
             }
-            Action::GbaDown(Btn::A) if self.sel == Sel::Labels => return Outcome::Labels,
+            Action::GbaDown(Btn::Left) if self.sel == Sel::Ssh => {
+                outcome = self.step_ssh(ssh_on, -1);
+            }
+            Action::GbaDown(Btn::Right) if self.sel == Sel::Ssh => {
+                outcome = self.step_ssh(ssh_on, 1);
+            }
+            // on INFO A opens the login, on ON or OFF it switches SSH, as A does Wi-Fi
+            Action::GbaDown(Btn::A) if self.sel == Sel::Ssh && self.info => return Outcome::Ssh,
+            Action::GbaDown(Btn::A) if self.sel == Sel::Ssh => {
+                outcome = Outcome::SwitchSsh(!ssh_on)
+            }
             Action::GbaDown(Btn::A) => self.pick(wifi, now),
             Action::GbaDown(Btn::Y) => {
                 if let Some(id) = self.entry(wifi).and_then(|e| e.saved) {
                     wifi.forget(id);
                 }
             }
+            Action::GbaDown(Btn::X) => wifi.scan(),
             _ => {}
         }
         let rows = self.rows(wifi);
-        self.settle(&rows);
-        Outcome::Stay
+        self.settle(&rows, wifi);
+        outcome
     }
 
     fn pick(&mut self, wifi: &mut Wifi, now: Millis) {
@@ -550,65 +743,81 @@ impl WifiScreen {
         wifi.join(t.ssid, t.keys.text, t.replace, now);
     }
 
-    pub fn view(&mut self, wifi: &Wifi) -> ListView {
+    /// Whether Y forgets the network under the cursor: it is one the handheld has saved.
+    pub fn forgets(&self, wifi: &Wifi) -> bool {
+        self.entry(wifi).is_some_and(|e| e.saved.is_some())
+    }
+
+    /// What the modal shows, with SSH `ssh_on` or not.
+    pub fn view(&mut self, wifi: &Wifi, ssh_on: bool) -> NetworkView {
         let rows = self.rows(wifi);
-        let at = self.settle(&rows);
-        let entries = wifi.entries();
-        let shown_rows = omega_ui::wifi_rows_shown();
-        let view_rows = rows
+        let at = self.settle(&rows, wifi);
+        let settings = settings_of(&rows);
+        let notes = wifi.notes();
+        let in_view = networks_shown(settings, notes.len());
+        let on_off = |on: bool| Some(if on { "ON" } else { "OFF" });
+        let setting_lines = rows[..settings]
             .iter()
-            .skip(self.first)
-            .take(shown_rows)
             .map(|r| match r {
-                Sel::Wifi => ViewRow {
-                    label: RowLabel::Setting("Wi-Fi"),
-                    value: wifi.present().then_some(RowValue::Setting(wifi.enabled())),
-                    signal: None,
+                Sel::Clock => SettingLine {
+                    label: "NETWORK TIME",
+                    value: on_off(wifi.ntp()),
+                    carets: true,
+                    opens: false,
                 },
-                Sel::Clock => ViewRow {
-                    label: RowLabel::Setting("Network Time"),
-                    value: Some(RowValue::Setting(wifi.ntp())),
-                    signal: None,
+                Sel::Ssh => SettingLine {
+                    label: "SSH",
+                    value: Some(self.ssh_value(ssh_on).label()),
+                    carets: true,
+                    opens: false,
                 },
-                Sel::Labels => ViewRow {
-                    label: RowLabel::Setting("Cart Labels"),
-                    value: None,
-                    signal: None,
+                _ => SettingLine {
+                    label: "WI-FI",
+                    value: if wifi.present() {
+                        on_off(wifi.enabled())
+                    } else {
+                        None
+                    },
+                    carets: wifi.present(),
+                    opens: false,
                 },
-                Sel::Network(ssid) => {
-                    let e = entries.iter().find(|e| e.ssid == *ssid);
-                    ViewRow {
-                        label: RowLabel::Name(shown(ssid)),
-                        value: e.and_then(|e| match e.state {
-                            EntryState::Joined => Some(RowValue::Said("Connected")),
-                            EntryState::Joining => Some(RowValue::Said("Joining")),
-                            EntryState::Saved => Some(RowValue::Said("Saved")),
-                            EntryState::New => None,
-                        }),
-                        signal: e.and_then(|e| e.rssi.map(|r| (bars(r), e.secured))),
-                    }
-                }
             })
             .collect();
-        let mut legend = vec![LegendHint::Back];
-        match &self.sel {
-            Sel::Wifi | Sel::Clock => legend.push(LegendHint::Change),
-            Sel::Labels => legend.push(LegendHint::Open),
-            Sel::Network(_) => {
-                let e = self.entry(wifi);
-                if e.as_ref().is_some_and(|e| e.saved.is_some()) {
-                    legend.push(LegendHint::Forget);
-                }
-                if e.is_some_and(|e| !matches!(e.state, EntryState::Joined | EntryState::Joining)) {
-                    legend.push(LegendHint::Join);
-                }
-            }
-        }
-        ListView {
-            rows: view_rows,
-            lit: Some(at - self.first),
-            status: wifi.status_lines(),
-            legend,
+        let networks = wifi
+            .entries()
+            .iter()
+            .skip(self.first)
+            .take(in_view)
+            .map(|e| NetworkLine {
+                name: shown(&e.ssid),
+                value: match e.state {
+                    EntryState::Joined => Some("CONNECTED"),
+                    EntryState::Joining => Some("JOINING"),
+                    EntryState::Saved => Some("SAVED"),
+                    EntryState::New => None,
+                },
+                // four steps of strength on the kit's dot and two arcs: the weakest lights the
+                // dot, the two strongest everything, so a network in reach never looks dead
+                signal: e.rssi.map(|r| bars(r).min(3)),
+                lock: e.rssi.is_some() && e.secured,
+            })
+            .collect();
+        let lit = match at.checked_sub(settings) {
+            None => Lit::Setting(at),
+            Some(i) => Lit::Network(i - self.first),
+        };
+        NetworkView {
+            settings: setting_lines,
+            networks,
+            lit,
+            notes,
         }
     }
+}
+
+/// How many of `rows` are NETWORK's: the ones before the networks.
+fn settings_of(rows: &[Sel]) -> usize {
+    rows.iter()
+        .position(|r| matches!(r, Sel::Network(_)))
+        .unwrap_or(rows.len())
 }

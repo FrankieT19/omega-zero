@@ -441,6 +441,87 @@ fn headphones_in(gpio: &str) -> bool {
         .is_some_and(|(_, state)| state.split_whitespace().nth(1) == Some("hi"))
 }
 
+/// Takes Wi-Fi and Bluetooth down before the machine is taken down. The RTL8821CS's driver hangs
+/// the kernel's own shutdown, and so the reboot, when it has just gone into its power saving, as
+/// it does after scanning for networks (Settings > Network): rcK runs to its end, every process
+/// gone, and the console never resets. So the driver is let go of here, from user space, while
+/// it is still awake: wpa_supplicant and the DHCP client stop first (wpa_supplicant puts the
+/// interface back up as it goes, and a TERM is sometimes not enough for wpa_cli), each wireless
+/// interface goes down, and its device is unbound from the driver, which takes it down cleanly,
+/// so the kernel's shutdown has nothing of it left to take down.
+fn quiet_radios() {
+    let pids = processes(&["wpa_supplicant", "wpa_cli", "udhcpc"]);
+    for signal in ["-TERM", "-KILL"] {
+        let left: Vec<u32> = pids
+            .iter()
+            .copied()
+            .filter(|pid| Path::new(&format!("/proc/{pid}")).exists())
+            .collect();
+        for pid in &left {
+            let _ = Command::new("kill")
+                .args([signal, &pid.to_string()])
+                .status();
+        }
+        // a moment for them to go, wpa_supplicant leaving the network as it does
+        for _ in 0..10 {
+            if left
+                .iter()
+                .all(|pid| !Path::new(&format!("/proc/{pid}")).exists())
+            {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+    // each interface's device and its driver, read before any is unbound, when they go
+    let mut unbind: Vec<(PathBuf, String)> = Vec::new();
+    for iface in wireless_interfaces() {
+        let device = fs::read_link(iface.join("device"))
+            .ok()
+            .and_then(|d| d.file_name()?.to_str().map(str::to_string));
+        let driver = fs::canonicalize(iface.join("device/driver")).ok();
+        if let Some(name) = iface.file_name().and_then(|n| n.to_str()) {
+            let _ = Command::new("ifconfig").args([name, "down"]).status();
+        }
+        if let (Some(driver), Some(device)) = (driver, device) {
+            if !unbind.contains(&(driver.clone(), device.clone())) {
+                unbind.push((driver, device));
+            }
+        }
+    }
+    for (driver, device) in &unbind {
+        let _ = fs::write(driver.join("unbind"), device);
+    }
+    if Path::new("/sys/class/bluetooth/hci0").exists() {
+        let _ = Command::new("hciconfig").args(["hci0", "down"]).status();
+    }
+}
+
+/// The handheld's wireless network interfaces, as /sys/class/net lists them.
+fn wireless_interfaces() -> Vec<PathBuf> {
+    fs::read_dir("/sys/class/net")
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.join("wireless").exists())
+        .collect()
+}
+
+/// The processes running any of the programs `names`, as /proc names them.
+fn processes(names: &[&str]) -> Vec<u32> {
+    fs::read_dir("/proc")
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|entry| {
+            let pid: u32 = entry.file_name().to_str()?.parse().ok()?;
+            let comm = fs::read_to_string(entry.path().join("comm")).ok()?;
+            names.contains(&comm.trim()).then_some(pid)
+        })
+        .collect()
+}
+
 impl Platform for DevicePlatform {
     fn headphones(&self) -> bool {
         fs::read_to_string(self.sysfs.join("kernel/debug/gpio")).is_ok_and(|g| headphones_in(&g))
@@ -508,6 +589,7 @@ impl Platform for DevicePlatform {
 
     fn restart(&mut self) -> ! {
         self.breadcrumb("restart: reached omega-zero, about to sync");
+        quiet_radios();
         let _ = Command::new("sync").status();
         self.breadcrumb("restart: sync returned, about to signal init");
         let _ = Command::new("reboot").status();
@@ -517,6 +599,7 @@ impl Platform for DevicePlatform {
 
     fn poweroff(&mut self) -> ! {
         self.breadcrumb("poweroff: reached omega-zero, about to sync");
+        quiet_radios();
         let _ = Command::new("sync").status();
         self.breadcrumb("poweroff: sync returned, about to signal init");
         let _ = Command::new("poweroff").status();

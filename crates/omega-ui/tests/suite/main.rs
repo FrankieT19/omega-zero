@@ -7,6 +7,7 @@ mod barcode;
 mod barcode_scan;
 mod battery;
 mod bezel;
+mod bluetooth;
 mod board;
 mod cart;
 mod chrome;
@@ -16,10 +17,14 @@ mod font;
 mod hud;
 mod icon;
 mod keyboard;
+mod kit;
+mod kit_layout;
 mod label;
 mod legend;
 mod letters;
 mod link_art;
+mod network;
+mod palette;
 mod plate;
 mod polaroids;
 mod quick_menu;
@@ -38,7 +43,6 @@ mod sticker;
 mod switcher;
 mod toast;
 mod top_bar;
-mod wifi_menu;
 
 /// A file in this folder that the list above leaves out is never compiled, let alone run.
 #[test]

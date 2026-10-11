@@ -7,6 +7,7 @@ mod blit;
 mod canvas;
 mod fbdev;
 mod lcd3x;
+mod nearest;
 mod pipeline;
 mod power;
 mod rotation;

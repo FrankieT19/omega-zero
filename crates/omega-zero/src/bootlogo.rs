@@ -3,6 +3,8 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use omega_ui::UndoFace;
+
 const LOGO: &str = "bootlogo.bmp";
 const ORIGINAL: &str = "bootlogo.baseos.bmp";
 const PARTITION: &str = "boot-resource";
@@ -41,6 +43,29 @@ pub fn dims(bmp: &[u8]) -> Option<(u32, u32)> {
 
 pub fn valid(bmp: &[u8]) -> bool {
     dims(bmp).is_some()
+}
+
+/// The picture in a bmp the bootloader draws, top row first, four bytes a pixel and opaque, as
+/// a face to upload.
+pub fn face(bmp: &[u8]) -> Option<UndoFace> {
+    let (w, h) = dims(bmp)?;
+    let (cols, rows) = (w as usize, h as usize);
+    let stride = (cols * 3).next_multiple_of(4);
+    let mut rgba = Vec::with_capacity(cols * rows * 4);
+    for y in (0..rows).rev() {
+        let row = &bmp[HEADER + y * stride..][..cols * 3];
+        for bgr in row.chunks_exact(3) {
+            rgba.extend_from_slice(&[bgr[2], bgr[1], bgr[0], 0xff]);
+        }
+    }
+    Some(UndoFace { rgba, w, h })
+}
+
+/// The logo the bootloader draws on a panel of `size`, read from the card's System folder: the
+/// one `refresh` keeps on the boot partition for that panel.
+pub fn shown(system: &Path, size: (u32, u32)) -> Option<UndoFace> {
+    let logo = face(&fs::read(choose(system, size)?).ok()?)?;
+    ((logo.w, logo.h) == size).then_some(logo)
 }
 
 /// The logo omega-zero ships for a panel of `size`, from the card's System folder: the one named for

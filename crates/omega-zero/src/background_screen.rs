@@ -1,8 +1,8 @@
-//! The Background screen, opened from the quick menu: what the shelf is drawn over, shown
-//! behind the list as it is changed.
+//! The THEME screen, opened from Settings: what the shelf is drawn over, shown behind the list
+//! as it is changed, and the font the bar's actions write their words in.
 
 use omega_input::{Action, Btn};
-use omega_store::{BackdropStyle, BACKDROP_COLOURS};
+use omega_store::{BackdropStyle, Font, BACKDROP_COLOURS};
 use omega_ui::backdrop_colour_name;
 
 use crate::list_view::{LegendHint, ListView, RowLabel, RowValue, ViewRow};
@@ -39,9 +39,16 @@ impl Backdrop {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Sel {
+    /// The background's style, on the row named Background.
     Style,
     Motion,
     Colour,
+    Font,
+}
+
+impl Sel {
+    /// The panel's rows, top to bottom.
+    pub const ALL: [Sel; 4] = [Sel::Style, Sel::Motion, Sel::Colour, Sel::Font];
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -60,6 +67,7 @@ pub enum Outcome {
     Stay,
     Close,
     Changed(Backdrop),
+    Font(Font),
 }
 
 /// The styles a card offers: the wallpaper only where there is one.
@@ -81,19 +89,32 @@ fn step<T: PartialEq + Copy>(items: &[T], at: T, forward: bool) -> T {
 }
 
 impl BackgroundScreen {
-    /// The rows a style has a use for: a picture has no colour, a plain colour does not move.
-    fn rows(look: Backdrop) -> Vec<Sel> {
-        let mut rows = vec![Sel::Style];
-        if look.style.moves() {
-            rows.push(Sel::Motion);
+    /// Whether a style has a use for a row: a picture has no colour, a plain colour does not
+    /// move. A row it has none for stays on the panel, faint, so the panel keeps its size.
+    /// Every style has a use for the font, which is the bar's.
+    fn applies(look: Backdrop, sel: Sel) -> bool {
+        match sel {
+            Sel::Style | Sel::Font => true,
+            Sel::Motion => look.style.moves(),
+            Sel::Colour => look.style.coloured(),
         }
-        if look.style.coloured() {
-            rows.push(Sel::Colour);
-        }
-        rows
     }
 
-    pub fn input(&mut self, look: Backdrop, wallpaper: bool, action: Action) -> Outcome {
+    /// The rows the cursor can stand on for this style.
+    fn rows(look: Backdrop) -> Vec<Sel> {
+        Sel::ALL
+            .into_iter()
+            .filter(|sel| Self::applies(look, *sel))
+            .collect()
+    }
+
+    pub fn input(
+        &mut self,
+        look: Backdrop,
+        font: Font,
+        wallpaper: bool,
+        action: Action,
+    ) -> Outcome {
         let rows = Self::rows(look);
         if !rows.contains(&self.sel) {
             self.sel = Sel::Style;
@@ -120,18 +141,18 @@ impl BackgroundScreen {
                 let colours: Vec<u8> = (0..BACKDROP_COLOURS.len() as u8).collect();
                 next.colour = step(&colours, look.colour, forward);
             }
+            Sel::Font => return Outcome::Font(step(&Font::ALL, font, forward)),
         }
         Outcome::Changed(next)
     }
 
-    pub fn view(&self, look: Backdrop, wallpaper: bool) -> ListView {
-        let rows = Self::rows(look);
-        let at = rows.iter().position(|r| *r == self.sel).unwrap_or(0);
+    pub fn view(&self, look: Backdrop, font: Font) -> ListView {
+        let at = Sel::ALL.iter().position(|r| *r == self.sel).unwrap_or(0);
         let row = |sel: &Sel| match sel {
             Sel::Style => ViewRow {
-                label: RowLabel::Setting("Style"),
+                label: RowLabel::Setting("Background"),
                 value: Some(RowValue::Choice(look.style.label())),
-                signal: None,
+                dim: false,
             },
             Sel::Motion => ViewRow {
                 label: RowLabel::Setting("Motion"),
@@ -140,25 +161,24 @@ impl BackgroundScreen {
                 } else {
                     "Still"
                 })),
-                signal: None,
+                dim: !Self::applies(look, Sel::Motion),
             },
             Sel::Colour => ViewRow {
                 label: RowLabel::Setting("Colour"),
                 value: Some(RowValue::Choice(backdrop_colour_name(look.colour))),
-                signal: None,
+                dim: !Self::applies(look, Sel::Colour),
+            },
+            Sel::Font => ViewRow {
+                label: RowLabel::Setting("Font"),
+                value: Some(RowValue::Choice(font.label())),
+                dim: false,
             },
         };
-        let status = if look.style == BackdropStyle::Wallpaper {
-            "Your own picture, from Wallpapers/."
-        } else if wallpaper {
-            "Pick Wallpaper to see your picture again."
-        } else {
-            "Or put a .png of your own in Wallpapers/."
-        };
+        // the panel holds its rows and nothing under them, as flow.html draws it
         ListView {
-            rows: rows.iter().map(row).collect(),
+            rows: Sel::ALL.iter().map(row).collect(),
             lit: Some(at),
-            status: vec![status.to_string()],
+            status: Vec::new(),
             legend: vec![LegendHint::Back, LegendHint::Change],
         }
     }

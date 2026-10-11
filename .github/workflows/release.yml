@@ -47,6 +47,7 @@ jobs:
           done
           test -f "$out/System/probe.sh"
           test -f "$out/System/wifi.sh"
+          test -f "$out/System/bluetooth.sh"
           gpsp_src_sha="$(cat vendor/gpsp-src.sha)"
           test -f "$out/System/licenses/gpsp-${gpsp_src_sha}.tar.gz"
           test -f "$out/System/licenses/gpsp-${gpsp_src_sha}.meta"

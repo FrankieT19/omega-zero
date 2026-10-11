@@ -1,7 +1,9 @@
 use omega_power::{Battery, Charge};
+use omega_ui::kit::palette::{palette, rgba, Palette};
 use omega_ui::{
-    bolt_face, gauge_width, link_face, out_w, word_cap_top, word_face, word_tail, Draw, Link,
-    LinkFaces, Links, Printed, TexId, TopBar, CELL_PX, GAUGE_H, LINK_OFF, LINK_ON, TOP_BAR_H,
+    bolt_face, gauge_width, link_face, out_w, word_cap_top, word_face, word_face_in, word_tail,
+    ChromeColours, Draw, Link, LinkFaces, Links, Printed, TexId, TopBar, UndoFace, CELL_PX,
+    GAUGE_H, LINK_OFF, LINK_ON, TOP_BAR_H,
 };
 
 const MARGIN: f32 = 24.0;
@@ -24,6 +26,7 @@ fn bar(links: Links, battery: Option<Battery>, bolt: Option<TexId>) -> Vec<Draw>
     let faces = faces();
     let mut out = Vec::new();
     TopBar {
+        colours: ChromeColours::default(),
         links,
         faces: Some(&faces),
         clock: Printed::new(TexId::from_raw(1), 40),
@@ -190,8 +193,12 @@ fn ink(face: &omega_ui::UndoFace) -> Option<[u8; 3]> {
 
 #[test]
 fn on_and_off_faces_are_the_same_size_and_tell_themselves_apart() {
+    let white = ChromeColours::default();
     for link in Link::ALL {
-        let (off, on) = (link_face(link, false), link_face(link, true));
+        let (off, on) = (
+            link_face(link, false, &white),
+            link_face(link, true, &white),
+        );
         assert!(on.w > 0 && on.h > 0, "{link:?} has no face");
         assert_eq!(
             (on.w, on.h),
@@ -202,8 +209,10 @@ fn on_and_off_faces_are_the_same_size_and_tell_themselves_apart() {
         assert_eq!(ink(&off), Some(LINK_OFF), "{link:?} off is not dimmed");
     }
     for link in [Link::Wifi, Link::Bluetooth] {
-        let shape =
-            |on: bool| -> Vec<u8> { link_face(link, on).rgba.chunks(4).map(|p| p[3]).collect() };
+        let shape = |on: bool| -> Vec<u8> {
+            let face = link_face(link, on, &white);
+            face.rgba.chunks(4).map(|p| p[3]).collect()
+        };
         assert_eq!(
             shape(true),
             shape(false),
@@ -221,10 +230,11 @@ fn inked_rows(face: &omega_ui::UndoFace) -> Vec<u32> {
 #[test]
 fn every_icon_is_one_square_cell_of_pixel_art() {
     let cell = CELL_PX as u32;
+    let white = ChromeColours::default();
     for face in [
-        link_face(Link::Wifi, true),
-        link_face(Link::Bluetooth, true),
-        bolt_face(),
+        link_face(Link::Wifi, true, &white),
+        link_face(Link::Bluetooth, true, &white),
+        bolt_face(LINK_ON),
     ] {
         assert_eq!((face.w, face.h), (cell, cell), "an icon is not one cell");
         assert!(
@@ -243,7 +253,7 @@ fn every_icon_is_one_square_cell_of_pixel_art() {
 
 #[test]
 fn words_stand_exactly_as_tall_as_the_icons() {
-    let ssh = link_face(Link::Ssh, true);
+    let ssh = link_face(Link::Ssh, true, &ChromeColours::default());
     assert_eq!(ssh.h, CELL_PX as u32, "ssh is not as tall as the icons");
     let figure = word_face("100%");
     let rows = inked_rows(&figure);
@@ -295,9 +305,152 @@ fn every_item_stands_in_the_same_band() {
 }
 
 #[test]
+fn the_bar_is_drawn_in_the_colours_it_is_handed() {
+    let faces = faces();
+    let bar_in = |name: &str| {
+        let colour = omega_store::colour_index(name).expect("a backdrop colour");
+        let colours = ChromeColours::of(omega_ui::kit::palette::palette(colour));
+        let mut out = Vec::new();
+        TopBar {
+            colours,
+            links: Links::default(),
+            faces: Some(&faces),
+            clock: Printed::new(TexId::from_raw(1), 40),
+            battery: None,
+            percent: Printed::default(),
+            bolt: None,
+        }
+        .draw(&mut out);
+        let fills: Vec<[f32; 4]> = out
+            .iter()
+            .filter_map(|d| match *d {
+                Draw::Rect { w, colour, .. } if w == out_w() as f32 => Some(colour),
+                _ => None,
+            })
+            .collect();
+        (fills, colours)
+    };
+    let (night, night_colours) = bar_in("night");
+    let (amber, amber_colours) = bar_in("amber");
+    assert_eq!(night, [night_colours.housing, night_colours.edge]);
+    assert_eq!(amber, [amber_colours.housing, amber_colours.edge]);
+    assert_ne!(night, amber, "the bar looks the same in Night and Amber");
+}
+
+#[test]
 fn ssh_is_bolder_than_the_plain_face() {
-    let face = link_face(Link::Ssh, true);
+    let face = link_face(Link::Ssh, true, &ChromeColours::default());
     let solid = face.rgba.chunks(4).filter(|p| p[3] > 200).count();
     assert!(solid > 60, "only {solid} solid pixels: ssh is not bold");
     assert!(face.h <= TOP_BAR_H as u32);
+}
+
+fn colour(name: &str) -> &'static Palette {
+    palette(omega_store::colour_index(name).expect("a backdrop colour"))
+}
+
+/// Every colour a face's solid pixels are in.
+fn inks(face: &UndoFace) -> Vec<[u8; 3]> {
+    let mut seen: Vec<[u8; 3]> = Vec::new();
+    for p in face.rgba.chunks(4).filter(|p| p[3] > 200) {
+        if !seen.contains(&[p[0], p[1], p[2]]) {
+            seen.push([p[0], p[1], p[2]]);
+        }
+    }
+    seen
+}
+
+fn coverage(face: &UndoFace) -> Vec<u8> {
+    face.rgba.chunks(4).map(|p| p[3]).collect()
+}
+
+/// flow.html's shelf prints its top bar in --oz-cream; an item that is off takes --oz-plate,
+/// as a network row draws the Wi-Fi bars a signal does not reach.
+#[test]
+fn the_bar_prints_in_the_palettes_cream_and_what_is_off_in_its_plate() {
+    let mut seen = Vec::new();
+    for name in ["night", "amber"] {
+        let pal = colour(name);
+        let colours = ChromeColours::of(pal);
+        assert_eq!(
+            (colours.ink, colours.ink_off),
+            (pal.cream, pal.plate),
+            "{name}"
+        );
+        for link in Link::ALL {
+            let (on, off) = (
+                link_face(link, true, &colours),
+                link_face(link, false, &colours),
+            );
+            assert_eq!(inks(&on), [pal.cream], "{name}: {link:?} on is not cream");
+            assert_eq!(inks(&off), [pal.plate], "{name}: {link:?} off is not plate");
+        }
+        assert_eq!(
+            inks(&bolt_face(colours.ink)),
+            [pal.cream],
+            "{name}: the bolt"
+        );
+        let clock = word_face_in("16:00", colours.ink);
+        assert_eq!(inks(&clock), [pal.cream], "{name}: the clock");
+        assert_eq!(
+            coverage(&clock),
+            coverage(&word_face("16:00")),
+            "{name}: the clock changes shape with its ink"
+        );
+
+        let faces = faces();
+        let mut out = Vec::new();
+        TopBar {
+            colours,
+            links: Links::default(),
+            faces: Some(&faces),
+            clock: Printed::new(TexId::from_raw(1), 40),
+            battery: battery(Charge::Discharging),
+            percent: Printed::new(TexId::from_raw(2), 30),
+            bolt: None,
+        }
+        .draw(&mut out);
+        let capsule: Vec<[f32; 4]> = out
+            .iter()
+            .filter_map(|d| match *d {
+                Draw::Rect { x, y, colour, .. } if y > 0.0 && x > out_w() as f32 / 2.0 => {
+                    Some(colour)
+                }
+                _ => None,
+            })
+            .collect();
+        assert!(!capsule.is_empty(), "{name}: no battery");
+        assert!(
+            capsule.iter().all(|&c| c == rgba(pal.cream, 1.0)),
+            "{name}: the battery is not drawn in cream: {capsule:?}"
+        );
+        seen.push(colours.ink);
+    }
+    assert_ne!(seen[0], seen[1], "Night and Amber print the bar alike");
+}
+
+/// Night's ramp is grey, so the bar keeps the look it had in white and grey: its cream and
+/// plate are each within a few steps of them, and what is off still sits between the bar and
+/// what is on.
+#[test]
+fn night_prints_the_bar_close_to_the_white_and_grey_it_had() {
+    let night = ChromeColours::of(colour("night"));
+    let near = |a: [u8; 3], b: [u8; 3]| (0..3).all(|i| a[i].abs_diff(b[i]) <= 16);
+    assert!(
+        near(night.ink, LINK_ON),
+        "{:?} is far from white",
+        night.ink
+    );
+    assert!(
+        near(night.ink_off, LINK_OFF),
+        "{:?} is far from the grey",
+        night.ink_off
+    );
+    let light = |c: [u8; 3]| c.iter().map(|&v| u32::from(v)).sum::<u32>();
+    let housing = night.housing.map(|c| (c * 255.0).round() as u8);
+    let housing = [housing[0], housing[1], housing[2]];
+    assert!(
+        light(housing) < light(night.ink_off) && light(night.ink_off) < light(night.ink),
+        "what is off does not sit between the bar and what is on"
+    );
 }

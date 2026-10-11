@@ -1,6 +1,6 @@
 use omega_zero::wifi::{
-    bars, decode, hex, parse_saved, parse_scan, parse_status, passphrase_ok, shown, AskFail, Saved,
-    SimWifi, WifiJob, WifiJobs, WifiNews,
+    bars, decode, hex, link_up, parse_saved, parse_scan, parse_status, passphrase_ok, shown,
+    AskFail, Saved, SimWifi, WifiJob, WifiJobs, WifiNews,
 };
 
 #[test]
@@ -159,6 +159,29 @@ fn an_address_left_from_before_counts_only_while_joined() {
     let off = parse_status("enabled=no\nhostname=rg35xxsp\nntp=\nntp_synced=\n");
     assert!(!off.enabled && !off.ntp);
     assert_eq!(off.state, "");
+}
+
+#[test]
+fn a_glance_counts_the_link_joined_only_when_the_kernel_says_up() {
+    assert!(link_up("up\n"));
+    for not in ["dormant\n", "down\n", "unknown\n", "lowerlayerdown\n", ""] {
+        assert!(!link_up(not), "{not:?} counted as joined");
+    }
+}
+
+#[test]
+fn the_desktop_radio_glances_without_saying_its_whole_status() {
+    let mut sim = SimWifi::default();
+    sim.ask(WifiJob::Glance);
+    assert_eq!(sim.news(), [WifiNews::Glanced(false)]);
+    sim.ask(WifiJob::Join {
+        ssid: b"Home".to_vec(),
+        psk: "long enough".into(),
+        replace: None,
+    });
+    sim.news();
+    sim.ask(WifiJob::Glance);
+    assert_eq!(sim.news(), [WifiNews::Glanced(true)]);
 }
 
 fn statuses(news: &[WifiNews]) -> Vec<&omega_zero::wifi::Status> {

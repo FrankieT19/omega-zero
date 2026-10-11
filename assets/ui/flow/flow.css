@@ -1,0 +1,289 @@
+/*
+  flow.html's styles: the page around the screen in omega-zero's site colours (the storybook's),
+  then the screen itself, every size in art pixels (--u). Whatever slides is placed by player.js
+  with left and top in whole pixels, never with a transform or a transition.
+*/
+
+/* ---- the page ---- */
+:root {
+  color-scheme: dark;
+  --ground: #0b0e11;
+  --panel: #15181d;
+  --rule: #262a31;
+  --ink: #f4f5f9;
+  --dim: #9da1ab;
+  --accent: #8f8cf2;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --body: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+/* whole-pixel line heights and padding, left-aligned: whatever stands above the screen puts it on a
+   whole pixel, or every word and sprite in it would land between two */
+body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/24px var(--body); }
+main { padding: 32px 24px 64px; display: grid; gap: 24px; grid-template-columns: minmax(0, 1fr); }
+h1, h2 { margin: 0; font-family: var(--mono); letter-spacing: -0.01em; }
+h1 { font-size: 32px; line-height: 36px; }
+h2 { font-size: 16px; line-height: 24px; }
+p { margin: 0; max-width: 76ch; }
+a { color: var(--accent); }
+code, kbd { font: 0.8rem var(--mono); color: var(--dim); }
+.dim { color: var(--dim); }
+.intro { display: grid; gap: 12px; }
+
+.layout { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.device { display: grid; gap: 16px; justify-items: start; flex: none; max-width: 100%; }
+.screen-scroll { max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
+.sidebar { flex: 1 1 360px; min-width: 0; display: grid; gap: 18px; }
+
+.card { display: grid; gap: 10px; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; }
+.group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; border: 0; margin: 0; padding: 0; min-width: 0; }
+.group legend { float: left; margin-right: 8px; font: 0.8rem var(--mono); color: var(--dim); }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.seg label { position: relative; }
+.seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.seg span { display: block; padding: 5px 9px; font: 0.8rem var(--mono); color: var(--dim); }
+.seg label + label span { border-left: 1px solid var(--rule); }
+.seg input:checked + span { background: var(--rule); color: var(--ink); }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+.check { display: inline-flex; align-items: center; gap: 6px; font: 0.8rem var(--mono); color: var(--dim); cursor: pointer; }
+.check input { accent-color: var(--accent); margin: 0; }
+.chip {
+  display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px;
+  border-radius: 2px; box-shadow: inset 0 0 0 3px var(--chip-frame), 0 0 0 1px var(--rule);
+}
+button {
+  font: 0.8rem var(--mono); color: var(--ink); background: var(--rule);
+  border: 1px solid #333842; border-radius: 6px; padding: 5px 10px; cursor: pointer;
+}
+button:hover { background: #30353e; }
+button[aria-pressed="true"] { background: var(--accent); color: var(--ground); border-color: var(--accent); }
+.screens { display: flex; flex-wrap: wrap; gap: 6px; }
+.readout { font: 0.8rem/1.6 var(--mono); color: var(--dim); white-space: pre-wrap; min-height: 3.2em; }
+
+pre {
+  margin: 0; padding: 10px 12px; overflow-x: auto; border-radius: 4px;
+  background: var(--ground); border: 1px solid var(--rule); font: 0.8rem/1.6 var(--mono);
+}
+pre code { color: var(--ink); }
+table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+th, td { text-align: left; vertical-align: top; padding: 5px 10px 5px 0; border-top: 1px solid var(--rule); }
+th { font: 600 0.75rem var(--mono); color: var(--dim); border-top: 0; }
+td:first-child { white-space: nowrap; font-family: var(--mono); font-size: 0.8rem; }
+
+/* the handheld's buttons, under the screen */
+.pad { display: flex; gap: 28px; align-items: center; }
+.dpad { display: grid; grid-template-columns: repeat(3, 40px); grid-template-rows: repeat(3, 34px); gap: 4px; }
+.dpad button { padding: 0; }
+.dpad [data-key="up"] { grid-area: 1 / 2; }
+.dpad [data-key="left"] { grid-area: 2 / 1; }
+.dpad [data-key="right"] { grid-area: 2 / 3; }
+.dpad [data-key="down"] { grid-area: 3 / 2; }
+.meta { display: grid; gap: 6px; }
+.face { display: grid; grid-template-columns: repeat(2, 44px); gap: 6px; }
+.face button { height: 40px; border-radius: 20px; }
+/* Y over B and X over A, as on the handheld */
+.face [data-key="y"] { grid-area: 1 / 1; }
+.face [data-key="x"] { grid-area: 1 / 2; }
+.face [data-key="b"] { grid-area: 2 / 1; }
+.face [data-key="a"] { grid-area: 2 / 2; }
+
+/* ---- the screen: a device panel's pixels ---- */
+.screen { position: relative; flex: none; overflow: hidden; width: 640px; height: 480px; outline: 6px solid #000; margin: 6px; }
+.screen[data-size="720x480"] { width: 720px; height: 480px; }
+.screen[data-size="720x720"] { width: 720px; height: 720px; }
+.screen > .backdrop { position: absolute; inset: 0; }
+
+/* for screenshots (#shot=1): the screen alone, at the window's top left */
+body.shot main > :not(.layout), body.shot .sidebar, body.shot .pad, body.shot .readout { display: none; }
+body.shot main { padding: 0; }
+body.shot .screen { margin: 0; outline: 0; }
+body.shot .screen-scroll { padding: 0; overflow: visible; }
+
+/* Everything that slides is one of these, placed by player.js. From the back: the backdrop,
+   which never moves; the shelf's carts, slot and top bar; the menus; then the bottom bar, which
+   never leaves (the slot sinks out behind it). A part not on the screen is hidden, not removed,
+   so it keeps its layout. */
+.part { position: absolute; left: 0; top: 0; width: 100%; }
+.part.away { visibility: hidden; }
+.shelf-carts { top: 36px; height: calc(100% - 36px - 110px); z-index: 1; }
+.shelf-slot { top: calc(100% - 110px); height: 80px; z-index: 1; }
+.shelf-top { height: 36px; z-index: 1; }
+.page { height: calc(100% - 15 * var(--u)); z-index: 2; }
+.screen > omega-bar { position: absolute; left: 0; bottom: 0; width: 100%; z-index: 3; }
+
+/* ---- the shelf: what Rust draws, as flat placeholders ---- */
+
+/* the top bar (status_bar.rs): 36px, its last two a rule; Wi-Fi, the clock and the battery stand
+   in one band a sprite cell (7 art pixels) tall, 5 down */
+.shelf-top {
+  box-sizing: border-box;
+  background: var(--oz-well);
+  border-bottom: var(--u) solid var(--oz-edge);
+  font: 400 calc(9 * var(--u)) / calc(10 * var(--u)) var(--oz-font);
+  color: var(--oz-cream);
+}
+.shelf-top .wifi {
+  position: absolute; left: calc(12 * var(--u)); top: calc(5 * var(--u));
+  width: calc(7 * var(--u)); height: calc(7 * var(--u));
+  background: var(--flow-wifi) no-repeat 0 0 / 100% 100%; image-rendering: pixelated;
+}
+/* the line's capitals on its rows 2 to 8, so the line starts 2 above the band */
+.shelf-top .clock { position: absolute; left: calc(50% - 30px); top: calc(3 * var(--u)); }
+.shelf-top .battery { position: absolute; right: calc(11 * var(--u)); top: calc(3 * var(--u)); display: flex; }
+.shelf-top .gauge {
+  width: calc(13 * var(--u)); height: calc(7 * var(--u)); margin: calc(2 * var(--u)) calc(4 * var(--u)) 0 0;
+  background: var(--flow-battery) no-repeat 0 0 / 100% 100%; image-rendering: pixelated;
+}
+
+/* the carts (shelf.rs): the one under the cursor in the middle, lit, the ones beside it 0.78 of
+   its size and one cart width (360px) to either side, so they peek in at the screen's edges */
+.cart { position: absolute; background: no-repeat 0 0 / 100% 100%; image-rendering: pixelated; }
+.cart.lit {
+  width: calc(180 * var(--u)); height: calc(106 * var(--u));
+  left: calc(50% - 90 * var(--u)); top: round(down, 50% - 53 * var(--u), var(--u));
+  background-image: var(--flow-cart-lit);
+}
+.cart.side {
+  width: calc(140 * var(--u)); height: calc(82 * var(--u));
+  top: round(down, 50% - 41 * var(--u), var(--u));
+  background-image: var(--flow-cart-side);
+}
+.cart.prev { left: calc(50% - 360px - 70 * var(--u)); }
+.cart.next { left: calc(50% + 360px - 70 * var(--u)); }
+
+/* the slot (slot_chrome.rs): an 80px band standing on the bottom bar, the mouth dark in it */
+.shelf-slot { box-sizing: border-box; background: var(--oz-well); border-top: var(--u) solid var(--oz-edge); }
+.shelf-slot .mouth {
+  position: absolute; box-sizing: border-box;
+  left: calc(50% - 95 * var(--u)); top: calc(8 * var(--u));
+  width: calc(190 * var(--u)); height: calc(12 * var(--u));
+  background: var(--oz-dark); border: var(--u) solid var(--oz-edge);
+}
+
+/* ---- the menus ---- */
+
+/* the modal fills the screen above the bar, as storybook.html's Button Setting screen */
+.modal-area {
+  position: absolute; inset: 0; display: flex;
+  padding: calc(14 * var(--u)) calc(16 * var(--u)) calc(5 * var(--u));
+}
+.modal-area > omega-modal { flex: 1; min-width: 0; }
+/* a panel as tall as its rows; the panel after it takes the rest of the modal */
+omega-panel.hug { flex: none; }
+
+/* a panel or plate on its own, without a modal: as tall as what it holds, centred on whole art
+   pixels by player.js */
+.lone { position: absolute; left: 0; top: 0; }
+.lone.small { width: calc(200 * var(--u)); }
+
+/* Text that is not a row: on the rows' text, three pixels in. A row has 3 pixels of room around
+   its capitals and the well 2 more, so a note last in a well ends with 2 below its line, its
+   capitals then 5 clear of the well like the first row's; a note on its own takes 4 above and 5
+   below, so its capitals sit as far from either edge. */
+.note { margin: 0; padding: 0 calc(3 * var(--u)); color: var(--oz-dim); white-space: nowrap; }
+
+/* Network: the networks scroll inside their panel, a whole row at a time, reaching a pixel into
+   its well's sides as every row does; under them a note 4 below, 3 in from the well as every
+   note is */
+.list { position: relative; height: 100%; overflow: hidden; margin: 0 calc(-1 * var(--u)); }
+.list .note { margin-top: calc(4 * var(--u)); padding-left: calc(4 * var(--u)); }
+
+/* Bluetooth: the devices straight in their panel, so they reach a pixel into its well's sides as
+   every row does, and the note 4 below them, or 4 below the well's top while there are none */
+.devices .note { margin-top: calc(4 * var(--u)); }
+
+/* SSH: the login, or what to do first when there is no Wi-Fi */
+.ssh .note { margin-top: calc(4 * var(--u)); padding-bottom: calc(2 * var(--u)); }
+.ssh.offline .note { padding-bottom: calc(5 * var(--u)); }
+.ssh:not(.offline) .when-offline, .ssh.offline .when-online { display: none; }
+
+/* Controls: SHELF and IN GAME side by side, each a column of buttons and what they do, 16 art
+   pixels between them. The widest line, SELECT+L1/R1 LOAD/SAVE STATE, sets the panel's width:
+   304 art pixels, 292 of them inside, 108 for SHELF and 168 for IN GAME. */
+.controls-panel { width: calc(304 * var(--u)); }
+.columns { display: flex; gap: calc(16 * var(--u)); padding-bottom: var(--u); }
+.keymap {
+  display: grid; grid-template-columns: calc(var(--keys) * 6 * var(--u)) calc(var(--does) * 6 * var(--u));
+  column-gap: calc(6 * var(--u)); row-gap: var(--u); align-content: start;
+}
+.keymap h3 { grid-column: 1 / -1; margin: 0 0 calc(2 * var(--u)); font: inherit; color: var(--oz-dim); }
+.keymap span { white-space: pre; }
+.keymap .k { color: var(--oz-frame-hi); }
+/* a glyph stands in for one letter, on the line's own grid */
+.g {
+  display: inline-block; vertical-align: top; width: calc(6 * var(--u)); height: calc(10 * var(--u));
+  background: no-repeat 0 0 / 100% 100%; image-rendering: pixelated;
+}
+.g.left { background-image: var(--flow-glyph-left); }
+.g.right { background-image: var(--flow-glyph-right); }
+.g.up { background-image: var(--flow-glyph-up); }
+.g.down { background-image: var(--flow-glyph-down); }
+.g.ellipsis { background-image: var(--flow-glyph-ellipsis); }
+
+/* Date & Time: one line of fields, the one under the cursor underlined a pixel bar, two rows
+   below its capitals (row 11 of the line, under its own 10); as much room above the capitals as
+   below the bar, 10 pixels with the well's own 2 */
+.datetime-panel { width: calc(240 * var(--u)); }
+.picker {
+  display: flex; white-space: pre; margin: calc(6 * var(--u)) 0 calc(10 * var(--u));
+  padding-left: round(down, (100% - var(--chars) * 6 * var(--u)) / 2, var(--u));
+}
+.picker .field { position: relative; }
+.picker .field.lit::after {
+  content: ""; position: absolute; left: 0; top: calc(11 * var(--u));
+  width: calc(100% - var(--u)); height: var(--u); background: var(--oz-frame-hi);
+}
+
+/* The screen after the power menu's choice: its note on its own, as SSH's offline one */
+.going .note { margin-top: calc(4 * var(--u)); padding-bottom: calc(5 * var(--u)); }
+
+/* Labels */
+.labels-panel { width: calc(280 * var(--u)); }
+.labels-panel .note { margin-top: calc(4 * var(--u)); padding-bottom: calc(2 * var(--u)); }
+
+/* Keyboard: the field, the keys and the hint line, centred in the panel's well (across here,
+   down by player.js, which knows the well's height; auto margins would split an odd remainder
+   between pixels). Keys are 23 by 19 art pixels, 3 apart: odd sizes, so a letter's ink (an odd
+   width, 7 tall) has as much room on either side and above as below. 10 of them across are 257,
+   which fits in 640x480's 268. */
+.typing {
+  display: grid; gap: calc(6 * var(--u)); justify-items: start; width: calc(257 * var(--u));
+  margin-left: round(down, (100% - 257 * var(--u)) / 2, var(--u));
+}
+.field-box {
+  box-sizing: border-box; display: flex; overflow: hidden;
+  width: calc(257 * var(--u)); height: calc(15 * var(--u));
+  padding: var(--u) calc(4 * var(--u)) 0; background: var(--oz-dark); border: var(--u) solid var(--oz-edge);
+  white-space: pre;
+}
+/* the cursor: a bar the capitals' height, after the last letter's own blank column */
+.field-box .cursor {
+  flex: none; width: var(--u); height: calc(7 * var(--u)); margin-top: calc(2 * var(--u));
+  background: var(--oz-frame-hi);
+}
+.keys { position: relative; width: calc(257 * var(--u)); height: calc(107 * var(--u)); }
+.key {
+  position: absolute; box-sizing: border-box; height: calc(19 * var(--u));
+  padding-top: calc(3 * var(--u)); white-space: pre;
+  border: var(--u) solid transparent; border-image: var(--flow-key) 1 fill / var(--u) stretch;
+  image-rendering: pixelated; color: var(--oz-cream);
+}
+.key.lit { border-image-source: var(--flow-key-lit); color: var(--oz-dark); }
+/* centred by its ink, which is one column narrower than its letters */
+.hint-line {
+  white-space: pre; color: var(--oz-dim);
+  margin-left: round(down, (100% - var(--chars) * 6 * var(--u) + var(--u)) / 2, var(--u));
+}
+.hint-line b { font-weight: 400; color: var(--oz-frame-hi); }
+
+/* About: the sticker Rust draws, as a plain cream plate */
+.about-plate {
+  box-sizing: border-box; width: calc(176 * var(--u)); padding: calc(10 * var(--u)) 0 calc(11 * var(--u));
+  border: calc(2 * var(--u)) solid transparent; border-image: var(--flow-plate) 2 fill / calc(2 * var(--u)) stretch;
+  image-rendering: pixelated; color: var(--oz-dark); text-align: center;
+  font: 400 calc(9 * var(--u)) / calc(10 * var(--u)) var(--oz-font);
+}
+.about-plate p { margin: 0 auto; max-width: none; white-space: pre; }
+.about-plate p + p { margin-top: calc(3 * var(--u)); }
+.about-plate .small { color: var(--oz-edge); }

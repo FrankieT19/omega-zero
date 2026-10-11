@@ -1,7 +1,10 @@
+use std::path::Path;
 use std::time::{Duration, Instant};
 
-use omega_gfx::{Compositor, HostSurface, Surface};
+use omega_gfx::{out_h, out_w, Compositor, HostSurface, Surface};
 use omega_power::SimPlatform;
+use omega_ui::UndoFace;
+use omega_zero::bootlogo;
 use omega_zero::frontend::Frontend;
 use omega_zero::input::HostInput;
 use winit::application::ApplicationHandler;
@@ -45,6 +48,9 @@ impl ApplicationHandler for HostApp {
             eprintln!("omega-zero: {e}");
         }
         self.frontend.upload_faces(&mut compositor);
+        if let Some(logo) = boot_logo(self.frontend.app().root()) {
+            self.frontend.show_boot_logo(&mut compositor, &logo);
+        }
         self.gfx = Some((surface, compositor));
     }
 
@@ -84,6 +90,16 @@ impl ApplicationHandler for HostApp {
             _ => {}
         }
     }
+}
+
+/// The boot logo for the canvas: the card's own, or failing that the one omega-zero ships, from
+/// the repo this was built in, so a card made with `task sdcard` shows it too.
+fn boot_logo(root: Option<&Path>) -> Option<UndoFace> {
+    let shipped = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../card/System");
+    root.map(|r| r.join("System"))
+        .into_iter()
+        .chain([shipped])
+        .find_map(|system| bootlogo::shown(&system, (out_w(), out_h())))
 }
 
 pub fn run() {
