@@ -1,4 +1,4 @@
-use omega_ui::text::{self, bold_font, label_font, on_grid, Layout, FONT_GRID};
+use omega_ui::text::{self, label_font, on_grid, Layout, FONT_GRID};
 
 #[test]
 fn every_word_is_set_in_pixel_code() {
@@ -13,19 +13,6 @@ fn every_word_is_set_in_pixel_code() {
     assert!(
         (m - 12.0).abs() < 1e-3,
         "a letter is {m} wide at 18, not six of the face's pixels"
-    );
-    let bold = bold_font().expect("no bold");
-    assert_eq!(bold.units_per_em(), 1008.0);
-    let ink = |f: &fontdue::Font| {
-        f.rasterize('H', 27.0)
-            .1
-            .iter()
-            .map(|&a| a as u32)
-            .sum::<u32>()
-    };
-    assert!(
-        ink(bold) > ink(face),
-        "the bold is no heavier than the regular"
     );
 }
 

@@ -4,7 +4,6 @@ use fontdue::{Font, FontSettings};
 
 /// Every word omega-zero prints is set in Pixel Code, a pixel face drawn on a grid of nine to the em.
 const LABEL_TTF: &[u8] = include_bytes!("../assets/PixelCode-Regular.ttf");
-const BOLD_TTF: &[u8] = include_bytes!("../assets/PixelCode-Bold.ttf");
 
 /// The size at which one of the face's pixels is one of the screen's. Text is only ever set at
 /// a whole multiple of it, so every stroke lands on whole pixels and stays sharp.
@@ -29,13 +28,6 @@ pub struct Layout {
 pub fn label_font() -> Option<&'static Font> {
     static FONT: OnceLock<Option<Font>> = OnceLock::new();
     FONT.get_or_init(|| Font::from_bytes(LABEL_TTF, FontSettings::default()).ok())
-        .as_ref()
-}
-
-/// The same face's bold, for the odd word that has to stand out.
-pub fn bold_font() -> Option<&'static Font> {
-    static FONT: OnceLock<Option<Font>> = OnceLock::new();
-    FONT.get_or_init(|| Font::from_bytes(BOLD_TTF, FontSettings::default()).ok())
         .as_ref()
 }
 
