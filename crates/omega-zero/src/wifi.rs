@@ -338,6 +338,8 @@ impl WifiJobs for ScriptWifi {
 fn script(root: &std::path::Path, args: &[&str]) -> std::process::Command {
     let mut cmd = std::process::Command::new("/bin/sh");
     cmd.arg(root.join("System/wifi.sh")).args(args);
+    // what it leaves running, wpa_supplicant and udhcpc, starts as BaseOS's own daemons do
+    crate::spawn::as_a_daemon(&mut cmd);
     cmd
 }
 

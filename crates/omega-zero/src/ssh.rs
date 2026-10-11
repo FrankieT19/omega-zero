@@ -618,8 +618,9 @@ fn start_dropbear() {
         }
     }
     // dropbear goes into the background once it listens, so this waits only for that; it
-    // starts from / so it never holds the card open
-    let started = Command::new(DROPBEAR)
+    // starts from / so it never holds the card open, and as /etc/init.d/dev starts it, with
+    // nothing of omega-zero's: not its session, its signals or its framebuffer
+    let started = crate::spawn::as_a_daemon(&mut Command::new(DROPBEAR))
         .args(["-r", HOST_KEYS[0].1, "-r", HOST_KEYS[1].1, "-B"])
         .current_dir("/")
         .stdin(Stdio::null())

@@ -34,6 +34,7 @@ pub mod rewind;
 pub mod root;
 pub mod screens;
 pub mod session;
+pub mod spawn;
 pub mod ssh;
 pub mod thumb;
 pub mod video_mode;

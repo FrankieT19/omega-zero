@@ -135,6 +135,9 @@ pub fn run() {
             return;
         }
     };
+    // EGL has the framebuffer open now; the scripts and daemons started from here on get none
+    // of it
+    omega_zero::spawn::keep_files_to_self();
     if let Err(e) = compositor.set_rotation(rotation) {
         eprintln!("omega-zero: the panel cannot be turned {rotation:?}, drawing it unturned: {e}");
     }

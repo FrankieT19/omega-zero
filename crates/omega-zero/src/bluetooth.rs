@@ -274,6 +274,9 @@ impl BluetoothJobs for ScriptBluetooth {
 pub fn script(root: &Path, args: &[&str]) -> std::process::Command {
     let mut cmd = std::process::Command::new("/bin/sh");
     cmd.arg(root.join("System/bluetooth.sh")).args(args);
+    // what it leaves running, rtk_hciattach, bluetoothd and a scan, starts as BaseOS's own
+    // daemons do
+    crate::spawn::as_a_daemon(&mut cmd);
     cmd
 }
 

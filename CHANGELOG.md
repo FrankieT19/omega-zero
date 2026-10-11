@@ -67,6 +67,8 @@
 - `card/System/bluetooth.sh` drives the radio for omega-zero (up, down, status, scan on or off,
   pair, connect, disconnect, forget) and prints each device as a tab-separated line;
   `card/test-bluetooth.sh` tests it against fakes of BlueZ's tools.
+- The daemons wifi.sh and bluetooth.sh leave running, and a dropbear omega-zero starts again,
+  no longer hold the framebuffer open or share omega-zero's session and signals.
 - Now that root's password is random, `task deploy:wifi` and `task log:wifi` log in with
   `CONSOLE_PASSWORD` or, without it, the first line of a git-ignored `.console-password` at the
   top of the repo.
