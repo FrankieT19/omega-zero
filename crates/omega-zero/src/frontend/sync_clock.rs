@@ -7,7 +7,7 @@ use omega_gfx::{Compositor, TexId};
 use omega_ui::{alert_face, bolt_face, hhmm, slot_name_face, word_face, Field, HUD_INK};
 
 use crate::app::App;
-use crate::frontend::faces::{upload, upload_nearest, Printing};
+use crate::frontend::faces::{upload_nearest, Printing};
 use crate::frontend::lone::Baked;
 use crate::screens::clock::clock_face;
 
@@ -69,7 +69,7 @@ pub(crate) fn sync_clock(app: &mut App, compositor: &mut Compositor, clocks: &mu
         }
     }
     if switcher.bolt.is_none() {
-        upload(compositor, &mut switcher.bolt, bolt_face(HUD_INK));
+        upload_nearest(compositor, &mut switcher.bolt, &bolt_face(HUD_INK));
     }
     if switcher != clocks.switcher {
         app.set_switcher_readouts(switcher);

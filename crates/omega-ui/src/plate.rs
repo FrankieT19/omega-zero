@@ -104,29 +104,12 @@ pub fn word_cap_top() -> f32 {
     })
 }
 
-/// The clear columns a `word_face` keeps right of its ink: the face's spacing after its last
-/// letter. The same for every word, since every letter of a monospaced face is spaced alike.
-pub fn word_tail() -> f32 {
-    static TAIL: OnceLock<f32> = OnceLock::new();
-    *TAIL.get_or_init(|| {
-        let face = word_face("0");
-        let inked =
-            |x: u32| (0..face.h).any(|y| face.rgba[((y * face.w + x) * 4 + 3) as usize] > 0);
-        (0..face.w).rev().take_while(|&x| !inked(x)).count() as f32
-    })
-}
-
 pub fn word_face(text: &str) -> UndoFace {
-    word_face_in(text, INK)
-}
-
-/// `text` as `word_face` prints it, in `ink`: the top bar's clock and figure, in its ink.
-pub fn word_face_in(text: &str, ink: [u8; 3]) -> UndoFace {
     let w = word_width(text);
     let mut rgba = vec![0u8; (w * HINT_H * 4) as usize];
     if let Some(font) = text::label_font() {
         let layout = text::fit(font, text, w as f32, 1, LABEL_PX, LABEL_MIN_PX);
-        text::draw_centred(&mut rgba, w, HINT_H, &layout, ink);
+        text::draw_centred(&mut rgba, w, HINT_H, &layout, INK);
     }
     UndoFace { rgba, w, h: HINT_H }
 }

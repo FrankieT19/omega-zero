@@ -17,16 +17,16 @@ pub const CELL_PX: f32 = (CELL * SPRITE_PX) as f32;
 /// A sprite, row by row from the top: `#` is inked, anything else is clear.
 pub type Rows = [&'static str; CELL as usize];
 
-/// `rows` in `ink`, each of its pixels `SPRITE_PX` square.
+/// `rows` in `ink`, a texel to each of its pixels: a face at art resolution, to upload NEAREST
+/// and draw at `SPRITE_PX` screen pixels to a texel (`kit::pixel::quad`).
 pub fn sprite_face(rows: &[&str], ink: [u8; 3]) -> UndoFace {
-    let cols = rows.iter().map(|r| r.len()).max().unwrap_or(0) as u32;
-    let (w, h) = (cols * SPRITE_PX, rows.len() as u32 * SPRITE_PX);
+    let w = rows.iter().map(|r| r.len()).max().unwrap_or(0) as u32;
+    let h = rows.len() as u32;
     let mut rgba = vec![0u8; (w * h * 4) as usize];
-    for y in 0..h {
-        let row = rows[(y / SPRITE_PX) as usize].as_bytes();
-        for x in 0..w {
-            if row.get((x / SPRITE_PX) as usize) == Some(&b'#') {
-                let i = ((y * w + x) * 4) as usize;
+    for (y, row) in rows.iter().enumerate() {
+        for (x, key) in row.bytes().enumerate() {
+            if key == b'#' {
+                let i = (y * w as usize + x) * 4;
                 rgba[i..i + 4].copy_from_slice(&[ink[0], ink[1], ink[2], 255]);
             }
         }

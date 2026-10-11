@@ -37,7 +37,7 @@ pub use backdrop::{
     backdrop_speed, draw_backdrop, draw_pattern, draw_solid, wallpaper_face, BACKDROP_PALETTE,
 };
 pub use barcode::{code39, CODE39_NARROW, CODE39_WIDE};
-pub use battery::{bolt_face, draw_gauge, gauge_width, GAUGE_H, GAUGE_W, WALL};
+pub use battery::{bolt_face, draw_gauge, gauge_width, FIGURE_AT, GAUGE_H, GAUGE_W, WALL};
 pub use bezel::{
     bezel_mark_face, mark_height, mark_rect, overlay_clear, overlay_face, overlay_path, rim,
     BEZEL_FILL, BEZEL_INK, RIM_W,
@@ -76,8 +76,8 @@ pub use link_art::{
 };
 pub use plate::{
     arrows_hint_face, arrows_hint_width, cap_width, centred_hints, hint_face, hint_quad, hint_row,
-    hint_width, title_face, word_cap_top, word_face, word_face_in, word_tail, word_width, Hint,
-    UndoFace, ARROW_GAP, CAP, CAP_GAP, HINT_EDGE, HINT_GAP, HINT_H, LEGEND_GAP, TITLE_H, TITLE_W,
+    hint_width, title_face, word_cap_top, word_face, word_width, Hint, UndoFace, ARROW_GAP, CAP,
+    CAP_GAP, HINT_EDGE, HINT_GAP, HINT_H, LEGEND_GAP, TITLE_H, TITLE_W,
 };
 pub use polaroids::{photo_face, PhotoFace, Polaroids, DOT, LEGEND, PHOTO_H, PHOTO_W};
 pub use power_menu::PowerChoice;
@@ -107,7 +107,7 @@ pub use spin::{
     cart_mesh, posed_cart, posed_face, push_cart_side, CartMeshes, CartModel, Pose, OUTLINE_INSET,
     THICK,
 };
-pub use sprite::{CELL_PX, SPRITE_PX};
+pub use sprite::{CELL, CELL_PX, SPRITE_PX};
 pub use stage::{stage_x, stage_y, MOCKUP_H, MOCKUP_W};
 pub use status_bar::{link_face, Link, LinkFaces, Links, TopBar, LINK_OFF, LINK_ON, TOP_BAR_H};
 pub use sticker::{
