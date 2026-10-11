@@ -26,7 +26,7 @@ use omega_ui::kit::modal::{modal_face, modal_layout};
 use omega_ui::kit::palette::Palette;
 use omega_ui::kit::panel::{panel_face, tab_width, title_face, PanelFace, TAB_W};
 use omega_ui::kit::pixel::{
-    big_word, flip, keyed, letters, mirror, quad, ACCENT, ADVANCE, BAR_ROWS, CAP,
+    big_word, flip, keyed, letters, letters_over, mirror, quad, ACCENT, ADVANCE, BAR_ROWS, CAP,
 };
 use omega_ui::kit::row::{panel_height, row_face, row_rect, row_width, Row, ROW_H};
 use omega_ui::kit::text::text_face;
@@ -384,6 +384,22 @@ fn a_colon_between_figures_stands_a_pixel_higher_as_the_browser_draws_it() {
     assert_eq!(raised, plain.iter().map(|y| y - 1).collect::<Vec<_>>());
     assert_eq!(dots("UT: 0"), raised, "a space apart still counts");
     assert_eq!(dots("16:ab"), plain, "a figure on one side only does not");
+}
+
+/// Pixel Code's capital accents stand a row over the line, which `letters` leaves out and
+/// `letters_over` keeps; a row's value, which nothing cuts, draws it on the band's frame line as
+/// the browser does, and its name, which `overflow: hidden` cuts, does not.
+#[test]
+fn a_capitals_accent_rises_a_row_over_the_line_in_a_rows_value() {
+    let over = letters_over("\u{c1}", ADVANCE, 1);
+    assert!(over[0].contains('#'), "the Á's accent has no top row");
+    assert_eq!(over[1..], letters("\u{c1}", ADVANCE)[..], "the line moved");
+
+    let top = |face: &UndoFace| (0..face.w).any(|x| face.rgba[(x * 4 + 3) as usize] != 0);
+    let value = row_face(60, &row("A", Some("\u{c1}"), ""), &RAMP);
+    let name = row_face(60, &row("\u{c1}", Some("A"), ""), &RAMP);
+    assert!(top(&value), "the value's accent is cut");
+    assert!(!top(&name), "the name's accent is not cut");
 }
 
 #[test]

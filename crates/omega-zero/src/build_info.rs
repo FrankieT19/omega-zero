@@ -20,10 +20,13 @@ impl Build {
         self.hash.to_uppercase()
     }
 
-    pub fn dirty_digit(&self) -> char {
+    /// The build as About's BUILD row shows it: the commit's short hash in capitals, and
+    /// `-DIRTY` after it for a build made with changes not yet committed, as Git's own
+    /// `describe --dirty` marks one.
+    pub fn shown(&self) -> String {
         match self.dirty {
-            true => '1',
-            false => '0',
+            true => format!("{}-DIRTY", self.serial()),
+            false => self.serial(),
         }
     }
 }

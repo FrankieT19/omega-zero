@@ -71,14 +71,22 @@ pub fn flip(rows: &[impl AsRef<str>]) -> Vec<String> {
 /// draws them with a canvas: each letter set on its own, a pixel inked where its coverage is
 /// at least half. A character the face has no glyph for is spelled as `text::printed` does.
 pub fn letters(text: &str, advance: usize) -> Vec<String> {
-    let rows = ACCENT + CAP + DESCENT;
+    letters_over(text, advance, 0)
+}
+
+/// `letters` with `over` more rows on top, for what rises above the line: a capital's accent
+/// (the Á of OTÁVIO) stands a row higher than the `ACCENT` rows, where the browser draws it over
+/// the line's top and `letters` leaves it out. Ink the rows `over` higher than `letters`' to set
+/// the line in the same place.
+pub fn letters_over(text: &str, advance: usize, over: usize) -> Vec<String> {
+    let rows = over + ACCENT + CAP + DESCENT;
     let Some(font) = text::label_font() else {
         return vec![".".repeat((text.chars().count() * advance).max(1)); rows];
     };
     let chars: Vec<char> = text::printed(font, text).chars().collect();
     let w = (chars.len() * advance).max(1);
     let mut grid = vec![vec![b'.'; w]; rows];
-    let baseline = (ACCENT + CAP) as i32;
+    let baseline = (over + ACCENT + CAP) as i32;
     for (i, &ch) in chars.iter().enumerate() {
         let (m, cov) = font.rasterize(ch, LETTER_PX);
         let left = (i * advance) as i32 + m.xmin;

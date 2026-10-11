@@ -1,6 +1,5 @@
 mod art;
 mod backdrop;
-mod barcode;
 mod battery;
 mod bezel;
 mod board;
@@ -26,7 +25,6 @@ mod spin;
 mod sprite;
 mod stage;
 mod status_bar;
-mod sticker;
 pub mod text;
 mod toast;
 
@@ -34,7 +32,6 @@ pub use backdrop::{
     backdrop_colour_name, backdrop_pattern_face, backdrop_period, backdrop_rgb, backdrop_shift,
     backdrop_speed, draw_backdrop, draw_pattern, draw_solid, wallpaper_face, BACKDROP_PALETTE,
 };
-pub use barcode::{code39, CODE39_NARROW, CODE39_WIDE};
 pub use battery::{bolt_face, draw_gauge, gauge_width, FIGURE_AT, GAUGE_H, GAUGE_W, WALL};
 pub use bezel::{
     bezel_mark_face, mark_height, mark_rect, overlay_clear, overlay_face, overlay_path, rim,
@@ -96,8 +93,4 @@ pub use spin::{
 pub use sprite::{CELL, CELL_PX, SPRITE_PX};
 pub use stage::{stage_x, stage_y, MOCKUP_H, MOCKUP_W};
 pub use status_bar::{link_face, Link, LinkFaces, Links, TopBar, LINK_OFF, LINK_ON, TOP_BAR_H};
-pub use sticker::{
-    draw_sticker, head_rows, sticker_face, sticker_lines, sticker_rect, sticker_size,
-    StickerFields, BASED_ON, COPYRIGHT, CREDITS, DC, HOME, ORIGIN,
-};
 pub use toast::Toast;

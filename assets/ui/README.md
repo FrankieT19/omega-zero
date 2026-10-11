@@ -128,8 +128,8 @@ followed, and that copy is what GitHub Pages serves, the storybook at `kit/story
 `flow.html` puts every menu screen together from the kit (the shelf, Settings and everything
 under it, CONTROLS, the power menu and the screens after it) and moves between them with the slides the device draws: 280 ms,
 smootherstep, every frame on whole art pixels. It is the approved reference for the Rust screens.
-Open it from disk like the storybook. What Rust draws itself (the carts, the slot, the top bar,
-the About sticker) is a flat placeholder.
+Open it from disk like the storybook. What Rust draws itself (the carts, the slot, the top bar)
+is a flat placeholder.
 
 Walk it with the keyboard or the buttons under the screen:
 
@@ -169,6 +169,13 @@ disconnects; Y forgets a paired device. The bar says `X SCAN` while the radio is
 `X SCAN` `Y FORGET` while the cursor is on a paired device. With the radio off the note says
 "Bluetooth is off.". Settings' BLUETOOTH row shows the connected device's name in capitals,
 else ON or OFF.
+
+Settings > About is a modal like Settings, with nothing to pick: OMEGA-ZERO, as tall as its
+rows, says the version, the build (the commit, `-DIRTY` after it for a build with changes not
+committed), the author, the handheld as BaseOS names it and its battery, each a name and a value
+as SSH's lines are; CREDITS under it says what omega-zero is made with and on, a line each in
+a row name's colour, three pixels in as a note is, and ends on slot's in the dim colour. Both
+titles are lit and no row is.
 
 Holding POWER opens POWER on any screen, a lone panel like THEME's with RESTART and POWER OFF,
 deeper from the screen it was held on, which its B goes back to. A on either row goes deeper to
