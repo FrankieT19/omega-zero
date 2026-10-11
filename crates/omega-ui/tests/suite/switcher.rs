@@ -55,6 +55,9 @@ fn quads(out: &[Draw]) -> Vec<Quad> {
             } => Quad { x, y, w, h, alpha },
             Draw::Spun {
                 x, y, w, h, colour, ..
+            }
+            | Draw::Model {
+                x, y, w, h, colour, ..
             } => Quad {
                 x,
                 y,

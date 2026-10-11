@@ -56,7 +56,7 @@ pub use cart::{
     LABEL_X, LABEL_Y,
 };
 pub use clock::{clock_label, date_time_text, hhmm, ClockPicker, Field};
-pub use draw::{out_h, out_w, Draw, TexId};
+pub use draw::{out_h, out_w, Draw, MeshId, TexId};
 pub use footer::Printed;
 pub use hud::{
     badge_at, ff_badge, FfState, Hud, HudKind, LinkBadge, Millis, HUD_ICON_PX, HUD_INK, HUD_MS,
@@ -102,7 +102,10 @@ pub use slot_chrome::{
     draw_empty_slot, draw_slot_name, ease, edge, housing, opening, recess, set_theme, slot_top,
     ChromeColours, SlotChrome, ALERT_PX, BAR_H, CATCH_OUT, LIP_H, MOUTH_H, MOUTH_W, SLOT_RAISE,
 };
-pub use spin::{posed_face, push_cart_side, Pose, OUTLINE_INSET, THICK};
+pub use spin::{
+    cart_mesh, posed_cart, posed_face, push_cart_side, CartMeshes, CartModel, Pose, OUTLINE_INSET,
+    THICK,
+};
 pub use sprite::{CELL_PX, SPRITE_PX};
 pub use stage::{stage_x, stage_y, MOCKUP_H, MOCKUP_W};
 pub use status_bar::{link_face, Link, LinkFaces, Links, TopBar, LINK_OFF, LINK_ON, TOP_BAR_H};

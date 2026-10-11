@@ -1,6 +1,6 @@
 use crate::canvas::{out_h, out_w};
 use crate::quad::Quad;
-use crate::shaders::{SPRITE_FRAG, SPRITE_VERT, SPUN_FRAG, SPUN_VERT};
+use crate::shaders::{MODEL_FRAG, MODEL_VERT, SPRITE_FRAG, SPRITE_VERT, SPUN_FRAG, SPUN_VERT};
 use crate::surface::GfxError;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -8,7 +8,7 @@ pub struct TexId(usize);
 
 /// How far in front of the canvas the eye stands when it looks at a `Draw::Spun` face, in
 /// canvas pixels: the nearer it stands, the more the side of a face that turns towards it grows.
-pub const FOCAL: f32 = 1100.0;
+pub const FOCAL: f32 = 650.0;
 
 /// Where the point `dx` across from the upright middle of a `Draw::Spun` face lands, measured
 /// across the canvas from that middle, once the face is spun `yaw` and slid back `depth`.
@@ -17,10 +17,44 @@ pub fn spun_x(dx: f32, yaw: f32, depth: f32) -> f32 {
     (dx * cos - depth * sin) * FOCAL / (FOCAL + dx * sin)
 }
 
+/// A model handed to the GPU once, drawn by `Draw::Model`.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct MeshId(usize);
+
+/// A corner of one of a model's triangles: `xyz` across and down its rect as shares of the
+/// rect's size, and back from its face as a share of its width; `normal` the way the polygon
+/// faces, x right, y down and z away from the eye; `uv` where it takes its texture from; and
+/// `shade`, how much of the light falls on it.
+#[derive(Copy, Clone, PartialEq, Debug)]
+#[repr(C)]
+pub struct MeshVertex {
+    pub xyz: [f32; 3],
+    pub normal: [f32; 3],
+    pub uv: [f32; 2],
+    pub shade: f32,
+}
+
+/// How models are drawn: the way a PlayStation drew 3D, on the 2-pixel grid the rest of the UI is
+/// drawn on. Every vertex lands on a grid of `MODEL_SNAP` canvas pixels, the colour is cut to 15
+/// bits through a 4x4 dither of `MODEL_DITHER`-pixel cells, and textures are sampled without
+/// smoothing. The light is a point `MODEL_LIGHT` canvas pixels from a model's middle, up, to the
+/// left and in front of it, with `MODEL_AMBIENT` of it falling on every side alike.
+const MODEL_SNAP: f32 = 2.0;
+const MODEL_DITHER: f32 = 2.0;
+const MODEL_LIGHT: [f32; 3] = [-700.0, -500.0, -900.0];
+const MODEL_AMBIENT: f32 = 0.68;
+
 #[cfg(feature = "test-support")]
 impl TexId {
     pub const fn from_raw(id: usize) -> Self {
         TexId(id)
+    }
+}
+
+#[cfg(feature = "test-support")]
+impl MeshId {
+    pub const fn from_raw(id: usize) -> Self {
+        MeshId(id)
     }
 }
 
@@ -65,6 +99,19 @@ pub enum Draw {
         yaw: f32,
         depth: f32,
         clip: Option<[f32; 4]>,
+    },
+    /// `mesh` laid out over the rect at `x, y, w, h`, textured with `tex` tinted `colour`,
+    /// turned `turn` radians in the canvas and spun `yaw` about its upright middle like `Spun`.
+    Model {
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        mesh: MeshId,
+        tex: TexId,
+        colour: [f32; 4],
+        turn: f32,
+        yaw: f32,
     },
     Game,
     Shot {
@@ -140,6 +187,27 @@ impl Draw {
                 depth,
                 clip: clip.map(|[cx, cy, cw, ch]| [cx + dx, cy + dy, cw, ch]),
             },
+            Draw::Model {
+                x,
+                y,
+                w,
+                h,
+                mesh,
+                tex,
+                colour,
+                turn,
+                yaw,
+            } => Draw::Model {
+                x: x + dx,
+                y: y + dy,
+                w,
+                h,
+                mesh,
+                tex,
+                colour,
+                turn,
+                yaw,
+            },
             Draw::Game | Draw::Shot { .. } => self,
         }
     }
@@ -156,7 +224,15 @@ struct Program {
 
 impl Program {
     fn new(vert: &str, frag: &str) -> Result<Self, GfxError> {
-        let prog = crate::shaders::program(vert, frag)?;
+        Program::with(vert, frag, &[("a_pos", crate::quad::POS_LOCATION)])
+    }
+
+    fn with(
+        vert: &str,
+        frag: &str,
+        attributes: &[(&str, gl::types::GLuint)],
+    ) -> Result<Self, GfxError> {
+        let prog = crate::shaders::program_with(vert, frag, attributes)?;
         unsafe {
             gl::UseProgram(prog);
             gl::Uniform1i(crate::gl::uniform_location(prog, "u_tex"), 0);
@@ -182,14 +258,58 @@ pub struct Sprites {
     plain: Program,
     /// Faces spun about their upright axis, which cost a little more to fill.
     spun: Program,
+    /// Models, drawn the way a PlayStation drew 3D.
+    model: Program,
+    meshes: Vec<Mesh>,
     white: gl::types::GLuint,
     textures: Vec<gl::types::GLuint>,
+}
+
+/// A model's triangles on the GPU.
+struct Mesh {
+    vao: gl::types::GLuint,
+    vbo: gl::types::GLuint,
+    count: i32,
+}
+
+const XYZ_LOCATION: gl::types::GLuint = 0;
+const NORMAL_LOCATION: gl::types::GLuint = 1;
+const UVS_LOCATION: gl::types::GLuint = 2;
+
+/// Points the model attributes at the bound vertex buffer, laid out as `MeshVertex`.
+unsafe fn mesh_attributes() {
+    let stride = std::mem::size_of::<MeshVertex>() as i32;
+    let at = |floats: usize| (floats * std::mem::size_of::<f32>()) as *const std::ffi::c_void;
+    for (location, size, from) in [
+        (XYZ_LOCATION, 3, 0),
+        (NORMAL_LOCATION, 3, 3),
+        (UVS_LOCATION, 3, 6),
+    ] {
+        gl::EnableVertexAttribArray(location);
+        gl::VertexAttribPointer(location, size, gl::FLOAT, gl::FALSE, stride, at(from));
+    }
 }
 
 impl Sprites {
     pub fn new() -> Result<Self, GfxError> {
         let plain = Program::new(SPRITE_VERT, SPRITE_FRAG)?;
         let spun = Program::new(SPUN_VERT, SPUN_FRAG)?;
+        let model = Program::with(
+            MODEL_VERT,
+            MODEL_FRAG,
+            &[
+                ("a_xyz", XYZ_LOCATION),
+                ("a_normal", NORMAL_LOCATION),
+                ("a_uvs", UVS_LOCATION),
+            ],
+        )?;
+        unsafe {
+            let at = |name| crate::gl::uniform_location(model.prog, name);
+            let [lx, ly, lz] = MODEL_LIGHT;
+            gl::Uniform4f(at("u_light"), lx, ly, lz, MODEL_AMBIENT);
+            gl::Uniform1f(at("u_snap"), MODEL_SNAP);
+            gl::Uniform1f(at("u_dither"), MODEL_DITHER);
+        }
         let white = crate::gl::texture(
             1,
             1,
@@ -201,6 +321,8 @@ impl Sprites {
         Ok(Sprites {
             plain,
             spun,
+            model,
+            meshes: Vec::new(),
             white,
             textures: Vec::new(),
         })
@@ -244,6 +366,90 @@ impl Sprites {
         }
     }
 
+    /// Hands a model's triangles, three corners each, to the GPU.
+    pub fn create_mesh(&mut self, vertices: &[MeshVertex]) -> MeshId {
+        unsafe {
+            let mut vao = 0;
+            if !crate::gl::es() {
+                gl::GenVertexArrays(1, &mut vao);
+                gl::BindVertexArray(vao);
+            }
+            let mut vbo = 0;
+            gl::GenBuffers(1, &mut vbo);
+            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                std::mem::size_of_val(vertices) as isize,
+                vertices.as_ptr() as *const std::ffi::c_void,
+                gl::STATIC_DRAW,
+            );
+            if !crate::gl::es() {
+                mesh_attributes();
+                gl::BindVertexArray(0);
+            }
+            self.meshes.push(Mesh {
+                vao,
+                vbo,
+                count: vertices.len() as i32,
+            });
+        }
+        MeshId(self.meshes.len() - 1)
+    }
+
+    /// Draws one model, and leaves the sprite program to be picked again. Its texture, made
+    /// smooth for the sprites that draw it scaled, is read without smoothing here and has its
+    /// smoothing back after.
+    fn draw_model(&self, item: &Draw, clipped: &mut bool) {
+        let Draw::Model {
+            x,
+            y,
+            w,
+            h,
+            mesh,
+            tex,
+            colour,
+            turn,
+            yaw,
+        } = *item
+        else {
+            return;
+        };
+        let (Some(mesh), Some(tex)) = (self.meshes.get(mesh.0), self.textures.get(tex.0)) else {
+            return;
+        };
+        let program = &self.model;
+        unsafe {
+            if *clipped {
+                gl::Disable(gl::SCISSOR_TEST);
+                *clipped = false;
+            }
+            gl::UseProgram(program.prog);
+            gl::BindTexture(gl::TEXTURE_2D, *tex);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
+            gl::Uniform4f(program.u_rect, x, y, w, h);
+            gl::Uniform2f(program.u_turn, turn.cos(), turn.sin());
+            let (yaw_sin, yaw_cos) = yaw.sin_cos();
+            gl::Uniform3f(program.u_spin, yaw_sin, yaw_cos, 0.0);
+            gl::Uniform4f(program.u_colour, colour[0], colour[1], colour[2], colour[3]);
+            if crate::gl::es() {
+                gl::BindBuffer(gl::ARRAY_BUFFER, mesh.vbo);
+                mesh_attributes();
+            } else {
+                gl::BindVertexArray(mesh.vao);
+            }
+            gl::DrawArrays(gl::TRIANGLES, 0, mesh.count);
+            if crate::gl::es() {
+                gl::DisableVertexAttribArray(NORMAL_LOCATION);
+                gl::DisableVertexAttribArray(UVS_LOCATION);
+            } else {
+                gl::BindVertexArray(0);
+            }
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+        }
+    }
+
     pub fn source(&self, id: TexId) -> Option<gl::types::GLuint> {
         self.textures.get(id.0).copied()
     }
@@ -257,6 +463,11 @@ impl Sprites {
         let mut clipped = false;
         let mut spinning = None;
         for item in items {
+            if let Draw::Model { .. } = item {
+                self.draw_model(item, &mut clipped);
+                spinning = None;
+                continue;
+            }
             let (mut yaw, mut depth, mut clip) = (0.0, 0.0, None);
             let (x, y, w, h, tex, colour, turn) = match *item {
                 Draw::Rect { x, y, w, h, colour } => (x, y, w, h, self.white, colour, 0.0),
@@ -301,7 +512,7 @@ impl Sprites {
                     Some(t) => (x, y, w, h, *t, [1.0, 1.0, 1.0, alpha], turn),
                     None => continue,
                 },
-                Draw::Game | Draw::Shot { .. } => continue,
+                Draw::Model { .. } | Draw::Game | Draw::Shot { .. } => continue,
             };
             let (cos, sin) = if turn == 0.0 {
                 (1.0, 0.0)
@@ -362,6 +573,13 @@ impl Drop for Sprites {
             gl::DeleteTextures(1, &self.white);
             gl::DeleteProgram(self.plain.prog);
             gl::DeleteProgram(self.spun.prog);
+            gl::DeleteProgram(self.model.prog);
+            for mesh in &self.meshes {
+                gl::DeleteBuffers(1, &mesh.vbo);
+                if !crate::gl::es() {
+                    gl::DeleteVertexArrays(1, &mesh.vao);
+                }
+            }
         }
     }
 }

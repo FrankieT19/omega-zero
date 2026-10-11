@@ -29,6 +29,7 @@ fn placed(s: &Shelf) -> Vec<(f32, f32)> {
             Draw::Tex { x, w, .. } => (x, w),
             Draw::Turned { x, w, .. } => (x, w),
             Draw::Spun { x, w, .. } => (x, w),
+            Draw::Model { x, w, .. } => (x, w),
             Draw::Game | Draw::Shot { .. } => (0.0, out_w() as f32),
         })
         .collect()
@@ -39,7 +40,8 @@ fn xw(d: &Draw) -> (f32, f32) {
         Draw::Rect { x, w, .. }
         | Draw::Tex { x, w, .. }
         | Draw::Turned { x, w, .. }
-        | Draw::Spun { x, w, .. } => (x, w),
+        | Draw::Spun { x, w, .. }
+        | Draw::Model { x, w, .. } => (x, w),
         Draw::Game | Draw::Shot { .. } => (0.0, out_w() as f32),
     }
 }
@@ -537,7 +539,8 @@ fn cart_spans(out: &[Draw]) -> Vec<(f32, f32)> {
         .filter_map(|d| match *d {
             Draw::Rect { x, y, w, h, .. }
             | Draw::Tex { x, y, w, h, .. }
-            | Draw::Turned { x, y, w, h, .. } => (h > 60.0 && y < bar).then_some((x, x + w)),
+            | Draw::Turned { x, y, w, h, .. }
+            | Draw::Model { x, y, w, h, .. } => (h > 60.0 && y < bar).then_some((x, x + w)),
             Draw::Spun {
                 x, y, w, h, depth, ..
             } => (depth == 0.0 && h > 60.0 && y < bar).then_some((x, x + w)),

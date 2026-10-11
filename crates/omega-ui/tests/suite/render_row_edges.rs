@@ -192,6 +192,7 @@ fn the_slot_takes_over_the_cart_where_the_row_had_it() {
         colours: ChromeColours::default(),
         cart: &cart,
         face: Some(faces[s.index]),
+        mesh: None,
         rest,
         scale,
         pose: s.pose(),

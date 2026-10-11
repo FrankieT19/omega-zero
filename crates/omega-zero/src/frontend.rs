@@ -4,10 +4,10 @@ use omega_gfx::{out_h, out_w, Bezel, Compositor, Draw, TexId};
 use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_ui::{
-    arrows_hint_face, badge_face, bezel_mark_face, cart_face, cart_shadow, chip_face,
+    arrows_hint_face, badge_face, bezel_mark_face, cart_face, cart_mesh, cart_shadow, chip_face,
     chip_shadow_face, gb_cart_shadow, hint_face, icon_face, mark_height, mark_rect, menu_face, rim,
-    socket_face, toast_face, wallpaper_face, GbShell, Icon, LinkBadge, Toast, UndoFace, ALERT_PX,
-    BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
+    socket_face, toast_face, wallpaper_face, CartMeshes, CartModel, GbShell, Icon, LinkBadge,
+    Toast, UndoFace, ALERT_PX, BEZEL_FILL, HUD_ICON_PX, HUD_INK, LEGEND,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
@@ -278,6 +278,12 @@ impl Frontend {
         let rounded = gb_cart_shadow(GbShell::Rounded);
         let rounded = compositor.create_texture(rounded.w, rounded.h, &rounded.rgba);
         self.session.app_mut().set_gb_cart_shadows(notched, rounded);
+        let meshes = CartMeshes {
+            gba: compositor.create_mesh(&cart_mesh(CartModel::Gba)),
+            gb: compositor.create_mesh(&cart_mesh(CartModel::Gb(GbShell::Notched))),
+            gbc: compositor.create_mesh(&cart_mesh(CartModel::Gb(GbShell::Rounded))),
+        };
+        self.session.app_mut().set_cart_meshes(meshes);
         self.upload_wallpaper(compositor);
     }
 

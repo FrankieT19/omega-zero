@@ -129,6 +129,10 @@ impl Compositor {
         self.sprites.create_texture(w, h, rgba)
     }
 
+    pub fn create_mesh(&mut self, vertices: &[crate::draw::MeshVertex]) -> crate::draw::MeshId {
+        self.sprites.create_mesh(vertices)
+    }
+
     pub fn create_texture_nearest(&mut self, w: u32, h: u32, rgba: &[u8]) -> TexId {
         self.sprites.create_texture_nearest(w, h, rgba)
     }

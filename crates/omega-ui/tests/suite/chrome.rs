@@ -61,7 +61,8 @@ fn quad(d: &Draw) -> Quad {
         Draw::Rect { x, y, w, h, .. }
         | Draw::Tex { x, y, w, h, .. }
         | Draw::Turned { x, y, w, h, .. }
-        | Draw::Spun { x, y, w, h, .. } => Quad { x, y, w, h },
+        | Draw::Spun { x, y, w, h, .. }
+        | Draw::Model { x, y, w, h, .. } => Quad { x, y, w, h },
         Draw::Game | Draw::Shot { .. } => Quad {
             x: 0.0,
             y: 0.0,
@@ -110,7 +111,9 @@ fn as_lip(d: &Draw) -> Option<Quad> {
 
 fn alpha(d: &Draw) -> f32 {
     match *d {
-        Draw::Rect { colour, .. } | Draw::Spun { colour, .. } => colour[3],
+        Draw::Rect { colour, .. } | Draw::Spun { colour, .. } | Draw::Model { colour, .. } => {
+            colour[3]
+        }
         Draw::Tex { alpha, .. } | Draw::Turned { alpha, .. } => alpha,
         Draw::Game | Draw::Shot { .. } => 1.0,
     }
@@ -148,6 +151,7 @@ fn chrome_into(c: &Cart, seat: f32, out: &mut Vec<Draw>) {
         colours: ChromeColours::default(),
         cart: c,
         face: None,
+        mesh: None,
         rest,
         scale,
         pose: Pose::REST,
@@ -179,6 +183,7 @@ fn a_cart_the_row_had_not_finished_moving_slides_across_as_it_goes_in() {
             colours: ChromeColours::default(),
             cart: &c,
             face: Some(face),
+            mesh: None,
             rest,
             scale,
             pose: Pose::REST,
@@ -237,6 +242,7 @@ fn draw_powering_on(t: f32, out: &mut Vec<Draw>) {
         colours: ChromeColours::default(),
         cart: &c,
         face: None,
+        mesh: None,
         rest: centre_x(),
         scale: 1.0,
         pose: Pose::REST,
@@ -723,6 +729,7 @@ fn the_empty_slot_is_the_same_slot_the_chrome_draws() {
         colours: ChromeColours::default(),
         cart: &c,
         face: None,
+        mesh: None,
         rest: centre_x(),
         scale: 1.0,
         pose: Pose::REST,
@@ -958,6 +965,7 @@ fn a_swaying_cart_squares_up_on_its_way_to_the_lip_and_back() {
             colours: ChromeColours::default(),
             cart: &c,
             face: Some(face),
+            mesh: None,
             rest: centred(&c),
             scale: 1.0,
             pose,
