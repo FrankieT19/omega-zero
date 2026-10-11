@@ -6,7 +6,10 @@
 #
 #   device=<MAC>	<audio|gamepad|keyboard|other>	<paired>	<trusted>	<connected>	<name>
 #
-# paired, trusted and connected are yes or no, and the name is empty for a device that gave none.
+# paired, trusted and connected are yes or no. The name is the one the device gave, else the alias
+# it was given, unless that is only its address, as bluetoothd aliases a device that gave no
+# name: a device only found with neither is left out, as most are beacons nobody can pair with.
+# One paired is always listed, by its alias whatever that is.
 #
 # Exit codes: 0 done, 1 Bluetooth is not up (or would not come up), 2 a verb or address this
 # script does not take, 3 the pairing failed, 4 paired but the connection failed.
@@ -18,7 +21,8 @@ BT_SYS="${AGS_BT_SYS:-/sys/class/bluetooth}"
 TTY="${AGS_BT_TTY:-/dev/ttyS1}"
 BAUD="${AGS_BT_BAUD:-115200}"
 WAIT_S="${AGS_BT_WAIT_S:-10}"
-SCAN_S="${AGS_BT_SCAN_S:-60}"
+SCAN_S="${AGS_BT_SCAN_S:-20}"
+FIND_S="${AGS_BT_FIND_S:-10}"
 PAIR_S="${AGS_BT_PAIR_S:-20}"
 CONNECT_S="${AGS_BT_CONNECT_S:-15}"
 CTL_S="${AGS_BT_CTL_S:-5}"
@@ -78,6 +82,11 @@ mac_ok() {
 	case "$1" in
 	*[!0-9A-Fa-f:]*) return 1 ;;
 	esac
+}
+
+# An address written with dashes or colons, as bluetoothd aliases a device that gave no name.
+address() {
+	mac_ok "$(printf '%s' "$1" | tr - :)"
 }
 
 # The radio's rfkill switch: the one whose type is bluetooth.
@@ -177,15 +186,23 @@ bt_devices() {
 	ctl devices | while read -r word mac _; do
 		[ "$word" = Device ] && mac_ok "$mac" || continue
 		info="$(ctl info "$mac")" || continue
+		paired="$(yes_no "$(field "$info" Paired)")"
+		name="$(field "$info" Name)"
+		if [ -z "$name" ]; then
+			alias="$(field "$info" Alias)"
+			if [ "$paired" = yes ] || ! address "$alias"; then
+				name="$alias"
+			fi
+		fi
+		[ -n "$name" ] || [ "$paired" = yes ] || continue
 		case "$(field "$info" Icon)" in
 		audio-card | audio-headset | audio-headphones) kind=audio ;;
 		input-gaming) kind=gamepad ;;
 		input-keyboard) kind=keyboard ;;
 		*) kind=other ;;
 		esac
-		printf 'device=%s\t%s\t%s\t%s\t%s\t%s\n' "$mac" "$kind" \
-			"$(yes_no "$(field "$info" Paired)")" "$(yes_no "$(field "$info" Trusted)")" \
-			"$(yes_no "$(field "$info" Connected)")" "$(field "$info" Name)"
+		printf 'device=%s\t%s\t%s\t%s\t%s\t%s\n' "$mac" "$kind" "$paired" \
+			"$(yes_no "$(field "$info" Trusted)")" "$(yes_no "$(field "$info" Connected)")" "$name"
 	done
 }
 
@@ -202,8 +219,9 @@ bt_status() {
 	bt_devices
 }
 
-# Discovery lasts as long as the bluetoothctl that asked for it, and at most SCAN_S, so a
-# frontend that is gone stops it too; omega-zero asks again while it wants more.
+# Discovery lasts as long as the bluetoothctl that asked for it: until omega-zero turns it off,
+# which it does once it has looked for long enough, and at most SCAN_S, so a frontend that is
+# gone stops it too.
 bt_scan() {
 	case "${1:-}" in
 	on)
@@ -215,6 +233,11 @@ bt_scan() {
 	off) stop_pid "$SCAN_PID" ;;
 	*) return 2 ;;
 	esac
+}
+
+# bluetoothd knows device $1: it is paired, or was found not long ago.
+known() {
+	ctl info "$1" | grep -qi "^Device $1 ("
 }
 
 # A line for the pairing bluetoothctl to run.
@@ -266,13 +289,27 @@ until_yes() {
 	return 1
 }
 
+# bluetoothd forgets a device only found within half a minute of discovery stopping, while
+# omega-zero still offers it: the pairing bluetoothctl looks for $1 again, for up to $2 seconds,
+# until it is back.
+refind() {
+	known "$1" && return 0
+	say "scan on"
+	w=0
+	while ! known "$1" && [ "$w" -lt $(($2 * 4)) ]; do
+		nap
+		w=$((w + 1))
+	done
+	say "scan off"
+}
+
 # Pairs with $1, trusts it so it may connect again by itself, then connects it. One bluetoothctl
 # stays up throughout as the agent, NoInputNoOutput: the pairing is Just Works, which most
 # gamepads and headphones take.
 bt_pair() {
 	mac_ok "${1:-}" || return 2
 	running || return 1
-	# discovery slows a pairing down; omega-zero starts it again
+	# discovery slows a pairing down; omega-zero looks again only when asked
 	stop_pid "$SCAN_PID"
 	/bin/rm -f "$PAIR_FIFO" "$PAIR_LOG"
 	mkfifo "$PAIR_FIFO" || return 1
@@ -287,6 +324,7 @@ bt_pair() {
 		# the default agent is the one asked about a device connecting back as it pairs
 		say default-agent
 		logged 'Default agent request successful' "$CTL_S"
+		refind "$1" "$FIND_S"
 		say "pair $1"
 		if until_yes "$1" Paired "$PAIR_S" 'Failed to pair|not available'; then
 			say "trust $1"
