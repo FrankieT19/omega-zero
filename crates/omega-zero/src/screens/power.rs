@@ -5,20 +5,21 @@
 //!
 //! They are put over the screen POWER was held on rather than taking its place, so whatever is
 //! under them carries on as it was (a game held still) and B goes back to exactly where it was.
-//! The menu opens deeper from that screen: the screen leaves to the right, the shelf by its three
-//! ways, as the menu comes in from the left, and B is the mirror. A game's picture cannot slide,
-//! so it gives way to the backdrop at once and comes back once the menu has gone: the menus are
-//! drawn over the backdrop, and the power menu is one of them. Its bar is every menu's, B RETURN
-//! and A CONFIRM.
+//! The menu opens deeper from that screen, sliding down rather than across: it comes down from
+//! the top as the screen drops out of the bottom, the shelf as one, and B is the mirror, the
+//! menu going back up as the screen rises into place. A game's picture cannot slide, so it gives
+//! way to the backdrop at once and comes back once the menu has gone: the menus are drawn over
+//! the backdrop, and the power menu is one of them. Its bar is every menu's, B RETURN and A
+//! CONFIRM.
 //!
 //! A choice slides on deeper to the screen after it, titled RESTART or POWER OFF, which says what
-//! is happening. Nothing can be pressed there, so it has no actions: the whole bar sinks away as
-//! it slides in, as it does when a cart goes in. A power off omega-zero decides on its own, for a
-//! flat battery or a long doze, slides the same screen in over whatever is shown. It stays until
-//! the machine goes down: the last frame drawn before the platform restarts or powers off is left
-//! on the panel while it does.
+//! is happening, coming down from the top as the menu drops away. Nothing can be pressed there,
+//! so it has no actions: the whole bar sinks away as it slides in, as it does when a cart goes
+//! in. A power off omega-zero decides on its own, for a flat battery or a long doze, slides the
+//! same screen in over whatever is shown. It stays until the machine goes down: the last frame
+//! drawn before the platform restarts or powers off is left on the panel while it does.
 
-use omega_gfx::out_w;
+use omega_gfx::out_h;
 use omega_input::{Action, Btn, Millis};
 use omega_ui::kit::palette::Palette;
 use omega_ui::kit::panel::panel_face;
@@ -29,7 +30,7 @@ use omega_ui::{Draw, PowerChoice, UndoFace};
 
 use crate::app::{backdrop_under, App};
 use crate::list_view::{RowLabel, ViewRow};
-use crate::nav::{offsets, progress, Dir, End, Offsets, SLIDE_MS};
+use crate::nav::{dropping, progress, Dir, End, Offsets, SLIDE_MS};
 use crate::screens::lone::{hold, over, rows_height, Lone, NOTE_GAP, NOTE_X};
 
 /// How wide both panels are, in art pixels: flow.css's .lone.small.
@@ -213,15 +214,15 @@ impl App {
     }
 
     /// The power screens over the backdrop and, through a slide, the screen POWER was held on
-    /// leaving or coming back; then the bar and the HUD over them.
+    /// leaving or coming back, each moving down or up; then the bar and the HUD over them.
     pub(crate) fn draw_power(&self, out: &mut Vec<Draw>) {
         self.draw_background(out);
         match &self.power_slide {
             Some(slide) => {
-                let (p, w) = (slide.progress(self.now()), out_w() as f32);
-                let leaving = offsets(slide.dir, End::Leaving, p, w);
+                let (p, h) = (slide.progress(self.now()), out_h() as f32);
+                let leaving = dropping(slide.dir, End::Leaving, p, h);
                 self.draw_power_end(slide.from, leaving, out);
-                let arriving = offsets(slide.dir, End::Arriving, p, w);
+                let arriving = dropping(slide.dir, End::Arriving, p, h);
                 self.draw_power_end(self.power_screen, arriving, out);
             }
             None => self.draw_power_end(self.power_screen, Offsets::NONE, out),
@@ -245,7 +246,7 @@ impl App {
         let start = out.len();
         panel.draw(out);
         for d in &mut out[start..] {
-            *d = d.shifted(off.dx, 0.0);
+            *d = d.shifted(off.dx, off.dy);
         }
     }
 }

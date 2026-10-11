@@ -7,18 +7,21 @@ use omega_input::{Action, Btn, Millis};
 use omega_store::{read_app_state, write_app_state, AppState};
 use omega_ui::kit::bar::Hint;
 use omega_ui::kit::palette::palette;
+use omega_ui::kit::row::row_width;
 use omega_ui::kit::text::text_face;
 use omega_ui::network::networks_shown;
-use omega_ui::network::{network_chrome, NOTE_IN};
+use omega_ui::network::{info_chrome, network_chrome, NOTE_IN};
 use omega_ui::Layer;
 use omega_ui::SettingsRow;
 use omega_zero::app::{App, Phase};
 use omega_zero::screens::bar::FORGET;
+use omega_zero::screens::bar::INFO;
 use omega_zero::screens::bar::SCAN;
+use omega_zero::screens::info::{wifi_view, InfoView, NETWORK_SHOWN};
 use omega_zero::wifi::{
     Saved, Seen, Status, WifiJob, WifiJobs, WifiNews, GLANCE_MS, JOIN_TIMEOUT_MS,
 };
-use omega_zero::wifi_screen::{Lit, NetworkLine, NetworkView, Sel, SettingLine, Summary};
+use omega_zero::wifi_screen::{Lit, NetworkLine, NetworkView, Sel, SettingLine, Summary, Wifi};
 use tempfile::TempDir;
 
 #[derive(Default)]
@@ -249,6 +252,7 @@ fn joined(ssid: &str, ip: Option<&str>) -> WifiNews {
         ssid: Some(ssid.as_bytes().to_vec()),
         ip: ip.map(str::to_string),
         rssi: Some(-50),
+        mac: Some("e4:5f:01:2a:9c:33".into()),
         hostname: "rg35xxsp".into(),
         ntp: true,
         ntp_synced: true,
@@ -436,7 +440,7 @@ fn x_does_nothing_while_a_scan_runs_or_with_wifi_off() {
 }
 
 #[test]
-fn x_scan_shows_on_the_bar_with_wifi_on_and_y_forget_beside_it_on_a_saved_network() {
+fn x_scan_shows_on_the_bar_with_wifi_on_and_y_info_or_y_forget_beside_it() {
     assert_eq!(
         SCAN,
         Hint {
@@ -447,11 +451,15 @@ fn x_scan_shows_on_the_bar_with_wifi_on_and_y_forget_beside_it_on_a_saved_networ
     let mut r = Rig::new();
     r.open_wifi();
     r.a.finish_slide();
-    assert_eq!(r.a.bar_hints_shown(), [], "X SCAN with Wi-Fi off");
+    assert_eq!(r.a.bar_hints_shown(), [INFO], "X SCAN with Wi-Fi off");
     r.press(Btn::A);
-    assert_eq!(r.a.bar_hints_shown(), [SCAN]);
+    assert_eq!(r.a.bar_hints_shown(), [SCAN, INFO]);
     r.press(Btn::X);
-    assert_eq!(r.a.bar_hints_shown(), [SCAN], "the hint left mid-scan");
+    assert_eq!(
+        r.a.bar_hints_shown(),
+        [SCAN, INFO],
+        "the hint left mid-scan"
+    );
     r.radio.say(heard(&[
         ("Home", -48, true),
         ("Café", -60, false),
@@ -464,6 +472,11 @@ fn x_scan_shows_on_the_bar_with_wifi_on_and_y_forget_beside_it_on_a_saved_networ
         refused: false,
     }]));
     r.tick(16);
+    for row in [Sel::Clock, Sel::Ssh] {
+        r.press(Btn::Down);
+        assert_eq!(r.sel(), row);
+        assert_eq!(r.a.bar_hints_shown(), [SCAN, INFO], "on {row:?}");
+    }
     r.go_to("Home");
     assert_eq!(
         r.a.bar_hints_shown(),
@@ -568,19 +581,20 @@ fn leaving_the_screen_scans_no_more_and_coming_back_starts_without_what_it_found
 }
 
 #[test]
-fn the_ssh_screen_under_network_keeps_what_the_scan_found() {
+fn a_rows_panel_under_network_keeps_what_the_scan_found() {
     let mut r = Rig::new();
     r.on_with(&[("Home", -48, true), ("Café", -60, false)], &[]);
-    r.press(Btn::Down);
-    r.press(Btn::Down);
-    assert_eq!(r.sel(), Sel::Ssh);
-    r.press(Btn::Left);
-    r.press(Btn::A);
-    assert!(matches!(r.a.phase(), Phase::Ssh(_)), "{:?}", r.a.phase());
-    r.tick(5_000);
-    r.press(Btn::B);
-    assert!(matches!(r.a.phase(), Phase::Network(_)));
-    assert_eq!(r.names(), ["Home", "Café"]);
+    for row in [Sel::Wifi, Sel::Clock, Sel::Ssh] {
+        while r.sel() != row {
+            r.press(Btn::Down);
+        }
+        r.press(Btn::Y);
+        assert!(matches!(r.a.phase(), Phase::Info(_)), "{:?}", r.a.phase());
+        r.tick(5_000);
+        r.press(Btn::B);
+        assert_eq!(r.sel(), row, "B came back to another row");
+        assert_eq!(r.names(), ["Home", "Café"]);
+    }
     assert_eq!(scans(&r.radio), 0);
 }
 
@@ -1141,4 +1155,214 @@ fn the_shelf_glances_at_the_link_and_asks_its_status_only_when_a_glance_disagree
         (3..=6).contains(&refreshes),
         "{refreshes} statuses in ten seconds of glances that disagree"
     );
+}
+
+/// The panel Y opened, with what it says.
+fn info(r: &Rig) -> InfoView {
+    r.a.info_view().expect("no panel is open")
+}
+
+/// A status with Home joined or not, and network time on, set by a server or not.
+fn timed(joined: bool, synced: bool) -> WifiNews {
+    WifiNews::Status(Status {
+        enabled: true,
+        state: if joined { "COMPLETED" } else { "SCANNING" }.into(),
+        ssid: joined.then(|| b"Home".to_vec()),
+        ip: joined.then(|| "192.168.1.20".into()),
+        rssi: joined.then_some(-50),
+        mac: Some("e4:5f:01:2a:9c:33".into()),
+        hostname: "rg35xxsp".into(),
+        ntp: true,
+        ntp_synced: synced,
+    })
+}
+
+#[test]
+fn y_on_each_of_networks_rows_opens_its_panel_and_switches_nothing() {
+    let mut r = Rig::new();
+    r.on_saved(&[(0, "Home")]);
+    r.radio.say(joined("Home", Some("192.168.1.20")));
+    r.tick(16);
+    for (row, title) in [
+        (Sel::Wifi, "WI-FI"),
+        (Sel::Clock, "NETWORK TIME"),
+        (Sel::Ssh, "SSH"),
+    ] {
+        while r.sel() != row {
+            r.press(Btn::Down);
+        }
+        let was = (r.a.wifi().enabled(), r.a.wifi().ntp(), r.a.ssh_on());
+        r.radio.forget_asked();
+        r.press(Btn::Y);
+        assert!(matches!(r.a.phase(), Phase::Info(_)), "{:?}", r.a.phase());
+        assert_eq!(info(&r).title, title);
+        r.press(Btn::B);
+        assert_eq!(r.sel(), row, "B came back to another row");
+        assert_eq!(
+            (r.a.wifi().enabled(), r.a.wifi().ntp(), r.a.ssh_on()),
+            was,
+            "Y on {row:?} switched something"
+        );
+        let switched = r.radio.asked().into_iter().find(|job| {
+            matches!(
+                job,
+                WifiJob::Up | WifiJob::Down | WifiJob::Clock(_) | WifiJob::Forget(_)
+            )
+        });
+        assert_eq!(switched, None, "Y on {row:?} asked the radio");
+    }
+}
+
+#[test]
+fn wifi_says_the_network_joined_and_how_the_handheld_is_known_on_it() {
+    let mut r = Rig::new();
+    r.on_saved(&[(0, "Home")]);
+    r.radio.say(joined("Home", Some("192.168.1.20")));
+    r.tick(16);
+    r.press(Btn::Y);
+    let line = |label, value: &str| (label, value.to_string());
+    assert_eq!(
+        info(&r),
+        InfoView {
+            title: "WI-FI",
+            lines: vec![
+                line("NETWORK", "Home"),
+                line("SIGNAL", "-50 dBm"),
+                line("IP", "192.168.1.20"),
+                line("HOST", "rg35xxsp.local"),
+                line("MAC", "e4:5f:01:2a:9c:33"),
+            ],
+            note: "Networks: Config/wifi.conf",
+        }
+    );
+}
+
+#[test]
+fn wifi_says_what_comes_first_until_the_handheld_has_an_address() {
+    let mut r = Rig::new();
+    r.open_wifi();
+    assert!(!r.a.wifi().enabled());
+    let mut notes = Vec::new();
+    let mut note = |r: &mut Rig| {
+        r.press(Btn::Y);
+        let view = info(r);
+        assert!(view.lines.is_empty(), "{view:?}");
+        notes.push(view.note);
+        r.press(Btn::B);
+    };
+    note(&mut r);
+    r.press(Btn::A);
+    note(&mut r);
+    r.radio.say(joined("Home", None));
+    r.tick(16);
+    note(&mut r);
+    assert_eq!(
+        notes,
+        [
+            "Turn Wi-Fi on first.",
+            "Not connected to a network.",
+            "Waiting for an address…",
+        ]
+    );
+    let none = Wifi::new(Box::new(Radio::absent()));
+    assert_eq!(wifi_view(&none).note, "This handheld has no Wi-Fi.");
+}
+
+#[test]
+fn a_long_network_name_is_cut_to_fit_its_line() {
+    let long = "The Long Network Name Of Upstairs";
+    let mut r = Rig::new();
+    r.on_saved(&[(0, long)]);
+    r.radio.say(joined(long, Some("192.168.1.20")));
+    r.tick(16);
+    r.press(Btn::Y);
+    let (label, name) = info(&r).lines[0].clone();
+    assert_eq!(label, "NETWORK");
+    assert_eq!(name, "The Long Network Name…");
+    assert_eq!(name.chars().count(), NETWORK_SHOWN);
+    // the row's inside less its name and the room the name keeps (kit/row.rs)
+    let pal = palette(0);
+    let well = info_chrome("WI-FI", 5, pal).well;
+    let room = row_width(well[2]) - 2 * (1 + 4) - 6 - text_face("NETWORK", pal.dim).w;
+    let longest = "W".repeat(NETWORK_SHOWN);
+    assert!(
+        text_face(&longest, pal.dim).w <= room + 1,
+        "{NETWORK_SHOWN} letters are wider than the {room} pixels the line has"
+    );
+}
+
+#[test]
+fn network_time_says_whether_a_server_set_the_clock_and_what_it_shows() {
+    let state = AppState {
+        wifi: true,
+        utc_offset_min: -180,
+        ..AppState::default()
+    };
+    let mut r = Rig::with(state, Radio::default());
+    r.on_saved(&[(0, "Home")]);
+    r.radio.say(timed(true, true));
+    r.tick(16);
+    r.press(Btn::Down);
+    assert_eq!(r.sel(), Sel::Clock);
+    r.press(Btn::Y);
+    let line = |label, value: &str| (label, value.to_string());
+    // the test clock: 2026-08-12 20:53 UTC, three hours behind
+    assert_eq!(
+        info(&r),
+        InfoView {
+            title: "NETWORK TIME",
+            lines: vec![
+                line("STATUS", "SYNCED"),
+                line("DATE", "2026-08-12"),
+                line("TIME", "17:53"),
+                line("ZONE", "UTC-03:00"),
+            ],
+            note: "Set the zone in Date & Time",
+        }
+    );
+    r.radio.say(timed(true, false));
+    r.tick(16);
+    let view = info(&r);
+    assert_eq!(view.lines[0], line("STATUS", "WAITING"));
+    assert_eq!(view.note, "Waiting for a time server…");
+    r.radio.say(timed(false, false));
+    r.tick(16);
+    let view = info(&r);
+    assert_eq!(view.lines[0], line("STATUS", "WAITING"));
+    assert_eq!(view.note, "Join a Wi-Fi network first.");
+    r.press(Btn::B);
+    r.press(Btn::Left);
+    assert!(!r.a.wifi().ntp(), "Left did not switch network time off");
+    r.press(Btn::Y);
+    let view = info(&r);
+    assert!(view.lines.is_empty(), "{view:?}");
+    assert_eq!(view.note, "Turn Network Time on first.");
+}
+
+#[test]
+fn every_note_of_wifis_and_network_times_panels_fits() {
+    let notes = [
+        "This handheld has no Wi-Fi.",
+        "Turn Wi-Fi on first.",
+        "Not connected to a network.",
+        "Waiting for an address…",
+        "Networks: Config/wifi.conf",
+        "Turn Network Time on first.",
+        "Set the zone in Date & Time",
+        "Waiting for a time server…",
+        "Join a Wi-Fi network first.",
+    ];
+    let pal = palette(0);
+    for lines in [0, 4, 5] {
+        let well = info_chrome("WI-FI", lines, pal).well;
+        for note in notes {
+            let face = text_face(note, pal.dim);
+            assert!(
+                face.w + NOTE_IN * 2 <= well[2],
+                "{note:?} is {} wide in a well {} wide",
+                face.w,
+                well[2]
+            );
+        }
+    }
 }

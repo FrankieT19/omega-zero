@@ -20,8 +20,8 @@ use omega_zero::core_picker::OPEN_MS;
 use omega_zero::label_screen::LabelsScreen;
 use omega_zero::label_sync::Account;
 use omega_zero::nav::SLIDE_MS;
-use omega_zero::screens::bar::SCAN;
 use omega_zero::screens::bar::{Actions, BarSet, SWAP};
+use omega_zero::screens::bar::{INFO, SCAN};
 use omega_zero::wifi::{Saved, Seen, WifiJob, WifiJobs, WifiNews};
 use omega_zero::wifi_screen::{Sel, Typing, WifiScreen};
 use tempfile::TempDir;
@@ -473,7 +473,7 @@ fn network_at(ssid: &str) -> Phase {
 }
 
 #[test]
-fn network_puts_x_scan_on_the_bar_and_y_forget_beside_it_on_a_saved_network() {
+fn network_puts_x_scan_on_the_bar_and_y_info_or_y_forget_beside_it() {
     let (_d, mut a) = on_shelf();
     a.tick_ms(1_000);
     assert!(
@@ -486,10 +486,14 @@ fn network_puts_x_scan_on_the_bar_and_y_forget_beside_it_on_a_saved_network() {
         [hint("X", "SCAN"), hint("Y", "FORGET")]
     );
     assert_eq!(a.bar_hints(&network_at("Café")), [hint("X", "SCAN")]);
-    assert_eq!(
-        a.bar_hints(&Phase::Network(WifiScreen::default())),
-        [hint("X", "SCAN")]
-    );
+    assert_eq!(INFO, hint("Y", "INFO"));
+    for sel in [Sel::Wifi, Sel::Clock, Sel::Ssh] {
+        let row = Phase::Network(WifiScreen {
+            sel,
+            ..WifiScreen::default()
+        });
+        assert_eq!(a.bar_hints(&row), [hint("X", "SCAN"), hint("Y", "INFO")]);
+    }
     let typing = Phase::Network(WifiScreen {
         typing: Some(Typing {
             ssid: "Café".as_bytes().to_vec(),

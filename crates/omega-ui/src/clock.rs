@@ -192,7 +192,7 @@ impl ClockPicker {
             self.day,
             self.hour,
             self.minute,
-            self.offset_text()
+            offset_text(self.offset_min)
         )
     }
 
@@ -258,15 +258,20 @@ impl ClockPicker {
             Field::Day => format!("{:02}", self.day),
             Field::Hour => format!("{:02}", self.hour),
             Field::Minute => format!("{:02}", self.minute),
-            Field::Offset => format!("UTC{}", self.offset_text()),
+            Field::Offset => zone_text(self.offset_min),
         }
     }
+}
 
-    fn offset_text(&self) -> String {
-        let sign = if self.offset_min < 0 { '-' } else { '+' };
-        let mins = self.offset_min.abs();
-        format!("{sign}{:02}:{:02}", mins / 60, mins % 60)
-    }
+/// A time zone `offset_min` minutes from UTC as the picker shows it: `UTC+05:30`.
+pub fn zone_text(offset_min: i64) -> String {
+    format!("UTC{}", offset_text(offset_min))
+}
+
+fn offset_text(offset_min: i64) -> String {
+    let sign = if offset_min < 0 { '-' } else { '+' };
+    let mins = offset_min.abs();
+    format!("{sign}{:02}:{:02}", mins / 60, mins % 60)
 }
 
 fn wrap(v: i64, lo: i64, hi: i64) -> i64 {

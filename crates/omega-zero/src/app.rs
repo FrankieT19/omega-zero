@@ -37,10 +37,10 @@ use crate::nav::{even, offsets, Dir, End, Offsets, Slide, SLIDE_MS};
 use crate::persist::{self, Snapshot};
 use crate::screens::bar::BarFaces;
 use crate::screens::clock::clock_screen;
+use crate::screens::info::InfoScreen;
 use crate::screens::keyboard::typing_of;
 use crate::screens::lone::Lone;
 use crate::screens::power::{PowerScreen, PowerSlide};
-use crate::screens::ssh::SshScreen;
 use crate::ssh::{ssh_server, Ssh};
 use crate::video_mode::{self, VideoMode};
 use crate::wifi::{wifi_jobs, WifiJobs};
@@ -246,8 +246,8 @@ pub enum Phase {
     Network(WifiScreen),
     /// Bluetooth and its devices, opened from Settings.
     Bluetooth(BluetoothScreen),
-    /// How to reach the handheld over SSH, opened from Network.
-    Ssh(SshScreen),
+    /// The panel Y opened on one of Network's rows: Wi-Fi, network time or SSH.
+    Info(InfoScreen),
     Labels(LabelsScreen),
     Background(BackgroundScreen),
     Doze {
@@ -347,7 +347,7 @@ pub struct App {
     pub(crate) wifi: Wifi,
     pub(crate) ssh: Ssh,
     pub(crate) network_faces: Option<omega_ui::network::NetworkFaces>,
-    pub(crate) ssh_faces: Option<omega_ui::network::SshFaces>,
+    pub(crate) info_faces: Option<omega_ui::network::InfoFaces>,
     pub(crate) controls_panel: Option<Lone>,
     pub(crate) keyboard_faces: Option<KeyboardFaces>,
     pub(crate) link_faces: Option<LinkFaces>,
@@ -397,7 +397,7 @@ impl App {
             wifi: Wifi::new(wifi_jobs()),
             ssh: Ssh::new(ssh_server()),
             network_faces: None,
-            ssh_faces: None,
+            info_faces: None,
             controls_panel: None,
             keyboard_faces: None,
             link_faces: None,
@@ -1181,7 +1181,7 @@ impl App {
             Phase::Controls => self.controls_input(action),
             Phase::Network(_) => self.network_input(action),
             Phase::Bluetooth(_) => self.bluetooth_input(action),
-            Phase::Ssh(_) => self.ssh_input(action),
+            Phase::Info(_) => self.info_input(action),
             Phase::Labels(_) => self.labels_input(action),
             Phase::Background(_) => self.background_input(action),
             _ => {}
@@ -1260,7 +1260,7 @@ impl App {
     /// only need to know whether there is one.
     pub fn wifi_watch(&self) -> Watch {
         match self.phase {
-            Phase::Network(_) | Phase::Ssh(_) => Watch::Networks,
+            Phase::Network(_) | Phase::Info(_) => Watch::Networks,
             Phase::Settings { .. } => Watch::Status,
             Phase::Shelf | Phase::Inserting { .. } | Phase::Ejecting { .. } | Phase::Labels(_) => {
                 Watch::Glance
@@ -1885,7 +1885,7 @@ impl App {
                 }
             }
             Phase::Bluetooth(_) => self.draw_bluetooth(out),
-            Phase::Ssh(_) => self.draw_ssh(out),
+            Phase::Info(_) => self.draw_info(out),
             Phase::About => self.draw_about(out),
             Phase::Inserting { cart, resumed, .. } => {
                 if !resumed {
@@ -1921,7 +1921,7 @@ impl App {
             }),
         }
         for d in &mut out[start..] {
-            *d = d.shifted(off.dx, 0.0);
+            *d = d.shifted(off.dx, off.dy);
         }
     }
 

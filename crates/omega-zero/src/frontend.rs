@@ -27,13 +27,13 @@ mod sync_clock;
 mod sync_controls;
 mod sync_core_picker;
 mod sync_hud;
+mod sync_info;
 mod sync_keyboard;
 mod sync_labels;
 mod sync_link;
 mod sync_network;
 mod sync_power;
 mod sync_settings;
-mod sync_ssh;
 mod sync_switcher;
 mod sync_top_bar;
 
@@ -46,13 +46,13 @@ use sync_clock::{sync_clock, Clocks};
 use sync_controls::sync_controls;
 use sync_core_picker::sync_core_picker;
 use sync_hud::{sync_hud, HudTexes};
+use sync_info::{sync_info, InfoTexes};
 use sync_keyboard::{sync_keyboard, KeyboardTexes};
 use sync_labels::sync_labels;
 use sync_link::{sync_link, LinkTexes};
 use sync_network::{sync_network, NetworkTexes};
 use sync_power::{sync_power, PowerPanels};
 use sync_settings::{sync_settings, SettingsTexes};
-use sync_ssh::{sync_ssh, SshTexes};
 use sync_switcher::{sync_switcher, Switcher};
 use sync_top_bar::{sync_top_bar, TopBarTexes};
 
@@ -85,7 +85,7 @@ pub struct Frontend {
     bluetooth_modal: BluetoothTexes,
     /// The keyboard's window, field, keys and lit key.
     keyboard: KeyboardTexes,
-    ssh: SshTexes,
+    info: InfoTexes,
     labels: Baked<(ListView, u8)>,
     controls: Baked<u8>,
     background: Baked<(ListView, u8)>,
@@ -146,7 +146,7 @@ impl Frontend {
             network_modal: NetworkTexes::default(),
             bluetooth_modal: BluetoothTexes::default(),
             keyboard: KeyboardTexes::default(),
-            ssh: SshTexes::default(),
+            info: InfoTexes::default(),
             labels: Baked::default(),
             controls: Baked::default(),
             background: Baked::default(),
@@ -270,7 +270,7 @@ impl Frontend {
             &mut self.bluetooth_modal,
         );
         sync_keyboard(self.session.app_mut(), compositor, &mut self.keyboard);
-        sync_ssh(self.session.app_mut(), compositor, &mut self.ssh);
+        sync_info(self.session.app_mut(), compositor, &mut self.info);
         sync_controls(self.session.app_mut(), compositor, &mut self.controls);
         sync_labels(self.session.app_mut(), compositor, &mut self.labels);
         sync_background(

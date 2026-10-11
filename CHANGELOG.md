@@ -72,10 +72,13 @@
   Until then it lists the network joined and the saved ones, with a note to press X. It no
   longer scans every 12 seconds while it is open, which cost battery and, on the RG35XX SP,
   came before reboots that sometimes hung.
-- SSH steps through ON, OFF and INFO. ON starts the SSH server and OFF stops it, leaving a
-  login already made to carry on; the card remembers which. A on INFO shows how to log in from a
-  computer: the address, `<name>.local`, user `root`, the password and port 22. SFTP uses the
-  same login.
+- Wi-Fi, Network Time and SSH are each ON or OFF, and Y on any of them opens its panel. Wi-Fi's
+  shows the network joined, its signal, the handheld's address, `<name>.local` and the radio's
+  MAC address. Network Time's shows whether a time server has set the clock, and the date, time
+  and zone. SSH's shows how to log in from a computer: the address, `<name>.local`, user `root`,
+  the password and port 22. SFTP uses the same login.
+- SSH ON starts the SSH server and OFF stops it, leaving a login already made to carry on; the
+  card remembers which.
 - The first time omega-zero runs on a card whose `baseos.conf` sets no `ssh_password`, it gives
   root a password of six random digits, at once and in `baseos.conf`, so BaseOS keeps it. A
   password you set there yourself is kept.
@@ -83,7 +86,7 @@
 - Theme, Date & Time and Labels are panels over the background, and the passphrase
   keyboard is a window.
 - In the menus the bottom bar says B RETURN and A CONFIRM. A screen's own keys sit in the middle
-  of it: Y FORGET on Network, START FETCH and Y SIGN OUT on Labels. Between its two ends there is
+  of it: Y INFO and Y FORGET on Network, START FETCH and Y SIGN OUT on Labels. Between its two ends there is
   nothing but those keys, over the background.
 - Every move between screens slides, over a background that keeps moving. Going into a screen,
   the one you leave goes out to the right and the new one comes in from the left; coming back is
@@ -116,8 +119,9 @@
   left out rather than shown by its address.
 - Holding POWER opens POWER, a panel like the other menus over the background, with RESTART and
   POWER OFF and B RETURN and A CONFIRM on the bar; B goes back to where you were, a game
-  included. After a choice, in place of the black screen, a RESTART or POWER OFF panel says
-  "Restarting…" or "Turning off…" until the handheld goes down, and the bar sinks away.
+  included. It comes down from the top as the screen under it drops away, and goes back up. After
+  a choice, in place of the black screen, a RESTART or POWER OFF panel comes down the same way and
+  says "Restarting…" or "Turning off…" until the handheld goes down, and the bar sinks away.
 
 ### For developers
 

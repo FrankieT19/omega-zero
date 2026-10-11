@@ -1,23 +1,10 @@
-//! SSH, opened from Network's SSH row on INFO: how to log in to the handheld from a computer on
-//! the same network. The row switches the server on and off; SFTP comes with it.
+//! SSH: switched on and off by Network's SSH row, and its panel, opened by Y on that row: how
+//! to log in to the handheld from a computer on the same network. SFTP comes with it.
 
-use omega_input::{Action, Btn};
-use omega_ui::network::SshFaces;
-use omega_ui::Draw;
-
-use crate::app::{App, Phase};
-use crate::nav::Dir;
-use crate::ssh::{read_ssh_password, Ssh, SshServer, Trouble, SSH_PORT};
+use crate::app::App;
+use crate::screens::info::{host, InfoView};
+use crate::ssh::{Ssh, SshServer, Trouble, SSH_PORT};
 use crate::wifi::Status;
-use crate::wifi_screen::{Sel as WifiSel, WifiScreen};
-
-/// What the SSH screen shows: each line a name and its value, then a note under them. With SSH
-/// off or no network joined there are no lines, only the note.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SshView {
-    pub lines: Vec<(&'static str, String)>,
-    pub note: &'static str,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SshScreen {
@@ -31,33 +18,22 @@ pub struct SshScreen {
 
 impl SshScreen {
     /// How to log in, as the radio's `status` says the handheld can be reached.
-    pub fn view(&self, status: &Status) -> SshView {
+    pub fn view(&self, status: &Status) -> InfoView {
+        const TITLE: &str = "SSH";
         if !self.on {
-            return SshView {
-                lines: Vec::new(),
-                note: "Turn SSH on first.",
-            };
+            return InfoView::note(TITLE, "Turn SSH on first.");
         }
         if !status.joined() {
-            return SshView {
-                lines: Vec::new(),
-                note: "Join a Wi-Fi network first.",
-            };
+            return InfoView::note(TITLE, "Join a Wi-Fi network first.");
         }
         let Some(ip) = &status.ip else {
-            return SshView {
-                lines: Vec::new(),
-                note: "Waiting for an address…",
-            };
+            return InfoView::note(TITLE, "Waiting for an address…");
         };
-        let host = match status.hostname.as_str() {
-            "" => ip.clone(),
-            name => format!("{name}.local"),
-        };
-        SshView {
+        InfoView {
+            title: TITLE,
             lines: vec![
                 ("IP", ip.clone()),
-                ("HOST", host),
+                ("HOST", host(status, ip)),
                 ("USER", "root".to_string()),
                 ("PASSWORD", self.password.clone()),
                 ("PORT", SSH_PORT.to_string()),
@@ -70,25 +46,6 @@ impl SshScreen {
 }
 
 impl App {
-    pub(crate) fn open_ssh(&mut self) {
-        let screen = SshScreen {
-            password: read_ssh_password(self.root.as_deref()),
-            on: self.state.ssh,
-            trouble: self.ssh.trouble(),
-        };
-        self.go(Phase::Ssh(screen), Dir::Deeper);
-    }
-
-    pub(crate) fn ssh_input(&mut self, action: Action) {
-        if matches!(action, Action::GbaDown(Btn::B) | Action::QuickMenu) {
-            let back = Phase::Network(WifiScreen {
-                sel: WifiSel::Ssh,
-                ..WifiScreen::default()
-            });
-            self.go(back, Dir::Back);
-        }
-    }
-
     /// SSH is switched on.
     pub fn ssh_on(&self) -> bool {
         self.state.ssh
@@ -108,23 +65,5 @@ impl App {
     pub fn set_ssh_server(&mut self, server: Box<dyn SshServer>) {
         self.ssh = Ssh::new(server);
         self.ssh.start(self.state.ssh, self.root.as_deref());
-    }
-
-    /// The SSH screen's lines, while it is open.
-    pub fn ssh_view(&self) -> Option<SshView> {
-        match &self.phase {
-            Phase::Ssh(screen) => Some(screen.view(self.wifi.status())),
-            _ => None,
-        }
-    }
-
-    pub fn set_ssh_faces(&mut self, faces: SshFaces) {
-        self.ssh_faces = Some(faces);
-    }
-
-    pub(crate) fn draw_ssh(&self, out: &mut Vec<Draw>) {
-        if let Some(faces) = &self.ssh_faces {
-            faces.draw(out);
-        }
     }
 }

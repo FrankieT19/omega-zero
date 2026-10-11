@@ -193,10 +193,11 @@ omega-panel.hug { flex: none; }
    every row does, and the note 4 below them, or 4 below the well's top while there are none */
 .devices .note { margin-top: calc(4 * var(--u)); }
 
-/* SSH: the login, or what to do first when there is no Wi-Fi */
-.ssh .note { margin-top: calc(4 * var(--u)); padding-bottom: calc(2 * var(--u)); }
-.ssh.offline .note { padding-bottom: calc(5 * var(--u)); }
-.ssh:not(.offline) .when-offline, .ssh.offline .when-online { display: none; }
+/* The panels Y opens on Network's rows (WI-FI, NETWORK TIME, SSH): their rows and a note under
+   them, or, offline, a note on its own saying what to do first */
+.info .note { margin-top: calc(4 * var(--u)); padding-bottom: calc(2 * var(--u)); }
+.info.offline .note { padding-bottom: calc(5 * var(--u)); }
+.info:not(.offline) .when-offline, .info.offline .when-online { display: none; }
 
 /* Controls: SHELF and IN GAME side by side, each a column of buttons and what they do, 16 art
    pixels between them. The widest line, SELECT+L1/R1 LOAD/SAVE STATE, sets the panel's width:
@@ -235,7 +236,7 @@ omega-panel.hug { flex: none; }
   width: calc(100% - var(--u)); height: var(--u); background: var(--oz-frame-hi);
 }
 
-/* The screen after the power menu's choice: its note on its own, as SSH's offline one */
+/* The screen after the power menu's choice: its note on its own, as an offline info panel's */
 .going .note { margin-top: calc(4 * var(--u)); padding-bottom: calc(5 * var(--u)); }
 
 /* Labels */

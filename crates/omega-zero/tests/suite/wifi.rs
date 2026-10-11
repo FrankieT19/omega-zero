@@ -137,6 +137,8 @@ bssid=02:00:00:00:00:01
 ssid=Caf\\xc3\\xa9
 wpa_state=COMPLETED
 ip_address=192.168.1.20
+p2p_device_address=e6:5f:01:2a:9c:33
+address=e4:5f:01:2a:9c:33
 RSSI=-52
 hostname=rg35xxsp
 ntp=yes
@@ -147,6 +149,7 @@ ntp_synced=no
     assert_eq!(s.ssid.as_deref(), Some("Café".as_bytes()));
     assert_eq!(s.ip.as_deref(), Some("192.168.1.20"));
     assert_eq!(s.rssi, Some(-52));
+    assert_eq!(s.mac.as_deref(), Some("e4:5f:01:2a:9c:33"));
     assert_eq!(s.hostname, "rg35xxsp");
     assert!(s.ntp && !s.ntp_synced);
 }

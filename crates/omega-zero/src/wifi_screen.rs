@@ -1,5 +1,5 @@
 //! The Network screen, opened from Settings: switching Wi-Fi, network time and SSH, the way to
-//! SSH's login, the networks in reach, and typing a passphrase for a new one.
+//! each one's panel, the networks in reach, and typing a passphrase for a new one.
 
 use omega_input::{Action, Btn, Millis};
 use omega_ui::network::{network_window, networks_shown};
@@ -19,7 +19,7 @@ pub enum Watch {
     Glance,
     /// Something on screen names the network: its status is kept fresh.
     Status,
-    /// The Network screen is open, or the SSH screen opened from it: its status is kept fresh,
+    /// The Network screen is open, or a panel opened from it: its status is kept fresh,
     /// and what a scan finds is kept until it closes. Nothing scans by itself: X on the screen
     /// asks for each scan.
     Networks,
@@ -456,37 +456,36 @@ fn noted(ssid: &[u8]) -> String {
 pub enum Sel {
     Wifi,
     Clock,
-    /// SSH, on or off, and on INFO the way into how to log in over it.
     Ssh,
     Network(Vec<u8>),
 }
 
-/// What the SSH row shows: whether SSH is on, or INFO, which is no state of its own but the way
-/// into the SSH screen.
+/// What a panel opened from one of NETWORK's rows by Y tells about: Wi-Fi, network time or SSH.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SshValue {
-    On,
-    Off,
-    Info,
+pub enum Topic {
+    Wifi,
+    Time,
+    Ssh,
 }
 
-impl SshValue {
-    /// The order Left and Right step through, round and round.
-    const ALL: [SshValue; 3] = [SshValue::On, SshValue::Off, SshValue::Info];
-
-    fn label(self) -> &'static str {
-        match self {
-            SshValue::On => "ON",
-            SshValue::Off => "OFF",
-            SshValue::Info => "INFO",
+impl Topic {
+    /// The topic of NETWORK's row `sel`, or None for a network.
+    pub fn of(sel: &Sel) -> Option<Topic> {
+        match sel {
+            Sel::Wifi => Some(Topic::Wifi),
+            Sel::Clock => Some(Topic::Time),
+            Sel::Ssh => Some(Topic::Ssh),
+            Sel::Network(_) => None,
         }
     }
 
-    /// The value `by` steps on, Right forward and Left back.
-    fn step(self, by: isize) -> SshValue {
-        let n = Self::ALL.len() as isize;
-        let at = Self::ALL.iter().position(|v| *v == self).unwrap_or(0) as isize;
-        Self::ALL[(at + by).rem_euclid(n) as usize]
+    /// The row on NETWORK it is opened from, which B goes back to.
+    pub fn row(self) -> Sel {
+        match self {
+            Topic::Wifi => Sel::Wifi,
+            Topic::Time => Sel::Clock,
+            Topic::Ssh => Sel::Ssh,
+        }
     }
 }
 
@@ -507,9 +506,6 @@ pub struct WifiScreen {
     /// The first network in view, in a list longer than its panel.
     pub first: usize,
     pub typing: Option<Typing>,
-    /// The SSH row shows INFO, for A to open the SSH screen. It shows SSH's state again once
-    /// the cursor leaves it, and whenever the screen is opened afresh.
-    pub info: bool,
 }
 
 impl Default for WifiScreen {
@@ -519,7 +515,6 @@ impl Default for WifiScreen {
             at: 0,
             first: 0,
             typing: None,
-            info: false,
         }
     }
 }
@@ -528,8 +523,8 @@ impl Default for WifiScreen {
 pub enum Outcome {
     Stay,
     Close,
-    /// Open the SSH screen, which says how to reach the handheld.
-    Ssh,
+    /// Open the panel that tells about a row: Y on WI-FI, NETWORK TIME or SSH.
+    Info(Topic),
     /// Switch SSH on or off.
     SwitchSsh(bool),
 }
@@ -604,30 +599,7 @@ impl WifiScreen {
         // the cursor up in NETWORK leaves the list where it was
         let lit = at.checked_sub(settings).unwrap_or(self.first);
         self.first = network_window(lit, networks, self.first, in_view);
-        if self.sel != Sel::Ssh {
-            self.info = false;
-        }
         at
-    }
-
-    /// What the SSH row shows, with SSH `on` or not.
-    fn ssh_value(&self, on: bool) -> SshValue {
-        match (self.info, on) {
-            (true, _) => SshValue::Info,
-            (false, true) => SshValue::On,
-            (false, false) => SshValue::Off,
-        }
-    }
-
-    /// Left or Right on the SSH row: landing on ON or OFF switches SSH so, landing on INFO
-    /// leaves it as it is.
-    fn step_ssh(&mut self, ssh_on: bool, by: isize) -> Outcome {
-        let value = self.ssh_value(ssh_on).step(by);
-        self.info = value == SshValue::Info;
-        match value {
-            SshValue::Info => Outcome::Stay,
-            on_off => Outcome::SwitchSsh(on_off == SshValue::On),
-        }
     }
 
     fn entry(&self, wifi: &Wifi) -> Option<Entry> {
@@ -656,23 +628,19 @@ impl WifiScreen {
             Action::GbaDown(Btn::Left | Btn::Right | Btn::A) if self.sel == Sel::Clock => {
                 wifi.set_ntp(!wifi.ntp());
             }
-            Action::GbaDown(Btn::Left) if self.sel == Sel::Ssh => {
-                outcome = self.step_ssh(ssh_on, -1);
-            }
-            Action::GbaDown(Btn::Right) if self.sel == Sel::Ssh => {
-                outcome = self.step_ssh(ssh_on, 1);
-            }
-            // on INFO A opens the login, on ON or OFF it switches SSH, as A does Wi-Fi
-            Action::GbaDown(Btn::A) if self.sel == Sel::Ssh && self.info => return Outcome::Ssh,
-            Action::GbaDown(Btn::A) if self.sel == Sel::Ssh => {
+            Action::GbaDown(Btn::Left | Btn::Right | Btn::A) if self.sel == Sel::Ssh => {
                 outcome = Outcome::SwitchSsh(!ssh_on)
             }
             Action::GbaDown(Btn::A) => self.pick(wifi, now),
-            Action::GbaDown(Btn::Y) => {
-                if let Some(id) = self.entry(wifi).and_then(|e| e.saved) {
-                    wifi.forget(id);
+            // on NETWORK's rows Y opens the row's panel, on a saved network it forgets it
+            Action::GbaDown(Btn::Y) => match Topic::of(&self.sel) {
+                Some(topic) => return Outcome::Info(topic),
+                None => {
+                    if let Some(id) = self.entry(wifi).and_then(|e| e.saved) {
+                        wifi.forget(id);
+                    }
                 }
-            }
+            },
             Action::GbaDown(Btn::X) => wifi.scan(),
             _ => {}
         }
@@ -748,6 +716,11 @@ impl WifiScreen {
         self.entry(wifi).is_some_and(|e| e.saved.is_some())
     }
 
+    /// Whether Y opens a panel: the cursor is on one of NETWORK's rows.
+    pub fn informs(&self) -> bool {
+        Topic::of(&self.sel).is_some()
+    }
+
     /// What the modal shows, with SSH `ssh_on` or not.
     pub fn view(&mut self, wifi: &Wifi, ssh_on: bool) -> NetworkView {
         let rows = self.rows(wifi);
@@ -767,7 +740,7 @@ impl WifiScreen {
                 },
                 Sel::Ssh => SettingLine {
                     label: "SSH",
-                    value: Some(self.ssh_value(ssh_on).label()),
+                    value: on_off(ssh_on),
                     carets: true,
                     opens: false,
                 },

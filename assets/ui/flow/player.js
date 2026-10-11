@@ -20,7 +20,10 @@
       does. Only on the screen after the power menu's choice, where nothing can be pressed, does
       the whole bar sink away, dy = even(p·38), as it does on the device when a cart goes in.
     Holding POWER (P) opens the power menu deeper from whatever screen is shown, and its B goes
-      back to that screen.
+      back to that screen. The power menu and the screens after its choice slide down rather than
+      across: going deeper, the screen on show drops out of the bottom, dy = +even(p·H), as the
+      next comes down from the top, dy = −even((1 − p)·H), the shelf as one, its top bar, carts
+      and slot together; going back is the mirror, up out of the top and up from the bottom.
 
   Everything is placed with left and top in whole pixels, a frame at a time, from
   requestAnimationFrame: no transforms and no CSS transitions, so nothing ever lands between
@@ -54,7 +57,8 @@
   const screens = FlowScreens.build(screen);
 
   const NAMES = {
-    shelf: 'Shelf', settings: 'Settings', network: 'Network', ssh: 'SSH', keyboard: 'Keyboard',
+    shelf: 'Shelf', settings: 'Settings', network: 'Network', wifi: 'Wi-Fi', time: 'Network Time',
+    ssh: 'SSH', keyboard: 'Keyboard',
     bluetooth: 'Bluetooth', labels: 'Labels', datetime: 'Date & Time', background: 'Theme', about: 'About',
     controls: 'Controls', power: 'Power', restarting: 'Restarting', poweroff: 'Power Off',
   };
@@ -72,6 +76,10 @@
   // Which way the screen a slide leaves goes, 1 right or −1 left: right going deeper, left going
   // back, and the mirror of each between the shelf and Settings.
   const leavesTo = slide => (slide.dir === 'in' ? 1 : -1) * (aside(slide) ? -1 : 1);
+  // The power menu and the screens after its choice: a slide to or from one goes down rather
+  // than across, the screen it leaves going down where it would go right.
+  const POWERS = ['power', ...GOING];
+  const drops = ({ from, to }) => POWERS.includes(from) || POWERS.includes(to);
 
   const state = { current: 'shelf', slide: null, slow: false, armed: false };
   const duration = () => SLIDE_MS * (state.slow ? 5 : 1);
@@ -85,13 +93,29 @@
     const [W, H] = size();
     shelf.top.style.top = `${-even(k * TOP_H)}px`;
     shelf.carts.style.left = `${side * even(k * (W + WIDEST)) + 0}px`;
+    shelf.carts.style.top = `${TOP_H}px`;
     shelf.slot.style.top = `${H - SLOT_RISE + even(k * SLOT_RISE)}px`;
   }
 
   // A screen `dx` pixels across; the shelf instead `k` of the way out, its carts to `side`.
   function place(name, dx, k, side) {
-    if (name === 'shelf') placeShelf(k, side);
-    else page(name).style.left = `${dx}px`;
+    if (name === 'shelf') return placeShelf(k, side);
+    page(name).style.left = `${dx}px`;
+    page(name).style.top = '0px';
+  }
+
+  // A screen `dy` pixels down, the shelf as one: its top bar, carts and slot together.
+  function placeDown(name, dy) {
+    if (name !== 'shelf') {
+      page(name).style.left = '0px';
+      page(name).style.top = `${dy}px`;
+      return;
+    }
+    const [, H] = size();
+    shelf.top.style.top = `${dy}px`;
+    shelf.carts.style.left = '0px';
+    shelf.carts.style.top = `${TOP_H + dy}px`;
+    shelf.slot.style.top = `${H - SLOT_RISE + dy}px`;
   }
 
   // Only these screens' parts shown; the rest are hidden, keeping their layout.
@@ -137,12 +161,18 @@
   function render(slide) {
     const { from, to, t } = slide;
     const p = ease(t);
-    const [W] = size();
+    const [W, H] = size();
     const sign = leavesTo(slide);
-    const leaving = sign * even(p * W);
-    const arriving = -sign * even((1 - p) * W);
-    place(from, leaving, p, sign);
-    place(to, arriving, 1 - p, -sign);
+    const down = drops(slide);
+    const leaving = sign * even(p * (down ? H : W));
+    const arriving = -sign * even((1 - p) * (down ? H : W));
+    if (down) {
+      placeDown(from, leaving);
+      placeDown(to, arriving);
+    } else {
+      place(from, leaving, p, sign);
+      place(to, arriving, 1 - p, -sign);
+    }
     const [before, after] = [barOf(from), barOf(to)];
     let sunk = 0;
     let drop = 0;
@@ -270,7 +300,9 @@
     box.textContent = [
       `${NAMES[slide.from]} → ${NAMES[slide.to]}, ${way}${slide.hold ? ', held' : ''}`,
       `t ${slide.t.toFixed(3)}  p ${p.toFixed(3)}  frame ${Math.round(slide.t * frames)}/${frames}`,
-      shelfK === null
+      drops(slide)
+        ? `leaving dy ${leaving}px  arriving dy ${arriving}px  actions ${sunk}px down`
+        : shelfK === null
         ? `leaving dx ${leaving}px  arriving dx ${arriving}px  actions ${sunk}px down`
         : `shelf: top ${-even(shelfK * TOP_H)}px  carts ${carts}px  slot ${even(shelfK * SLOT_RISE)}px  ` +
           `menu dx ${menuDx}px  actions ${sunk}px down`,
@@ -297,6 +329,7 @@
     if (!model.moving) q.set('moving', '0');
     if (model.font !== 'bold') q.set('font', model.font);
     if (!model.wifi) q.set('wifi', 'off');
+    if (!model.ntp) q.set('ntp', 'off');
     if (FlowScreens.scanState() !== 'none') q.set('scan', FlowScreens.scanState());
     if (FlowScreens.bluetoothState() !== 'on') q.set('bt', FlowScreens.bluetoothState());
     if (state.slow) q.set('slow', '1');
@@ -331,6 +364,7 @@
     FlowScreens.set('moving', q.get('moving') !== '0');
     FlowScreens.set('font', pick('font', FONTS, 'bold'));
     FlowScreens.set('wifi', q.get('wifi') !== 'off');
+    FlowScreens.set('ntp', q.get('ntp') !== 'off');
     FlowScreens.scanAs(pick('scan', FlowScreens.SCAN, 'none'));
     FlowScreens.bluetoothAs(pick('bt', FlowScreens.BT, 'on'));
     state.slow = q.get('slow') === '1';

@@ -63,6 +63,7 @@ impl WifiJobs for Air {
                 ssid: joined.then(|| b"Home".to_vec()),
                 ip: joined.then(|| "192.168.1.20".into()),
                 rssi: joined.then_some(-48),
+                mac: None,
                 hostname: "rg35xxsp".into(),
                 ntp: true,
                 ntp_synced: joined,

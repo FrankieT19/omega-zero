@@ -10,8 +10,8 @@ const CORE_PICKER_RECEDE: f32 = 0.26;
 const CORE_PICKER_DIM: f32 = 0.614;
 
 impl App {
-    /// The shelf, its carts moved `off.carts_dx` across, its top bar `off.bar_dy` and its
-    /// slot `off.slot_dy` down.
+    /// The shelf, its carts moved `off.carts_dx` across and `off.carts_dy` down, its top bar
+    /// `off.bar_dy` and its slot `off.slot_dy` down.
     pub(crate) fn draw_shelf(&self, off: Offsets, out: &mut Vec<Draw>) {
         let colours = self.chrome_colours();
         let carts = out.len();
@@ -21,7 +21,7 @@ impl App {
                 let dim = 1.0 + (CORE_PICKER_DIM - 1.0) * open;
                 self.shelf()
                     .draw_row(Some(stem), 0.0, CORE_PICKER_RECEDE * open, dim, out);
-                shift(&mut out[carts..], off.carts_dx, 0.0);
+                shift(&mut out[carts..], off.carts_dx, off.carts_dy);
                 let slot = out.len();
                 draw_empty_slot(&colours, out);
                 shift(&mut out[slot..], 0.0, off.slot_dy);
@@ -29,7 +29,7 @@ impl App {
             _ => {
                 self.shelf()
                     .draw_row(None, self.shelf_shake(), 0.0, 1.0, out);
-                shift(&mut out[carts..], off.carts_dx, 0.0);
+                shift(&mut out[carts..], off.carts_dx, off.carts_dy);
                 let slot = out.len();
                 draw_empty_slot(&colours, out);
                 draw_slot_name(self.shelf_platform, self.slot_name_alpha(), out);

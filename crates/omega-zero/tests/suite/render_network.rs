@@ -1,6 +1,6 @@
 #![cfg(target_os = "macos")]
 
-//! The Network modal and the SSH panel as the frontend draws them, held pixel for pixel to the
+//! The Network modal and its rows' panels as the frontend draws them, held pixel for pixel to the
 //! kit's faces put where flow.html puts them, over a plain backdrop, and Network before, during
 //! and after X's scan to flow.html's own screenshots of it (omega-ui's tests/suite/network/ref).
 //! Set SCRATCH_PNG_DIR to a folder to have each frame written there.
@@ -21,7 +21,7 @@ use omega_ui::kit::palette::{palette, Palette};
 use omega_ui::kit::row::{row_face, row_rect, row_width, Row, ROW_H};
 use omega_ui::kit::text::text_face;
 use omega_ui::network::{
-    network_chrome, network_panels, network_title, ssh_chrome, ssh_rect, NOTE_IN, NOTE_TOP,
+    info_chrome, info_rect, network_chrome, network_panels, network_title, NOTE_IN, NOTE_TOP,
 };
 use omega_ui::{SettingsRow, UndoFace};
 use omega_zero::frontend::Frontend;
@@ -146,6 +146,7 @@ impl Rig {
                 ssid: Some(b"Home".to_vec()),
                 ip: Some("192.168.1.20".into()),
                 rssi: Some(-48),
+                mac: Some("e4:5f:01:2a:9c:33".into()),
                 hostname: "rg35xxsp".into(),
                 ntp: true,
                 ntp_synced: true,
@@ -192,23 +193,22 @@ impl Rig {
         self.tap(Btn::X);
     }
 
-    /// The SSH screen: down to SSH's row, back round from ON to INFO, then A.
-    fn open_ssh(&mut self) {
+    /// The panel of NETWORK's row `row` (0 WI-FI, 1 NETWORK TIME, 2 SSH): down to it, then Y.
+    fn open_info(&mut self, row: usize) {
         self.open_network();
-        self.tap(Btn::Down);
-        self.tap(Btn::Down);
-        self.tap(Btn::Left);
-        self.tap(Btn::A);
+        for _ in 0..row {
+            self.tap(Btn::Down);
+        }
+        self.tap(Btn::Y);
     }
 
-    /// The SSH screen with SSH switched off: on its row from ON to OFF, on to INFO, then A.
+    /// The SSH panel with SSH switched off: on its row from ON to OFF, then Y.
     fn open_ssh_switched_off(&mut self) {
         self.open_network();
         self.tap(Btn::Down);
         self.tap(Btn::Down);
         self.tap(Btn::Right);
-        self.tap(Btn::Right);
-        self.tap(Btn::A);
+        self.tap(Btn::Y);
     }
 
     /// The frame once the screen has slid into place, written out as `name` when asked.
@@ -415,8 +415,8 @@ fn the_modal_sits_where_flow_puts_it() {
         assert_eq!(modal_rect(), [16, 14, 288, 206]);
         assert_eq!(network_panels(3), [[4, 2, 280, 62], [4, 63, 280, 139]]);
         assert_eq!(network_panels(1), [[4, 2, 280, 36], [4, 37, 280, 165]]);
-        assert_eq!(ssh_rect(5), [60, 60, 200, 104], "flow's SSH panel");
-        assert_eq!(ssh_rect(0), [60, 91, 200, 42], "flow's SSH panel offline");
+        assert_eq!(info_rect(5), [60, 60, 200, 104], "flow's SSH panel");
+        assert_eq!(info_rect(0), [60, 91, 200, 42], "flow's SSH panel offline");
     }
     let [_, _, _, h] = modal_rect();
     for settings in [1, 3] {
@@ -457,7 +457,7 @@ fn network_joined_draws_flows_modal() {
 }
 
 #[test]
-fn the_ssh_row_steps_through_off_and_info_with_its_carets() {
+fn the_ssh_row_switches_off_and_on_with_its_carets() {
     let Ok(surface) = HeadlessSurface::new() else {
         return;
     };
@@ -471,7 +471,7 @@ fn the_ssh_row_steps_through_off_and_info_with_its_carets() {
     r.tap(Btn::Down);
     let pal = palette(NIGHT);
     let [x, y, _, _] = modal_rect();
-    for value in ["OFF", "INFO"] {
+    for value in ["OFF", "ON"] {
         r.tap(Btn::Right);
         let px = r.frame(&mut c, &format!("network-ssh-{}", value.to_lowercase()));
         let settings = [
@@ -590,6 +590,30 @@ fn the_lit_network_is_banded_and_its_panel_active() {
     shows(&px, &art, [mx, my], "Café Wi-Fi lit");
 }
 
+/// A row's panel titled `title` as flow.html draws it: `lines` down its well, `note` under them.
+fn info_art(title: &str, lines: &[(&str, &str)], note: &str, pal: &Palette) -> UndoFace {
+    let panel = info_chrome(title, lines.len(), pal);
+    let mut art = panel.face;
+    for (i, (label, value)) in lines.iter().enumerate() {
+        let row = Row {
+            label,
+            value: Some(value),
+            ..Row::default()
+        };
+        let [x, y, _, _] = row_rect(panel.well, i as u32);
+        lay(
+            &mut art,
+            &row_face(row_width(panel.well[2]), &row, pal),
+            x,
+            y,
+        );
+    }
+    let [x, y, _, _] = panel.well;
+    let y = y + lines.len() as u32 * ROW_H + NOTE_TOP;
+    lay(&mut art, &text_face(note, pal.dim), x + NOTE_IN, y);
+    art
+}
+
 #[test]
 fn ssh_draws_flows_lone_panel_joined_offline_and_switched_off() {
     let Ok(surface) = HeadlessSurface::new() else {
@@ -633,33 +657,57 @@ fn ssh_draws_flows_lone_panel_joined_offline_and_switched_off() {
             let mut r = Rig::new(colour, online);
             r.f.upload_faces(&mut c);
             if on {
-                r.open_ssh();
+                r.open_info(2);
             } else {
                 r.open_ssh_switched_off();
             }
             assert_eq!(r.f.app().ssh_on(), on, "{shot}");
             let px = r.frame(&mut c, &format!("{shot}-{name}"));
+            let art = info_art("SSH", lines, note, pal);
+            let [px0, py0, w, h] = info_rect(lines.len());
+            assert_eq!((art.w, art.h), (w, h));
+            shows(&px, &art, [px0, py0], &format!("{shot}, {name}"));
+        }
+    }
+}
 
-            let panel = ssh_chrome(lines.len(), pal);
-            let mut art = panel.face;
-            for (i, (label, value)) in lines.iter().enumerate() {
-                let row = Row {
-                    label,
-                    value: Some(value),
-                    ..Row::default()
-                };
-                let [x, y, _, _] = row_rect(panel.well, i as u32);
-                lay(
-                    &mut art,
-                    &row_face(row_width(panel.well[2]), &row, pal),
-                    x,
-                    y,
-                );
+#[test]
+fn wifi_and_network_time_draw_flows_lone_panel() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    let wifi = [
+        ("NETWORK", "Home"),
+        ("SIGNAL", "-48 dBm"),
+        ("IP", "192.168.1.20"),
+        ("HOST", "rg35xxsp.local"),
+        ("MAC", "e4:5f:01:2a:9c:33"),
+    ];
+    for (colour, name) in [(NIGHT, "night"), (AMBER, "amber")] {
+        let pal = palette(colour);
+        for (shot, online, row, title) in [
+            ("wifi", Online::Joined, 0, "WI-FI"),
+            ("wifi-unjoined", Online::Unjoined, 0, "WI-FI"),
+            ("time", Online::Joined, 1, "NETWORK TIME"),
+            ("time-unjoined", Online::Unjoined, 1, "NETWORK TIME"),
+        ] {
+            let mut r = Rig::new(colour, online);
+            r.f.upload_faces(&mut c);
+            r.open_info(row);
+            let px = r.frame(&mut c, &format!("{shot}-{name}"));
+            let view = r.f.app().info_view().expect("no panel open");
+            assert_eq!(view.title, title, "{shot}");
+            if shot == "wifi" {
+                let want: Vec<_> = wifi.iter().map(|&(l, v)| (l, v.to_string())).collect();
+                assert_eq!(view.lines, want);
             }
-            let [x, y, _, _] = panel.well;
-            let y = y + lines.len() as u32 * ROW_H + NOTE_TOP;
-            lay(&mut art, &text_face(note, pal.dim), x + NOTE_IN, y);
-            let [px0, py0, w, h] = ssh_rect(lines.len());
+            let lines: Vec<(&str, &str)> =
+                view.lines.iter().map(|(l, v)| (*l, v.as_str())).collect();
+            let art = info_art(title, &lines, view.note, pal);
+            let [px0, py0, w, h] = info_rect(lines.len());
             assert_eq!((art.w, art.h), (w, h));
             shows(&px, &art, [px0, py0], &format!("{shot}, {name}"));
         }
