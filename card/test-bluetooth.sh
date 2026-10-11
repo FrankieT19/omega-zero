@@ -29,19 +29,32 @@ stray() {
 	return 0
 }
 
-# A device bluetoothd knows: its `info`, as bluetoothctl prints it, and its line in `devices`.
-known() {
-	mac="$1" name="$2" icon="$3" paired="$4" trusted="$5" connected="$6"
+# A device's `info`, as bluetoothctl prints it, into the file $1; then its address, name, icon,
+# whether it is paired, trusted and connected, and its alias: the one given, else its name, else,
+# as bluetoothd has it for a device that gave none, its address with dashes.
+info() {
+	at="$1" mac="$2" name="$3" icon="$4" paired="$5" trusted="$6" connected="$7"
+	alias="${8:-${name:-$(echo "$mac" | tr : -)}}"
 	{
 		echo "Device $mac (public)"
-		[ -n "$name" ] && printf '\tName: %s\n\tAlias: %s\n' "$name" "$name"
-		[ -n "$name" ] || printf '\tAlias: %s\n' "$(echo "$mac" | tr : -)"
+		[ -n "$name" ] && printf '\tName: %s\n' "$name"
+		printf '\tAlias: %s\n' "$alias"
 		[ -n "$icon" ] && printf '\tIcon: %s\n' "$icon"
 		printf '\tPaired: %s\n\tBonded: %s\n\tTrusted: %s\n\tBlocked: no\n\tConnected: %s\n' \
 			"$paired" "$paired" "$trusted" "$connected"
 		printf '\tLegacyPairing: no\n'
-	} > "$TMP/info/$mac"
-	echo "Device $mac ${name:-$(echo "$mac" | tr : -)}" >> "$TMP/devices"
+	} > "$at"
+}
+
+# A device bluetoothd knows: its `info`, and its line in `devices`, which names it by its alias.
+known() {
+	info "$TMP/info/$1" "$@"
+	echo "Device $1 $alias" >> "$TMP/devices"
+}
+
+# A device in reach that bluetoothd has forgotten, or not found yet: a discovery finds it.
+reach() {
+	info "$TMP/reach/$1" "$@"
 }
 
 # bluetoothctl: each verb as the real one answers it, against the files under $TMP. Given
@@ -88,6 +101,16 @@ remove)
 		set -- \$line
 		case "\${1:-}" in
 		default-agent) echo 'Default agent request successful' ;;
+		scan)
+			[ "\${2:-}" = on ] || continue
+			for f in "\$T"/reach/*; do
+				[ -f "\$f" ] || continue
+				m="\$(basename "\$f")"
+				mv "\$f" "\$T/info/\$m"
+				echo "Device \$m \$(sed -n 's/^	Alias: //p' "\$T/info/\$m")" >> "\$T/devices"
+			done
+			echo 'Discovery started'
+			;;
 		pair)
 			if [ ! -f "\$T/info/\$2" ]; then echo "Device \$2 not available"; continue; fi
 			if [ -n "\${FAKE_PAIR_FAIL:-}" ]; then
@@ -141,9 +164,10 @@ fake() {
 
 reset() {
 	stray
-	rm -rf "$TMP/run" "$TMP/rfkill" "$TMP/sys" "$TMP/info" "$TMP/bin" "$TMP"/*.log "$TMP/devices" \
-		"$TMP/powered" "$TMP/discovering" "$TMP/bluetoothd" "$TMP/hciattach.pid"
-	mkdir -p "$TMP/run" "$TMP/rfkill/rfkill0" "$TMP/rfkill/rfkill1" "$TMP/sys" "$TMP/info" "$TMP/bin"
+	rm -rf "$TMP/run" "$TMP/rfkill" "$TMP/sys" "$TMP/info" "$TMP/reach" "$TMP/bin" "$TMP"/*.log \
+		"$TMP/devices" "$TMP/powered" "$TMP/discovering" "$TMP/bluetoothd" "$TMP/hciattach.pid"
+	mkdir -p "$TMP/run" "$TMP/rfkill/rfkill0" "$TMP/rfkill/rfkill1" "$TMP/sys" "$TMP/info" \
+		"$TMP/reach" "$TMP/bin"
 	echo wlan > "$TMP/rfkill/rfkill0/type"
 	echo 0 > "$TMP/rfkill/rfkill0/soft"
 	echo bluetooth > "$TMP/rfkill/rfkill1/type"
@@ -171,7 +195,7 @@ reset() {
 run() {
 	PATH="$TMP/bin:$PATH" \
 		AGS_RUN="$TMP/run" AGS_RFKILL_SYS="$TMP/rfkill" AGS_BT_SYS="$TMP/sys" \
-		AGS_BT_WAIT_S="${WAIT_S:-1}" AGS_BT_SCAN_S="${SCAN_S:-30}" AGS_BT_PAIR_S=2 \
+		AGS_BT_WAIT_S="${WAIT_S:-1}" AGS_BT_SCAN_S="${SCAN_S:-30}" AGS_BT_FIND_S=1 AGS_BT_PAIR_S=2 \
 		AGS_BT_CONNECT_S=2 AGS_BT_CTL_S=2 \
 		AGS_RTK_HCIATTACH="$TMP/bin/rtk_hciattach" AGS_HCICONFIG="$TMP/bin/hciconfig" \
 		AGS_BLUETOOTHCTL="$TMP/bin/bluetoothctl" AGS_SYSTEMCTL="$TMP/bin/systemctl" \
@@ -234,10 +258,19 @@ up
 known "$PAD" '8BitDo SN30 Pro' input-gaming yes yes yes
 known "$CANS" 'WH-1000XM4' audio-headphones yes yes no
 known "$KEYS" 'Keychron K3' input-keyboard no no no
-known "$ODD" '' '' no no no
 known AA:BB:CC:DD:EE:01 'Headset' audio-headset no no no
 known AA:BB:CC:DD:EE:02 'Speaker' audio-card no no no
 known AA:BB:CC:DD:EE:03 'Phone' phone no no no
+# found, and named only by an alias: the alias it was given, but not one that is its address
+known AA:BB:CC:DD:EE:04 '' audio-headset no no no 'Pixel Buds'
+known "$ODD" '' '' no no no
+known 4C:4C:6B:1A:80:D4 '' '' no no no '4C:4C:6B:1A:80:D4'
+known 4C:4C:6B:1A:80:D5 '' '' no no no '4c-4c-6b-1a-80-d5'
+# a name of its own over the alias it was given
+known AA:BB:CC:DD:EE:06 'Mi Smart Band 4' '' no no no 'Band'
+# paired with no name: by its alias, whatever it is
+known AA:BB:CC:DD:EE:07 '' input-gaming yes yes no
+known AA:BB:CC:DD:EE:08 '' input-keyboard yes no no 'Desk'
 echo 'Device not-a-mac Junk' >> "$TMP/devices"
 out="$(run status)"
 tab="$(printf '\t')"
@@ -245,11 +278,17 @@ for want in enabled=yes powered=yes discovering=no \
 	"device=$PAD${tab}gamepad${tab}yes${tab}yes${tab}yes${tab}8BitDo SN30 Pro" \
 	"device=$CANS${tab}audio${tab}yes${tab}yes${tab}no${tab}WH-1000XM4" \
 	"device=$KEYS${tab}keyboard${tab}no${tab}no${tab}no${tab}Keychron K3" \
-	"device=$ODD${tab}other${tab}no${tab}no${tab}no${tab}" \
 	"device=AA:BB:CC:DD:EE:01${tab}audio${tab}no${tab}no${tab}no${tab}Headset" \
 	"device=AA:BB:CC:DD:EE:02${tab}audio${tab}no${tab}no${tab}no${tab}Speaker" \
-	"device=AA:BB:CC:DD:EE:03${tab}other${tab}no${tab}no${tab}no${tab}Phone"; do
+	"device=AA:BB:CC:DD:EE:03${tab}other${tab}no${tab}no${tab}no${tab}Phone" \
+	"device=AA:BB:CC:DD:EE:04${tab}audio${tab}no${tab}no${tab}no${tab}Pixel Buds" \
+	"device=AA:BB:CC:DD:EE:06${tab}other${tab}no${tab}no${tab}no${tab}Mi Smart Band 4" \
+	"device=AA:BB:CC:DD:EE:07${tab}gamepad${tab}yes${tab}yes${tab}no${tab}AA-BB-CC-DD-EE-07" \
+	"device=AA:BB:CC:DD:EE:08${tab}keyboard${tab}yes${tab}no${tab}no${tab}Desk"; do
 	printf '%s\n' "$out" | grep -qxF -- "$want" || fail "status lacks $want"
+done
+for nameless in "$ODD" 4C:4C:6B:1A:80:D4 4C:4C:6B:1A:80:D5; do
+	printf '%s\n' "$out" | grep -q "^device=$nameless" && fail "status listed $nameless, found with no name"
 done
 printf '%s\n' "$out" | grep -q 'Junk' && fail "status passed on a line that is no device"
 
@@ -282,6 +321,7 @@ grep -q 'paired while discovering' "$TMP/agent.log" && fail "pair left discovery
 [ "$(grep -x -e default-agent -e "pair $KEYS" -e "trust $KEYS" -e "connect $KEYS" -e quit "$TMP/agent.log" | tr '\n' ' ')" \
 	= "default-agent pair $KEYS trust $KEYS connect $KEYS quit " ] \
 	|| fail "the agent was not asked to pair, trust and connect in turn: $(tr '\n' ' ' < "$TMP/agent.log")"
+grep -qx 'scan on' "$TMP/agent.log" && fail "a device bluetoothd knew was looked for again"
 grep -qx -- '--agent NoInputNoOutput' "$TMP/bluetoothctl.log" || fail "the pairing had no NoInputNoOutput agent"
 for prop in Paired Trusted Connected; do
 	grep -qx "	$prop: yes" "$TMP/info/$KEYS" || fail "after pair the device is not $prop"
@@ -301,6 +341,17 @@ known "$KEYS" 'Old Pad' '' no no no
 FAKE_PIN=1 run pair "$KEYS" && rc=0 || rc=$?
 [ "$rc" = 0 ] || fail "pair asked for a PIN exited $rc"
 grep -qx 0000 "$TMP/agent.log" || fail "the PIN asked for was not 0000"
+
+# a device omega-zero still offers, which bluetoothd forgot after it stopped looking
+reset
+up
+reach "$KEYS" 'Keychron K3' input-keyboard no no no
+run pair "$KEYS" && rc=0 || rc=$?
+[ "$rc" = 0 ] || fail "pairing with a device bluetoothd forgot exited $rc"
+[ "$(grep -x -e 'scan on' -e 'scan off' -e "pair $KEYS" "$TMP/agent.log" | tr '\n' ' ')" \
+	= "scan on scan off pair $KEYS " ] \
+	|| fail "the device was not looked for again before the pairing: $(tr '\n' ' ' < "$TMP/agent.log")"
+grep -qx '	Paired: yes' "$TMP/info/$KEYS" || fail "the device found again did not pair"
 
 reset
 up

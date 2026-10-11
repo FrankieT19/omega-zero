@@ -82,9 +82,9 @@ Walk it with the keyboard or the buttons under the screen:
 | Button | Keys |
 |---|---|
 | D-pad | arrows |
-| A | `X` or `A` |
+| A | `A` |
 | B | `Z`, `B` or `Esc` |
-| X | `S` |
+| X | `X` or `S` |
 | Y | `Y` |
 | START | `Enter` |
 | SELECT | `Space` or right `Shift` |
@@ -101,14 +101,19 @@ Network is left. The bar says `X SCAN` while Wi-Fi is on, and `X SCAN` `Y FORGET
 joined. With Wi-Fi off the list is empty and the note says "Wi-Fi is off.".
 
 Settings > Bluetooth is a modal like Network's: BLUETOOTH, its one row switching the radio ON
-or OFF with Left and Right, and DEVICES, each device it knows or finds while it is on, its name
-in its own case (its address when it gives none), what it is to the handheld (CONNECTED,
-CONNECTING, PAIRING, PAIRED, or nothing for one only found) and its kind's icon
-(`<omega-list-row device>`). A on a found device pairs with it and connects (PAIRING, then
-CONNECTED), on a paired one connects and on a connected one disconnects; Y forgets a paired
-device, and the bar says `Y FORGET` while the cursor is on one. With nothing to list, a note
-says "Looking for devices…", or with the radio off "Bluetooth is off.". Settings' BLUETOOTH row
-shows the connected device's name in capitals, else ON or OFF.
+or OFF with Left and Right, and DEVICES, while it is on the devices paired, then those a look
+finds, each with its name in its own case, what it is to the handheld (CONNECTED, CONNECTING,
+PAIRING, PAIRED, or nothing for one only found) and its kind's icon
+(`<omega-list-row device>`). A device found that gives no name is never listed. Opening the
+screen looks for nothing: a note under the paired devices says "Press X to look for devices.",
+and X looks for a few seconds, the note saying "Looking for devices…" while what it finds joins
+the list, then stops by itself; a look that finds nothing says "No devices found.". What a look
+found stays until the screen is left. A on a found device pairs with it and connects (PAIRING,
+then CONNECTED), ending a look under way, on a paired one connects and on a connected one
+disconnects; Y forgets a paired device. The bar says `X SCAN` while the radio is on, and
+`X SCAN` `Y FORGET` while the cursor is on a paired device. With the radio off the note says
+"Bluetooth is off.". Settings' BLUETOOTH row shows the connected device's name in capitals,
+else ON or OFF.
 
 The URL's hash says what is shown, and the page keeps it up to date as you walk, so a link or a
 headless Chrome screenshot lands on the same frame:
@@ -124,7 +129,7 @@ headless Chrome screenshot lands on the same frame:
 | `font` | `thin`: the bottom bar's labels in the thin font, as Settings > Theme > Font sets it |
 | `wifi` | `off`: SSH shows what it says offline, and Network lists no networks |
 | `scan` | Network's scan: `none` (default, as it opens), `running` (looking, standing still) or `done` (the networks found) |
-| `bt` | Bluetooth: `on` (default) with four devices, `off`, `pairing` (the keyboard pairing, the cursor on it) or `empty` (nothing found yet) |
+| `bt` | Bluetooth: `on` (default) as the screen opens, before any look, with the two paired devices; `off`; `empty` (nothing paired, before any look); `looking` (a look under way, held, the keyboard found so far); `found` (after it, the band found too); or `pairing` (after it, the keyboard pairing, the cursor on it) |
 | `row` | the cursor's row on `screen`, from 0 |
 | `slow` | `1`: slides at a fifth of their speed |
 | `shot` | `1`: the screen alone at the window's top left, for screenshots |

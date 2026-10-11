@@ -1,6 +1,6 @@
 //! The Bluetooth screen and the radio as the app knows it: Settings' BLUETOOTH row, switching
-//! Bluetooth, the devices list and what each key does on each device, its notes, discovery while
-//! the screen is open, the state the card keeps and the top bar's icon.
+//! Bluetooth, the devices list and what each key does on each device, its notes, the looks for
+//! devices X asks for, the state the card keeps and the top bar's icon.
 
 use crate::common;
 
@@ -13,12 +13,13 @@ use omega_ui::network::networks_shown;
 use omega_ui::SettingsRow;
 use omega_zero::app::{App, Phase};
 use omega_zero::bluetooth::{
-    BluetoothJob, BluetoothJobs, BluetoothNews, Device, DeviceKind, Fail, Status, REFRESH_MS,
-    SCAN_MS,
+    BluetoothJob, BluetoothJobs, BluetoothNews, Device, DeviceKind, Fail, Status, LOOK_MS,
+    REFRESH_MS,
 };
 use omega_zero::bluetooth_screen::{DeviceLine, Lit, Sel, Summary, Watch, DOING_MS, NOTE_MS};
 use omega_zero::nav::Dir;
 use omega_zero::screens::bar::FORGET;
+use omega_zero::screens::bluetooth::SCAN;
 use omega_zero::wifi_screen::SettingLine;
 use tempfile::TempDir;
 
@@ -70,6 +71,8 @@ impl BluetoothJobs for Radio {
 const PAD: &str = "E4:17:D8:9A:01:22";
 const CANS: &str = "38:18:4C:AB:CD:EF";
 const KEYS: &str = "DC:2C:26:01:02:03";
+const BAND: &str = "C8:0F:10:4D:7A:25";
+/// A device found that gave no name: a beacon, most likely.
 const ODD: &str = "4C:4C:6B:1A:80:D3";
 
 fn device(mac: &str, name: &str, kind: DeviceKind, paired: bool, connected: bool) -> Device {
@@ -83,15 +86,20 @@ fn device(mac: &str, name: &str, kind: DeviceKind, paired: bool, connected: bool
     }
 }
 
-/// flow.html's devices: the gamepad connected, the headphones paired, the keyboard and a device
-/// with no name found.
+/// flow.html's devices: the gamepad connected, the headphones paired, and the keyboard and the
+/// band found.
 fn flows() -> Vec<Device> {
     vec![
         device(PAD, "8BitDo SN30 Pro", DeviceKind::Gamepad, true, true),
         device(CANS, "WH-1000XM4", DeviceKind::Audio, true, false),
         device(KEYS, "Keychron K3", DeviceKind::Keyboard, false, false),
-        device(ODD, "", DeviceKind::Other, false, false),
+        device(BAND, "Mi Smart Band 4", DeviceKind::Other, false, false),
     ]
+}
+
+/// flow.html's paired devices alone.
+fn paired() -> Vec<Device> {
+    flows().into_iter().filter(|d| d.paired).collect()
 }
 
 fn status(devices: &[Device]) -> BluetoothNews {
@@ -191,8 +199,8 @@ impl Rig {
         );
     }
 
-    /// Opens the Bluetooth screen with Bluetooth on and these devices known.
-    fn on_with(&mut self, devices: &[Device]) {
+    /// Opens the Bluetooth screen with Bluetooth on and these devices known, before any look.
+    fn opened_with(&mut self, devices: &[Device]) {
         self.open();
         if !self.a.bluetooth().enabled() {
             self.press(Btn::A);
@@ -200,6 +208,45 @@ impl Rig {
         self.radio.say(status(devices));
         self.tick(16);
         self.radio.forget_asked();
+    }
+
+    /// Opens the Bluetooth screen with Bluetooth on, and looks once with X: the radio knows
+    /// these devices, during the look and after it.
+    fn on_with(&mut self, devices: &[Device]) {
+        self.opened_with(devices);
+        self.press(Btn::X);
+        self.radio.say(status(devices));
+        self.tick(16);
+        self.tick(LOOK_MS);
+        self.radio.say(status(devices));
+        self.tick(16);
+        assert!(!self.a.bluetooth().looking(), "the look did not end");
+        self.radio.forget_asked();
+    }
+
+    /// The jobs for discovery the radio has been asked, on and off, in turn.
+    fn scans(&self) -> Vec<bool> {
+        self.radio
+            .asked()
+            .into_iter()
+            .filter_map(|job| match job {
+                BluetoothJob::Scan(on) => Some(on),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Ticks for `ms`, a status from the radio answering every refresh it is asked.
+    fn answering(&mut self, devices: &[Device], ms: Millis) {
+        let mut left = ms;
+        while left > 0 {
+            let step = left.min(500);
+            if self.radio.asked().last() == Some(&BluetoothJob::Refresh) {
+                self.radio.say(status(devices));
+            }
+            self.tick(step);
+            left -= step;
+        }
     }
 
     fn sel(&self) -> Sel {
@@ -418,7 +465,7 @@ fn the_top_bar_lights_bluetooth_while_it_is_on() {
 }
 
 #[test]
-fn the_screen_looks_for_devices_while_open_and_stops_once_left() {
+fn opening_the_screen_never_looks_and_lists_only_the_paired_devices() {
     let mut r = Rig::on();
     r.radio.forget_asked();
     r.tick(5_000);
@@ -430,12 +477,17 @@ fn the_screen_looks_for_devices_while_open_and_stops_once_left() {
         [BluetoothJob::Refresh],
         "Settings did not ask which device is connected"
     );
+    r.radio.say(status(&flows()));
+    r.tick(16);
     r.radio.forget_asked();
     r.press(Btn::A);
     r.tick(16);
-    assert_eq!(r.radio.asked(), [BluetoothJob::Scan(true)]);
+    assert_eq!(r.scans(), [], "opening the screen looked for devices");
+    // the radio still knows the devices an earlier look found: only the paired ones are listed
     r.radio.say(status(&flows()));
     r.tick(16);
+    assert_eq!(r.names(), ["8BitDo SN30 Pro", "WH-1000XM4"]);
+    assert_eq!(r.notes(), ["Press X to look for devices."]);
     r.radio.forget_asked();
     r.tick(REFRESH_MS);
     assert_eq!(
@@ -443,25 +495,276 @@ fn the_screen_looks_for_devices_while_open_and_stops_once_left() {
         [BluetoothJob::Refresh],
         "the list went stale"
     );
-    r.radio.say(status(&flows()));
-    r.radio.forget_asked();
-    r.tick(SCAN_MS);
-    assert!(
-        r.radio.asked().contains(&BluetoothJob::Scan(true)),
-        "discovery was not asked for again before the script's ran out"
+    r.answering(&flows(), 120_000);
+    assert_eq!(r.scans(), [], "the screen looked for devices by itself");
+    assert_eq!(r.names(), ["8BitDo SN30 Pro", "WH-1000XM4"]);
+}
+
+#[test]
+fn with_no_device_paired_the_note_on_x_stands_alone() {
+    let mut r = Rig::new();
+    r.opened_with(&[]);
+    let view = r.view();
+    assert!(view.devices.is_empty(), "{:?}", view.devices);
+    assert_eq!(view.notes, ["Press X to look for devices."]);
+}
+
+#[test]
+fn x_looks_once_and_the_look_stops_by_itself() {
+    let mut r = Rig::new();
+    r.opened_with(&paired());
+    r.press(Btn::X);
+    assert_eq!(r.radio.asked(), [BluetoothJob::Scan(true)]);
+    assert!(r.a.bluetooth().looking());
+    assert_eq!(r.notes(), ["Looking for devices…"]);
+    // what it finds joins the list after the paired devices, the note staying while it looks
+    r.radio.say(status(&flows()[..3]));
+    r.tick(16);
+    assert_eq!(r.names(), ["8BitDo SN30 Pro", "WH-1000XM4", "Keychron K3"]);
+    assert_eq!(r.notes(), ["Looking for devices…"]);
+    r.answering(&flows(), LOOK_MS - 100);
+    assert_eq!(r.scans(), [true], "the look ended early");
+    assert_eq!(
+        r.names(),
+        [
+            "8BitDo SN30 Pro",
+            "WH-1000XM4",
+            "Keychron K3",
+            "Mi Smart Band 4"
+        ]
     );
+    r.answering(&flows(), 100);
+    assert_eq!(r.scans(), [true, false], "the look did not stop by itself");
+    assert!(!r.a.bluetooth().looking());
+    assert!(r.notes().is_empty(), "{:?}", r.notes());
+    // and nothing looks again by itself, however long the screen stays open
+    r.answering(&flows(), 120_000);
+    assert_eq!(r.scans(), [true, false], "a look came round by itself");
+    assert_eq!(r.names().len(), 4);
+}
+
+#[test]
+fn x_is_ignored_while_looking_or_with_bluetooth_off_and_x_again_looks_again() {
+    let mut r = Rig::new();
+    r.open();
+    r.press(Btn::X);
+    r.tick(16);
+    assert_eq!(r.radio.asked(), [], "X looked with Bluetooth off");
+    assert!(!r.a.bluetooth().looking());
+
+    r.press(Btn::A);
+    r.radio.say(status(&paired()));
+    r.tick(16);
+    r.radio.forget_asked();
+    r.press(Btn::X);
+    r.tick(1_000);
+    r.press(Btn::X);
+    r.tick(1_000);
+    r.press(Btn::X);
+    assert_eq!(r.scans(), [true], "X while looking looked again");
+    r.tick(LOOK_MS);
+    assert_eq!(r.scans(), [true, false]);
+    r.press(Btn::X);
+    assert_eq!(r.scans(), [true, false, true], "X did not look again");
+    assert_eq!(r.notes(), ["Looking for devices…"]);
+}
+
+#[test]
+fn x_waits_while_a_device_pairs_or_connects() {
+    let mut r = Rig::new();
+    r.on_with(&flows());
+    r.go_to("WH-1000XM4");
+    r.press(Btn::A);
+    r.press(Btn::X);
+    assert_eq!(r.scans(), [], "X looked while a device connected");
+    let mut now = flows();
+    now[1].connected = true;
+    r.radio.say(done(connect(CANS), Ok(())));
+    r.radio.say(status(&now));
+    r.tick(16);
+    r.press(Btn::X);
+    assert_eq!(r.scans(), [true]);
+}
+
+#[test]
+fn leaving_stops_a_look_and_asks_nothing_more() {
+    let mut r = Rig::new();
+    r.opened_with(&paired());
+    r.press(Btn::X);
+    r.radio.say(status(&flows()));
+    r.tick(16);
     r.radio.forget_asked();
     r.press(Btn::B);
     r.tick(16);
+    assert_eq!(r.scans(), [false], "leaving did not stop the look");
+    r.answering(&flows(), LOOK_MS * 2);
     assert_eq!(
-        r.radio.asked(),
-        [BluetoothJob::Scan(false)],
-        "leaving did not stop discovery"
+        r.scans(),
+        [false],
+        "the radio was asked about discovery again"
     );
+    // what the look found goes with it: the screen opens again on the paired devices alone
+    r.press(Btn::A);
+    r.radio.say(status(&flows()));
+    r.tick(16);
+    assert_eq!(r.names(), ["8BitDo SN30 Pro", "WH-1000XM4"]);
+    assert_eq!(r.notes(), ["Press X to look for devices."]);
+    assert_eq!(r.scans(), [false]);
+
+    // leaving once the look is over asks nothing about discovery
+    let mut r = Rig::new();
+    r.on_with(&flows());
+    r.press(Btn::B);
+    r.answering(&flows(), 1_000);
+    assert_eq!(r.scans(), [], "leaving stopped a look that was over");
+}
+
+#[test]
+fn switching_off_mid_look_ends_it_and_what_it_found() {
+    let mut r = Rig::new();
+    r.opened_with(&paired());
+    r.press(Btn::X);
+    r.radio.say(status(&flows()));
+    r.tick(16);
+    r.press(Btn::A);
+    assert_eq!(r.radio.asked().last(), Some(&BluetoothJob::Down));
+    assert!(!r.a.bluetooth().looking());
     r.radio.forget_asked();
+    r.tick(LOOK_MS);
+    assert_eq!(
+        r.scans(),
+        [],
+        "the look was stopped after Bluetooth went down"
+    );
+    r.press(Btn::A);
+    r.radio.say(status(&flows()));
     r.tick(16);
+    assert_eq!(r.names(), ["8BitDo SN30 Pro", "WH-1000XM4"]);
+    assert_eq!(r.notes(), ["Press X to look for devices."]);
+}
+
+#[test]
+fn the_bar_offers_x_scan_while_bluetooth_is_on_and_y_forget_beside_it() {
+    let mut r = Rig::new();
+    r.open();
+    assert_eq!(r.a.bar_hints(r.a.phase()), [], "X SCAN with Bluetooth off");
+    r.press(Btn::A);
+    r.radio.say(status(&paired()));
     r.tick(16);
-    assert!(!r.radio.asked().contains(&BluetoothJob::Scan(false)));
+    assert_eq!(r.a.bar_hints(r.a.phase()), [SCAN]);
+    assert_eq!((SCAN.key, SCAN.word), ("X", "SCAN"));
+    r.press(Btn::X);
+    r.radio.say(status(&flows()));
+    r.tick(16);
+    assert_eq!(
+        r.a.bar_hints(r.a.phase()),
+        [SCAN],
+        "no X SCAN while looking"
+    );
+    r.go_to("8BitDo SN30 Pro");
+    assert_eq!(r.a.bar_hints(r.a.phase()), [SCAN, FORGET]);
+    r.go_to("WH-1000XM4");
+    assert_eq!(r.a.bar_hints(r.a.phase()), [SCAN, FORGET]);
+    r.go_to("Keychron K3");
+    assert_eq!(
+        r.a.bar_hints(r.a.phase()),
+        [SCAN],
+        "Y FORGET on a device found"
+    );
+}
+
+#[test]
+fn a_look_that_finds_nothing_says_so() {
+    let mut r = Rig::new();
+    r.opened_with(&paired());
+    r.press(Btn::X);
+    r.answering(&paired(), LOOK_MS);
+    assert!(!r.a.bluetooth().looking());
+    assert_eq!(r.notes(), ["No devices found."]);
+    assert_eq!(r.names(), ["8BitDo SN30 Pro", "WH-1000XM4"]);
+}
+
+#[test]
+fn a_device_found_is_listed_by_its_name_once_it_has_one_and_never_without() {
+    let mut r = Rig::new();
+    r.opened_with(&paired());
+    r.press(Btn::X);
+    let mut nameless = paired();
+    nameless.push(device(KEYS, "", DeviceKind::Keyboard, false, false));
+    nameless.push(device(ODD, "", DeviceKind::Other, false, false));
+    r.radio.say(status(&nameless));
+    r.tick(16);
+    assert_eq!(r.names(), ["8BitDo SN30 Pro", "WH-1000XM4"]);
+    // its name comes a few seconds after it was first seen, the beacon's never
+    let mut named = nameless.clone();
+    named[2].name = "Keychron K3".into();
+    r.answering(&named, LOOK_MS);
+    assert_eq!(r.names(), ["8BitDo SN30 Pro", "WH-1000XM4", "Keychron K3"]);
+    // a name that comes only once the look is over is taken too: the status after it is asked
+    let mut late = named.clone();
+    late.push(device(
+        BAND,
+        "Mi Smart Band 4",
+        DeviceKind::Other,
+        false,
+        false,
+    ));
+    r.answering(&late, REFRESH_MS * 2);
+    assert_eq!(
+        r.names(),
+        [
+            "8BitDo SN30 Pro",
+            "WH-1000XM4",
+            "Keychron K3",
+            "Mi Smart Band 4"
+        ]
+    );
+    assert!(
+        !r.names().contains(&ODD.to_string()),
+        "the beacon is listed"
+    );
+}
+
+#[test]
+fn a_paired_device_with_no_name_is_listed_by_its_address() {
+    let mut r = Rig::new();
+    r.opened_with(&[device(ODD, "", DeviceKind::Other, true, false)]);
+    assert_eq!(r.names(), [ODD]);
+}
+
+#[test]
+fn what_a_look_found_stays_listed_once_bluetoothd_forgets_it() {
+    let mut r = Rig::new();
+    r.on_with(&flows());
+    // bluetoothd forgets the devices only found soon after the look stops
+    r.answering(&paired(), 60_000);
+    assert_eq!(
+        r.names(),
+        [
+            "8BitDo SN30 Pro",
+            "WH-1000XM4",
+            "Keychron K3",
+            "Mi Smart Band 4"
+        ]
+    );
+    r.go_to("Keychron K3");
+    r.radio.forget_asked();
+    r.press(Btn::A);
+    assert_eq!(r.radio.asked(), [BluetoothJob::Pair(KEYS.into())]);
+    assert_eq!(r.value_of("Keychron K3"), Some("PAIRING"));
+    // a look again lets go of what bluetoothd no longer knows, and finds what is still in reach
+    r.radio.say(done(pair(KEYS), Err(Fail::Pair)));
+    r.tick(16);
+    r.press(Btn::X);
+    assert_eq!(r.names(), ["8BitDo SN30 Pro", "WH-1000XM4"]);
+    let mut band = paired();
+    band.push(flows()[3].clone());
+    r.radio.say(status(&band));
+    r.tick(16);
+    assert_eq!(
+        r.names(),
+        ["8BitDo SN30 Pro", "WH-1000XM4", "Mi Smart Band 4"]
+    );
 }
 
 #[test]
@@ -469,23 +772,13 @@ fn with_bluetooth_off_the_screen_looks_for_nothing_and_says_so() {
     let mut r = Rig::new();
     r.open();
     r.tick(16);
-    r.tick(SCAN_MS);
+    r.tick(LOOK_MS * 5);
     assert_eq!(r.radio.asked(), [], "asked the radio with Bluetooth off");
     let view = r.view();
     assert_eq!(view.switch.value, Some("OFF"));
     assert!(view.devices.is_empty(), "devices with Bluetooth off");
     assert_eq!(view.notes, ["Bluetooth is off."]);
     assert_eq!(view.lit, Lit::Switch);
-}
-
-#[test]
-fn with_nothing_found_yet_it_says_it_is_looking() {
-    let mut r = Rig::new();
-    r.on_with(&[]);
-    assert_eq!(r.notes(), ["Looking for devices…"]);
-    r.radio.say(status(&flows()[2..3]));
-    r.tick(16);
-    assert!(r.notes().is_empty(), "{:?}", r.notes());
 }
 
 #[test]
@@ -500,11 +793,11 @@ fn a_radio_that_never_comes_up_says_so_until_switched_again() {
     assert_eq!(r.notes(), ["The Bluetooth radio did not start."]);
     r.press(Btn::A);
     r.press(Btn::A);
-    assert_eq!(r.notes(), ["Looking for devices…"]);
+    assert_eq!(r.notes(), ["Press X to look for devices."]);
 }
 
 #[test]
-fn the_list_holds_the_paired_devices_then_the_found_named_then_nameless() {
+fn the_list_holds_the_paired_devices_then_the_found_ones_with_a_name() {
     let mut r = Rig::new();
     let mut devices = flows();
     devices.reverse();
@@ -543,10 +836,9 @@ fn the_list_holds_the_paired_devices_then_the_found_named_then_nameless() {
             line("WH-1000XM4", Some("PAIRED"), DeviceKind::Audio),
             line("anker soundcore", None, DeviceKind::Audio),
             line("Keychron K3", None, DeviceKind::Keyboard),
-            line("00:00:00:00:00:09", None, DeviceKind::Other),
-            line("4C:4C:6B:1A:80:D3", None, DeviceKind::Other),
+            line("Mi Smart Band 4", None, DeviceKind::Other),
         ],
-        "the names keep their case, and a device with none shows its address"
+        "the names keep their case, and a device found with none is not listed"
     );
 }
 
@@ -559,7 +851,7 @@ fn a_on_a_found_device_pairs_trusts_and_connects_it() {
         !r.a.bluetooth_forgets(),
         "Y FORGET on a device never paired"
     );
-    assert!(r.a.bar_hints(r.a.phase()).is_empty());
+    assert_eq!(r.a.bar_hints(r.a.phase()), [SCAN]);
     r.press(Btn::A);
     assert_eq!(r.radio.asked(), [BluetoothJob::Pair(KEYS.into())]);
     assert_eq!(r.value_of("Keychron K3"), Some("PAIRING"));
@@ -584,10 +876,30 @@ fn a_on_a_found_device_pairs_trusts_and_connects_it() {
         Some("Keychron K3"),
         "the cursor did not follow the keyboard up the list"
     );
-    assert!(
-        r.radio.asked().contains(&BluetoothJob::Scan(true)),
-        "discovery, which the pairing stopped, was not asked for again"
+    assert_eq!(r.scans(), [], "the pairing was followed by a look");
+}
+
+#[test]
+fn a_pairing_ends_the_look_under_way() {
+    let mut r = Rig::new();
+    r.opened_with(&paired());
+    r.press(Btn::X);
+    r.radio.say(status(&flows()));
+    r.tick(16);
+    r.go_to("Keychron K3");
+    r.radio.forget_asked();
+    r.press(Btn::A);
+    // the script stops discovery before it pairs
+    assert_eq!(r.radio.asked(), [BluetoothJob::Pair(KEYS.into())]);
+    assert!(!r.a.bluetooth().looking());
+    assert!(r.notes().is_empty(), "{:?}", r.notes());
+    r.tick(LOOK_MS);
+    assert_eq!(
+        r.scans(),
+        [],
+        "discovery was turned off again after the pairing"
     );
+    assert_eq!(r.value_of("Keychron K3"), Some("PAIRING"));
 }
 
 #[test]
@@ -632,7 +944,7 @@ fn y_forgets_a_paired_device_and_nothing_else() {
     r.on_with(&flows());
     r.press(Btn::Y);
     assert_eq!(r.radio.asked(), [], "Y on the switch forgot something");
-    for found in ["Keychron K3", "4C:4C:6B:1A:80:D3"] {
+    for found in ["Keychron K3", "Mi Smart Band 4"] {
         r.go_to(found);
         r.press(Btn::Y);
         assert_eq!(r.radio.asked(), [], "Y forgot {found}, never paired");
@@ -640,7 +952,7 @@ fn y_forgets_a_paired_device_and_nothing_else() {
     for (name, mac) in [("WH-1000XM4", CANS), ("8BitDo SN30 Pro", PAD)] {
         r.go_to(name);
         assert!(r.a.bluetooth_forgets(), "no Y FORGET on {name}");
-        assert_eq!(r.a.bar_hints(r.a.phase()), [FORGET]);
+        assert_eq!(r.a.bar_hints(r.a.phase()), [SCAN, FORGET]);
         r.press(Btn::Y);
         assert_eq!(r.radio.asked(), [BluetoothJob::Forget(mac.into())]);
         assert!(
@@ -662,7 +974,7 @@ fn y_forgets_a_paired_device_and_nothing_else() {
         assert!(!r.names().contains(&name.to_string()));
         r.radio.forget_asked();
     }
-    assert_eq!(r.names(), ["Keychron K3", "4C:4C:6B:1A:80:D3"]);
+    assert_eq!(r.names(), ["Keychron K3", "Mi Smart Band 4"]);
 }
 
 #[test]
@@ -727,15 +1039,17 @@ fn a_connection_that_fails_says_so_for_a_moment() {
 }
 
 #[test]
-fn a_device_without_a_name_is_named_by_its_address_in_a_note() {
+fn a_paired_device_without_a_name_is_named_by_its_address_in_a_note() {
     let mut r = Rig::new();
-    r.on_with(&flows());
+    let mut devices = flows();
+    devices.push(device(ODD, "", DeviceKind::Other, true, false));
+    r.on_with(&devices);
     r.go_to(ODD);
     r.press(Btn::A);
-    assert_eq!(r.radio.asked(), [BluetoothJob::Pair(ODD.into())]);
-    r.radio.say(done(pair(ODD), Err(Fail::Radio)));
+    assert_eq!(r.radio.asked(), [BluetoothJob::Connect(ODD.into())]);
+    r.radio.say(done(connect(ODD), Err(Fail::Connect)));
     r.tick(16);
-    assert_eq!(r.notes(), [format!("Could not pair with {ODD}.")]);
+    assert_eq!(r.notes(), [format!("Could not connect to {ODD}.")]);
 }
 
 #[test]
@@ -802,7 +1116,7 @@ fn switching_off_drops_the_list_and_whatever_was_under_way() {
 fn the_cursor_stays_on_its_device_when_the_list_reorders() {
     let mut r = Rig::new();
     r.on_with(&flows());
-    r.go_to("Keychron K3");
+    r.go_to("WH-1000XM4");
     let mut now = flows();
     now.push(device(
         "AA:BB:CC:00:00:01",
@@ -820,12 +1134,12 @@ fn the_cursor_stays_on_its_device_when_the_list_reorders() {
     ));
     r.radio.say(status(&now));
     r.tick(16);
-    assert_eq!(r.lit_name().as_deref(), Some("Keychron K3"));
-    // the device under the cursor gone, it settles on the row where it was
-    let gone: Vec<Device> = now.iter().filter(|d| d.mac != KEYS).cloned().collect();
+    assert_eq!(r.lit_name().as_deref(), Some("WH-1000XM4"));
+    // the device under the cursor gone, forgotten by another, it settles on the row where it was
+    let gone: Vec<Device> = now.iter().filter(|d| d.mac != CANS).cloned().collect();
     r.radio.say(status(&gone));
     r.tick(16);
-    assert_eq!(r.lit_name().as_deref(), Some("4C:4C:6B:1A:80:D3"));
+    assert_eq!(r.lit_name().as_deref(), Some("Joy-Con (L)"));
 }
 
 #[test]

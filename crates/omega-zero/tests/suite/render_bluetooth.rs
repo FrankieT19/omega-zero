@@ -23,7 +23,7 @@ use omega_ui::kit::row::{row_face, row_rect, Row, ROW_H};
 use omega_ui::kit::text::text_face;
 use omega_ui::network::{network_panels, NOTE_IN, NOTE_TOP};
 use omega_ui::{SettingsRow, UndoFace};
-use omega_zero::bluetooth::{BluetoothJob, BluetoothJobs, BluetoothNews, Device, Status};
+use omega_zero::bluetooth::{BluetoothJob, BluetoothJobs, BluetoothNews, Device, Status, LOOK_MS};
 use omega_zero::frontend::Frontend;
 use omega_zero::screens::bluetooth::{
     bluetooth_chrome, bluetooth_title, BLUETOOTH_TITLE, DEVICES_TITLE,
@@ -44,33 +44,48 @@ impl InputSource for Script {
     }
 }
 
-/// The ways flow.html shows the modal, each a screenshot of its own.
+/// The ways flow.html shows the modal, each a screenshot of its own. The cursor is on the switch
+/// in each but `Pairing`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Shot {
-    /// On, the cursor on the switch, flow.html's four devices in the list.
+    /// On, as the screen opens: the paired devices, and X to look for more.
     On,
-    /// Off, the cursor on the switch, the list saying so.
+    /// Off, the list saying so.
     Off,
-    /// On, the cursor on the keyboard, which is pairing.
-    Pairing,
-    /// On, the cursor on the switch, nothing found yet.
+    /// On with nothing paired, before any look: X to look, alone.
     Empty,
+    /// A look under way, the keyboard found so far.
+    Looking,
+    /// After the look: flow.html's four devices in the list.
+    Found,
+    /// After the look, the cursor on the keyboard, which is pairing.
+    Pairing,
 }
 
-const SHOTS: [Shot; 4] = [Shot::On, Shot::Off, Shot::Pairing, Shot::Empty];
+const SHOTS: [Shot; 6] = [
+    Shot::On,
+    Shot::Off,
+    Shot::Empty,
+    Shot::Looking,
+    Shot::Found,
+    Shot::Pairing,
+];
 
 impl Shot {
     fn name(self) -> &'static str {
         match self {
             Shot::On => "on",
             Shot::Off => "off",
-            Shot::Pairing => "pairing",
             Shot::Empty => "empty",
+            Shot::Looking => "looking",
+            Shot::Found => "found",
+            Shot::Pairing => "pairing",
         }
     }
 }
 
-/// A radio that comes up when asked, knowing `devices`, and never answers a pairing.
+/// A radio that comes up when asked, knowing `devices`, and answers nothing else: not a look,
+/// not a refresh, not a pairing.
 #[derive(Clone)]
 struct Radio {
     devices: Vec<Device>,
@@ -100,8 +115,8 @@ impl BluetoothJobs for Radio {
     }
 }
 
-/// flow.html's devices: the gamepad connected, the headphones paired, the keyboard and a device
-/// with no name found.
+/// flow.html's devices: the gamepad connected, the headphones paired, and the keyboard and the
+/// band found.
 fn flows() -> Vec<Device> {
     let device = |mac: &str, name: &str, kind, paired, connected| Device {
         mac: mac.into(),
@@ -133,7 +148,13 @@ fn flows() -> Vec<Device> {
             false,
             false,
         ),
-        device("4C:4C:6B:1A:80:D3", "", DeviceKind::Other, false, false),
+        device(
+            "C8:0F:10:4D:7A:25",
+            "Mi Smart Band 4",
+            DeviceKind::Other,
+            false,
+            false,
+        ),
     ]
 }
 
@@ -154,11 +175,13 @@ impl Rig {
         s.bluetooth = shot != Shot::Off;
         write_app_state(d.path(), &s).expect("write omega-zero.state");
         let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
+        // the radio knows the devices found before the screen is opened too: it lists them
+        // only once X has looked
         let radio = Radio {
-            devices: if shot == Shot::Empty {
-                Vec::new()
-            } else {
-                flows()
+            devices: match shot {
+                Shot::Empty => Vec::new(),
+                Shot::Looking => flows()[..3].to_vec(),
+                _ => flows(),
             },
             news: Arc::default(),
         };
@@ -170,6 +193,15 @@ impl Rig {
             input: Script(VecDeque::new()),
         };
         r.open_bluetooth();
+        if matches!(shot, Shot::Looking | Shot::Found | Shot::Pairing) {
+            r.tap(Btn::X);
+        }
+        if matches!(shot, Shot::Found | Shot::Pairing) {
+            // the look over, which the clock would take LOOK_MS to come to
+            let app = r.f.app_mut();
+            app.tick_ms(app.now() + LOOK_MS);
+            assert!(!app.bluetooth().looking(), "the look did not end");
+        }
         if shot == Shot::Pairing {
             for _ in 0..3 {
                 r.tap(Btn::Down);
@@ -307,13 +339,16 @@ fn bluetooth_art(shot: Shot, pal: &Palette) -> UndoFace {
         opens: false,
         dim: false,
     };
+    let all = vec![
+        device("8BitDo SN30 Pro", Some("CONNECTED"), DeviceKind::Gamepad),
+        device("WH-1000XM4", Some("PAIRED"), DeviceKind::Audio),
+        device("Keychron K3", None, DeviceKind::Keyboard),
+        device("Mi Smart Band 4", None, DeviceKind::Other),
+    ];
     let mut devices = match shot {
-        Shot::On | Shot::Pairing => vec![
-            device("8BitDo SN30 Pro", Some("CONNECTED"), DeviceKind::Gamepad),
-            device("WH-1000XM4", Some("PAIRED"), DeviceKind::Audio),
-            device("Keychron K3", None, DeviceKind::Keyboard),
-            device("4C:4C:6B:1A:80:D3", None, DeviceKind::Other),
-        ],
+        Shot::On => all[..2].to_vec(),
+        Shot::Looking => all[..3].to_vec(),
+        Shot::Found | Shot::Pairing => all,
         Shot::Off | Shot::Empty => Vec::new(),
     };
     if shot == Shot::Pairing {
@@ -322,8 +357,9 @@ fn bluetooth_art(shot: Shot, pal: &Palette) -> UndoFace {
     }
     let notes: &[&str] = match shot {
         Shot::Off => &["Bluetooth is off."],
-        Shot::Empty => &["Looking for devices…"],
-        Shot::On | Shot::Pairing => &[],
+        Shot::On | Shot::Empty => &["Press X to look for devices."],
+        Shot::Looking => &["Looking for devices…"],
+        Shot::Found | Shot::Pairing => &[],
     };
     // the panel holding the cursor has its title lit
     let active = (shot == Shot::Pairing) as usize;

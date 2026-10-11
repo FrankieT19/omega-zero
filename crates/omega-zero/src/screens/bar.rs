@@ -181,7 +181,7 @@ impl App {
         match phase {
             Phase::Shelf if self.picker_has_bar() => vec![SWAP],
             Phase::Network(screen) => self.network_hints(screen),
-            Phase::Bluetooth(screen) if screen.forgets(&self.bluetooth) => vec![FORGET],
+            Phase::Bluetooth(screen) => self.bluetooth_hints(screen),
             Phase::Labels(screen) if screen.typing.is_none() => {
                 labels_hints(&screen.view(&self.labels, self.online()).legend)
             }

@@ -2,8 +2,9 @@
   What each of flow.html's screens does with a button: where its cursor goes, what its values
   are, and which screen a row opens. player.js does the moving between them; this file only
   answers each press with nothing, { go: <screen> } to go deeper or { back: true }. A screen whose
-  bar hint follows its cursor or its state (Network's X SCAN with Wi-Fi on and Y FORGET on the
-  network joined, Bluetooth's Y FORGET on a paired device) says it with hint().
+  bar hints follow its cursor or its state (Network's X SCAN with Wi-Fi on and Y FORGET on the
+  network joined, Bluetooth's X SCAN while the radio is on and Y FORGET on a paired device) says
+  them with hint().
 
   The settings that show on more than one screen (Wi-Fi, SSH, Network's scan, Bluetooth and its
   devices, the date, the backdrop, the bar's font) live once, in FlowScreens.model, and every
@@ -12,15 +13,18 @@
 window.FlowScreens = (() => {
   // ---- the settings, shared ----
 
-  // The Bluetooth devices the flow starts with, by address: a gamepad connected, headphones
-  // paired, a keyboard only found, and a device found that gives no name. A device is found,
-  // pairing, paired, connecting or connected; its kind is the icon its row shows.
+  // The Bluetooth devices the flow knows of, by address, one of each kind: a gamepad connected
+  // and headphones paired, which the screen lists from the start, and a keyboard and a band in
+  // reach, which a look finds, the keyboard first. A device found that gives no name is never
+  // listed, so every one here has one. A device is found, pairing, paired, connecting or
+  // connected; its kind is the icon its row shows.
   const DEVICES = [
     { mac: 'E4:17:D8:2C:41:07', name: '8BitDo SN30 Pro', kind: 'gamepad', state: 'connected' },
     { mac: '38:18:4C:B2:9A:10', name: 'WH-1000XM4', kind: 'audio', state: 'paired' },
     { mac: 'DC:2C:26:F1:05:3B', name: 'Keychron K3', kind: 'keyboard', state: 'found' },
-    { mac: '4C:4C:6B:1A:80:D3', name: null, kind: 'other', state: 'found' },
+    { mac: 'C8:0F:10:4D:7A:25', name: 'Mi Smart Band 4', kind: 'other', state: 'found' },
   ];
+  const PAIRED = DEVICES.filter(device => device.state !== 'found');
 
   const model = {
     wifi: true,
@@ -30,7 +34,8 @@ window.FlowScreens = (() => {
     found: false,         // Network shows what a scan found since it opened
     scanning: false,      // X's scan under way
     bluetooth: true,      // the Bluetooth radio on
-    devices: DEVICES,     // what it knows of and finds, top to bottom, never changed in place
+    devices: PAIRED,      // what the screen lists, top to bottom, never changed in place
+    look: 'never',        // the look for devices: never since the screen opened, looking, found or nothing
     date: { year: 2026, month: 10, day: 10, hour: 16, minute: 0, zone: 0 },
     style: 'grid',
     moving: true,
@@ -449,11 +454,22 @@ window.FlowScreens = (() => {
     return model.scanning ? 'running' : model.found ? 'done' : 'none';
   }
 
-  // ---- Bluetooth: the radio's row, then every device it knows or finds while it is on ----
+  // ---- Bluetooth: the radio's row, then while it is on the devices paired and those X finds ----
 
   // How long the flow takes to pair with a device, and to connect to a paired one, in ms.
   const PAIRING_MS = 1500;
   const CONNECTING_MS = 1000;
+  // How long a look for devices lasts, shorter than the handheld's 12 s, and when it finds each
+  // device in reach, in ms.
+  const LOOK_MS = 6000;
+  const FINDS_MS = [1500, 3500];
+  // What the note under the devices says of the look, while the radio is on.
+  const LOOK_NOTE = {
+    never: 'Press X to look for devices.',
+    looking: 'Looking for devices…',
+    found: '',
+    nothing: 'No devices found.',
+  };
 
   // What a device's row says it is to the handheld; nothing for one only found.
   const DEVICE_VALUE = {
@@ -461,7 +477,7 @@ window.FlowScreens = (() => {
   };
   // A device the handheld is paired with, which Y forgets.
   const isPaired = device => ['connected', 'connecting', 'paired'].includes(device.state);
-  // A device's name as its row shows it: its own, or its address when it gives none.
+  // A device's name as its row shows it: its own, or the address of a paired one that gives none.
   const nameOf = device => device.name ?? device.mac;
 
   // `mac`'s device in `state`, the rest as they are.
@@ -487,6 +503,8 @@ window.FlowScreens = (() => {
       this.radio = this.rows[0];
       this.list = page.querySelector('.devices');
       this.note = this.list.querySelector('.note');
+      this.timers = [];
+      this.found = 0;   // the devices the look under way, or the last, has found
       this.draw();
     }
 
@@ -497,7 +515,7 @@ window.FlowScreens = (() => {
 
     // The devices' rows drawn again from the model, the cursor staying on the row it was on (on
     // the one now in its place when that one is gone), and the note under them: the radio is
-    // off, or nothing is found yet.
+    // off, or what the look has come to.
     draw() {
       const lit = this.row;
       const kept = new Map([...this.list.querySelectorAll('omega-list-row')].map(row => [row.dataset.device, row]));
@@ -514,7 +532,7 @@ window.FlowScreens = (() => {
       });
       for (const row of kept.values()) row.remove();
       if (rows.some((row, i) => this.list.children[i] !== row)) this.note.before(...rows);
-      note(this.note, !model.bluetooth ? 'Bluetooth is off.' : rows.length ? '' : 'Looking for devices…');
+      note(this.note, model.bluetooth ? LOOK_NOTE[model.look] : 'Bluetooth is off.');
       this.rows = [this.radio, ...(model.bluetooth ? rows : [])];
       const at = this.rows.indexOf(lit);
       this.cursor = at >= 0 ? at : Math.min(this.cursor, this.rows.length - 1);
@@ -527,24 +545,72 @@ window.FlowScreens = (() => {
       this.light();
     }
 
-    // Y FORGET in the bar while the cursor is on a paired device.
+    // X SCAN in the bar while the radio is on, and beside it Y FORGET while the cursor is on a
+    // paired device.
     hint() {
+      if (!model.bluetooth) return null;
       const device = this.device();
-      return device && isPaired(device) ? 'Y FORGET' : null;
+      return device && isPaired(device) ? 'X SCAN | Y FORGET' : 'X SCAN';
     }
 
     press(key) {
       const device = this.device();
       if (device && key === 'a') return this.pick(device);
       if (device && key === 'y' && isPaired(device)) return this.forget(device);
+      if (key === 'x') return this.look();
+      if (key === 'b') this.unlook();
       return super.press(key);
     }
 
-    // A on a device: one only found pairs and then connects, a paired one connects, a connected
-    // one disconnects. One already on its way is left to get there.
+    // X: one look for devices, which finds those in reach and not listed one after another, then
+    // stops by itself. Nothing while one is under way, with the radio off, or while a device
+    // pairs or connects. What an earlier look found goes, to be found again.
+    look() {
+      const busy = model.devices.some(device => ['pairing', 'connecting'].includes(device.state));
+      if (!model.bluetooth || model.look === 'looking' || busy) return;
+      set('devices', model.devices.filter(device => device.state !== 'found'));
+      set('look', 'looking');
+      this.found = 0;
+      const reach = DEVICES.filter(device => device.state === 'found' &&
+        !model.devices.some(known => known.mac === device.mac));
+      reach.forEach((device, i) => this.later(FINDS_MS[i] ?? FINDS_MS.at(-1), () => {
+        this.found += 1;
+        set('devices', [...model.devices, device]);
+      }));
+      this.later(LOOK_MS, () => this.stop());
+    }
+
+    later(ms, then) {
+      this.timers.push(setTimeout(then, ms));
+    }
+
+    // The timers of a look dropped, whatever it has come to.
+    halt() {
+      for (const timer of this.timers) clearTimeout(timer);
+      this.timers = [];
+    }
+
+    // The look over: it has looked long enough, or a pairing stops it.
+    stop() {
+      this.halt();
+      if (model.look === 'looking') set('look', this.found ? 'found' : 'nothing');
+    }
+
+    // The look stopped and what it found let go, as the screen is left or the radio goes off.
+    unlook() {
+      this.halt();
+      set('devices', model.devices.filter(device => device.state !== 'found'));
+      set('look', 'never');
+    }
+
+    // A on a device: one only found pairs and then connects, which ends a look under way, a
+    // paired one connects, a connected one disconnects. One already on its way is left to get
+    // there.
     pick(device) {
-      if (device.state === 'found') this.towards(device, 'pairing', PAIRING_MS);
-      else if (device.state === 'paired') this.towards(device, 'connecting', CONNECTING_MS);
+      if (device.state === 'found') {
+        this.stop();
+        this.towards(device, 'pairing', PAIRING_MS);
+      } else if (device.state === 'paired') this.towards(device, 'connecting', CONNECTING_MS);
       else if (device.state === 'connected') setDevice(device.mac, 'paired');
     }
 
@@ -562,22 +628,33 @@ window.FlowScreens = (() => {
     }
   }
 
-  // Bluetooth as the URL's bt= has it: on with the devices the flow starts with, off, on with the
-  // keyboard pairing and the cursor on it, or on with nothing found yet.
-  const BT = ['on', 'off', 'pairing', 'empty'];
+  // Bluetooth as the URL's bt= has it, the cursor on the radio's row: on as the screen opens,
+  // before any look, with the paired devices; off; on with nothing paired, before any look; a
+  // look under way, held, the keyboard found so far; after it, the band found too; or after it
+  // with the keyboard pairing and the cursor on it.
+  const BT = ['on', 'off', 'empty', 'looking', 'found', 'pairing'];
   let bluetoothMenu = null;
   function bluetoothAs(state) {
-    const pairing = DEVICES.find(device => device.kind === 'keyboard');
+    const [keyboard, band] = DEVICES.filter(device => device.state === 'found');
+    bluetoothMenu?.halt();
     set('bluetooth', state !== 'off');
-    set('devices', state === 'empty' ? [] : DEVICES.map(device =>
-      (state === 'pairing' && device === pairing ? { ...device, state: 'pairing' } : device)));
-    bluetoothMenu?.home(state === 'pairing' ? pairing.mac : null);
+    set('devices', {
+      empty: [],
+      looking: [...PAIRED, keyboard],
+      found: [...PAIRED, keyboard, band],
+      pairing: [...PAIRED, { ...keyboard, state: 'pairing' }, band],
+    }[state] ?? PAIRED);
+    set('look', { looking: 'looking', found: 'found', pairing: 'found' }[state] ?? 'never');
+    if (bluetoothMenu) bluetoothMenu.found = state === 'looking' ? 1 : 2;
+    bluetoothMenu?.home(state === 'pairing' ? keyboard.mac : null);
   }
   // Which of those Bluetooth is in now, as near as it comes.
   function bluetoothState() {
     if (!model.bluetooth) return 'off';
-    if (!model.devices.length) return 'empty';
-    return model.devices.some(device => device.state === 'pairing') ? 'pairing' : 'on';
+    if (model.devices.some(device => device.state === 'pairing')) return 'pairing';
+    if (model.look === 'looking') return 'looking';
+    if (model.look !== 'never') return 'found';
+    return model.devices.length ? 'on' : 'empty';
   }
 
   // ---- every screen, and keeping them in step with the settings ----
@@ -622,9 +699,11 @@ window.FlowScreens = (() => {
     }
     show();
     onChange(show);
-    // Wi-Fi off forgets what a scan found, and stops one under way
+    // Wi-Fi off forgets what a scan found, and stops one under way; the Bluetooth radio going
+    // off ends a look, and lets go of what it found
     onChange((key, on) => {
       if (key === 'wifi' && !on) scanAs('none');
+      if (key === 'bluetooth' && !on) screens.bluetooth.unlook();
     });
     bluetoothMenu = screens.bluetooth;
     return screens;

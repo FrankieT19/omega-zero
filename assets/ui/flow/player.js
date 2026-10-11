@@ -429,7 +429,7 @@
 
   const KEYS = {
     ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
-    x: 'a', a: 'a', z: 'b', b: 'b', Escape: 'b', s: 'x', y: 'y', Enter: 'start', ' ': 'select',
+    a: 'a', z: 'b', b: 'b', Escape: 'b', x: 'x', s: 'x', y: 'y', Enter: 'start', ' ': 'select',
   };
   document.addEventListener('keydown', e => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
