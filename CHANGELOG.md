@@ -53,8 +53,7 @@ PlayStation drew 3D; and an opening after Mega Man X5's boot terminal at power-o
   lists the version, the build (its commit, with -DIRTY after it for a build with changes not
   committed), the author, @oauramos, the handheld as BaseOS names it, and how full its
   battery is and whether it is charging. CREDITS under it says what omega-zero is made with and
-  on, a line each, and ends on slot's, in the dim colour. The barcode, the ANBERNIC wordmark and
-  the made-up rating lines are gone.
+  on, a line each. The barcode, the ANBERNIC wordmark and the made-up rating lines are gone.
 - A bar along the bottom of the shelf: SELECT CONTROLS on the left, START SETTINGS on the
   right. The slot sits a bar higher to make room for it.
 - Game Boy carts stand at 80% of their size on the shelf and grow to full size as they go into

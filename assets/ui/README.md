@@ -185,8 +185,7 @@ Settings > About is a modal like Settings, with nothing to pick: OMEGA-ZERO, as 
 rows, says the version, the build (the commit, `-DIRTY` after it for a build with changes not
 committed), the author, the handheld as BaseOS names it and its battery, each a name and a value
 as SSH's lines are; CREDITS under it says what omega-zero is made with and on, a line each in
-a row name's colour, three pixels in as a note is, and ends on slot's in the dim colour. Both
-titles are lit and no row is.
+a row name's colour, three pixels in as a note is. Both titles are lit and no row is.
 
 Holding POWER opens POWER on any screen, a lone panel like THEME's with RESTART and POWER OFF,
 deeper from the screen it was held on, which its B goes back to. A on either row goes deeper to

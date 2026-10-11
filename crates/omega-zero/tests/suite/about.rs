@@ -22,7 +22,7 @@ use omega_zero::app::{App, Phase};
 use omega_zero::build_info::Build;
 use omega_zero::nav::{offsets, progress, Dir, End, SLIDE_MS};
 use omega_zero::screens::about::{
-    about_face, about_panels, battery_words, credits_height, AboutView, AUTHOR, BASED_ON, CREDITS,
+    about_face, about_panels, battery_words, credits_height, AboutView, AUTHOR, CREDITS,
     CREDITS_TITLE, TITLE,
 };
 use omega_zero::screens::lone::{Lone, NOTE_X};
@@ -158,7 +158,7 @@ fn the_battery_says_how_full_it_is_and_whether_it_charges() {
 }
 
 #[test]
-fn every_credit_is_kept_and_slots_is_last() {
+fn every_credit_is_kept_and_slot_is_not_named() {
     let all = CREDITS.join("\n");
     for owed in [
         "mGBA",
@@ -176,10 +176,9 @@ fn every_credit_is_kept_and_slots_is_last() {
             "the credits do not mention {owed}: {all}"
         );
     }
-    assert_eq!(BASED_ON, "Based on slot.");
     assert!(
         !all.contains("slot"),
-        "slot's credit is anywhere but last: {all}"
+        "slot is named on the handheld, which only the repository does: {all}"
     );
     assert_eq!((TITLE, CREDITS_TITLE), ("OMEGA-ZERO", "CREDITS"));
 }
@@ -198,7 +197,7 @@ fn the_credits_fit_whole_under_the_rows() {
         credits_height(),
         well[3]
     );
-    for line in CREDITS.iter().chain([&BASED_ON]) {
+    for line in CREDITS {
         assert!(
             text_width(line) <= well[2] - NOTE_X,
             "{line:?} is cut short in a well {} wide",

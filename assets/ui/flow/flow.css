@@ -279,8 +279,7 @@ omega-panel.hug { flex: none; }
 .hint-line b { font-weight: 400; color: var(--oz-frame-hi); }
 
 /* About: the credits a line each, in the colour a row's name is, three pixels in as a note is,
-   4 below the well's top and 5 above its bottom as a note on its own; slot's last, in the notes'
-   dim. Eight lines fit under five rows at 480 tall, the longest one 44 letters across 640. */
+   4 below the well's top and 5 above its bottom as a note on its own. Seven lines fit under five
+   rows at 480 tall, the longest one 44 letters across 640. */
 .credits { padding: calc(4 * var(--u)) calc(3 * var(--u)) calc(5 * var(--u)); color: var(--oz-label); white-space: nowrap; }
 .credits p { margin: 0; max-width: none; }
-.credits .based-on { color: var(--oz-dim); }

@@ -1,7 +1,7 @@
 //! About, opened from Settings' ABOUT: what omega-zero is, the handheld it runs on and what it is
 //! made with, as assets/ui/flow.html's `#screen=about` draws it. It is a modal like Settings':
 //! OMEGA-ZERO, as tall as its rows, each a name and a value as SSH's lines are, and CREDITS under
-//! it taking the rest, a line for each, slot's last and in the dim colour. Nothing on it is
+//! it taking the rest, a line for each. Nothing on it is
 //! picked, so both titles are lit and no row is; B goes back to Settings.
 //!
 //! The modal and everything in it are one face at art resolution, baked again only when what it
@@ -43,9 +43,6 @@ pub const CREDITS: [&str; 7] = [
     "Built with Claude.",
     "Free software under the GPL-3.0. See README.",
 ];
-
-/// What omega-zero is based on, the last line, in the dim colour.
-pub const BASED_ON: &str = "Based on slot.";
 
 /// What a row says when the handheld does not.
 const UNKNOWN: &str = "UNKNOWN";
@@ -110,7 +107,7 @@ pub fn about_panels(w: u32, h: u32, rows: usize) -> [[u32; 4]; 2] {
 /// How tall the credits are in their well: `NOTE_GAP` above the first line, a line each, and
 /// `CREDITS_FOOT` under the last.
 pub fn credits_height() -> u32 {
-    NOTE_GAP + (CREDITS.len() as u32 + 1) * LINE + CREDITS_FOOT
+    NOTE_GAP + CREDITS.len() as u32 * LINE + CREDITS_FOOT
 }
 
 /// The About modal showing `view`, in `pal`, as big as `modal_rect()`.
@@ -136,12 +133,8 @@ pub fn about_face(view: &AboutView, pal: &Palette) -> UndoFace {
     let mut panel = panel_face(pw, ph, CREDITS_TITLE, true, pal);
     let [wx, wy, ww, _] = panel.well;
     let room = ww.saturating_sub(NOTE_X);
-    let lines = CREDITS
-        .iter()
-        .map(|line| (*line, pal.label))
-        .chain([(BASED_ON, pal.dim)]);
-    for (i, (line, colour)) in lines.enumerate() {
-        let text = text_face(&fitted(line, room), colour);
+    for (i, line) in CREDITS.iter().enumerate() {
+        let text = text_face(&fitted(line, room), pal.label);
         over(
             &mut panel.face,
             &text,
