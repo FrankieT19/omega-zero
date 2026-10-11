@@ -45,6 +45,15 @@ fn shader(kind: gl::types::GLenum, src: &str) -> Result<gl::types::GLuint, GfxEr
 }
 
 pub fn program(vert: &str, frag: &str) -> Result<gl::types::GLuint, GfxError> {
+    program_with(vert, frag, &[("a_pos", crate::quad::POS_LOCATION)])
+}
+
+/// A program whose attributes sit at the given locations.
+pub fn program_with(
+    vert: &str,
+    frag: &str,
+    attributes: &[(&str, gl::types::GLuint)],
+) -> Result<gl::types::GLuint, GfxError> {
     let vs = shader(gl::VERTEX_SHADER, vert)?;
     let fs = match shader(gl::FRAGMENT_SHADER, frag) {
         Ok(fs) => fs,
@@ -57,8 +66,10 @@ pub fn program(vert: &str, frag: &str) -> Result<gl::types::GLuint, GfxError> {
         let p = gl::CreateProgram();
         gl::AttachShader(p, vs);
         gl::AttachShader(p, fs);
-        if let Ok(pos) = CString::new("a_pos") {
-            gl::BindAttribLocation(p, crate::quad::POS_LOCATION, pos.as_ptr());
+        for (name, location) in attributes {
+            if let Ok(name) = CString::new(*name) {
+                gl::BindAttribLocation(p, *location, name.as_ptr());
+            }
         }
         gl::LinkProgram(p);
         gl::DeleteShader(vs);

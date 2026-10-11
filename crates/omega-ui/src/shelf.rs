@@ -1,11 +1,11 @@
-use omega_gfx::{out_w, Draw, TexId, FOCAL};
+use omega_gfx::{out_w, Draw, MeshId, TexId, FOCAL};
 use omega_store::{Cart, Platform};
 
 use crate::cart::{cart_box, gb_shell_of, label_colour, label_text, CART_H};
 use crate::hud::Millis;
 use crate::silhouette::GbShell;
 use crate::slot_chrome::{draw_empty_slot, ease, ChromeColours, MOUTH_H, SLOT_RAISE};
-use crate::spin::{self, Pose};
+use crate::spin::{self, CartMeshes, Pose};
 use crate::stage::{stage_y, MOCKUP_H};
 use crate::status_bar::TOP_BAR_H;
 
@@ -62,7 +62,7 @@ const SLOTS: i32 = 3;
 
 /// The selected cart sways this far either way about its upright axis, in radians, once the
 /// shelf stands still...
-const SWAY: f32 = 10.0 * std::f32::consts::PI / 180.0;
+const SWAY: f32 = 20.0 * std::f32::consts::PI / 180.0;
 const SWAY_S: f32 = 3.6;
 /// ...and floats this many canvas pixels up and down, out of step with the sway so the two
 /// never fall into one mechanical beat.
@@ -94,6 +94,7 @@ pub struct Shelf {
     gb_shadow: Option<TexId>,
     gbc_shadow: Option<TexId>,
     shells: Vec<Option<GbShell>>,
+    meshes: Option<CartMeshes>,
     ride: f32,
     vel: f32,
     held: Option<(i32, Millis, usize)>,
@@ -113,6 +114,7 @@ impl Shelf {
             shadow: None,
             gb_shadow: None,
             gbc_shadow: None,
+            meshes: None,
             ride: 0.0,
             vel: 0.0,
             held: None,
@@ -133,6 +135,11 @@ impl Shelf {
         self.shadow = Some(face);
     }
 
+    /// The models carts are drawn with from now on, sides and all.
+    pub fn set_meshes(&mut self, meshes: CartMeshes) {
+        self.meshes = Some(meshes);
+    }
+
     pub fn set_gb_shadow(&mut self, shell: GbShell, face: TexId) {
         match shell {
             GbShell::Notched => self.gb_shadow = Some(face),
@@ -142,6 +149,12 @@ impl Shelf {
 
     pub fn set_faces(&mut self, faces: Vec<TexId>) {
         self.faces = faces;
+    }
+
+    /// The model the cart `stem` is drawn with, once models are set.
+    pub fn mesh_for(&self, stem: &str) -> Option<MeshId> {
+        let i = self.carts.iter().position(|c| c.stem == stem)?;
+        Some(self.meshes?.of(self.shells.get(i).copied().flatten()))
     }
 
     pub fn find(&self, stem: &str) -> Option<(&Cart, Option<TexId>)> {
@@ -402,6 +415,26 @@ impl Shelf {
                 None => Pose::REST,
             };
             let y = y - pose.lift;
+            if let (Some(tex), Some(meshes)) = (face, self.meshes) {
+                let mesh = meshes.of(self.shells.get(i).copied().flatten());
+                // a side cart is the face dimmed over its black backing, as one opaque model
+                let colour = match alpha < 1.0 {
+                    true => {
+                        let k = alpha * dim;
+                        [k, k, k, recede_alpha(alpha)]
+                    }
+                    false => [1.0, 1.0, 1.0, dim],
+                };
+                out.push(spin::posed_cart(
+                    (x, y, w, h),
+                    mesh,
+                    tex,
+                    colour,
+                    0.0,
+                    pose.yaw,
+                ));
+                continue;
+            }
             if let Some(tex) = face {
                 spin::push_cart_side(
                     out,

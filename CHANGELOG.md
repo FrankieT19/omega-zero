@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- The carts are low-poly models drawn the way a PlayStation drew 3D: a face and a side for
+  every cut of the outline, each lit on its own, corners that land on the 2-pixel grid as they
+  turn, textures mapped without perspective, and colour in 15 bits through the PlayStation's
+  dither. The one you are on sways twenty degrees either way, seen from closer than before, so
+  its side and the step under a GBA cart's grip show. The cart going into the slot and the core
+  picker's lid are the same model. A cart is one draw instead of up to seventeen.
+- On the shelf the volume, brightness and blue light bar sits under the top bar instead of
+  over it.
 - A bar along the bottom of the shelf: SELECT CONTROLS on the left, START SETTINGS on the
   right. The slot sits a bar higher to make room for it.
 - Game Boy carts stand at 80% of their size on the shelf and grow to full size as they go into

@@ -1,6 +1,7 @@
 use omega_store::{Cart, Platform};
 use omega_ui::{
-    posed_face, push_cart_side, rest_y, Draw, Pose, Shelf, TexId, CART_H, OUTLINE_INSET, THICK,
+    cart_mesh, gb_silhouette, posed_face, push_cart_side, rest_y, silhouette, CartMeshes,
+    CartModel, Draw, GbShell, MeshId, Pose, Shelf, TexId, CART_H, OUTLINE_INSET, THICK,
 };
 
 const DT: f32 = 1.0 / 60.0;
@@ -40,7 +41,7 @@ fn row(s: &Shelf) -> Vec<Draw> {
 }
 
 #[test]
-fn the_selected_cart_sways_ten_degrees_either_way_and_floats_four_pixels() {
+fn the_selected_cart_sways_twenty_degrees_either_way_and_floats_four_pixels() {
     let mut s = faced(3);
     run(&mut s, 2.0);
     let (mut yaw, mut lift) = ((f32::MAX, f32::MIN), (f32::MAX, f32::MIN));
@@ -50,8 +51,8 @@ fn the_selected_cart_sways_ten_degrees_either_way_and_floats_four_pixels() {
         yaw = (yaw.0.min(p.yaw), yaw.1.max(p.yaw));
         lift = (lift.0.min(p.lift), lift.1.max(p.lift));
     }
-    let ten = 10f32.to_radians();
-    for (name, (low, high), most) in [("sway", yaw, ten), ("float", lift, 4.0)] {
+    let twenty = 20f32.to_radians();
+    for (name, (low, high), most) in [("sway", yaw, twenty), ("float", lift, 4.0)] {
         assert!(
             high <= most * 1.0001 && high > most * 0.99,
             "the {name} reached {high} one way, for {most}"
@@ -253,4 +254,95 @@ fn an_unspun_face_is_drawn_as_it_always_was() {
             ..
         }
     ));
+}
+
+#[test]
+fn every_side_of_a_cart_model_faces_out_of_the_cart() {
+    for (name, model, (w, h), mask) in [
+        ("GBA", CartModel::Gba, (240, 141), silhouette(240, 141)),
+        (
+            "GB",
+            CartModel::Gb(GbShell::Notched),
+            (240, 259),
+            gb_silhouette(GbShell::Notched, 240, 259),
+        ),
+        (
+            "GBC",
+            CartModel::Gb(GbShell::Rounded),
+            (240, 259),
+            gb_silhouette(GbShell::Rounded, 240, 259),
+        ),
+    ] {
+        let cover = |x: f32, y: f32| {
+            let (x, y) = (x.round() as i32, y.round() as i32);
+            match (0..w).contains(&x) && (0..h).contains(&y) {
+                true => mask[(y * w + x) as usize],
+                false => 0,
+            }
+        };
+        let mesh = cart_mesh(model);
+        let walls: Vec<_> = mesh
+            .chunks_exact(6)
+            .filter(|quad| quad[0].normal[2] == 0.0)
+            .collect();
+        assert!(
+            walls.len() >= 12,
+            "the {name} model has {} sides",
+            walls.len()
+        );
+        for quad in walls {
+            let (a, b) = (quad[0].xyz, quad[1].xyz);
+            let (mx, my) = (
+                (a[0] + b[0]) / 2.0 * w as f32,
+                (a[1] + b[1]) / 2.0 * h as f32,
+            );
+            let [nx, ny, _] = quad[0].normal;
+            assert!(
+                cover(mx + 3.0 * nx, my + 3.0 * ny) < 64
+                    && cover(mx - 3.0 * nx, my - 3.0 * ny) > 192,
+                "the {name} side at ({mx}, {my}) faces ({nx}, {ny}), not out of the cart"
+            );
+            assert!(
+                quad.iter().all(|v| v.xyz[2] == 0.0 || v.xyz[2] == THICK),
+                "a {name} side does not run from the face back to the cart's thickness"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_shelf_with_models_draws_each_cart_as_one_model_turned_as_it_is_held() {
+    let mut s = faced(3);
+    s.set_meshes(CartMeshes {
+        gba: MeshId::from_raw(1),
+        gb: MeshId::from_raw(2),
+        gbc: MeshId::from_raw(3),
+    });
+    run(&mut s, 2.6);
+    let out = row(&s);
+    assert!(
+        !out.iter().any(|d| matches!(d, Draw::Spun { .. })),
+        "a cart with a model still has its face spun flat and its side in slices"
+    );
+    let models: Vec<_> = out
+        .iter()
+        .filter_map(|d| match *d {
+            Draw::Model {
+                mesh, yaw, x, w, ..
+            } => Some((mesh, yaw, x + w / 2.0)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(models.len(), 3, "three carts, not three models: {models:?}");
+    assert!(models.iter().all(|(mesh, ..)| *mesh == MeshId::from_raw(1)));
+    let middle = omega_ui::out_w() as f32 / 2.0;
+    let (_, yaw, _) = models
+        .iter()
+        .min_by(|a, b| (a.2 - middle).abs().total_cmp(&(b.2 - middle).abs()))
+        .copied()
+        .unwrap();
+    assert!(
+        yaw != 0.0 && yaw == s.pose().yaw,
+        "the middle cart is not held as it sways"
+    );
 }

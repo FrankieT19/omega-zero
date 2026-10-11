@@ -8,7 +8,8 @@ fn bottom_edge(d: &Draw) -> Option<f32> {
         Draw::Rect { y, h, .. }
         | Draw::Tex { y, h, .. }
         | Draw::Turned { y, h, .. }
-        | Draw::Spun { y, h, .. } => Some(y + h),
+        | Draw::Spun { y, h, .. }
+        | Draw::Model { y, h, .. } => Some(y + h),
         Draw::Game | Draw::Shot { .. } => None,
     }
 }

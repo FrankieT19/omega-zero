@@ -2,7 +2,7 @@
 
 use omega_gfx::{
     blue_light_gain, lcd3x_mask, out_h, out_w, spun_x, Compositor, Draw, Filter, GameView,
-    HeadlessSurface, SRC_H, SRC_W,
+    HeadlessSurface, MeshVertex, SRC_H, SRC_W,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -766,5 +766,148 @@ fn a_clip_keeps_a_spun_face_inside_it_and_ends_with_it() {
     assert!(
         lit(&frame, 20, 20),
         "the clip outlived its face and hid what came after it"
+    );
+}
+
+/// A box `deep` widths deep over the whole of its rect, as a cart's model is laid out: its face
+/// in one piece, and with `sides`, a wall down each edge.
+fn box_mesh(deep: f32, sides: bool) -> Vec<MeshVertex> {
+    let v = |x: f32, y: f32, z: f32, normal: [f32; 3]| MeshVertex {
+        xyz: [x, y, z],
+        normal,
+        uv: [x.clamp(0.0, 1.0), y.clamp(0.0, 1.0)],
+        shade: 1.0,
+    };
+    let mut out = Vec::new();
+    if sides {
+        // clockwise round the face, each wall's normal out of it
+        let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let normals = [
+            [0.0, -1.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [-1.0, 0.0, 0.0],
+        ];
+        for (i, n) in normals.iter().enumerate() {
+            let (a, b) = (corners[i], corners[(i + 1) % 4]);
+            let (a0, b0) = (v(a.0, a.1, 0.0, *n), v(b.0, b.1, 0.0, *n));
+            let (a1, b1) = (v(a.0, a.1, deep, *n), v(b.0, b.1, deep, *n));
+            out.extend([a0, b0, b1, a0, b1, a1]);
+        }
+    }
+    let f = |x, y| v(x, y, 0.0, [0.0, 0.0, -1.0]);
+    out.extend([
+        f(0.0, 0.0),
+        f(1.0, 0.0),
+        f(1.0, 1.0),
+        f(0.0, 0.0),
+        f(1.0, 1.0),
+        f(0.0, 1.0),
+    ]);
+    out
+}
+
+fn model(
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    mesh: omega_gfx::MeshId,
+    tex: omega_gfx::TexId,
+    yaw: f32,
+) -> Draw {
+    Draw::Model {
+        x,
+        y,
+        w,
+        h,
+        mesh,
+        tex,
+        colour: [1.0; 4],
+        turn: 0.0,
+        yaw,
+    }
+}
+
+#[test]
+fn a_model_square_to_the_eye_covers_exactly_its_rect_and_none_of_its_sides() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let white = c.create_texture(4, 4, &[255; 64]);
+    let mesh = c.create_mesh(&box_mesh(0.3, true));
+
+    c.begin_frame();
+    c.draw_list(&[model(100.0, 60.0, 120.0, 80.0, mesh, white, 0.0)]);
+    let frame = c.read_frame();
+
+    assert_eq!(
+        lit_span(&frame, 100),
+        (100, 219),
+        "the face is not where its rect is"
+    );
+    assert_eq!(
+        lit_rows(&frame, 160),
+        80,
+        "the face is not as tall as its rect"
+    );
+}
+
+/// Only a model's corners land on the grid: a turned face's top and bottom edges run slanted
+/// between them, so its sides are checked turned and its top and bottom square to the eye.
+#[test]
+fn every_corner_of_a_model_lands_on_the_two_pixel_grid() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let white = c.create_texture(4, 4, &[255; 64]);
+    let mesh = c.create_mesh(&box_mesh(0.3, false));
+
+    c.begin_frame();
+    c.draw_list(&[model(101.3, 57.6, 117.0, 81.0, mesh, white, 0.21)]);
+    let (left, right) = lit_span(&c.read_frame(), 100);
+    assert!(
+        left % 2 == 0 && right % 2 == 1,
+        "turned, a row runs from column {left} to {right}, not from one grid line to another"
+    );
+
+    c.begin_frame();
+    c.draw_list(&[model(101.3, 57.6, 117.0, 81.0, mesh, white, 0.0)]);
+    let frame = c.read_frame();
+    let rows: Vec<usize> = (0..out_h() as usize)
+        .filter(|y| lit(&frame, 160, *y))
+        .collect();
+    let (top, bottom) = (rows[0], *rows.last().unwrap());
+    assert!(
+        top % 2 == 0 && bottom % 2 == 1,
+        "a column runs from row {top} to {bottom}, not from one grid line to another"
+    );
+}
+
+#[test]
+fn a_turned_model_shows_the_side_that_turns_towards_the_eye_and_hides_the_other() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let white = c.create_texture(4, 4, &[255; 64]);
+    let face = c.create_mesh(&box_mesh(0.3, false));
+    let solid = c.create_mesh(&box_mesh(0.3, true));
+    let row = 100;
+
+    // a yaw that takes the right edge back brings the left side round towards the eye
+    c.begin_frame();
+    c.draw_list(&[model(100.0, 60.0, 120.0, 80.0, face, white, 0.35)]);
+    let (face_left, face_right) = lit_span(&c.read_frame(), row);
+    c.begin_frame();
+    c.draw_list(&[model(100.0, 60.0, 120.0, 80.0, solid, white, 0.35)]);
+    let (left, right) = lit_span(&c.read_frame(), row);
+
+    assert!(
+        left + 6 <= face_left,
+        "the left side does not show: the model starts at {left}, its face at {face_left}"
+    );
+    assert_eq!(
+        right, face_right,
+        "the side turned away shows past the face"
     );
 }

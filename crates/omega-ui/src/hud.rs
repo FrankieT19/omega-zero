@@ -216,8 +216,15 @@ impl Hud {
     }
 
     pub fn draw(&self, now: Millis, out: &mut Vec<Draw>) {
+        self.draw_at(now, 0.0, out);
+    }
+
+    /// The plate with its gauge or toast `top` pixels down the screen, under whatever bar
+    /// stands across the top; the badges keep to the corner.
+    pub fn draw_at(&self, now: Millis, top: f32, out: &mut Vec<Draw>) {
         let alpha = self.alpha(now);
         let toast = self.toast_alpha(now);
+        let plate = out.len();
         if alpha > 0.0 || toast > 0.0 {
             out.push(Draw::Rect {
                 x: 0.0,
@@ -231,6 +238,11 @@ impl Hud {
             self.draw_toast(now, out);
         } else if alpha > 0.0 {
             self.draw_bar(alpha, out);
+        }
+        if top != 0.0 {
+            for d in &mut out[plate..] {
+                *d = d.shifted(0.0, top);
+            }
         }
         let link = self
             .link

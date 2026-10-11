@@ -13,11 +13,12 @@ use omega_store::{
 use omega_ui::kit::action::Font;
 use omega_ui::{
     backdrop_shift, board_from, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease, grown,
-    lid_at, lid_from, lift_of, on_board, posed_face, push_cart_side, shelf_cart_at, ChromeColours,
-    ClockPicker, Draw, FfState, GbShell, Hud, HudKind, Icon, KeyboardFaces, LinkBadge, LinkFaces,
-    Links, Millis, Placed, Polaroids, PowerChoice, Refusal, SettingsFaces, SettingsRow, Shelf,
-    SlotChrome, TexId, Toast, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT,
-    SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
+    lid_at, lid_from, lift_of, on_board, posed_cart, posed_face, push_cart_side, shelf_cart_at,
+    CartMeshes, ChromeColours, ClockPicker, Draw, FfState, GbShell, Hud, HudKind, Icon,
+    KeyboardFaces, LinkBadge, LinkFaces, Links, Millis, Placed, Polaroids, PowerChoice, Refusal,
+    SettingsFaces, SettingsRow, Shelf, SlotChrome, TexId, Toast, CART_W, CHIP_H, CHIP_U, CHIP_V,
+    CHIP_W, HINT_EDGE, HINT_H, HOP_LIFT, SHADOW_H, SHADOW_W, SOCKET_H, SOCKET_U, SOCKET_V,
+    SOCKET_W, TOP_BAR_H, TURN_PAD,
 };
 
 use crate::audio::Sfx;
@@ -688,6 +689,12 @@ impl App {
     pub fn set_cart_shadow(&mut self, face: TexId) {
         for (_, shelf) in &mut self.shelves {
             shelf.set_shadow(face);
+        }
+    }
+
+    pub fn set_cart_meshes(&mut self, meshes: CartMeshes) {
+        for (_, shelf) in &mut self.shelves {
+            shelf.set_meshes(meshes);
         }
     }
 
@@ -1903,8 +1910,32 @@ impl App {
         if let Some(menu) = self.game_menu {
             self.draw_game_menu(menu, out);
         }
-        self.hud.draw(self.now(), out);
+        self.hud.draw_at(self.now(), self.top_bar_reach(), out);
         self.draw_boot_logo(out);
+    }
+
+    /// How far down the screen the bar across the top reaches right now: all of it on the
+    /// screens that show it, none on the rest, and what is left of it while it slides away or
+    /// back with the shelf.
+    fn top_bar_reach(&self) -> f32 {
+        let shows = |phase: &Phase| match phase {
+            Phase::Shelf | Phase::Ejecting { .. } => true,
+            Phase::Inserting { resumed, .. } => !resumed,
+            _ => false,
+        };
+        let reach = |phase: &Phase, off: Offsets| match shows(phase) {
+            true => (TOP_BAR_H + off.bar_dy).max(0.0),
+            false => 0.0,
+        };
+        match &self.slide {
+            Some(slide) => {
+                let (p, w) = (slide.progress(self.now()), out_w() as f32);
+                let from = reach(&slide.from, offsets(slide.dir, End::Leaving, p, w));
+                let to = reach(&self.phase, offsets(slide.dir, End::Arriving, p, w));
+                from.max(to)
+            }
+            None => reach(&self.phase, Offsets::NONE),
+        }
     }
 
     /// Draws `phase`, a screen of a slide or the one shown, moved by `off`. A menu screen
@@ -2002,6 +2033,7 @@ impl App {
             cart,
             colours: self.chrome_colours(),
             face,
+            mesh: self.shelf().mesh_for(stem),
             rest,
             scale,
             pose: self.shelf().pose(),
@@ -2179,7 +2211,22 @@ impl App {
             });
         }
 
-        if ready {
+        let model = self.selected_stem().and_then(|stem| {
+            let (_, face) = self.shelf().find(stem)?;
+            face.zip(self.shelf().mesh_for(stem))
+        });
+        if let Some((tex, mesh)) = model {
+            // the lid is the cart itself, sides and all, in the model the shelf drew it with
+            let (lid, turn) = lid_from(shelf, progress);
+            out.push(posed_cart(
+                (lid.x, lid.y, lid.w, lid.h),
+                mesh,
+                tex,
+                [1.0; 4],
+                turn,
+                pose.yaw,
+            ));
+        } else if ready {
             if let Some(tex) = self.core_lid_face {
                 let (lid, turn) = lid_from(shelf, progress);
                 let at = grown(lid, TURN_PAD as f32 * lid.w / CART_W as f32);

@@ -1,4 +1,6 @@
-use omega_gfx::{out_h, spun_x, Draw, TexId};
+use omega_gfx::{out_h, spun_x, Draw, MeshId, MeshVertex, TexId};
+
+use crate::silhouette::GbShell;
 
 /// How thick a cart is, as a share of its width: a Game Pak is about 8 mm thick and 57 wide.
 pub const THICK: f32 = 0.14;
@@ -39,6 +41,187 @@ impl Pose {
             yaw: self.yaw * keep,
             lift: self.lift * keep,
         }
+    }
+}
+
+/// The cart shells a model is built for.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum CartModel {
+    Gba,
+    Gb(GbShell),
+}
+
+/// The models a shelf draws its carts with, one per shell, once they are on the GPU.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct CartMeshes {
+    pub gba: MeshId,
+    pub gb: MeshId,
+    pub gbc: MeshId,
+}
+
+impl CartMeshes {
+    pub fn of(&self, shell: Option<GbShell>) -> MeshId {
+        match shell {
+            None => self.gba,
+            Some(GbShell::Notched) => self.gb,
+            Some(GbShell::Rounded) => self.gbc,
+        }
+    }
+}
+
+/// A GBA cart's outline in the units of its drawing (240 by 141), right half, going round
+/// clockwise from the top: the grip's corners cut in three, the step down to the body, and the
+/// body's own corners cut in two. The left half is its mirror.
+const GBA_HALF: &[(f32, f32)] = &[
+    (229.3, 0.0),
+    (234.9, 2.2),
+    (238.8, 7.4),
+    (240.0, 11.85),
+    (240.0, 25.6),
+    (237.6, 28.6),
+    (233.5, 28.89),
+    (233.5, 136.7),
+    (232.2, 139.4),
+    (229.0, 141.0),
+];
+
+/// A Game Boy pak's outline in the units of its drawing (240 by 259), all the way round
+/// clockwise from the top left: the notched corner of the grey paks.
+const GB_OUTLINE: &[(f32, f32)] = &[
+    (9.8, 0.0),
+    (208.9, 0.0),
+    (211.9, 1.2),
+    (213.1, 4.0),
+    (213.1, 11.5),
+    (228.7, 11.5),
+    (232.1, 13.0),
+    (233.5, 16.5),
+    (233.5, 255.6),
+    (232.2, 258.0),
+    (229.2, 259.0),
+    (10.8, 259.0),
+    (7.8, 258.0),
+    (6.5, 255.6),
+    (6.5, 2.4),
+    (7.5, 0.7),
+];
+
+/// A Game Boy Color pak's: its two round top corners in three cuts each.
+const GBC_OUTLINE: &[(f32, f32)] = &[
+    (24.5, 0.0),
+    (215.5, 0.0),
+    (224.5, 2.41),
+    (231.1, 9.0),
+    (233.5, 18.0),
+    (233.5, 255.6),
+    (232.2, 258.0),
+    (229.2, 259.0),
+    (10.8, 259.0),
+    (7.8, 258.0),
+    (6.5, 255.6),
+    (6.5, 18.0),
+    (8.9, 9.0),
+    (15.5, 2.41),
+];
+
+/// The face is laid over this many cells across and down: textures are mapped without
+/// perspective, so a face in one piece would bend its label along the diagonal as it turns, the
+/// way big polygons did on the PlayStation. A few cells keep a little of that.
+const FACE_CELLS: (usize, usize) = (4, 3);
+
+/// How far in from the outline, in drawing units, a side takes its colour from the face.
+const SIDE_SAMPLE: f32 = 9.0;
+
+/// How much light the back edge of a side gets against its front edge.
+const SIDE_BACK_SHADE: f32 = 0.72;
+
+/// A cart's outline in drawing units, all the way round clockwise, and the size of the drawing.
+fn outline(model: CartModel) -> (Vec<(f32, f32)>, (f32, f32)) {
+    match model {
+        CartModel::Gba => {
+            let mut all: Vec<(f32, f32)> = GBA_HALF.to_vec();
+            all.extend(GBA_HALF.iter().rev().map(|&(x, y)| (240.0 - x, y)));
+            (all, (240.0, 141.0))
+        }
+        CartModel::Gb(GbShell::Notched) => (GB_OUTLINE.to_vec(), (240.0, 259.0)),
+        CartModel::Gb(GbShell::Rounded) => (GBC_OUTLINE.to_vec(), (240.0, 259.0)),
+    }
+}
+
+/// A cart in few polygons, the way a PlayStation game would have modelled it: its face, the
+/// whole texture laid over a few cells, whose outline the texture's own alpha cuts; and its
+/// sides, one flat polygon for each cut of its outline, back to its thickness, each taking its
+/// colour from the face just inside its edge. Sides come first, so the face covers them.
+pub fn cart_mesh(model: CartModel) -> Vec<MeshVertex> {
+    let (points, (uw, uh)) = outline(model);
+    let thick = THICK;
+    let mut out = Vec::new();
+    for (i, &a) in points.iter().enumerate() {
+        let b = points[(i + 1) % points.len()];
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        let len = (dx * dx + dy * dy).sqrt();
+        if len < 1e-3 {
+            continue;
+        }
+        let normal = [dy / len, -dx / len, 0.0];
+        let sample = |p: (f32, f32)| {
+            [
+                (p.0 - normal[0] * SIDE_SAMPLE) / uw,
+                (p.1 - normal[1] * SIDE_SAMPLE) / uh,
+            ]
+        };
+        let corner = |p: (f32, f32), z: f32, shade: f32| MeshVertex {
+            xyz: [p.0 / uw, p.1 / uh, z],
+            normal,
+            uv: sample(p),
+            shade,
+        };
+        let (a0, b0) = (corner(a, 0.0, 1.0), corner(b, 0.0, 1.0));
+        let (a1, b1) = (
+            corner(a, thick, SIDE_BACK_SHADE),
+            corner(b, thick, SIDE_BACK_SHADE),
+        );
+        out.extend([a0, b0, b1, a0, b1, a1]);
+    }
+    let (cols, rows) = FACE_CELLS;
+    let at = |c: usize, r: usize| {
+        let (u, v) = (c as f32 / cols as f32, r as f32 / rows as f32);
+        MeshVertex {
+            xyz: [u, v, 0.0],
+            normal: [0.0, 0.0, -1.0],
+            uv: [u, v],
+            shade: 1.0,
+        }
+    };
+    for r in 0..rows {
+        for c in 0..cols {
+            let (p, q, s, t) = (at(c, r), at(c + 1, r), at(c + 1, r + 1), at(c, r + 1));
+            out.extend([p, q, s, p, s, t]);
+        }
+    }
+    out
+}
+
+/// A cart at `x, y, w, h` as its model, `mesh`, textured with its face, tinted `colour`, turned
+/// `turn` radians in the canvas and spun `yaw` about its upright axis.
+pub fn posed_cart(
+    (x, y, w, h): (f32, f32, f32, f32),
+    mesh: MeshId,
+    tex: TexId,
+    colour: [f32; 4],
+    turn: f32,
+    yaw: f32,
+) -> Draw {
+    Draw::Model {
+        x,
+        y,
+        w,
+        h,
+        mesh,
+        tex,
+        colour,
+        turn,
+        yaw,
     }
 }
 

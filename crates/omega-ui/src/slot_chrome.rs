@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use omega_gfx::{out_h, out_w, Draw, TexId};
+use omega_gfx::{out_h, out_w, Draw, MeshId, TexId};
 use omega_store::Cart;
 use omega_store::Theme;
 
@@ -207,6 +207,8 @@ pub struct SlotChrome<'a> {
     /// What the slot is drawn in.
     pub colours: ChromeColours,
     pub face: Option<TexId>,
+    /// The model the cart is drawn with, sides and all; without one its face is spun flat.
+    pub mesh: Option<MeshId>,
     pub rest: f32,
     /// How big the cart was drawn on the shelf, as a share of its own size, with `rest` its
     /// left edge there: both as `Shelf::selected_at` gives them.
@@ -262,14 +264,28 @@ impl SlotChrome<'_> {
         let pose = self.pose.toward_rest(k);
         let y = foot0 + (seated_foot - foot0) * travel - ch - pose.lift;
         let cart_alpha = if seat >= 1.0 { chrome } else { 1.0 };
-        if let Some(tex) = self.face {
-            spin::push_cart_side(out, (x, y, cw, ch), tex, 0.0, pose.yaw, 1.0, cart_alpha);
-        }
-        out.push(match self.face {
-            Some(tex) => spin::posed_face((x, y, cw, ch), tex, cart_alpha, 0.0, pose.yaw),
-            None => {
+        match (self.face, self.mesh) {
+            (Some(tex), Some(mesh)) => out.push(spin::posed_cart(
+                (x, y, cw, ch),
+                mesh,
+                tex,
+                [1.0, 1.0, 1.0, cart_alpha],
+                0.0,
+                pose.yaw,
+            )),
+            (Some(tex), None) => {
+                spin::push_cart_side(out, (x, y, cw, ch), tex, 0.0, pose.yaw, 1.0, cart_alpha);
+                out.push(spin::posed_face(
+                    (x, y, cw, ch),
+                    tex,
+                    cart_alpha,
+                    0.0,
+                    pose.yaw,
+                ));
+            }
+            (None, _) => {
                 let c = label_colour(&label_text(self.cart));
-                Draw::Rect {
+                out.push(Draw::Rect {
                     x,
                     y,
                     w: cw,
@@ -280,9 +296,9 @@ impl SlotChrome<'_> {
                         c[2] as f32 / 255.0,
                         cart_alpha,
                     ],
-                }
+                });
             }
-        });
+        }
 
         if let Some((tex, alpha)) = self.alert {
             let (w, h) = icon_box(ALERT_PX);
