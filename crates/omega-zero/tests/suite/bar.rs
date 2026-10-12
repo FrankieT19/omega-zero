@@ -339,19 +339,30 @@ fn the_pill_rises_into_place_with_each_system() {
         a.set_shelf_platform_face(TexId::from_raw(tex), PILL_W);
         a.update(0.0);
         let from = a.now();
-        let mut ys = Vec::new();
+        let mut seen = Vec::new();
         while a.now() <= from + PILL_IN_MS + 50 {
-            let y = frame(&a).iter().find_map(|d| match *d {
+            seen.push(frame(&a).iter().find_map(|d| match *d {
                 Draw::Tex { y, tex: t, .. } if t == TexId::from_raw(tex) => Some(y),
                 _ => None,
-            });
-            ys.push(y.expect("the pill is not drawn as it rises"));
+            }));
             a.update(1.0 / 120.0);
         }
+        // sunk all the way it is out of the screen and not drawn; once drawn, it stays
         assert_eq!(
-            ys[0],
-            top + (SINK * SPRITE_PX) as f32,
+            seen[0], None,
             "round {round}: the pill did not start out of sight"
+        );
+        let drawn = seen.iter().position(Option::is_some);
+        let drawn = drawn.expect("the pill is not drawn as it rises");
+        assert!(
+            seen[drawn..].iter().all(Option::is_some),
+            "round {round}: the pill went out of sight as it rose: {seen:?}"
+        );
+        let ys: Vec<f32> = seen.into_iter().flatten().collect();
+        assert!(
+            ys[0] > top && ys[0] < top + (SINK * SPRITE_PX) as f32,
+            "round {round}: the pill came in sight at {} rather than under its place",
+            ys[0]
         );
         assert_eq!(
             *ys.last().unwrap(),
@@ -411,6 +422,42 @@ fn the_pill_is_not_shown_while_the_core_picker_is_open() {
         Some(BarLayout::top(out_h())),
         "the pill did not come back as the picker shut"
     );
+}
+
+/// Sliding from the shelf to a menu, the pill sinks with the shelf's actions over the slide's
+/// first half; coming back, it rises with them over the second. It is never drawn without them.
+#[test]
+fn the_pill_sinks_and_rises_with_the_shelfs_actions_as_the_shelf_slides_to_a_menu_and_back() {
+    let (_d, mut a) = on_shelf();
+    pill_up(&mut a);
+    let top = BarLayout::top(out_h());
+    for (btn, way) in [(Btn::Start, "leaving"), (Btn::B, "coming back")] {
+        press(&mut a, btn);
+        let mut moved = false;
+        for _ in 0..24 {
+            let out = frame(&a);
+            let shelf = shown(&out).into_iter().find(|&(tex, _)| tex == SHELF_LEFT);
+            match (pill(&out), shelf) {
+                (Some([_, y, ..]), Some((_, sink))) => {
+                    assert_eq!(
+                        y - top,
+                        sink,
+                        "{way}, the pill is {} below its place and the actions {sink}",
+                        y - top
+                    );
+                    moved |= sink > 0.0;
+                }
+                (None, None) => {}
+                (pill, shelf) => {
+                    panic!("{way}, the pill ({pill:?}) and the actions ({shelf:?}) went apart")
+                }
+            }
+            a.update(SLIDE_MS as f32 / 1000.0 / 20.0);
+        }
+        a.finish_slide();
+        assert!(moved, "{way}, the pill never moved with the actions");
+    }
+    assert!(pill(&frame(&a)).is_some(), "the pill did not come back");
 }
 
 /// As a cart goes in, the pill sinks with the actions, as far as they have, and is gone with

@@ -336,11 +336,14 @@ impl App {
             self.core_picker_shown(),
             self.shelf_platform.face,
         ) {
-            let sink = (place.sink + self.pill_sink()).min(SINK);
-            let w = self.shelf_platform.w;
-            let x = (omega_gfx::out_w() / SPRITE_PX / 2).saturating_sub(w / 2);
-            let y = BarLayout::top(h) + px(sink as i32);
-            out.push(quad(tex, w, omega_ui::kit::action::BAR, px(x as i32), y));
+            // sunk all the way, it is out of the screen
+            let sink = place.sink + self.pill_sink();
+            if sink < SINK {
+                let w = self.shelf_platform.w;
+                let x = (omega_gfx::out_w() / SPRITE_PX / 2).saturating_sub(w / 2);
+                let y = BarLayout::top(h) + px(sink as i32);
+                out.push(quad(tex, w, omega_ui::kit::action::BAR, px(x as i32), y));
+            }
         }
         if place.sink >= SINK {
             return;
