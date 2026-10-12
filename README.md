@@ -104,6 +104,9 @@ in the [wiki](https://github.com/oauramos/omega-zero/wiki).
 
 omega-zero is made by **Otávio ([@oauramos](https://github.com/oauramos))**.
 
+- Based on [slot](https://github.com/BrandonKowalski/slot) by
+  [Brandon T. Kowalski](https://github.com/BrandonKowalski) (GPL-3.0). The code that hosts the
+  cores, with their saves, sound and input, is still largely his.
 - [BaseOS](https://github.com/pvaibhav/BaseOS) by pvaibhav.
 - Emulation by [mGBA](https://mgba.io) (MPL-2.0) and [gpSP](https://github.com/libretro/gpsp)
   (GPL-2.0). Their licences, patches and gpSP's source ship in `System/licenses/`.
@@ -113,8 +116,8 @@ omega-zero is made by **Otávio ([@oauramos](https://github.com/oauramos))**.
   account.
 
 omega-zero is licensed under the GPL-3.0-or-later; see [LICENSE](LICENSE). It began in October
-2026 as a modified version of a GPL-3.0 program. It is written with Claude, and reviewed and tested
-by its maintainer. The site and these pictures are drawn with its
+2026 as a modified version of slot. It is written with Claude, and reviewed and tested by its
+maintainer. The site and these pictures are drawn with its
 UI kit, [`assets/ui`](assets/ui).
 
 Game Boy, Game Boy Color and Game Boy Advance are trademarks of Nintendo. Anbernic is a trademark
