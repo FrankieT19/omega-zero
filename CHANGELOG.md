@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## omega-zero 0.0.4
+
+The slot under the shelf is gone: carts go down into the handheld, and the game comes on like a
+tube TV.
 
 - The slot under the shelf is gone: a cart goes into the handheld itself. From the middle of the
   shelf it rises a little, then is pulled down out of the bottom of the screen, and the game
