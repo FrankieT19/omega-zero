@@ -329,14 +329,10 @@ impl App {
                     .shifted(0.0, px(place.drop as i32)),
             );
         }
-        // the shelf's system in its pill between the actions, going with them
-        let on_shelf = matches!(
-            self.phase,
-            Phase::Shelf | Phase::Inserting { .. } | Phase::Ejecting { .. }
-        );
-        if let (Actions::Shelf, true, None, Some(tex)) = (
+        // the shelf's system in its pill between the actions, going with them: the shelf's
+        // actions are shown only with the shelf at one end of a slide, or a cart going in or out
+        if let (Actions::Shelf, None, Some(tex)) = (
             place.actions,
-            on_shelf,
             self.core_picker_shown(),
             self.shelf_platform.face,
         ) {
