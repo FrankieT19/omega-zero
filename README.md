@@ -11,11 +11,6 @@ only those, on a shelf of cartridges that go down into the handheld when you pla
 <a href="CHANGELOG.md"><b>Changelog</b></a>
 </p>
 
-<p align="center">
-<img src="site/media/shelf.png" width="380" alt="The shelf of GBA carts on an RG35XX SP: Emerald in the middle, the top bar with Wi-Fi, ssh, the clock and the battery, and the bottom bar with SELECT CONTROLS, a GBA pill and START SETTINGS">
-<img src="site/media/slide.png" width="380" alt="START on the shelf: the carts going out to the left as the Settings window comes in from the right">
-</p>
-
 <img src="site/media/readme/supported-devices.png" width="760" alt="">
 
 ## Supported devices
