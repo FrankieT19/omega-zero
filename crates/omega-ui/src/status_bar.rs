@@ -12,12 +12,12 @@ use omega_gfx::{out_w, Draw, TexId};
 use omega_power::Battery;
 
 use crate::battery::{draw_gauge, gauge_width, FIGURE_AT};
+use crate::chrome::ChromeColours;
 use crate::footer::Printed;
 use crate::hud::HUD_INK;
 use crate::kit::pixel::{blank, letters, quad, ACCENT, ADVANCE};
 use crate::kit::text::{AIR, WORD_H};
 use crate::plate::UndoFace;
-use crate::slot_chrome::ChromeColours;
 use crate::sprite::{cropped, sprite_face, Rows, CELL, CELL_PX, SPRITE_PX};
 
 pub const TOP_BAR_H: f32 = 36.0;

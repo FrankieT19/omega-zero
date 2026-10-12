@@ -5,8 +5,8 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use omega_gfx::{Compositor, HeadlessSurface};
 use omega_store::{Cart, Platform};
 use omega_ui::{
-    cart_face, cart_mesh, cart_shadow, out_h, out_w, CartMeshes, CartModel, ChromeColours, Draw,
-    GbShell, Shelf, SlotChrome, TexId, CART_W,
+    cart_face, cart_mesh, cart_shadow, out_h, out_w, CartDive, CartMeshes, CartModel, Draw,
+    GbShell, Shelf, TexId, CART_W,
 };
 
 static GL: Mutex<()> = Mutex::new(());
@@ -177,7 +177,7 @@ fn a_shelf_of_one_does_not_move_when_a_shoulder_is_held() {
 }
 
 #[test]
-fn the_slot_takes_over_the_cart_where_the_row_had_it() {
+fn the_dive_takes_over_the_cart_where_the_row_had_it() {
     let Some((_g, _s, mut c)) = compositor() else {
         return;
     };
@@ -195,8 +195,7 @@ fn the_slot_takes_over_the_cart_where_the_row_had_it() {
     let (rest, scale) = s.selected_at();
     let mut after = Vec::new();
     s.draw_row(Some(&cart.stem), 0.0, 0.0, 1.0, &mut after);
-    SlotChrome {
-        colours: ChromeColours::default(),
+    CartDive {
         cart: &cart,
         face: Some(faces[s.index]),
         mesh: s.mesh_for(&cart.stem),
@@ -219,7 +218,7 @@ fn the_slot_takes_over_the_cart_where_the_row_had_it() {
     let moved = a.iter().zip(&b).filter(|(x, y)| x != y).count();
     assert!(
         moved <= 2,
-        "{moved} columns of the row changed on the frame the slot took the cart over: the \
+        "{moved} columns of the row changed on the frame the dive took the cart over: the \
          cartridge jumped rather than being handed across"
     );
 }

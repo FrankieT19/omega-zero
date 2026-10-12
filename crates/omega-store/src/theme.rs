@@ -5,8 +5,6 @@ pub const THEME_FILE: &str = "theme.txt";
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Theme {
     pub housing: [u8; 3],
-    pub recess: [u8; 3],
-    pub opening: [u8; 3],
     pub edge: [u8; 3],
 }
 
@@ -14,8 +12,6 @@ impl Default for Theme {
     fn default() -> Self {
         Theme {
             housing: [0x24, 0x24, 0x29],
-            recess: [0x1a, 0x1a, 0x1d],
-            opening: [0x05, 0x05, 0x08],
             edge: [0x4d, 0x4d, 0x57],
         }
     }
@@ -52,8 +48,6 @@ impl Theme {
             };
             match name.to_ascii_lowercase().as_str() {
                 "housing" => theme.housing = rgb,
-                "recess" => theme.recess = rgb,
-                "opening" => theme.opening = rgb,
                 "edge" => theme.edge = rgb,
                 _ => {}
             }

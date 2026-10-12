@@ -1,6 +1,6 @@
 //! omega-ui's tests, built as one binary. Built one per file, linking and starting them took
 //! longer than running them. A test that needs a process to itself stays a file of its own in
-//! tests/, beside this folder: theme sets the slot's palette, which a process sets only once.
+//! tests/, beside this folder: theme sets the chrome's colours, which a process sets only once.
 
 mod backdrop;
 mod battery;
@@ -11,6 +11,7 @@ mod cart;
 mod chrome;
 mod clock;
 mod contrast;
+mod dive;
 mod font;
 mod hud;
 mod keyboard;

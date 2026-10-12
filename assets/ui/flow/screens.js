@@ -8,8 +8,9 @@
   hint().
 
   The settings that show on more than one screen (Wi-Fi, Network Time, SSH, Network's scan,
-  Bluetooth and its devices, the date, the backdrop, the bar's font) live once, in
-  FlowScreens.model, and every screen showing one follows it.
+  Bluetooth and its devices, the date, the backdrop, the bar's font, the shelf's system and the
+  letter jumped to, which the bar's pill shows) live once, in FlowScreens.model, and every screen
+  showing one follows it.
 */
 window.FlowScreens = (() => {
   // ---- the settings, shared ----
@@ -43,6 +44,8 @@ window.FlowScreens = (() => {
     moving: true,
     colour: 'night',
     font: 'bold',         // the bottom bar's labels, bold or thin
+    system: 'GBA',        // the shelf on show, its system in the bar's pill
+    letter: null,         // the letter Up or Down jumped to, in the pill instead for a while
   };
   const listeners = new Set();
   function set(key, value) {
@@ -187,12 +190,44 @@ window.FlowScreens = (() => {
     press() {}
   }
 
-  // The shelf, as far as these screens go: START to Settings, SELECT to Controls.
+  // The shelves, one a system, L1 and R1 going round them; and the letters the placeholder carts
+  // start with, the same on every shelf, which Up and Down jump between.
+  const SYSTEMS = ['GBA', 'GB', 'GBC'];
+  const INITIALS = ['A', 'C', 'F', 'K', 'M', 'P', 'S', 'Z'];
+
+  // The shelf, as far as these screens go: START to Settings, SELECT to Controls, L1 and R1 to
+  // the shelf before or after, round and round, and Up and Down to the letter before or after,
+  // stopping at the first and the last. Each shelf keeps the letter it is on. What the bar's
+  // pill shows of it, and for how long, is player.js's.
   class Shelf extends Still {
+    constructor(page) {
+      super(page);
+      this.at = Object.fromEntries(SYSTEMS.map(system => [system, 0]));
+    }
+
     press(key) {
       if (key === 'start') return { go: 'settings' };
       if (key === 'select') return { go: 'controls' };
+      if (key === 'l1' || key === 'r1') {
+        const at = SYSTEMS.indexOf(model.system) + (key === 'r1' ? 1 : -1);
+        set('letter', null);
+        set('system', SYSTEMS[(at + SYSTEMS.length) % SYSTEMS.length]);
+      }
+      if (key === 'up' || key === 'down') {
+        const at = this.at[model.system] + (key === 'down' ? 1 : -1);
+        if (at < 0 || at >= INITIALS.length) return;
+        this.at[model.system] = at;
+        set('letter', INITIALS[at]);
+      }
     }
+  }
+  let shelf;
+
+  // The shelf on `system`, the letter `letter` (or none) shown in the pill and its carts on it.
+  function shelfAs(system, letter) {
+    set('system', system);
+    if (letter) shelf.at[system] = INITIALS.indexOf(letter);
+    set('letter', letter);
   }
 
   // ---- Date & Time: a line of fields, ◀ ▶ between them, ▲ ▼ to change one ----
@@ -734,6 +769,7 @@ window.FlowScreens = (() => {
       if (key === 'bluetooth' && !on) screens.bluetooth.unlook();
     });
     bluetoothMenu = screens.bluetooth;
+    shelf = screens.shelf;
     return screens;
   }
 
@@ -750,5 +786,8 @@ window.FlowScreens = (() => {
   // The screens after the power menu's choice, which have no bar: nothing can be pressed on them.
   const GOING = ['restarting', 'poweroff'];
 
-  return { model, set, onChange, build, PARENT, GOING, SCAN, scanAs, scanState, BT, bluetoothAs, bluetoothState };
+  return {
+    model, set, onChange, build, PARENT, GOING, SCAN, scanAs, scanState, BT, bluetoothAs, bluetoothState,
+    SYSTEMS, INITIALS, shelfAs,
+  };
 })();

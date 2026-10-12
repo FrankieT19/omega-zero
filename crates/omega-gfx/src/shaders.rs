@@ -162,11 +162,12 @@ uniform sampler2D u_mask;
 uniform vec2 u_src;
 uniform vec4 u_uv;
 uniform float u_bright;
+uniform float u_glow;
 varying vec2 v_uv;
 void main() {
     vec2 uv = u_uv.xy + v_uv * u_uv.zw;
     vec3 rgb = texture2D(u_game, uv).rgb * texture2D(u_mask, v_uv * u_src).rgb;
-    FRAG_COLOR = vec4(rgb * u_bright, 1.0);
+    FRAG_COLOR = vec4(mix(rgb * u_bright, vec3(1.0), u_glow), 1.0);
 }
 "#;
 
@@ -183,6 +184,7 @@ uniform vec2 u_src;
 uniform vec4 u_uv;
 uniform vec2 u_scale;
 uniform float u_bright;
+uniform float u_glow;
 varying vec2 v_uv;
 void main() {
     vec2 texel = (u_uv.xy + v_uv * u_uv.zw) * u_src;
@@ -190,7 +192,7 @@ void main() {
     vec2 region = 0.5 - 0.5 / u_scale;
     vec2 f = (from_centre - clamp(from_centre, -region, region)) * u_scale + 0.5;
     vec3 rgb = texture2D(u_game, (floor(texel) + f) / u_src).rgb;
-    FRAG_COLOR = vec4(rgb * u_bright, 1.0);
+    FRAG_COLOR = vec4(mix(rgb * u_bright, vec3(1.0), u_glow), 1.0);
 }
 "#;
 

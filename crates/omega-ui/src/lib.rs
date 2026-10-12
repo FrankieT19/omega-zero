@@ -4,13 +4,16 @@ mod battery;
 mod bezel;
 mod board;
 mod cart;
+mod chrome;
 mod clock;
+mod dive;
 mod draw;
 mod footer;
 mod hud;
 mod keyboard;
 pub mod kit;
 pub mod link_art;
+mod motion;
 pub mod network;
 mod opening;
 mod plate;
@@ -21,7 +24,6 @@ mod settings_menu;
 mod shelf;
 mod shell;
 mod silhouette;
-mod slot_chrome;
 mod spin;
 mod sprite;
 mod stage;
@@ -52,7 +54,9 @@ pub use cart::{
     GB_CART_H, GB_CART_W, GB_LABEL_H, GB_LABEL_W, GB_LABEL_X, GB_LABEL_Y, LABEL_H, LABEL_W,
     LABEL_X, LABEL_Y,
 };
+pub use chrome::{edge, housing, set_theme, ChromeColours, BAR_H};
 pub use clock::{clock_label, date_time_text, hhmm, zone_text, ClockPicker, Field};
+pub use dive::{alert_face, CartDive, ALERT_H, ALERT_W};
 pub use draw::{out_h, out_w, Draw, MeshId, TexId};
 pub use footer::Printed;
 pub use hud::{
@@ -67,6 +71,7 @@ pub use keyboard::{
 };
 pub use kit::badge::BadgeIcon;
 pub use kit::gauge::GaugeIcon;
+pub use motion::ease;
 pub use opening::{opening_line, OPENING_ADVANCE, OPENING_PITCH, OPENING_RISE};
 pub use plate::{word_cap_top, UndoFace, HINT_H};
 pub use polaroids::{photo_face, PhotoFace, Polaroids, PHOTO_H, PHOTO_W};
@@ -84,11 +89,6 @@ pub use shell::{
     GB_CLEAR_SHELL,
 };
 pub use silhouette::{gb_silhouette, silhouette, GbShell};
-pub use slot_chrome::{
-    alert_face, draw_empty_slot, draw_slot_name, ease, edge, housing, opening, recess, set_theme,
-    slot_name_face, slot_top, ChromeColours, SlotChrome, ALERT_H, ALERT_W, BAR_H, CATCH_OUT, LIP_H,
-    MOUTH_H, MOUTH_W, SLOT_RAISE,
-};
 pub use spin::{
     cart_mesh, posed_cart, posed_face, push_cart_side, CartMeshes, CartModel, Pose, OUTLINE_INSET,
     THICK,

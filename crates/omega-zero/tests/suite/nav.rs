@@ -13,7 +13,7 @@ use omega_ui::{
 use omega_zero::app::{App, Phase};
 use omega_zero::label_screen::LabelsScreen;
 use omega_zero::nav::{
-    across, dropping, even, offsets, progress, widest_cart, Dir, End, Offsets, SLIDE_MS, SLOT_DROP,
+    across, dropping, even, offsets, progress, widest_cart, Dir, End, Offsets, SLIDE_MS,
 };
 use omega_zero::screens::lone::Lone;
 use omega_zero::wifi::{Seen, WifiJob, WifiJobs, WifiNews};
@@ -84,7 +84,7 @@ fn every_offset_is_whole_art_pixels() {
             for end in [End::Leaving, End::Arriving] {
                 for step in 0..=SLIDE_MS {
                     let o = offsets(dir, end, progress(0, step), w);
-                    for v in [o.dx, o.carts_dx, o.bar_dy, o.slot_dy] {
+                    for v in [o.dx, o.carts_dx, o.bar_dy] {
                         assert!(whole(v), "{v} at {step} ms of {dir:?} {end:?} on {w}");
                     }
                 }
@@ -105,7 +105,6 @@ fn a_dropping_slide_goes_down_in_and_up_out_with_nothing_across() {
         dy,
         carts_dy: dy,
         bar_dy: dy,
-        slot_dy: dy,
         ..Offsets::NONE
     };
     for (dir, end, at_half) in [
@@ -134,8 +133,10 @@ fn a_dropping_slide_goes_down_in_and_up_out_with_nothing_across() {
     }
 }
 
+/// The shelf slides in two layers: its carts across, the way the slide goes, and its top bar
+/// up off the screen. Nothing of it goes down any more: there is no slot under it to drop.
 #[test]
-fn the_shelf_leaves_in_three_layers_and_comes_back_the_same_ways() {
+fn the_shelf_leaves_in_two_layers_and_comes_back_the_same_ways() {
     let w = out_w() as f32;
     let span = w + widest_cart();
     // leaving for Controls
@@ -144,11 +145,15 @@ fn the_shelf_leaves_in_three_layers_and_comes_back_the_same_ways() {
     let half = leave(0.5);
     assert_eq!(half.carts_dx, even(span / 2.0), "the carts go right");
     assert_eq!(half.bar_dy, -TOP_BAR_H / 2.0, "the top bar goes up");
-    assert_eq!(half.slot_dy, even(SLOT_DROP / 2.0), "the slot goes down");
+    assert_eq!(
+        (half.dy, half.carts_dy),
+        (0.0, 0.0),
+        "something of the shelf goes down"
+    );
     let gone = leave(1.0);
     assert_eq!(
-        (gone.carts_dx, gone.bar_dy, gone.slot_dy),
-        (span, -TOP_BAR_H, SLOT_DROP)
+        (gone.carts_dx, gone.bar_dy, gone.carts_dy),
+        (span, -TOP_BAR_H, 0.0)
     );
     assert!(
         gone.carts_dx >= w + widest_cart(),
@@ -157,8 +162,8 @@ fn the_shelf_leaves_in_three_layers_and_comes_back_the_same_ways() {
     // coming back from it
     let back = |p| offsets(Dir::Back, End::Arriving, p, w);
     assert_eq!(
-        (back(0.0).carts_dx, back(0.0).bar_dy, back(0.0).slot_dy),
-        (span, -TOP_BAR_H, SLOT_DROP),
+        (back(0.0).carts_dx, back(0.0).bar_dy, back(0.0).carts_dy),
+        (span, -TOP_BAR_H, 0.0),
         "the shelf does not come back from where it went"
     );
     assert_eq!(
@@ -171,13 +176,9 @@ fn the_shelf_leaves_in_three_layers_and_comes_back_the_same_ways() {
         -TOP_BAR_H / 2.0,
         "the top bar comes from the top"
     );
-    assert_eq!(
-        back(0.5).slot_dy,
-        even(SLOT_DROP / 2.0),
-        "the slot comes from the bottom"
-    );
+    assert_eq!(back(0.5).carts_dy, 0.0, "the carts come up from below");
     assert_eq!(back(1.0).carts_dx, 0.0);
-    assert_eq!((back(1.0).bar_dy, back(1.0).slot_dy), (0.0, 0.0));
+    assert_eq!(back(1.0).bar_dy, 0.0);
 }
 
 #[test]
@@ -190,11 +191,15 @@ fn the_shelf_leaves_for_settings_with_its_carts_the_other_way_and_comes_back_fro
     let half = leave(0.5);
     assert_eq!(half.carts_dx, -even(span / 2.0), "the carts go left");
     assert_eq!(half.bar_dy, -TOP_BAR_H / 2.0, "the top bar goes up");
-    assert_eq!(half.slot_dy, even(SLOT_DROP / 2.0), "the slot goes down");
+    assert_eq!(
+        (half.dy, half.carts_dy),
+        (0.0, 0.0),
+        "something of the shelf goes down"
+    );
     let gone = leave(1.0);
     assert_eq!(
-        (gone.carts_dx, gone.bar_dy, gone.slot_dy),
-        (-span, -TOP_BAR_H, SLOT_DROP)
+        (gone.carts_dx, gone.bar_dy, gone.carts_dy),
+        (-span, -TOP_BAR_H, 0.0)
     );
     assert!(
         gone.carts_dx <= -(w + widest_cart()),
@@ -203,8 +208,8 @@ fn the_shelf_leaves_for_settings_with_its_carts_the_other_way_and_comes_back_fro
     // coming back from it
     let back = |p| offsets(Dir::FromAside, End::Arriving, p, w);
     assert_eq!(
-        (back(0.0).carts_dx, back(0.0).bar_dy, back(0.0).slot_dy),
-        (-span, -TOP_BAR_H, SLOT_DROP),
+        (back(0.0).carts_dx, back(0.0).bar_dy, back(0.0).carts_dy),
+        (-span, -TOP_BAR_H, 0.0),
         "the shelf does not come back from where it went"
     );
     assert_eq!(
@@ -216,11 +221,6 @@ fn the_shelf_leaves_for_settings_with_its_carts_the_other_way_and_comes_back_fro
         back(0.5).bar_dy,
         -TOP_BAR_H / 2.0,
         "the top bar comes from the top"
-    );
-    assert_eq!(
-        back(0.5).slot_dy,
-        even(SLOT_DROP / 2.0),
-        "the slot comes from the bottom"
     );
     assert_eq!(back(1.0), Offsets::NONE);
 }

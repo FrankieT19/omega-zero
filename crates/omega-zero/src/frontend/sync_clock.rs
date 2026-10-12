@@ -1,9 +1,10 @@
-//! The slot's name printed on the shelf's slot, the alert a refused cart comes out with, and the
-//! Date & Time panel. The top bar prints its clock and the battery's charge in its own ink
-//! (sync_top_bar.rs), over the shelf and over the save-state switcher alike.
+//! The shelf's system (or the letter jumped to) in the bar's pill, the alert a refused cart comes
+//! out with, and the Date & Time panel. The top bar prints its clock and the battery's charge in
+//! its own ink (sync_top_bar.rs), over the shelf and over the save-state switcher alike.
 
 use omega_gfx::{Compositor, TexId};
-use omega_ui::{alert_face, slot_name_face, Field};
+use omega_ui::kit::action::pill_face;
+use omega_ui::{alert_face, Field};
 
 use crate::app::App;
 use crate::frontend::faces::upload_nearest;
@@ -15,7 +16,7 @@ pub(crate) struct Clocks {
     /// The Date & Time panel, baked again when the picker's line, its cursor or the palette
     /// changes.
     panel: Baked<(String, Field, u8)>,
-    /// The slot's name and the palette colour it was baked in, and its texture.
+    /// What the pill shows and the palette colour it was baked in, and its texture.
     platform: (String, u8),
     platform_tex: Option<TexId>,
     /// The refused cart's alert, baked again when the palette changes.
@@ -40,12 +41,12 @@ pub(crate) fn sync_clock(app: &mut App, compositor: &mut Compositor, clocks: &mu
     {
         app.set_alert_face(alert.tex);
     }
-    let named = (app.slot_text().unwrap_or_default(), colour);
+    let named = (app.pill_text().unwrap_or_default(), colour);
     if named != clocks.platform {
         if named.0.is_empty() {
             app.clear_shelf_platform();
         } else {
-            let face = slot_name_face(&named.0, app.palette());
+            let face = pill_face(&named.0, app.palette());
             let id = upload_nearest(compositor, &mut clocks.platform_tex, &face);
             app.set_shelf_platform_face(id, face.w);
         }

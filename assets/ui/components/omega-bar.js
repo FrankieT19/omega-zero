@@ -7,6 +7,11 @@
       <action-left slot="left" label="BACK" hint="B"></action-left>
       <action-right slot="right" label="JOIN" hint="A"></action-right>
     </omega-bar>
+    <omega-bar>
+      <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
+      <omega-pill slot="middle" text="GBA" centred></omega-pill>
+      <action-right slot="right" label="SETTINGS" hint="START"></action-right>
+    </omega-bar>
 
   hint      a key and what it does, the first word the key: "Y FORGET", "START FETCH". Two are
             given with a | between them: "Y FORGET | X RENAME". Each is drawn as its key in a
@@ -18,7 +23,10 @@
   Slots: left and right, for the two actions. The bar makes them one width: it gives both the
   room (see action-left.js) of the wider label and the wider hint of the two, again whenever
   either's text or the font changes, so each label and each hint is centred in a box as wide as
-  the other's. An empty action takes the room of the one beside it.
+  the other's. An empty action takes the room of the one beside it. middle, for what stands
+  between them in place of hints: the shelf's system, an <omega-pill centred> (omega-pill.js),
+  at the bar's top and across the whole room between the actions, so a centred pill is in the
+  middle of the screen. A bar with one has no hints.
 
   It fills its parent's width and is 15 art pixels tall, the actions' height; their notches rise 4
   above it, over whatever is there. The hints' capitals are on rows 5 to 11, the same rows as the
@@ -98,8 +106,11 @@
       ::slotted(*) { position: relative; z-index: 1; flex: none; }
 
       /* the room between the two actions, from one's end to the other's: nothing is drawn in it but
-         the hints, so whatever is behind the bar shows through */
-      .middle { flex: 1; min-width: 0; }
+         the hints, or the shelf's pill, so whatever is behind the bar shows through */
+      .middle { position: relative; flex: 1; min-width: 0; }
+      /* what stands in it in place of hints, over the whole room from the bar's top: a page moves
+         it by its top, as it does an action */
+      ::slotted([slot="middle"]) { position: absolute; left: 0; right: 0; top: 0; z-index: 0; }
 ${HINTS}
       /* Centred between the actions, rounded down to a whole art pixel: --ink is the hints' width in
          art pixels from their first ink to their last, which hints() works out from the text. */
@@ -111,7 +122,7 @@ ${HINTS}
     </style>
     <div class="bar" part="bar">
       <slot name="left"></slot>
-      <div class="middle" part="middle"><div class="hints" part="hints"></div></div>
+      <div class="middle" part="middle"><div class="hints" part="hints"></div><slot name="middle"></slot></div>
       <slot name="right"></slot>
     </div>`;
 

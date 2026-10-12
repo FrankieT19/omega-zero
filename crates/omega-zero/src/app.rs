@@ -13,10 +13,10 @@ use omega_ui::kit::action::Font;
 use omega_ui::kit::fade::stepped;
 use omega_ui::{
     backdrop_shift, board_from, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease, grown,
-    lid_from, lift_of, on_board, posed_cart, posed_face, push_cart_side, shelf_cart_at, CartMeshes,
-    ChromeColours, ClockPicker, CornerBadge, Draw, FfState, GaugeIcon, GbShell, Hud, HudKind,
-    KeyboardFaces, LinkBadge, LinkFaces, Links, Millis, Placed, Polaroids, PowerChoice, Refusal,
-    SettingsFaces, SettingsRow, Shelf, SlotChrome, TexId, Toast, CART_W, CHIP_H, CHIP_U, CHIP_V,
+    lid_from, lift_of, on_board, posed_cart, posed_face, push_cart_side, shelf_cart_at, CartDive,
+    CartMeshes, ChromeColours, ClockPicker, CornerBadge, Draw, FfState, GaugeIcon, GbShell, Hud,
+    HudKind, KeyboardFaces, LinkBadge, LinkFaces, Links, Millis, Placed, Polaroids, PowerChoice,
+    Refusal, SettingsFaces, SettingsRow, Shelf, TexId, Toast, CART_W, CHIP_H, CHIP_U, CHIP_V,
     CHIP_W, HOP_LIFT, LID_SHADOW_H, LID_SHADOW_W, SHADOW_AT, SHADOW_H, SHADOW_W, SOCKET_H,
     SOCKET_U, SOCKET_V, SOCKET_W, SPRITE_PX, TOP_BAR_H, TURN_PAD,
 };
@@ -47,18 +47,18 @@ use crate::video_mode::{self, VideoMode};
 use crate::wifi::{wifi_jobs, WifiJobs};
 use crate::wifi_screen::{Summary, Watch, Wifi, WifiScreen};
 
-pub const INSERT_S: f32 = 0.73;
+pub const INSERT_S: f32 = 0.88;
 const INSERT_HOLD_S: f32 = 0.28;
 
 pub const SEATED_AT: f32 = INSERT_S - INSERT_HOLD_S;
 
 pub const EJECT_S: f32 = SEATED_AT;
 
-const EJECT_HOLD_S: f32 = 0.35;
+const EJECT_HOLD_S: f32 = 0.2;
 
-const POWER_ON_S: f32 = 0.22;
+const POWER_ON_S: f32 = 0.6;
 
-const POWER_OFF_S: f32 = 0.16;
+const POWER_OFF_S: f32 = 0.5;
 
 const VOLUME_STEP: u8 = 5;
 
@@ -82,9 +82,10 @@ const PLAY_HOLD_MS: Millis = 500;
 /// platform takes the handheld down is the still one.
 const SHUTDOWN_SHOW_MS: Millis = SLIDE_MS + 120;
 
-const PLATFORM_NAME_IN_MS: Millis = 200;
-const PLATFORM_NAME_HOLD_MS: Millis = 1200;
-const PLATFORM_NAME_OUT_MS: Millis = 800;
+/// How long the shelf's pill takes to rise into place with a new system or letter.
+const PILL_IN_MS: Millis = 220;
+/// How long a letter jumped to stays in the pill before the system comes back.
+const LETTER_SHOWN_MS: Millis = 2200;
 /// The core picker's lid, the cart's own face, turned `turn` as it lifts and spun `yaw` as it
 /// leaves the shelf. Unspun, it is drawn exactly as it was before carts swayed.
 fn push_lid(out: &mut Vec<Draw>, at: (f32, f32, f32, f32), tex: TexId, turn: f32, yaw: f32) {
@@ -326,7 +327,10 @@ pub struct App {
     pub(crate) top_readouts: Readouts,
     pub(crate) shelf_platform: omega_ui::Printed,
     pub(crate) name_pending: bool,
-    pub(crate) slot_letter: Option<char>,
+    /// The letter jumped to with Up or Down, shown in the pill for a while in place of the
+    /// system.
+    pub(crate) pill_letter: Option<char>,
+    /// When the pill rose with what it shows now.
     pub(crate) shelf_named: Option<Millis>,
     pub(crate) hud: Hud,
     pub(crate) screen: f32,
@@ -470,7 +474,7 @@ impl App {
             top_readouts: Readouts::default(),
             shelf_platform: omega_ui::Printed::default(),
             name_pending: false,
-            slot_letter: None,
+            pill_letter: None,
             shelf_named: None,
             hud: Hud::new(),
             screen: 0.0,
@@ -553,7 +557,7 @@ impl App {
         self.play_held = None;
         self.shelf_at = to;
         self.shelf_platform = omega_ui::Printed::default();
-        self.slot_letter = None;
+        self.pill_letter = None;
         self.shelf_named = None;
         self.name_pending = true;
     }
@@ -570,30 +574,12 @@ impl App {
         let Some(letter) = self.selected_stem().map(omega_store::initial) else {
             return;
         };
-        if self.slot_letter != Some(letter) {
+        if self.pill_letter != Some(letter) {
             self.shelf_platform = omega_ui::Printed::default();
         }
-        self.slot_letter = Some(letter);
+        self.pill_letter = Some(letter);
         self.shelf_named = None;
         self.name_pending = true;
-    }
-
-    /// How much of the slot's name shows: it comes in, holds in the palette's dim colour and
-    /// goes, each way in the kit's four steps.
-    pub(crate) fn slot_name_alpha(&self) -> f32 {
-        let Some(at) = self.shelf_named else {
-            return 0.0;
-        };
-        let t = self.now().saturating_sub(at);
-        let level = if t < PLATFORM_NAME_IN_MS {
-            t as f32 / PLATFORM_NAME_IN_MS as f32
-        } else if t < PLATFORM_NAME_IN_MS + PLATFORM_NAME_HOLD_MS {
-            1.0
-        } else {
-            let out = t - PLATFORM_NAME_IN_MS - PLATFORM_NAME_HOLD_MS;
-            1.0 - (out as f32 / PLATFORM_NAME_OUT_MS as f32).min(1.0)
-        };
-        stepped(ease(level))
     }
 
     fn next_shelf(&self, by: i32) -> Option<usize> {
@@ -681,11 +667,25 @@ impl App {
         self.shelf_platform = omega_ui::Printed::default();
     }
 
-    pub fn slot_text(&self) -> Option<String> {
-        match self.slot_letter {
+    /// What the shelf's pill shows: the letter jumped to, or the shelf's system.
+    pub fn pill_text(&self) -> Option<String> {
+        match self.pill_letter {
             Some(letter) => Some(letter.to_string()),
-            None => self.shelf_platform_name().map(str::to_string),
+            None => self
+                .shelves
+                .get(self.shelf_at)
+                .map(|(platform, _)| platform.dir_name().to_string()),
         }
+    }
+
+    /// How far below its place the shelf's pill is, in art pixels: it rises into place as a
+    /// new system or letter is shown, and is out of sight while its face is still to come.
+    pub(crate) fn pill_sink(&self) -> u32 {
+        let Some(at) = self.shelf_named else {
+            return omega_ui::kit::bar::SINK;
+        };
+        let t = self.now().saturating_sub(at) as f32 / PILL_IN_MS as f32;
+        ((1.0 - ease(t.min(1.0))) * omega_ui::kit::bar::SINK as f32).round() as u32
     }
 
     pub fn shelf_platform_name(&self) -> Option<&'static str> {
@@ -783,7 +783,7 @@ impl App {
         video_mode::screen(self.platform, self.video_mode)
     }
 
-    /// The system of the cart in the slot, or of the last one there.
+    /// The system of the cart in the handheld, or of the last one there.
     pub fn platform(&self) -> Platform {
         self.platform
     }
@@ -1226,7 +1226,7 @@ impl App {
         }
     }
 
-    /// What the shelf's slot and top bar are drawn in: the card's theme.txt when it has one,
+    /// What the shelf's top bar is drawn in: the card's theme.txt when it has one,
     /// or else the kit's palette, so a new colour in Settings > Theme re-tints them too.
     pub fn chrome_colours(&self) -> ChromeColours {
         match &self.theme {
@@ -1522,7 +1522,17 @@ impl App {
         self.clock += dt as f64 * 1000.0;
         self.step_boot_fade(dt);
         self.step_opening(dt);
-        // the slot names its console once the shelf can be seen
+        // a letter jumped to shows in the pill for a while, then the system comes back
+        if self.pill_letter.is_some()
+            && self
+                .shelf_named
+                .is_some_and(|at| self.now().saturating_sub(at) > LETTER_SHOWN_MS)
+        {
+            self.pill_letter = None;
+            self.shelf_platform = omega_ui::Printed::default();
+            self.name_pending = true;
+        }
+        // the pill rises with the shelf's system once the shelf can be seen
         if self.name_pending && self.shelf_platform.face.is_some() && !self.opening_covers() {
             self.name_pending = false;
             self.shelf_named = Some(self.now());
@@ -1880,7 +1890,7 @@ impl App {
     }
 
     /// Draws `phase`, a screen of a slide or the one shown, moved by `off`. A menu screen
-    /// moves as one; the shelf moves its carts, its top bar and its slot each their own way.
+    /// moves as one; the shelf moves its carts and its top bar each their own way.
     pub(crate) fn draw_screen(&self, phase: &Phase, off: Offsets, out: &mut Vec<Draw>) {
         let start = out.len();
         match phase {
@@ -1909,15 +1919,15 @@ impl App {
                         .draw_row(Some(cart), 0.0, self.seat(), 1.0, out);
                     self.draw_top_bar(out);
                 }
-                self.chrome(cart, self.seat(), out);
+                self.dive(cart, self.seat(), out);
             }
             Phase::Ejecting { cart, .. } => {
                 self.shelf()
                     .draw_row(Some(cart), 0.0, self.seat(), 1.0, out);
                 self.draw_top_bar(out);
-                self.chrome(cart, self.seat(), out);
+                self.dive(cart, self.seat(), out);
             }
-            Phase::Playing { cart } if self.screen < 1.0 => self.chrome(cart, 0.0, out),
+            Phase::Playing { cart } if self.screen < 1.0 => self.dive(cart, 0.0, out),
             Phase::Playing { .. } => self.push_game(out),
             // the save states over the game, under the shelf's top bar; the bar along the bottom
             // is drawn after every screen
@@ -1966,15 +1976,15 @@ impl App {
         }
     }
 
-    fn chrome(&self, stem: &str, dim: f32, out: &mut Vec<Draw>) {
+    /// The cart `stem` on its way into the handheld or out of it, the screen behind it `dim`.
+    fn dive(&self, stem: &str, dim: f32, out: &mut Vec<Draw>) {
         let Some((cart, face)) = self.shelf().find(stem) else {
             return;
         };
         let alpha = self.alert_alpha();
         let (rest, scale) = self.shelf().selected_at();
-        SlotChrome {
+        CartDive {
             cart,
-            colours: self.chrome_colours(),
             face,
             mesh: self.shelf().mesh_for(stem),
             rest,

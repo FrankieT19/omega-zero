@@ -13,9 +13,9 @@
 //! halfway. The core picker swaps them the same way as it opens and closes, its ◀▶ SWAP coming
 //! in between RETURN and CONFIRM with them and leaving with them.
 //!
-//! A cart going in takes the whole bar down out of the screen with it, by the time it starts
-//! down into the slot; the bar stays away while the game is on and rises back as the cart comes
-//! out.
+//! A cart going in takes the whole bar down out of the screen, before the cart is pulled down
+//! past it into the handheld; the bar stays away while the game is on and rises back as the cart
+//! comes out.
 //!
 //! The power menu has a menu's actions, swapped with those of the screen POWER was held on as
 //! it slides in and out. The screen after its choice has none, since nothing can be pressed:
@@ -26,7 +26,7 @@ use omega_gfx::{out_h, Draw, TexId};
 use omega_ui::kit::action::Side;
 use omega_ui::kit::bar::{action_swap, BarLayout, Hint, SINK};
 use omega_ui::kit::pixel::quad;
-use omega_ui::{ease, Millis, CATCH_OUT, SPRITE_PX};
+use omega_ui::{ease, Millis, SPRITE_PX};
 
 use crate::app::{App, Phase};
 use crate::core_picker::CorePicker;
@@ -147,11 +147,14 @@ pub fn actions_on(phase: &Phase) -> Option<Actions> {
     }
 }
 
-/// How far the bar has sunk `seat` of the way through a cart's way in (0 on the shelf, 1
-/// seated): gone, eased, by the time the cart has crept along the lip and starts down into
-/// the slot, and back as it comes up out of it.
+/// How far into its way in (`CartDive::seat`) a cart is when the bar has sunk out of the
+/// screen: before the cart, pulled down, reaches it.
+const SUNK_AT: f32 = 0.62;
+
+/// How far the bar has sunk `seat` of the way through a cart's way in (0 on the shelf, 1 in
+/// the handheld): gone, eased, by `SUNK_AT`, and back as the cart comes out.
 fn sunk_for(seat: f32) -> u32 {
-    (ease((seat / CATCH_OUT).clamp(0.0, 1.0)) * SINK as f32).round() as u32
+    (ease((seat / SUNK_AT).clamp(0.0, 1.0)) * SINK as f32).round() as u32
 }
 
 /// How far through the swap to its actions the core picker is, eased: the bar follows the
@@ -325,6 +328,22 @@ impl App {
                     .hints_quad(tex, h)
                     .shifted(0.0, px(place.drop as i32)),
             );
+        }
+        // the shelf's system in its pill between the actions, going with them: the shelf's
+        // actions are shown only with the shelf at one end of a slide, or a cart going in or out
+        if let (Actions::Shelf, None, Some(tex)) = (
+            place.actions,
+            self.core_picker_shown(),
+            self.shelf_platform.face,
+        ) {
+            // sunk all the way, it is out of the screen
+            let sink = place.sink + self.pill_sink();
+            if sink < SINK {
+                let w = self.shelf_platform.w;
+                let x = (omega_gfx::out_w() / SPRITE_PX / 2).saturating_sub(w / 2);
+                let y = BarLayout::top(h) + px(sink as i32);
+                out.push(quad(tex, w, omega_ui::kit::action::BAR, px(x as i32), y));
+            }
         }
         if place.sink >= SINK {
             return;

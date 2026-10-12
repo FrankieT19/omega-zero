@@ -192,7 +192,7 @@ fn holding_power_opens_the_menu_over_the_shelf_a_menu_and_a_game() {
 }
 
 /// From the shelf the menu comes down from the top as the whole shelf drops out of the bottom,
-/// its carts, top bar and slot together; B is the mirror, the menu going back up as the shelf
+/// its carts and top bar together; B is the mirror, the menu going back up as the shelf
 /// rises into place. Nothing moves across.
 #[test]
 fn halfway_in_from_the_shelf_and_back_both_are_where_the_slide_has_them() {

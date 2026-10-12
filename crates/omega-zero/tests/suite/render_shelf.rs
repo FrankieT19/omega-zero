@@ -4,14 +4,14 @@ use crate::common;
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use omega_gfx::{out_h, out_w, Compositor, HeadlessSurface, TexId};
+use omega_gfx::{out_h, out_w, Compositor, Draw, HeadlessSurface, TexId};
 use omega_input::{Action, Btn};
 use omega_store::{write_app_state, AppState, Core, Platform};
 use omega_ui::{
     board_face, cart_face, cart_shadow, chip_face, chip_shadow_face, clean_label, gb_cart_shadow,
-    label_colour, lid_shadow_face, padded, socket_face, ChromeColours, GbShell, TURN_PAD,
+    label_colour, lid_shadow_face, padded, shelf_box, socket_face, GbShell, TURN_PAD,
 };
-use omega_zero::app::App;
+use omega_zero::app::{App, Phase};
 use tempfile::TempDir;
 
 static GL: Mutex<()> = Mutex::new(());
@@ -99,8 +99,12 @@ fn shelf(d: &TempDir, c: &mut Compositor) -> App {
 fn shot(app: &App, c: &mut Compositor, name: &str) -> Vec<u8> {
     let mut out = Vec::new();
     app.draw(&mut out);
+    shot_of(&out, c, name)
+}
+
+fn shot_of(out: &[Draw], c: &mut Compositor, name: &str) -> Vec<u8> {
     c.begin_frame();
-    c.draw_list(&out);
+    c.draw_list(out);
     let px = c.read_frame();
     if let Ok(dir) = std::env::var("SCRATCH_PNG_DIR") {
         let path = format!("{dir}/shelf-{name}.png");
@@ -183,8 +187,12 @@ fn x_draws_the_plain_shelf_on_a_game_boy_cart() {
     );
 }
 
+/// A card with a Game Boy Advance Tetris and a Game Boy one resumes the one its app state names,
+/// and the one that comes back out when the game is left is that cartridge: a pale pak at the
+/// size the Game Boy shelf holds it, or the dark Game Boy Advance cart, its label showing on
+/// both. A card with no cart_platform line resumes the Game Boy Advance cart.
 #[test]
-fn the_card_says_which_tetris_is_in_the_slot() {
+fn the_card_says_which_tetris_comes_back_out() {
     let Some((_g, _s, mut c)) = compositor() else {
         eprintln!("no GL on this host, skipping");
         return;
@@ -192,48 +200,52 @@ fn the_card_says_which_tetris_is_in_the_slot() {
     let d = common::tmp_root_with_carts(&["Tetris", "Emerald"]);
     common::write_gb_cart(&d, "Tetris", "TETRIS");
 
-    let gba = resumed_shot(&d, &mut c, Some(Platform::Gba), "resume-gba");
-    let gb = resumed_shot(&d, &mut c, Some(Platform::Gb), "resume-gb");
-    let unstated = resumed_shot(&d, &mut c, None, "resume-unstated");
+    let (gba, gba_at) = ejected_shot(&d, &mut c, Some(Platform::Gba), "eject-gba");
+    let (gb, gb_at) = ejected_shot(&d, &mut c, Some(Platform::Gb), "eject-gb");
+    let (unstated, unstated_at) = ejected_shot(&d, &mut c, None, "eject-unstated");
 
-    let (top, bottom) = cartridge_rows(&gba).expect("no cartridge in the slot at all");
-    assert_eq!(
-        cartridge_rows(&gb),
-        Some((top, bottom)),
-        "the two cartridges are not seated at the same depth, so what follows would be \
-         comparing different parts of them"
-    );
-    let row = (top + bottom) / 2;
-    let (dark, pale) = (centre(&gba, row), centre(&gb, row));
-    assert!(
-        (0..3).all(|k| pale[k] as i32 - dark[k] as i32 > 40),
-        "the card named the Game Boy shelf and the slot is holding {pale:?} where the Game Boy \
-         Advance cartridge reads {dark:?}: the wrong cartridge came back"
-    );
+    for (name, at, platform) in [
+        ("Game Boy Advance", gba_at, Platform::Gba),
+        ("Game Boy", gb_at, Platform::Gb),
+    ] {
+        let (w, h) = shelf_box(platform);
+        assert!(
+            (at[2] - w).abs() < 0.5 && (at[3] - h).abs() < 0.5,
+            "the {name} Tetris came out {}x{}, not the {w}x{h} its shelf holds it at",
+            at[2],
+            at[3]
+        );
+    }
 
     let ink = label_colour(&clean_label("Tetris"));
+    let (dark, pale) = (shell(&gba, gba_at, ink), shell(&gb, gb_at, ink));
     assert!(
-        paper(&gba, ink) > 200,
-        "the Game Boy Advance cartridge is in the slot without its label showing"
+        (0..3).all(|k| pale[k] as i32 - dark[k] as i32 > 40),
+        "the card named the Game Boy shelf and the cart coming out reads {pale:?} where the \
+         Game Boy Advance cartridge reads {dark:?}: the wrong cartridge came back"
     );
-    assert_eq!(
-        paper(&gb, ink),
-        0,
-        "a pak is seated and its label well is above the lip, which no pak's is"
-    );
+    for (name, px) in [("Game Boy Advance", &gba), ("Game Boy", &gb)] {
+        assert!(
+            paper(px, ink) > 200,
+            "the {name} cartridge came out without its label showing"
+        );
+    }
 
+    assert_eq!(unstated_at, gba_at);
     assert!(
         unstated == gba,
         "a card with no cart_platform line did not resume the Game Boy Advance cartridge"
     );
 }
 
-fn resumed_shot(
+/// The card resumed in Tetris, left as it boots: a shot of the cart on its way back out, all of
+/// it on the screen, and where its face is drawn.
+fn ejected_shot(
     d: &TempDir,
     c: &mut Compositor,
     platform: Option<Platform>,
     name: &str,
-) -> Vec<u8> {
+) -> (Vec<u8>, [f32; 4]) {
     write_app_state(
         d.path(),
         &AppState {
@@ -246,28 +258,67 @@ fn resumed_shot(
     .unwrap();
     let mut app = App::boot(d.path());
     upload_faces(&mut app, c);
-    shot(&app, c, name)
+    assert!(
+        matches!(app.phase(), Phase::Inserting { resumed: true, .. }),
+        "the card did not resume its cart: {:?}",
+        app.phase()
+    );
+    assert_eq!(app.seat(), 1.0, "a resumed cart is not all the way in");
+    let mut out = Vec::new();
+    app.draw(&mut out);
+    assert_eq!(
+        cart_drawn(&out),
+        None,
+        "a resumed cart is drawn on the screen though it is in the handheld"
+    );
+    app.apply(Action::Eject);
+    while app.seat() > 0.15 {
+        app.update(1.0 / 60.0);
+        assert!(app.now() < 5_000, "the cart never came out");
+    }
+    assert!(matches!(app.phase(), Phase::Ejecting { .. }));
+    let mut out = Vec::new();
+    app.draw(&mut out);
+    let at = cart_drawn(&out).expect("no cart on its way out");
+    assert!(
+        at[1] + at[3] < out_h() as f32,
+        "the cart is not all on the screen: {at:?}"
+    );
+    (shot_of(&out, c, name), at)
 }
 
-fn cartridge_rows(px: &[u8]) -> Option<(usize, usize)> {
-    // the slot in the default backdrop colour's palette
-    let colour = AppState::default().backdrop_colour;
-    let c = ChromeColours::of(omega_ui::kit::palette::palette(colour));
-    let flat = [[0.0, 0.0, 0.0, 1.0], c.housing, c.opening, c.edge, c.recess];
-    let cart = |o: usize| {
-        !flat
-            .iter()
-            .any(|f| (0..3).all(|k| px[o + k].abs_diff((f[k] * 255.0).round() as u8) <= 8))
-    };
-    let mut rows = (0..out_h() as usize)
-        .filter(|y| (0..out_w() as usize).any(|x| cart((y * out_w() as usize + x) * 4)));
-    let first = rows.next()?;
-    Some((first, rows.next_back().unwrap_or(first)))
+/// Where the last cart's face in `out` is drawn, flat, turned or spun: the one on its way in or
+/// out, drawn over the shelf.
+fn cart_drawn(out: &[Draw]) -> Option<[f32; 4]> {
+    out.iter().rev().find_map(|d| match *d {
+        Draw::Tex { x, y, w, h, .. }
+        | Draw::Turned { x, y, w, h, .. }
+        | Draw::Spun {
+            x,
+            y,
+            w,
+            h,
+            depth: 0.0,
+            ..
+        } if w > 150.0 && h > 150.0 && w < out_w() as f32 => Some([x, y, w, h]),
+        _ => None,
+    })
 }
 
-fn centre(px: &[u8], row: usize) -> [u8; 3] {
-    let o = (row * out_w() as usize + (out_w() / 2) as usize) * 4;
-    [px[o], px[o + 1], px[o + 2]]
+/// The middle of what is drawn of a cart's face at `at` but its label: its shell's colour,
+/// whatever shows round its corners.
+fn shell(px: &[u8], at: [f32; 4], ink: [u8; 3]) -> [u8; 3] {
+    let [x, y, w, h] = at.map(|v| v.max(0.0) as usize);
+    let mut seen: Vec<[u8; 3]> = (y..(y + h).min(out_h() as usize))
+        .flat_map(|row| (x..(x + w).min(out_w() as usize)).map(move |col| (col, row)))
+        .map(|(col, row)| {
+            let o = (row * out_w() as usize + col) * 4;
+            [px[o], px[o + 1], px[o + 2]]
+        })
+        .filter(|p| !(0..3).all(|k| p[k].abs_diff(ink[k]) <= 24))
+        .collect();
+    seen.sort_by_key(|p| p.iter().map(|v| *v as u32).sum::<u32>());
+    seen[seen.len() / 2]
 }
 
 fn paper(px: &[u8], ink: [u8; 3]) -> usize {

@@ -10,8 +10,9 @@
   Controls panel, and the power menu with the screens after it. Open it straight from disk; it
   needs no server or build. The URL's hash picks the screen, the panel size, the colour and any
   moment of a slide (see "The URL" on the page), so a still of any of them can be taken with
-  headless Chrome. The placeholders for what Rust draws (the carts, the slot, the top bar) are
-  flat on purpose.
+  headless Chrome. The placeholders for what Rust draws (the carts and the top bar) are flat on
+  purpose. The shelf has no slot: a cart played dives out of the bottom of the screen into the
+  handheld, and the shelf's system is the kit's pill between the bar's actions.
 -->
 <link rel="stylesheet" href="foundation/fonts.css">
 <link rel="stylesheet" href="foundation/tokens.css">
@@ -27,6 +28,7 @@
 <script src="components/omega-row.js"></script>
 <script src="components/omega-list-row.js"></script>
 <script src="components/omega-bar.js"></script>
+<script src="components/omega-pill.js"></script>
 <script src="flow/stubs.js"></script>
 <script src="flow/art.js"></script>
 </head>
@@ -43,7 +45,9 @@
       from the right, and back again Settings out to the right and the shelf in from the left. The
       screens under Settings, and Controls, slide the usual way. The backdrop behind them never
       moves with them, and the bottom bar never leaves, but for the screen after the power menu's
-      choice, where nothing can be pressed and it sinks away.</p>
+      choice, where nothing can be pressed and it sinks away. On the shelf the bar holds the
+      shelf's system in a pill between its actions: L1 and R1 change it and it rises in with the
+      new one, and a letter jumped to with Up or Down shows in it for a while.</p>
   </div>
 
   <div class="layout">
@@ -52,13 +56,13 @@
         <div class="screen" id="screen" data-size="640x480">
           <div class="backdrop omega-backdrop" data-style="grid" data-moving></div>
 
-          <!-- the shelf, drawn by Rust on the device: three parts that leave it three ways -->
+          <!-- the shelf, drawn by Rust on the device: two parts that leave it two ways, and its
+               system in the bar's pill -->
           <div class="part shelf-carts" data-screen="shelf">
             <div class="cart side prev"></div>
             <div class="cart lit"></div>
             <div class="cart side next"></div>
           </div>
-          <div class="part shelf-slot" data-screen="shelf"><div class="mouth"></div></div>
           <div class="part shelf-top" data-screen="shelf">
             <div class="wifi"></div>
             <div class="clock">16:00</div>
@@ -302,12 +306,17 @@
 
           <omega-bar>
             <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
+            <omega-pill slot="middle" text="GBA" centred></omega-pill>
             <action-right slot="right" label="SETTINGS" hint="START"></action-right>
           </omega-bar>
         </div>
       </div>
 
       <div class="pad" aria-label="The handheld's buttons">
+        <div class="shoulders">
+          <button data-key="l1">L1</button>
+          <button data-key="r1">R1</button>
+        </div>
         <div class="dpad">
           <button data-key="up" aria-label="Up">↑</button>
           <button data-key="left" aria-label="Left">←</button>
@@ -385,7 +394,8 @@
         <h2>Keys</h2>
         <table>
           <tr><th>Button</th><th>Keys</th><th>Does</th></tr>
-          <tr><td>↑ ↓ ← →</td><td><kbd>arrows</kbd></td><td>Move the cursor; ← → change a value</td></tr>
+          <tr><td>↑ ↓ ← →</td><td><kbd>arrows</kbd></td><td>Move the cursor; ← → change a value. On the shelf, ↑ ↓ jump to the letter before or after, which shows in the pill for about 2.2 s</td></tr>
+          <tr><td>L1 R1</td><td><kbd>L</kbd> <kbd>R</kbd></td><td>Shelf: the system before or after, GBA, GB, GBC, round and round; the pill rises in with it</td></tr>
           <tr><td>A</td><td><kbd>A</kbd></td><td>Confirm: open a row's screen, press a key, switch an ON or OFF row on Network or Bluetooth the other way; on Bluetooth, pair and connect a device, or disconnect it</td></tr>
           <tr><td>B</td><td><kbd>Z</kbd> <kbd>B</kbd> <kbd>Esc</kbd></td><td>Back one screen; on the keyboard, delete (back once the field is empty)</td></tr>
           <tr><td>X</td><td><kbd>X</kbd> or <kbd>S</kbd></td><td>Network: look for networks, once. Bluetooth: look for devices, for a few seconds</td></tr>
@@ -414,6 +424,8 @@
           <tr><td>ntp</td><td><code>on</code> (default) or <code>off</code>: Network's NETWORK TIME; off, its panel shows its offline variant, Wi-Fi or not</td></tr>
           <tr><td>scan</td><td>Network's scan: <code>none</code> (default, as it opens: Home alone, and the note to press X), <code>running</code> (looking, standing still) or <code>done</code> (the three networks found)</td></tr>
           <tr><td>bt</td><td>Bluetooth: <code>on</code> (default) as the screen opens, before any look, with the two paired devices; <code>off</code>; <code>empty</code> (nothing paired, before any look); <code>looking</code> (a look under way, held, the keyboard found so far); <code>found</code> (after it, the band found too); or <code>pairing</code> (after it, the keyboard pairing, the cursor on it)</td></tr>
+          <tr><td>system</td><td>The shelf's: <code>gba</code> (default), <code>gb</code> or <code>gbc</code>, in the pill between the bar's actions</td></tr>
+          <tr><td>letter</td><td>A letter jumped to on the shelf, <code>A</code> <code>C</code> <code>F</code> <code>K</code> <code>M</code> <code>P</code> <code>S</code> <code>Z</code>, held in the pill for a still (on the device it shows for about 2.2 s)</td></tr>
           <tr><td>row</td><td>The cursor's row on <code>screen</code>, from 0 (the key, for the keyboard; the field, for Date &amp; Time)</td></tr>
           <tr><td>slow</td><td><code>1</code>: slides at a fifth of their speed</td></tr>
           <tr><td>shot</td><td><code>1</code>: the screen alone at the window's top left, for screenshots</td></tr>

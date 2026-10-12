@@ -9,9 +9,10 @@ use omega_input::{Action, Btn, RawEvent};
 use omega_retro::ButtonMask;
 use omega_store::{write_app_state, AppState, Cart, Core, Platform};
 use omega_ui::{
-    board_at, grown, lid_at, lid_from, on_board, opening, shelf_cart_at, CornerBadge, Draw, Placed,
-    TexId, BOARD_W, CART_H, CART_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, LID_SHADOW_H, LID_SHADOW_W,
-    LID_TURN, SLIDE_UP, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
+    board_at, grown, lid_at, lid_from, on_board, out_h, out_w, shelf_box, shelf_cart_at,
+    CornerBadge, Draw, Placed, TexId, BAR_H, BOARD_W, CART_H, CART_W, CHIP_H, CHIP_U, CHIP_V,
+    CHIP_W, LID_SHADOW_H, LID_SHADOW_W, LID_TURN, SLIDE_UP, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W,
+    TOP_BAR_H, TURN_PAD,
 };
 use omega_ui::{stage_x, stage_y};
 use omega_zero::app::{App, Phase, EJECT_S, INSERT_S, SEATED_AT};
@@ -43,11 +44,31 @@ fn app_with_carts(stems: &[&str]) -> App {
     )
 }
 
-fn is_mouth(d: &Draw) -> bool {
+/// How long the game's screen takes to come on, a tube TV's dot, line and white opening
+/// (app.rs's POWER_ON_S).
+const POWER_ON_S: f32 = 0.6;
+
+/// How long a letter jumped to stays in the shelf's pill before the system comes back (app.rs's
+/// LETTER_SHOWN_MS).
+const LETTER_SHOWN_MS: u64 = 2200;
+
+/// A band across the whole screen reaching into the bottom bar's room: what the old slot's
+/// housing was, under the shelf. Nothing the shelf draws now is one; the dim over the screen as
+/// a cart goes in covers the whole screen, from its top.
+fn is_slot_band(d: &Draw) -> bool {
     match *d {
-        Draw::Rect { colour, .. } => (0..3).all(|i| (colour[i] - opening()[i]).abs() < 0.001),
+        Draw::Rect { x, y, w, h, .. } => {
+            let bottom = out_h() as f32;
+            x <= 0.0 && x + w >= out_w() as f32 && y + h > bottom - BAR_H && y > 0.0
+        }
         _ => false,
     }
+}
+
+/// The fill of the bar across the top of the shelf.
+fn is_top_bar(d: &Draw) -> bool {
+    matches!(*d, Draw::Rect { x, y, w, h, .. }
+        if x == 0.0 && y == 0.0 && w == out_w() as f32 && h == TOP_BAR_H - 2.0)
 }
 
 fn playing(stem: &str) -> App {
@@ -161,16 +182,34 @@ fn the_reveal_waits_for_the_power_on_to_finish() {
     }
     assert!(
         a.screen_power() < 1.0,
-        "the screen was already on when the cart landed"
+        "the screen was already on when the cart went in"
     );
-    for _ in 0..20 {
+    while !matches!(a.phase(), Phase::Playing { .. }) {
+        a.update(1.0 / 60.0);
+        assert!(a.now() < 5_000, "the game never started");
+    }
+    // the TV comes on over POWER_ON_S, not in a blink
+    let frames = (POWER_ON_S * 60.0).round() as u32;
+    for _ in 0..frames - 6 {
         a.update(1.0 / 60.0);
     }
-    assert!((a.screen_power() - 1.0).abs() < 0.01);
+    assert!(
+        a.screen_power() < 0.95,
+        "the screen was on at {} a tenth of a second short of the TV's time",
+        a.screen_power()
+    );
+    for _ in 0..8 {
+        a.update(1.0 / 60.0);
+    }
+    assert!(
+        (a.screen_power() - 1.0).abs() < 0.01,
+        "the screen is at {} after the TV's time",
+        a.screen_power()
+    );
 }
 
 #[test]
-fn the_cart_sounds_when_it_reaches_the_slot_and_not_when_it_starts_moving() {
+fn the_cart_sounds_as_it_goes_into_the_handheld_and_not_when_it_starts_moving() {
     let mut a = app_with_carts(&["Emerald", "Zzz"]);
     a.apply(Action::Insert);
     a.update(1.0 / 60.0);
@@ -469,7 +508,7 @@ fn the_shoulders_do_nothing_when_there_is_one_shelf_to_be_on() {
 }
 
 #[test]
-fn the_switch_changes_the_name_on_the_band_and_says_nothing() {
+fn the_switch_changes_the_shelfs_system_and_says_nothing() {
     let mut a = app_with_platforms(&[
         (Platform::Gba, "Emerald"),
         (Platform::Gb, "Tetris"),
@@ -490,7 +529,7 @@ fn the_switch_changes_the_name_on_the_band_and_says_nothing() {
         assert_eq!(
             a.shelf_platform_name(),
             Some(want),
-            "{btn:?} left the wrong name on the case"
+            "{btn:?} left the wrong system named"
         );
         assert_eq!(a.toast(), None, "{btn:?} put a banner up over the carts");
     }
@@ -498,58 +537,71 @@ fn the_switch_changes_the_name_on_the_band_and_says_nothing() {
     assert_eq!(
         a.shelf_platform_name(),
         Some("Game Boy Color"),
-        "the name faded"
+        "the system named went"
     );
 }
 
-/// The name a switch prints in the slot comes, holds whole and goes in the kit's four steps,
-/// never in between.
+/// The shelf's pill names its system by its folder, GBA, GB or GBC, and follows the shoulders
+/// round the shelves.
 #[test]
-fn the_name_in_the_slot_fades_in_the_kits_four_steps() {
-    let mut a = app_with_platforms(&[(Platform::Gba, "Emerald"), (Platform::Gb, "Tetris")]);
-    let name = TexId::from_raw(4_242);
-    a.apply(Action::GbaDown(Btn::R1));
-    a.set_shelf_platform_face(name, 48);
-    let mut seen = Vec::new();
-    for _ in 0..180 {
-        a.update(1.0 / 60.0);
-        let mut out = Vec::new();
-        a.draw(&mut out);
-        let alpha = out
-            .iter()
-            .find_map(|d| match *d {
-                Draw::Tex { tex, alpha, .. } if tex == name => Some(alpha),
-                _ => None,
-            })
-            .unwrap_or(0.0);
-        assert!(
-            [0.0, 0.25, 0.5, 0.75, 1.0].contains(&alpha),
-            "the name is drawn at {alpha}, between the fade's steps"
+fn the_pill_names_the_shelfs_system_and_follows_the_shoulders() {
+    let mut a = app_with_platforms(&[
+        (Platform::Gba, "Emerald"),
+        (Platform::Gb, "Tetris"),
+        (Platform::Gbc, "Chromatic"),
+    ]);
+    assert_eq!(a.pill_text().as_deref(), Some("GBA"));
+    for (btn, want) in [
+        (Btn::R1, "GB"),
+        (Btn::R1, "GBC"),
+        (Btn::R1, "GBA"),
+        (Btn::L1, "GBC"),
+    ] {
+        a.apply_at(Action::GbaDown(btn), 1_000);
+        assert_eq!(
+            a.pill_text().as_deref(),
+            Some(want),
+            "{btn:?} left the wrong system in the pill"
         );
-        if seen.last() != Some(&alpha) {
-            seen.push(alpha);
-        }
     }
-    assert!(seen.contains(&1.0), "the name never showed whole: {seen:?}");
-    assert_eq!(seen.last(), Some(&0.0), "the name never went: {seen:?}");
+    a.update(5.0);
+    assert_eq!(
+        a.pill_text().as_deref(),
+        Some("GBC"),
+        "the pill let go of the system"
+    );
 }
 
+/// There is nowhere to switch to from a card's one shelf, but its pill still says which system
+/// it holds.
 #[test]
-fn a_card_on_one_shelf_names_nothing_because_there_is_nowhere_to_switch_to() {
+fn a_card_on_one_shelf_has_nowhere_to_switch_to_and_its_pill_still_names_the_system() {
     let mut alone = app_with_platforms(&[(Platform::Gba, "Emerald"), (Platform::Gba, "Fusion")]);
     assert_eq!(
         alone.shelf_platform_name(),
         None,
-        "a card with only Game Boy Advance carts named its platform anyway"
+        "a card with only Game Boy Advance carts has somewhere to switch to"
+    );
+    assert_eq!(
+        alone.pill_text().as_deref(),
+        Some("GBA"),
+        "a card on one shelf has nothing in its pill"
     );
     for btn in [Btn::L1, Btn::R1] {
         alone.apply_at(Action::GbaDown(btn), 1_000);
         assert_eq!(
             alone.shelf_platform_name(),
             None,
-            "{btn:?} named a shelf on a card that has one"
+            "{btn:?} switched to a shelf on a card that has one"
+        );
+        assert_eq!(
+            alone.pill_text().as_deref(),
+            Some("GBA"),
+            "{btn:?} changed the pill on a card with one shelf"
         );
     }
+    let gb = app_with_platforms(&[(Platform::Gb, "Tetris"), (Platform::Gb, "Kirby")]);
+    assert_eq!(gb.pill_text().as_deref(), Some("GB"));
 
     let two = app_with_platforms(&[(Platform::Gba, "Emerald"), (Platform::Gb, "Tetris")]);
     assert_eq!(
@@ -634,31 +686,133 @@ fn a_cart_in_flight_is_not_also_left_standing_on_the_shelf() {
         .count();
     assert_eq!(
         carts, 1,
-        "the shelf still holds the cart the slot is taking"
+        "the shelf still holds the cart going into the handheld"
     );
 }
 
+/// The slot under the shelf is gone: nothing the shelf draws is a band across the screen in the
+/// bottom bar's room, on the shelf or at any point of a cart's way into the handheld.
 #[test]
-fn the_shelf_shows_the_empty_slot() {
-    let a = app_with_carts(&["Emerald", "Zzz"]);
-    let mut out = Vec::new();
-    a.draw(&mut out);
+fn neither_the_shelf_nor_a_cart_going_in_draws_a_slot() {
+    let mut a = app_with_carts(&["Emerald", "Zzz"]);
+    let out = frame(&a);
     assert!(
-        out.iter().any(is_mouth),
-        "the shelf has no slot, so the cart has nowhere visible to go"
+        !out.iter().any(is_slot_band),
+        "the shelf still draws a slot: {:?}",
+        out.iter().find(|d| is_slot_band(d))
     );
-}
-
-#[test]
-fn inserting_still_has_a_mouth_to_go_into() {
-    let mut a = app_with_carts(&["Emerald"]);
     a.apply(Action::Insert);
-    a.update(1.0 / 60.0);
-    let mut out = Vec::new();
-    a.draw(&mut out);
+    while a.seat() < 1.0 {
+        a.update(1.0 / 60.0);
+        let out = frame(&a);
+        assert!(
+            !out.iter().any(is_slot_band),
+            "a slot is drawn with the cart {} of the way in: {:?}",
+            a.seat(),
+            out.iter().find(|d| is_slot_band(d))
+        );
+    }
+}
+
+/// A Game Boy pak goes into the handheld at the size it stood on the shelf: it no longer grows
+/// to its own size on the way in.
+#[test]
+fn a_game_boy_pak_keeps_its_shelf_size_all_the_way_in() {
+    let mut a = app_with_platforms(&[(Platform::Gb, "Tetris"), (Platform::Gb, "Kirby")]);
+    let (w, h) = shelf_box(Platform::Gb);
+    let cart = a.carts().next().cloned().expect("no pak");
+    assert_eq!(cart.stem, "Tetris");
+    // without faces uploaded, a cart is drawn as a block of its label's colour
+    let ink = omega_ui::label_colour(&omega_ui::label_text(&cart)).map(|v| v as f32 / 255.0);
+    let pak = |out: &[Draw]| -> Vec<(f32, f32)> {
+        out.iter()
+            .filter_map(|d| match *d {
+                Draw::Rect { w, h, colour, .. }
+                    if (0..3).all(|k| (colour[k] - ink[k]).abs() < 0.002) =>
+                {
+                    Some((w, h))
+                }
+                _ => None,
+            })
+            .collect()
+    };
+    assert_eq!(
+        pak(&frame(&a)),
+        [(w, h)],
+        "the pak does not stand on the shelf at its shelf size"
+    );
+    a.apply(Action::Insert);
+    let mut frames = 0;
+    loop {
+        a.update(1.0 / 60.0);
+        let seat = a.seat();
+        if seat >= 1.0 {
+            break;
+        }
+        let drawn = pak(&frame(&a));
+        assert!(
+            !drawn.is_empty(),
+            "no pak drawn with it {seat} of the way in"
+        );
+        for (dw, dh) in drawn {
+            assert!(
+                (dw - w).abs() < 0.5 && (dh - h).abs() < 0.5,
+                "the pak is {dw}x{dh} {seat} of the way in, not the {w}x{h} it stood on the \
+                 shelf at"
+            );
+        }
+        frames += 1;
+    }
+    assert!(frames > 20, "the pak went in in {frames} frames");
+}
+
+/// The cart in the middle of the shelf rises a little, then is pulled down out of the bottom of
+/// the screen: by the time it is all the way in, none of it is drawn.
+#[test]
+fn a_cart_going_in_rises_then_dives_out_of_the_bottom_of_the_screen() {
+    let mut a = app_with_carts(&["Emerald", "Zzz"]);
+    let cart = a.carts().next().cloned().expect("no cart");
+    let ink = omega_ui::label_colour(&omega_ui::label_text(&cart)).map(|v| v as f32 / 255.0);
+    let cart_y = |out: &[Draw]| {
+        out.iter().rev().find_map(|d| match *d {
+            Draw::Rect { y, w, colour, .. }
+                if (w - CART_W as f32).abs() < 0.5
+                    && (0..3).all(|k| (colour[k] - ink[k]).abs() < 0.002) =>
+            {
+                Some(y)
+            }
+            _ => None,
+        })
+    };
+    let rest = cart_y(&frame(&a)).expect("no cart on the shelf");
+    a.apply(Action::Insert);
+    let mut ys = Vec::new();
+    loop {
+        a.update(1.0 / 60.0);
+        if a.seat() >= 1.0 {
+            break;
+        }
+        ys.push(cart_y(&frame(&a)).expect("the cart vanished on its way in"));
+    }
+    let top = ys.iter().cloned().fold(f32::MAX, f32::min);
     assert!(
-        out.iter().any(is_mouth),
-        "the cart has nothing to slide into"
+        top < rest - 4.0 && top >= rest - 8.5,
+        "the cart rose to {top} from {rest}, not the few pixels a hand letting go lifts it"
+    );
+    let highest = ys.iter().position(|y| *y == top).unwrap();
+    assert!(
+        ys[highest..].windows(2).all(|w| w[1] >= w[0]),
+        "the cart came back up on its way down: {ys:?}"
+    );
+    let last = *ys.last().unwrap();
+    assert!(
+        last > out_h() as f32 * 0.75,
+        "the cart's top is at {last} on its last frame, nowhere near out of the bottom"
+    );
+    assert_eq!(
+        cart_y(&frame(&a)),
+        None,
+        "the cart is still drawn all the way in"
     );
 }
 
@@ -1322,11 +1476,11 @@ fn the_open_cart_rests_over_the_shelf_with_its_lid_turned() {
         near(board, [rest.x, rest.y, rest.w, rest.h]),
         "board at {board:?}"
     );
-    let mouth = out
+    let shelf = out
         .iter()
-        .rposition(is_mouth)
-        .expect("no slot on the shelf");
-    assert!(board_i > mouth, "the board is drawn under the shelf");
+        .rposition(is_top_bar)
+        .expect("no top bar over the shelf");
+    assert!(board_i > shelf, "the board is drawn under the shelf");
 
     for (i, socket) in f.sockets.iter().enumerate() {
         let (_, at) = tex_at(&out, *socket).expect("a socket is missing");
@@ -2170,43 +2324,75 @@ fn the_colour_shortcut_names_the_state_it_arrived_at() {
     }
 }
 
-fn slot_text_alpha(a: &App, tex: omega_ui::TexId) -> f32 {
-    let mut out = Vec::new();
-    a.draw(&mut out);
-    out.iter()
-        .find_map(|d| match *d {
-            Draw::Tex { tex: t, alpha, .. } if t == tex => Some(alpha),
-            _ => None,
-        })
-        .unwrap_or(0.0)
+/// Runs `a` on for `ms`, in frames, as the frontend would: what the pill shows is baked again
+/// whenever it is cleared, as sync_clock does.
+fn run_pill(a: &mut App, ms: u64, face: TexId) {
+    let end = a.now() + ms;
+    while a.now() < end {
+        if a.pill_text().is_some() {
+            a.set_shelf_platform_face(face, 20);
+        }
+        a.update(1.0 / 60.0);
+    }
 }
 
 #[test]
-fn a_letter_jump_shows_the_letter_in_the_slot_and_fades_like_the_shelf_name() {
+fn a_letter_jump_shows_the_letter_in_the_pill_then_the_system_comes_back() {
     let mut a = app_with_carts(&["Alpha", "Bravo"]);
-    let face = omega_ui::TexId::from_raw(77);
+    let face = TexId::from_raw(77);
     assert_eq!(
-        a.slot_text(),
-        None,
-        "a one shelf card printed something in the slot"
+        a.pill_text().as_deref(),
+        Some("GBA"),
+        "a one shelf card has nothing in its pill"
     );
+    run_pill(&mut a, 500, face);
 
     a.apply(Action::GbaDown(Btn::Down));
-    assert_eq!(a.slot_text().as_deref(), Some("B"));
-    a.set_shelf_platform_face(face, 20);
-    a.update(1.0 / 60.0);
-    a.update(0.5);
-    assert!(slot_text_alpha(&a, face) > 0.0, "the letter never showed");
-    a.update(5.0);
-    assert_eq!(slot_text_alpha(&a, face), 0.0, "the letter never faded");
-
-    a.apply(Action::GbaDown(Btn::Left));
-    a.apply(Action::GbaDown(Btn::Down));
-    assert_eq!(a.slot_text().as_deref(), Some("B"));
-    a.update(1.0 / 60.0);
-    a.update(0.5);
-    assert!(
-        slot_text_alpha(&a, face) > 0.0,
-        "jumping to the letter already printed did not show it again"
+    assert_eq!(a.selected_stem(), Some("Bravo"));
+    assert_eq!(
+        a.pill_text().as_deref(),
+        Some("B"),
+        "the letter is not shown"
     );
+    run_pill(&mut a, LETTER_SHOWN_MS - 200, face);
+    assert_eq!(
+        a.pill_text().as_deref(),
+        Some("B"),
+        "the letter went before its time in the pill"
+    );
+    run_pill(&mut a, 400, face);
+    assert_eq!(
+        a.pill_text().as_deref(),
+        Some("GBA"),
+        "the system did not come back after the letter's time"
+    );
+
+    // a second jump shows its letter its whole time, counted from that jump
+    a.apply(Action::GbaDown(Btn::Up));
+    assert_eq!(a.pill_text().as_deref(), Some("A"));
+    run_pill(&mut a, LETTER_SHOWN_MS / 2, face);
+    a.apply(Action::GbaDown(Btn::Down));
+    assert_eq!(a.pill_text().as_deref(), Some("B"));
+    run_pill(&mut a, LETTER_SHOWN_MS - 200, face);
+    assert_eq!(
+        a.pill_text().as_deref(),
+        Some("B"),
+        "a second jump did not start the letter's time again"
+    );
+    run_pill(&mut a, 400, face);
+    assert_eq!(a.pill_text().as_deref(), Some("GBA"));
+}
+
+/// A shoulder press while a letter is shown takes the pill straight to the new shelf's system.
+#[test]
+fn switching_shelves_drops_the_letter_for_the_new_system() {
+    let mut a = app_with_platforms(&[
+        (Platform::Gba, "Alpha"),
+        (Platform::Gba, "Bravo"),
+        (Platform::Gb, "Tetris"),
+    ]);
+    a.apply(Action::GbaDown(Btn::Down));
+    assert_eq!(a.pill_text().as_deref(), Some("B"));
+    tap(&mut a, Btn::R1);
+    assert_eq!(a.pill_text().as_deref(), Some("GB"));
 }

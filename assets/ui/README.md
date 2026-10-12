@@ -36,6 +36,7 @@ assets/ui/
     ├── omega-link.js      <omega-link>      the link screen's art: the port, the plug, the adapter …
     ├── action-left.js     <action-left>     the bottom bar's left action
     ├── action-right.js    <action-right>    the same, mirrored
+    ├── omega-pill.js      <omega-pill>      the bar's pill on its own: the shelf's system
     ├── omega-button.js    <omega-button>    a page's link or button, drawn as the bar's pill
     ├── omega-screen.js    <omega-screen>    a screenshot in a handheld's bezel
     ├── omega-card.js      <omega-card>      a feature: an icon, a title and a few lines
@@ -61,6 +62,7 @@ classic scripts, no build step, so it works from `file://`.
 <script src="components/action-left.js"></script>
 <script src="components/action-right.js"></script>
 <script src="components/omega-bar.js"></script>
+<script src="components/omega-pill.js"></script>
 <script src="components/omega-gauge.js"></script>
 <script src="components/omega-hints.js"></script>   <!-- after omega-gauge.js and omega-bar.js -->
 <script src="components/omega-toast.js"></script>   <!-- after omega-panel.js, which it is drawn with -->
@@ -86,6 +88,11 @@ classic scripts, no build step, so it works from `file://`.
   <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
   <action-right slot="right" label="SETTINGS" hint="START"></action-right>
 </omega-bar>
+<omega-bar>                                          <!-- the shelf's: its system, no hints -->
+  <action-left slot="left" label="CONTROLS" hint="SELECT"></action-left>
+  <omega-pill slot="middle" text="GBA" centred></omega-pill>
+  <action-right slot="right" label="SETTINGS" hint="START"></action-right>
+</omega-bar>
 
 <script>OmegaPalette.apply('teal')</script>  <!-- Night unless told otherwise -->
 ```
@@ -99,6 +106,19 @@ or 2 under the top bar where the shelf shows it; only one at a time, a toast tak
 place. Each comes at once and goes in four even steps of fading out. A badge stays in the top
 right corner while it lasts, level with a gauge's middle: fast forward, `×2` to `×6` as Settings
 sets its speed, lit once latched, or the link, which outranks it.
+
+## The shelf's pill
+
+The shelf has no slot: a cart played rises and dives out of the bottom of the screen into the
+handheld. The carts stand centred between the top bar and the bottom bar, and the shelf's system,
+GBA, GB or GBC, is `<omega-pill>` in the bar's `middle`, between its two actions and in the
+middle of the screen, `centred`. It is the bar's own button pill standing on its own, both ends
+rounded, the bar's full height, 3 dark pixels either side of the word's ink, as `pill_face` in
+`crates/omega-ui/src/kit/action.rs` draws it. It is always there on the shelf, even with only one
+shelf, and sinks with the shelf's actions when the bar changes them. L1 and R1 change the system
+and the pill rises into place with the new one over 220 ms; a letter jumped to with Up or Down
+shows in it for about 2.2 s, then the system rises back. It is gone while the core picker is
+open.
 
 ## Pages around the menus
 
@@ -131,14 +151,16 @@ followed, and that copy is what GitHub Pages serves, the storybook at `kit/story
 `flow.html` puts every menu screen together from the kit (the shelf, Settings and everything
 under it, CONTROLS, the power menu and the screens after it) and moves between them with the slides the device draws: 280 ms,
 smootherstep, every frame on whole art pixels. It is the approved reference for the Rust screens.
-Open it from disk like the storybook. What Rust draws itself (the carts, the slot, the top bar)
-is a flat placeholder.
+Open it from disk like the storybook. What Rust draws itself (the carts and the top bar) is a
+flat placeholder; the shelf's system is the kit's pill between the bar's actions, and L1 and R1
+change it.
 
 Walk it with the keyboard or the buttons under the screen:
 
 | Button | Keys |
 |---|---|
 | D-pad | arrows |
+| L1, R1 | `L`, `R` |
 | A | `A` |
 | B | `Z`, `B` or `Esc` |
 | X | `X` or `S` |
@@ -209,6 +231,8 @@ headless Chrome screenshot lands on the same frame:
 | `ntp` | `off`: Network Time off, and NETWORK TIME's panel shows what it says offline |
 | `scan` | Network's scan: `none` (default, as it opens), `running` (looking, standing still) or `done` (the networks found) |
 | `bt` | Bluetooth: `on` (default) as the screen opens, before any look, with the two paired devices; `off`; `empty` (nothing paired, before any look); `looking` (a look under way, held, the keyboard found so far); `found` (after it, the band found too); or `pairing` (after it, the keyboard pairing, the cursor on it) |
+| `system` | the shelf's, in its pill: `gba` (default), `gb`, `gbc` |
+| `letter` | a letter jumped to on the shelf (`A` `C` `F` `K` `M` `P` `S` `Z`), held in the pill for a still |
 | `row` | the cursor's row on `screen`, from 0 |
 | `slow` | `1`: slides at a fifth of their speed |
 | `shot` | `1`: the screen alone at the window's top left, for screenshots |

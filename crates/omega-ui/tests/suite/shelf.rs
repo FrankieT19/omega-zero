@@ -1,6 +1,6 @@
 use omega_store::{Cart, Platform};
 use omega_ui::{
-    label_colour, out_w, rest_y, shelf_box, slot_top, Draw, GbShell, Shelf, TexId, CART_W,
+    label_colour, out_h, out_w, rest_y, shelf_box, Draw, GbShell, Shelf, TexId, BAR_H, CART_W,
     GB_CART_H, GB_CART_W, GB_SHELF_SCALE,
 };
 
@@ -474,7 +474,7 @@ fn the_other_direction_letting_go_does_not_stop_the_repeat() {
 }
 
 #[test]
-fn a_refusal_moves_the_carts_and_leaves_the_device_where_it_is() {
+fn a_refusal_shakes_every_cart_of_the_row() {
     let s = shelf_with(3);
     let (mut still, mut shaken) = (Vec::new(), Vec::new());
     s.draw(0.0, &mut still);
@@ -482,19 +482,18 @@ fn a_refusal_moves_the_carts_and_leaves_the_device_where_it_is() {
     assert_eq!(still.len(), shaken.len(), "the shake changed the row");
     let mut row = Vec::new();
     s.draw_row(None, 0.0, 0.0, 1.0, &mut row);
-    let carts = row.len();
     assert!(
-        carts > 0 && carts < still.len(),
-        "{carts} of {}",
-        still.len()
+        !row.is_empty() && still == row,
+        "the shelf draws {} things against its row's {}: something besides the carts",
+        still.len(),
+        row.len()
     );
-    for (i, (a, b)) in still.iter().zip(&shaken).enumerate() {
+    for (a, b) in still.iter().zip(&shaken) {
         let ((ax, _), (bx, _)) = (xw(a), xw(b));
-        if i < carts {
-            assert!((bx - ax - 9.0).abs() < 0.01, "a cart stood still");
-        } else {
-            assert_eq!(ax, bx, "the device moved with the carts");
-        }
+        assert!(
+            (bx - ax - 9.0).abs() < 0.01,
+            "a cart at {ax} stood still, or moved to {bx}"
+        );
     }
 }
 
@@ -534,7 +533,7 @@ fn the_neighbours_peek_in_from_both_edges() {
 }
 
 fn cart_spans(out: &[Draw]) -> Vec<(f32, f32)> {
-    let bar = slot_top();
+    let bar = out_h() as f32 - BAR_H;
     out.iter()
         .filter_map(|d| match *d {
             Draw::Rect { x, y, w, h, .. }
@@ -569,7 +568,7 @@ fn the_row_parts_for_the_cart_going_in() {
         let side = (ax + aw / 2.0) - centre;
         assert!(
             (bx - ax).signum() == side.signum(),
-            "a cart at {ax} moved to {bx}, which is towards the slot, not away from it"
+            "a cart at {ax} moved to {bx}, which is towards the middle, not away from it"
         );
         assert!((bx - ax).abs() > 1.0, "the cart at {ax} did not move");
     }

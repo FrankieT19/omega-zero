@@ -272,3 +272,39 @@ fn face_in(
 
     ActionFace { face, rise: RISE }
 }
+
+/// The bar's button pill standing on its own, both its ends rounded, `text` in its dark middle
+/// on the rows the buttons print theirs on: the shelf's system, "GBA", between the actions. It
+/// is the bar's full height, and has 3 dark pixels either side of the text's ink.
+pub fn pill_face(text: &str, pal: &Palette) -> UndoFace {
+    let end = PILL_END as usize;
+    let rows: Vec<String> = PILL
+        .iter()
+        .map(|row| {
+            let right = &row[2..2 + end];
+            let left: String = right.chars().rev().collect();
+            format!("{left}{}{right}", &row[1..2])
+        })
+        .collect();
+    // the ink, then its blank column and 2 more; 3 before it, past the end's frame column
+    let inner = 3 + text_width(text) + 2;
+    let w = inner + 2;
+    let mut face = blank(w, BAR);
+    let slice = [0, PILL_END, 0, PILL_END];
+    nine_slice(
+        &mut face,
+        &rows,
+        [0, 0, w as i32, BAR as i32],
+        slice,
+        slice,
+        pal,
+    );
+    ink(
+        &mut face,
+        &letters(text, ADVANCE),
+        4,
+        HINT_TOP as i32,
+        pal.cream,
+    );
+    face
+}
