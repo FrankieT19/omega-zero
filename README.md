@@ -12,7 +12,7 @@ only those, on a shelf of cartridges that go down into the handheld when you pla
 </p>
 
 <p align="center">
-<img src="site/media/shelf.png" width="380" alt="The shelf of GBA carts on an RG35XX SP: Emerald in the middle over the slot, the top bar with Wi-Fi, ssh, the clock and the battery, and the bottom bar with SELECT CONTROLS and START SETTINGS">
+<img src="site/media/shelf.png" width="380" alt="The shelf of GBA carts on an RG35XX SP: Emerald in the middle, the top bar with Wi-Fi, ssh, the clock and the battery, and the bottom bar with SELECT CONTROLS, a GBA pill and START SETTINGS">
 <img src="site/media/slide.png" width="380" alt="START on the shelf: the carts going out to the left as the Settings window comes in from the right">
 </p>
 
@@ -66,7 +66,7 @@ is the most useful thing you can send.
 ## Screens
 
 <p align="center">
-<a href="https://oauramos.github.io/omega-zero/"><img src="site/media/loops/lid.webp" width="640" alt="An RG35XX SP drawn in 3D, its lid open on the shelf of carts, Emerald over the slot"></a>
+<a href="https://oauramos.github.io/omega-zero/"><img src="site/media/loops/lid.webp" width="640" alt="An RG35XX SP drawn in 3D, its lid open on the shelf of carts, Emerald in the middle"></a>
 <br><sub>The RG35XX SP in 3D, drawn the way a PlayStation drew it, with omega-zero's own screens on it: the loops play on the <a href="https://oauramos.github.io/omega-zero/">site</a></sub>
 </p>
 
@@ -78,7 +78,7 @@ is the most useful thing you can send.
 
 <p align="center">
 <img src="site/media/network.png" width="380" alt="Network: Wi-Fi, Network Time and SSH on, and the networks around with their padlocks, signal and CONNECTED">
-<img src="site/media/bluetooth.png" width="380" alt="Bluetooth: the radio on, and a gamepad connected, headphones paired, a keyboard and a device known only by its address">
+<img src="site/media/bluetooth.png" width="380" alt="Bluetooth: the radio on, and a gamepad connected, headphones paired, a keyboard and a smart band">
 <br><sub>Network and Bluetooth</sub>
 </p>
 

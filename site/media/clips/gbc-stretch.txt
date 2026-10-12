@@ -9,7 +9,7 @@ wait 40
 tap right
 wait 40
 hold a 40
-wait 540
+wait 549
 tap start
 wait 110
 rec

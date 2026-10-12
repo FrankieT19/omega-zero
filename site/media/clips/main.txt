@@ -27,11 +27,11 @@ wait 20
 tap right
 wait 30
 tap a
-wait 110
+wait 142
 tap up
 wait 30
 hold menu 66
-wait 60
+wait 80
 tap right
 wait 20
 tap right

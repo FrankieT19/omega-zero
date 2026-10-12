@@ -102,13 +102,14 @@
           <omega-panel label="RG35XX SP" active>
             <video class="clip" controls muted loop playsinline preload="none" width="1280" height="960"
               poster="media/loops/lid.webp"
-              aria-label="An RG35XX SP drawn in 3D, open on the shelf of GBA carts, closes its lid, rests shut, then opens again, its screen showing the boot logo fading into the shelf">
+              aria-label="An RG35XX SP drawn in 3D, open on the shelf of GBA carts, closes its lid, rests shut, then opens again, its screen showing the BIOS screen, the opening after Mega Man X5's boot terminal and the shelf fading in">
               <source src="media/loops/lid.webm" type='video/webm; codecs="vp9"'>
               <source src="media/loops/lid.mp4" type="video/mp4">
             </video>
           </omega-panel>
         </omega-modal>
-        <figcaption>At boot the logo fades into the shelf, already moving.</figcaption>
+        <figcaption>At boot a BIOS screen, then an opening after Mega Man X5's boot terminal, then the
+          shelf fades in, already moving.</figcaption>
       </figure>
     </div>
 
@@ -149,22 +150,22 @@
     <div class="shots">
       <figure class="shot" id="shot-shelf" data-label="SHELF">
         <omega-screen led><img src="media/shelf.png" width="640" height="480"
-          alt="The shelf: a row of GBA carts, Emerald in the middle over the slot, the top bar with Wi-Fi, ssh, the clock and the battery, and the bottom bar with SELECT CONTROLS and START SETTINGS"></omega-screen>
-        <figcaption>The shelf. The cart you are on floats and sways; A slides it into the slot and
-          the game starts. SELECT opens CONTROLS, START opens Settings.</figcaption>
+          alt="The shelf: a row of GBA carts with Emerald in the middle, the top bar with Wi-Fi, ssh, the clock and the battery, and the bottom bar with SELECT CONTROLS, a GBA pill and START SETTINGS"></omega-screen>
+        <figcaption>The shelf. The cart you are on floats and sways; A sends it down into the
+          handheld and the game starts. SELECT opens CONTROLS, START opens Settings.</figcaption>
       </figure>
       <figure class="shot" id="shot-insert" data-label="INSERT">
         <omega-screen led><picture>
           <source media="(prefers-reduced-motion: reduce)" srcset="media/insert-still.png">
           <img src="media/insert.webp" width="640" height="480" loading="lazy"
-            alt="Emerald sliding down off the shelf and into the slot at full size">
+            alt="Emerald rising a little, then pulled down out of the bottom of the screen, and the game's screen coming on like a tube TV">
         </picture></omega-screen>
-        <figcaption>A cart going in: the shelf slides away and the cart drops into the slot at
-          full size.</figcaption>
+        <figcaption>A cart going in: it rises a little, is pulled down out of the screen into the
+          handheld, and the game comes on like a tube TV.</figcaption>
       </figure>
       <figure class="shot" id="shot-game" data-label="IN GAME">
         <omega-screen led><img src="media/game.png" width="640" height="480" loading="lazy"
-          alt="A test pattern standing in for a GBA game, filling the width of the screen over the console's body with the GAME BOY ADVANCE logo, and the volume bar over its top"></omega-screen>
+          alt="A test pattern standing in for a GBA game, filling the width of the screen over the console's body with the GAME BOY ADVANCE logo, and the VOLUME gauge over its top"></omega-screen>
         <figcaption>In a game. GBA fills the width of a 640x480 screen through a sharp scaler, over
           the console's body; Game Boy stays at 3x through an LCD mask.</figcaption>
       </figure>
@@ -184,13 +185,13 @@
       <figure class="shot" id="shot-network" data-label="NETWORK">
         <omega-screen led><img src="media/network.png" width="640" height="480" loading="lazy"
           alt="Network: Wi-Fi, Network Time and SSH all ON, and AVAILABLE NETWORKS listing Home (connected), Café Wi-Fi, Upstairs 5G and PrinterSetup with their padlocks and signal"></omega-screen>
-        <figcaption>Network switches Wi-Fi, Network Time and SSH. Each network shows its signal, a
-          padlock if it has a passphrase, and CONNECTED, JOINING or SAVED; Y forgets a saved
-          one.</figcaption>
+        <figcaption>Network switches Wi-Fi, Network Time and SSH, ON or OFF; Y on one opens its
+          panel, and X scans. Each network shows its signal, a padlock if it has a passphrase, and
+          CONNECTED, JOINING or SAVED.</figcaption>
       </figure>
       <figure class="shot" id="shot-bluetooth" data-label="BLUETOOTH">
         <omega-screen led><img src="media/bluetooth.png" width="640" height="480" loading="lazy"
-          alt="Bluetooth: the radio ON, and DEVICES listing a gamepad (connected), headphones (paired), a keyboard and a device known only by its address"></omega-screen>
+          alt="Bluetooth: the radio ON, and DEVICES listing a gamepad (connected), headphones (paired), a keyboard and a smart band"></omega-screen>
         <figcaption>Bluetooth lists the devices paired, then those it finds. A pairs a new one and
           connects it; Y forgets a paired one.</figcaption>
       </figure>
@@ -203,8 +204,8 @@
       <figure class="shot" id="shot-amber" data-label="AMBER">
         <omega-screen led><img src="media/amber.png" width="640" height="480" loading="lazy"
           alt="Settings again, in Amber: the window, its panels and the bottom bar in Mega Man Zero's own orange and brown"></omega-screen>
-        <figcaption>The menus, both bars and the slot take their colours from Theme's colour. Night
-          is grey; Amber is Mega Man Zero's own.</figcaption>
+        <figcaption>The menus and both bars take their colours from Theme's colour. Night is grey;
+          Amber is Mega Man Zero's own.</figcaption>
       </figure>
       <figure class="shot" id="shot-slide" data-label="SLIDES">
         <omega-screen led><img src="media/slide.png" width="640" height="480" loading="lazy"
@@ -434,7 +435,7 @@ System/        omega-zero itself, its cores and its
           <omega-panel label="A CART GOING IN" active>
             <video class="clip" controls muted loop playsinline preload="none" width="1280" height="960"
               data-poster="media/loops/cart.webp"
-              aria-label="An RG35XX SP drawn in 3D: A slides Emerald off the shelf and into the slot, a test pattern standing in for the game fills the screen, and holding MENU ejects it back onto the shelf">
+              aria-label="An RG35XX SP drawn in 3D: A pulls Emerald down out of the screen into the handheld, the screen comes on like a tube TV with a test pattern standing in for the game, and holding MENU turns it off and brings the cart back up onto the shelf">
               <source src="media/loops/cart.webm" type='video/webm; codecs="vp9"'>
               <source src="media/loops/cart.mp4" type="video/mp4">
             </video>
@@ -444,10 +445,11 @@ System/        omega-zero itself, its cores and its
       <div class="prose">
         <h3>The shelf</h3>
         <p>Solid carts in their own plastics with real label scans. The one you are on floats and
-          sways; tap A and it slides into the slot at full size and the game resumes from its last
-          save state. Hold MENU in a game to save a state, eject the cart and go back to the
-          shelf.</p>
-        <p class="dim">Game Boy carts stand at 80% and grow as they go in.</p>
+          sways; tap A and it goes down into the handheld, and the game comes on like a tube TV and
+          resumes from its last save state. Hold MENU in a game to save a state, eject the cart and
+          go back to the shelf.</p>
+        <p class="dim">The shelf's system, GBA, GB or GBC, shows in a pill in the bottom bar; L1
+          and R1 change it, and Up and Down jump to a letter. Game Boy carts stand at 80%.</p>
       </div>
     </div>
 
