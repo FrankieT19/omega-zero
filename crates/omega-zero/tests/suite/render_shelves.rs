@@ -10,10 +10,12 @@ use omega_gfx::{out_h, out_w, Compositor, HeadlessSurface};
 use omega_input::{Action, Btn, InputSource, Millis, RawEvent};
 use omega_power::SimPlatform;
 use omega_store::{Cart, Platform as CartPlatform};
+use omega_ui::kit::action::{pill_face, BAR};
+use omega_ui::kit::palette::Palette;
 use omega_ui::{
-    cart_box, cart_face, clean_label, edge, housing, label_colour, label_text, opening, recess,
-    rest_y, shelf_box, shelf_scale, slot_top, stage_x, stage_y, sway_reach, ChromeColours, Draw,
-    Pose, Shelf, SlotChrome, CART_W, GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, MOUTH_H, TOP_BAR_H,
+    cart_box, cart_face, clean_label, label_colour, label_text, rest_y, shelf_box, shelf_scale,
+    stage_x, stage_y, sway_reach, CartDive, Draw, Pose, Shelf, CART_W, GB_LABEL_H, GB_LABEL_Y,
+    LABEL_H, LABEL_Y, SPRITE_PX, TOP_BAR_H,
 };
 use omega_zero::app::{App, SEATED_AT};
 use omega_zero::frontend::Frontend;
@@ -79,29 +81,44 @@ fn hud_ink(px: &[u8]) -> usize {
         .count()
 }
 
-/// Where the shelf's name is printed in the slot, 49 px up from the bottom of its bar.
-fn name_window() -> (usize, usize, usize, usize) {
-    (
-        out_w() as usize / 2 - 70,
-        (slot_top() + MOUTH_H) as usize - 49,
-        140,
-        27,
-    )
+/// Where the shelf's pill showing `text` stands, its top left in screen pixels, and its face: in
+/// the middle of the bar across the bottom, on the bar's top, between its actions.
+fn pill_at(text: &str, pal: &Palette) -> (usize, usize, omega_ui::UndoFace) {
+    let face = pill_face(text, pal);
+    let x = (out_w() / SPRITE_PX / 2 - face.w / 2) * SPRITE_PX;
+    let y = out_h() - BAR * SPRITE_PX;
+    (x as usize, y as usize, face)
 }
 
-fn name_pixels(px: &[u8]) -> Vec<[u8; 3]> {
-    let (x0, y0, w, h) = name_window();
-    (y0..y0 + h)
-        .flat_map(|y| (x0..x0 + w).map(move |x| (x, y)))
-        .map(|(x, y)| at(px, x, y))
-        .collect()
-}
-
-fn name_ink(px: &[u8]) -> usize {
-    name_pixels(px)
-        .iter()
-        .filter(|c| u32::from(c[0]) > GROUND[0] + 0x10)
+/// How many of the pill's own pixels, showing `text` as the kit bakes it, are not on the screen
+/// where the bar puts it.
+fn pill_misses(px: &[u8], text: &str, pal: &Palette) -> usize {
+    let (x0, y0, face) = pill_at(text, pal);
+    let art = SPRITE_PX as usize;
+    (0..face.h as usize)
+        .flat_map(|j| (0..face.w as usize).map(move |i| (i, j)))
+        .filter(|(i, j)| {
+            let o = (j * face.w as usize + i) * 4;
+            face.rgba[o + 3] == 255 && {
+                let want = [face.rgba[o], face.rgba[o + 1], face.rgba[o + 2]];
+                let got = at(px, x0 + i * art + art / 2, y0 + j * art + art / 2);
+                (0..3).any(|k| got[k].abs_diff(want[k]) > 8)
+            }
+        })
         .count()
+}
+
+/// The systems a shelf's pill can show.
+const SYSTEMS: [&str; 3] = ["GBA", "GB", "GBC"];
+
+/// Whether the pill on the screen shows `text`, every pixel of it, and none of the other
+/// systems.
+fn pill_shows(px: &[u8], text: &str, pal: &Palette) -> bool {
+    pill_misses(px, text, pal) == 0
+        && SYSTEMS
+            .iter()
+            .filter(|other| **other != text)
+            .all(|other| pill_misses(px, other, pal) > 0)
 }
 
 fn let_the_name_in(f: &mut Frontend, c: &mut Compositor, input: &mut Script) {
@@ -204,15 +221,15 @@ fn the_shoulders_ring_over_a_shelf_for_each_system() {
     let_the_name_in(&mut f, &mut c, &mut input);
 
     let gba = composed(&mut f, &mut c, "gba");
+    let pal = f.app().palette();
     assert_eq!(
         banner_ink(&gba),
         0,
         "the carousel named a system nobody had switched to"
     );
     assert!(
-        name_ink(&gba) > 20,
-        "the plate corner came up with no mark in it at all: {} lit pixels",
-        name_ink(&gba)
+        pill_shows(&gba, "GBA", pal),
+        "the bar came up without the GBA pill between its actions"
     );
     let left = patch(&gba, side_left().0, side_left().1);
     let right = patch(&gba, side_right().0, side_right().1);
@@ -234,10 +251,9 @@ fn the_shoulders_ring_over_a_shelf_for_each_system() {
     );
 
     let mut seen = Vec::new();
-    let mut marks = vec![name_pixels(&gba)];
-    for (name, banner, _platform) in [
-        ("game-boy", "Game Boy", CartPlatform::Gb),
-        ("game-boy-color", "Game Boy Color", CartPlatform::Gbc),
+    for (name, banner, system) in [
+        ("game-boy", "Game Boy", "GB"),
+        ("game-boy-color", "Game Boy Color", "GBC"),
     ] {
         tap(&mut f, &mut input, Btn::R1);
         let_the_name_in(&mut f, &mut c, &mut input);
@@ -262,17 +278,10 @@ fn the_shoulders_ring_over_a_shelf_for_each_system() {
             0,
             "the {banner} shelf banner'd its name over the carts"
         );
-        let ink = name_ink(&px);
         assert!(
-            ink > 20,
-            "the {banner} shelf came up with nothing printed on the case: {ink} lit pixels"
+            pill_shows(&px, system, pal),
+            "the {banner} shelf did not put {system}, and only it, in the pill"
         );
-        let mark = name_pixels(&px);
-        assert!(
-            !marks.contains(&mark),
-            "the {banner} shelf is printing a name another shelf already printed"
-        );
-        marks.push(mark);
         assert!(
             seen.iter()
                 .all(|(c, l)| apart(cart, *c) + apart(label, *l) > 60),
@@ -289,19 +298,18 @@ fn the_shoulders_ring_over_a_shelf_for_each_system() {
         "the ring did not come back to the cart the first shelf was left on"
     );
     assert_eq!(banner_ink(&back), 0, "the way back put a banner up");
-    assert_eq!(
-        name_pixels(&back),
-        marks[0],
-        "the ring came back to the Game Boy Advance shelf under another system's name"
+    assert!(
+        pill_shows(&back, "GBA", pal),
+        "the ring came back to the Game Boy Advance shelf under another system's pill"
     );
 
+    // the pill does not fade: the system stays in it
     std::thread::sleep(std::time::Duration::from_millis(2400));
     f.advance(&mut input);
-    let later = composed(&mut f, &mut c, "gba-faded");
-    assert_eq!(
-        name_ink(&later),
-        0,
-        "the shelf's name was still in the slot after it should have faded"
+    let later = composed(&mut f, &mut c, "gba-later");
+    assert!(
+        pill_shows(&later, "GBA", pal),
+        "the GBA pill went from the bar"
     );
 }
 
@@ -380,8 +388,10 @@ fn a_card_nobody_has_organised_comes_up_an_empty_shelf() {
     );
 }
 
+/// A card with one shelf has nowhere to switch to, but its pill still names its system, and a
+/// shoulder press leaves it be. A letter jumped to shows in the pill in the system's place.
 #[test]
-fn a_card_on_one_shelf_leaves_the_corner_empty() {
+fn a_card_on_one_shelf_still_names_its_system_in_the_pill() {
     let Ok(surface) = HeadlessSurface::new() else {
         return;
     };
@@ -393,21 +403,35 @@ fn a_card_on_one_shelf_leaves_the_corner_empty() {
     clocked(one.path());
     let mut f = Frontend::boot(Box::new(SimPlatform::at(one.path().to_path_buf())));
     f.upload_faces(&mut c);
+    let pal = f.app().palette();
     let mut input = Script(VecDeque::new());
     f.advance(&mut input);
+    let_the_name_in(&mut f, &mut c, &mut input);
     let bare = composed(&mut f, &mut c, "one-shelf");
-    assert_eq!(
-        name_ink(&bare),
-        0,
-        "a card with one shelf named it in the slot: {} lit pixels",
-        name_ink(&bare)
+    assert!(
+        pill_shows(&bare, "GBA", pal),
+        "a card with one shelf did not name its system in the pill"
     );
     tap(&mut f, &mut input, Btn::R1);
+    let_the_name_in(&mut f, &mut c, &mut input);
     let pressed = composed(&mut f, &mut c, "one-shelf-after-r1");
+    assert!(
+        pill_shows(&pressed, "GBA", pal),
+        "R1 changed the pill on a card that has one shelf"
+    );
+
+    tap(&mut f, &mut input, Btn::Down);
+    assert_eq!(f.app().selected_stem(), Some("Fusion"));
+    let_the_name_in(&mut f, &mut c, &mut input);
+    let jumped = composed(&mut f, &mut c, "one-shelf-letter");
     assert_eq!(
-        name_ink(&pressed),
+        pill_misses(&jumped, "F", pal),
         0,
-        "R1 named a shelf on a card that has only one"
+        "the letter jumped to is not in the pill"
+    );
+    assert!(
+        pill_misses(&jumped, "GBA", pal) > 0,
+        "the system stayed in the pill over the letter jumped to"
     );
 
     let two = tmp_root_with_carts(&["Emerald", "Fusion"]);
@@ -419,9 +443,8 @@ fn a_card_on_one_shelf_leaves_the_corner_empty() {
     let_the_name_in(&mut f, &mut c, &mut input);
     let marked = composed(&mut f, &mut c, "two-shelves");
     assert!(
-        name_ink(&marked) > 20,
-        "a card with two shelves did not say which one it was on: {} lit pixels",
-        name_ink(&marked)
+        pill_shows(&marked, "GBA", pal),
+        "a card with two shelves did not say which one it was on"
     );
 }
 
@@ -446,11 +469,13 @@ fn a_cart_going_in_from_a_repeated_row_takes_both_copies_of_its_neighbour_with_i
     app.update(SEATED_AT / 2.0);
     let halfway = shot(&app, &mut c, Some("insert-1-halfway"));
     let (mid, y) = span(&halfway, ink);
+    app.update(SEATED_AT * 0.3);
+    let diving = shot(&app, &mut c, Some("insert-2-diving"));
+    let (low, low_y) = span(&diving, ink);
     for _ in 0..120 {
         app.update(1.0 / 60.0);
     }
-    let seated = shot(&app, &mut c, Some("insert-2-seated"));
-    let (home, home_y) = span(&seated, ink);
+    let seated = shot(&app, &mut c, Some("insert-3-in"));
 
     for (side, slot) in [("left", west), ("right", east)] {
         assert!(
@@ -467,23 +492,24 @@ fn a_cart_going_in_from_a_repeated_row_takes_both_copies_of_its_neighbour_with_i
         "the row did not stand its selection in the middle: {from}"
     );
     assert!(
-        (home - out_w() as f32 / 2.0).abs() < 8.0,
-        "the cart did not seat in the middle of the slot: {home}"
+        (mid - from).abs() < 8.0 && (low - from).abs() < 8.0,
+        "the cart slid sideways on its way in: {from} then {mid} then {low}"
     );
     assert!(
-        (mid - from).abs() < 8.0,
-        "the cart slid sideways on its way in: {from} then {mid} then {home}"
+        low_y > y,
+        "the cart was not pulled down into the handheld: its top at {y} then {low_y}"
     );
-    assert!(
-        home_y > y,
-        "the cart did not go down the slot: {y} then {home_y}"
+    assert_eq!(
+        paper_rows(&seated, ink),
+        None,
+        "the cart is still on the screen all the way in"
     );
     for (side, (x, y)) in [("left", side_left()), ("right", side_right())] {
         let slot = patch(&seated, x, y);
         assert!(
             apart(slot, GROUND) < 30,
-            "the {side} copy of the other cart is still on the row with the chosen one \
-             seated: {slot:?}"
+            "the {side} copy of the other cart is still on the row with the chosen one in \
+             the handheld: {slot:?}"
         );
     }
 }
@@ -595,23 +621,25 @@ fn row_runs(px: &[u8]) -> Vec<(usize, usize)> {
     runs
 }
 
+/// Where the cart in `ink` is across, the middle of its columns, and the top row of it.
 fn span(px: &[u8], ink: [u8; 3]) -> (f32, usize) {
     let close = |c: [u8; 3]| (0..3).all(|k| c[k].abs_diff(ink[k]) <= 24);
     let mut cols: Vec<usize> = Vec::new();
-    let mut bottom = 0;
+    let mut top = None;
     for y in 0..out_h() as usize {
         for x in 0..out_w() as usize {
             if close(at(px, x, y)) {
                 cols.push(x);
-                bottom = y;
+                top.get_or_insert(y);
             }
         }
     }
     let first = *cols
-        .first()
+        .iter()
+        .min()
         .expect("nothing on screen in the cart's colour");
     let last = *cols.iter().max().expect("nothing in the cart's colour");
-    ((first + last) as f32 / 2.0, bottom)
+    ((first + last) as f32 / 2.0, top.unwrap())
 }
 
 fn shot(app: &App, c: &mut Compositor, name: Option<&str>) -> Vec<u8> {
@@ -688,28 +716,21 @@ fn paper_rows(px: &[u8], ink: [u8; 3]) -> Option<(usize, usize)> {
     Some((first, rows.next_back().unwrap_or(first)))
 }
 
-fn backdrop() -> [[f32; 4]; 5] {
-    [[0.0, 0.0, 0.0, 1.0], housing(), opening(), edge(), recess()]
-}
-
+/// The rows a cartridge drawn alone covers: whatever is not the black the frame was cleared to.
 fn shell_rows(px: &[u8]) -> Option<(usize, usize)> {
-    let flat = backdrop();
-    let cart = |c: [u8; 3]| {
-        !flat.iter().any(|f| {
-            (0..3).all(|k| {
-                let want = (f[k] * 255.0).round() as u8;
-                c[k].abs_diff(want) <= 8
-            })
-        })
-    };
+    let cart = |c: [u8; 3]| c.iter().any(|v| *v > 8);
     let mut rows =
         (0..out_h() as usize).filter(|y| (0..out_w() as usize).any(|x| cart(at(px, x, *y))));
     let first = rows.next()?;
     Some((first, rows.next_back().unwrap_or(first)))
 }
 
+/// Both cartridges go into the handheld at the size they stood on the shelf: standing where the
+/// carousel centres them, their labels as the shelf holds them; rising the same few pixels; then
+/// pulled down out of the bottom of the screen at their shelf size, a pak no taller than it
+/// stood; and gone, all of them, once in.
 #[test]
-fn both_cartridges_go_into_the_slot_at_their_own_size() {
+fn both_cartridges_dive_into_the_handheld_at_their_shelf_size() {
     let Ok(surface) = HeadlessSurface::new() else {
         return;
     };
@@ -718,13 +739,12 @@ fn both_cartridges_go_into_the_slot_at_their_own_size() {
     };
     let beats = [
         ("0-standing", 0.0),
-        ("1-falling", 0.25),
-        ("2-at-the-catch", 0.42),
-        ("3-caught", 0.55),
-        ("4-pushed-through", 0.80),
-        ("5-seated", 1.0),
+        ("1-rising", 0.1),
+        ("2-risen", 0.2),
+        ("3-pulled", 0.5),
+        ("4-diving", 0.8),
+        ("5-in", 1.0),
     ];
-    let mut seated = Vec::new();
     for (name, cart) in cartridges() {
         let face = cart_face(&cart);
         let (w, h) = cart_box(cart.platform);
@@ -738,11 +758,11 @@ fn both_cartridges_go_into_the_slot_at_their_own_size() {
         let (rest, scale) = Shelf::new(vec![cart.clone()]).selected_at();
         let h = shelf_box(cart.platform).1;
         let shelf = shelf_scale(cart.platform);
+        let mut tops = Vec::new();
 
         for (beat, seat) in beats {
             let mut out = Vec::new();
-            SlotChrome {
-                colours: ChromeColours::default(),
+            CartDive {
                 cart: &cart,
                 face: Some(tex),
                 mesh: None,
@@ -758,9 +778,31 @@ fn both_cartridges_go_into_the_slot_at_their_own_size() {
             .draw(&mut out);
             let px = frame(&mut c, &out, &format!("insert-{name}-{beat}"));
 
+            if seat >= 1.0 {
+                assert_eq!(
+                    shell_rows(&px),
+                    None,
+                    "{name} is still on the screen all the way in"
+                );
+                continue;
+            }
             let Some((top, bottom)) = shell_rows(&px) else {
                 panic!("{name} at {beat}: no cartridge on the screen at all");
             };
+            tops.push(top as f32);
+            let tall = (bottom - top + 1) as f32;
+            if bottom + 1 < out_h() as usize {
+                assert!(
+                    (tall - h).abs() < 1.5,
+                    "{name} at {beat} is {tall} px tall, not the {h} it stands on the shelf"
+                );
+            } else {
+                assert!(
+                    tall <= h + 1.5,
+                    "{name} at {beat} reaches {tall} px up from the bottom, taller than the {h} \
+                     it stands on the shelf"
+                );
+            }
             if seat == 0.0 {
                 assert!(
                     (top as f32 - rest_y(h)).abs() < 1.5,
@@ -795,28 +837,20 @@ fn both_cartridges_go_into_the_slot_at_their_own_size() {
                      it at: it is being scaled"
                 );
             }
-            if seat == 1.0 {
-                seated.push((name, top as f32, bottom as f32));
-            }
         }
-    }
-
-    let (first, rest) = seated.split_first().expect("both cartridges seated");
-    for (name, top, bottom) in rest {
+        let stood = tops[0];
         assert!(
-            (top - first.1).abs() < 1.5,
-            "{name} seats with its top edge at {top} and {} at {}: one is in deeper than the \
-             other",
-            first.0,
-            first.1
+            (stood - tops[2] - 8.0).abs() < 1.5,
+            "{name} rose from {stood} to {}, not the 8 px a hand letting go lifts it",
+            tops[2]
         );
         assert!(
-            ((bottom - top) - (first.2 - first.1)).abs() < 1.5,
-            "{name} leaves {} px of itself out of the machine and {} leaves {}: the slot is \
-             showing one cartridge more of itself than the other",
-            bottom - top,
-            first.0,
-            first.2 - first.1
+            tops[1] < stood && tops[1] > tops[2],
+            "{name} did not rise on its way to the top of its lift: {tops:?}"
+        );
+        assert!(
+            tops[3] > stood && tops[4] > tops[3],
+            "{name} was not pulled down past where it stood: {tops:?}"
         );
     }
 }
@@ -828,18 +862,19 @@ fn no_frame_of_the_travel_jumps_further_than_the_cartridge_is_tall() {
         let (rest, scale) = Shelf::new(vec![cart.clone()]).selected_at();
         let ink = label_colour(&label_text(&cart));
         let ink = ink.map(|v| v as f32 / 255.0);
-        let ys: Vec<f32> = (0..=27)
+        // a frame at 60 Hz all the way in, short of the last, on which it is gone
+        let frames = (SEATED_AT * 60.0).round() as u32;
+        let ys: Vec<f32> = (0..frames)
             .map(|f| {
                 let mut out = Vec::new();
-                SlotChrome {
-                    colours: ChromeColours::default(),
+                CartDive {
                     cart: &cart,
                     face: None,
                     mesh: None,
                     rest,
                     scale,
                     pose: Pose::REST,
-                    seat: (f as f32 / 27.0).min(1.0),
+                    seat: f as f32 / frames as f32,
                     alert: None,
                     dim: 0.0,
                     screen: 0.0,

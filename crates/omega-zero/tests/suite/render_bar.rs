@@ -256,7 +256,7 @@ fn the_core_pickers_bar_has_the_swap_between_its_actions_pixel_for_pixel() {
 /// Nothing but the hints is drawn between the bar's actions: over a plain background, every
 /// pixel there on the bar's rows that the hints leave clear is the background's own colour, in
 /// Settings, which has none, and on Labels signed in, with Y SIGN OUT, in Night and in Amber.
-/// (On the shelf the slot's housing is what is behind the bar.)
+/// (On the shelf the system's pill stands between them as well, bar.rs.)
 #[test]
 fn the_background_shows_between_the_bars_actions_but_for_the_hints() {
     let Ok(surface) = HeadlessSurface::new() else {

@@ -1,6 +1,7 @@
 //! The bar along the bottom: which actions it shows where, how they swap between the shelf and
-//! a menu, how it leaves for a game and comes back, the hints between its actions and nothing
-//! else there, and the shelf's chrome in the palette the player picked.
+//! a menu, how it leaves for a game and comes back, the hints between its actions, the shelf's
+//! system in its pill between them on the shelf and nothing else there, and the shelf's chrome in
+//! the palette the player picked.
 
 use crate::common;
 
@@ -35,6 +36,17 @@ const CONFIRM_RIGHT: usize = 821;
 const SHELF_HINTS: usize = 850;
 const MENU_HINTS: usize = 851;
 const CONFIRM_HINTS: usize = 852;
+/// The shelf's system baked in its pill, and how wide it is in art pixels: "GBA"'s.
+const PILL: usize = 860;
+const PILL_W: u32 = 21;
+
+/// How long the pill takes to rise into place with a new system or letter (app.rs's
+/// PILL_IN_MS).
+const PILL_IN_MS: Millis = 220;
+
+/// How far into its way in a cart is when the bar has sunk out of the screen (screens/bar.rs's
+/// SUNK_AT).
+const SUNK_AT: f32 = 0.62;
 
 /// A radio that comes up with Home saved, and whose scans hear Home and Café, one it has not.
 #[derive(Clone, Default)]
@@ -179,6 +191,24 @@ fn press(a: &mut App, btn: Btn) {
     a.apply(Action::GbaUp(btn));
 }
 
+/// The shelf's pill baked and handed over as sync_clock does, and risen into place.
+fn pill_up(a: &mut App) {
+    a.set_shelf_platform_face(TexId::from_raw(PILL), PILL_W);
+    for _ in 0..30 {
+        a.update(1.0 / 60.0);
+    }
+}
+
+/// Where the pill is drawn, its top left, and its size.
+fn pill(out: &[Draw]) -> Option<[f32; 4]> {
+    out.iter().find_map(|d| match *d {
+        Draw::Tex {
+            x, y, w, h, tex, ..
+        } if tex == TexId::from_raw(PILL) => Some([x, y, w, h]),
+        _ => None,
+    })
+}
+
 #[test]
 fn the_shelf_shows_controls_and_settings_and_a_menu_return_and_confirm() {
     let (_d, mut a) = on_shelf();
@@ -211,19 +241,22 @@ fn the_shelf_shows_controls_and_settings_and_a_menu_return_and_confirm() {
     assert_eq!(at(&out, SHELF_HINTS), None);
 }
 
-/// The bar draws its hints and its two actions and nothing else, so nothing but the hints is
-/// between the actions: a frame with the bar is the same frame without it and those three
-/// quads, the hints' across the room from the left action's end to the right one's, on the
-/// shelf as in a menu.
+/// The bar draws its hints, its two actions and on the shelf the system's pill, and nothing else,
+/// so nothing but the hints and the pill is between the actions: a frame with the bar is the same
+/// frame without it and those quads, the hints' across the room from the left action's end to the
+/// right one's and the pill in the middle of the screen, on the shelf; a menu has no pill.
 #[test]
-fn the_bar_draws_nothing_between_its_actions_but_the_hints() {
+fn the_bar_draws_nothing_between_its_actions_but_the_hints_and_the_shelfs_pill() {
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     let mut a = booted(&d);
     let mut bare = booted_without_bar(&d);
+    for app in [&mut a, &mut bare] {
+        pill_up(app);
+    }
     for (actions, hints) in [(Actions::Shelf, SHELF_HINTS), (Actions::Menu, MENU_HINTS)] {
         let set = a.bar_faces().unwrap().sets[actions.index()];
         let base = SHELF_LEFT + 10 * actions.index();
-        let ours = [base, base + 1, hints].map(TexId::from_raw);
+        let ours = [base, base + 1, hints, PILL].map(TexId::from_raw);
         let (with, without) = (frame(&a), frame(&bare));
         let (bar, rest): (Vec<Draw>, Vec<Draw>) = with
             .into_iter()
@@ -232,20 +265,217 @@ fn the_bar_draws_nothing_between_its_actions_but_the_hints() {
         let px = |art: u32| (art * SPRITE_PX) as f32;
         let (width, lw, rw) = (out_w() / SPRITE_PX, set.left.1, set.right.1);
         let top = BarLayout::top(out_h());
+        let mut want = vec![quad(ours[2], width - lw - rw, BAR, px(lw), top)];
+        if actions == Actions::Shelf {
+            want.push(quad(ours[3], PILL_W, BAR, px(width / 2 - PILL_W / 2), top));
+        }
+        want.extend([
+            quad(ours[0], lw, set.left.2, 0.0, rest_y()),
+            quad(ours[1], rw, set.right.2, px(width - rw), rest_y()),
+        ]);
         assert_eq!(
-            bar,
-            [
-                quad(ours[2], width - lw - rw, BAR, px(lw), top),
-                quad(ours[0], lw, set.left.2, 0.0, rest_y()),
-                quad(ours[1], rw, set.right.2, px(width - rw), rest_y()),
-            ],
-            "{actions:?}: the bar is not its hints between its two actions"
+            bar, want,
+            "{actions:?}: the bar is not its hints between its two actions, and on the shelf the \
+             pill"
         );
         for app in [&mut a, &mut bare] {
             press(app, Btn::Start);
             app.finish_slide();
         }
     }
+}
+
+/// The shelf's system stands in its pill in the middle of the bar, between CONTROLS and
+/// SETTINGS, the bar's full height on the bar's top: on a card with one shelf as on one with
+/// more.
+#[test]
+fn the_shelfs_system_is_a_pill_in_the_middle_between_the_actions() {
+    for shelves in [1, 2] {
+        let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+        if shelves == 2 {
+            common::write_gb_cart(&d, "Tetris", "TETRIS");
+        }
+        let mut a = booted(&d);
+        assert_eq!(a.pill_text().as_deref(), Some("GBA"));
+        assert_eq!(pill(&frame(&a)), None, "a pill is drawn with no face baked");
+        pill_up(&mut a);
+        let out = frame(&a);
+        let [x, y, w, h] = pill(&out).expect("no pill on the shelf");
+        let art = SPRITE_PX as f32;
+        assert_eq!(
+            (w, h),
+            (PILL_W as f32 * art, BAR as f32 * art),
+            "the pill is not its face at the art grid's size"
+        );
+        assert_eq!(y, BarLayout::top(out_h()), "the pill is not on the bar");
+        assert_eq!(x % art, 0.0, "the pill is off the art grid");
+        let (left, _) = at(&out, SHELF_LEFT).unwrap();
+        let (right, _) = at(&out, SHELF_RIGHT).unwrap();
+        let set = a.bar_faces().unwrap().sets[Actions::Shelf.index()];
+        let left_end = left + (set.left.1 * SPRITE_PX) as f32;
+        assert!(
+            x >= left_end && x + w <= right,
+            "the pill {x}..{} is not between CONTROLS's end {left_end} and SETTINGS {right}",
+            x + w
+        );
+        let (before, after) = (x, out_w() as f32 - (x + w));
+        assert!(
+            (before - after).abs() <= art,
+            "the pill is not in the middle: {before} px before it and {after} after"
+        );
+    }
+}
+
+/// The pill rises into place as the system it shows comes, over PILL_IN_MS, on whole art pixels,
+/// and rises again with the next system when a shoulder switches the shelf.
+#[test]
+fn the_pill_rises_into_place_with_each_system() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    common::write_gb_cart(&d, "Tetris", "TETRIS");
+    let mut a = booted(&d);
+    assert_eq!(a.pill_text().as_deref(), Some("GBA"));
+    let top = BarLayout::top(out_h());
+    for (round, tex) in [(0, PILL), (1, PILL + 1)] {
+        a.set_shelf_platform_face(TexId::from_raw(tex), PILL_W);
+        a.update(0.0);
+        let from = a.now();
+        let mut ys = Vec::new();
+        while a.now() <= from + PILL_IN_MS + 50 {
+            let y = frame(&a).iter().find_map(|d| match *d {
+                Draw::Tex { y, tex: t, .. } if t == TexId::from_raw(tex) => Some(y),
+                _ => None,
+            });
+            ys.push(y.expect("the pill is not drawn as it rises"));
+            a.update(1.0 / 120.0);
+        }
+        assert_eq!(
+            ys[0],
+            top + (SINK * SPRITE_PX) as f32,
+            "round {round}: the pill did not start out of sight"
+        );
+        assert_eq!(
+            *ys.last().unwrap(),
+            top,
+            "round {round}: the pill did not rise into its place"
+        );
+        assert!(
+            ys.windows(2).all(|w| w[1] <= w[0]),
+            "round {round}: the pill went back down as it rose: {ys:?}"
+        );
+        assert!(
+            ys.iter().all(|y| (y - top) % SPRITE_PX as f32 == 0.0),
+            "round {round}: the pill is off the art grid: {ys:?}"
+        );
+        let a_third = ys[ys.len() / 3];
+        assert!(
+            a_third > top,
+            "round {round}: the pill was in its place a third of the way through its rise"
+        );
+        if round == 0 {
+            a.apply(Action::GbaDown(Btn::R1));
+            a.apply(Action::GbaUp(Btn::R1));
+            assert_eq!(a.pill_text().as_deref(), Some("GB"));
+            assert_eq!(
+                pill(&frame(&a)),
+                None,
+                "the old system's pill stayed up after the switch"
+            );
+        }
+    }
+}
+
+/// The pill goes with the shelf's actions while the core picker is open, and comes back with
+/// them as it shuts.
+#[test]
+fn the_pill_is_not_shown_while_the_core_picker_is_open() {
+    let (_d, mut a) = on_shelf();
+    pill_up(&mut a);
+    assert!(pill(&frame(&a)).is_some(), "no pill on the shelf");
+    picker_faces(&mut a);
+    a.apply(Action::GbaDown(Btn::X));
+    a.apply(Action::GbaUp(Btn::X));
+    assert!(a.core_picker().is_some(), "X opened no picker");
+    for _ in 0..40 {
+        a.update(1.0 / 60.0);
+        assert_eq!(
+            pill(&frame(&a)),
+            None,
+            "the pill shows over the open picker"
+        );
+    }
+    press(&mut a, Btn::B);
+    a.update(1.0);
+    assert_eq!(a.core_picker(), None, "B did not close the picker");
+    assert_eq!(
+        pill(&frame(&a)).map(|p| p[1]),
+        Some(BarLayout::top(out_h())),
+        "the pill did not come back as the picker shut"
+    );
+}
+
+/// As a cart goes in, the pill sinks with the actions, as far as they have, and is gone with
+/// the bar; it rises back with them as the cart comes out.
+#[test]
+fn the_pill_sinks_with_the_actions_as_a_cart_goes_in_and_rises_back_on_eject() {
+    let (_d, mut a) = on_shelf();
+    pill_up(&mut a);
+    press(&mut a, Btn::A);
+    assert!(matches!(a.phase(), Phase::Inserting { .. }));
+    let top = BarLayout::top(out_h());
+    let mut sank = false;
+    for _ in 0..60 {
+        let out = frame(&a);
+        let actions = shown(&out);
+        match (pill(&out), actions.first()) {
+            (Some([_, y, ..]), Some(&(_, sink))) => {
+                assert_eq!(
+                    y - top,
+                    sink,
+                    "the pill is {} below its place and the actions {sink}, {} of the way in",
+                    y - top,
+                    a.seat()
+                );
+                sank |= sink > 0.0;
+            }
+            (None, None) => {}
+            (pill, actions) => panic!(
+                "the pill ({pill:?}) and the actions ({actions:?}) did not go together, {} of \
+                 the way in",
+                a.seat()
+            ),
+        }
+        a.update(SEATED_AT / 40.0);
+    }
+    assert!(sank, "the pill never sank");
+    assert_eq!(pill(&frame(&a)), None, "the pill stayed with the cart in");
+
+    a.on_core_ready();
+    a.update(1.0);
+    assert!(matches!(a.phase(), Phase::Playing { .. }));
+    assert_eq!(pill(&frame(&a)), None, "the pill shows over the game");
+
+    a.apply(Action::Eject);
+    let mut rose = false;
+    for _ in 0..200 {
+        a.update(1.0 / 60.0);
+        if matches!(a.phase(), Phase::Shelf) {
+            break;
+        }
+        let out = frame(&a);
+        if let (Some([_, y, ..]), Some(&(_, sink))) = (pill(&out), shown(&out).first()) {
+            assert_eq!(y - top, sink, "the pill and the actions rose apart");
+            rose = true;
+        }
+    }
+    assert!(
+        rose,
+        "the pill did not rise with the actions as the cart came out"
+    );
+    assert_eq!(
+        pill(&frame(&a)).map(|p| p[1]),
+        Some(top),
+        "the pill is not back in its place on the shelf"
+    );
 }
 
 /// flow/player.js's sink: even((p / 0.5) · 38) over the first half, the new actions
@@ -363,10 +593,10 @@ fn the_bar_sinks_as_a_cart_goes_in_stays_away_in_the_game_and_comes_back_on_ejec
         }
         a.update(SEATED_AT / 40.0);
     }
-    // gone by the time the cart starts down into the slot, and not before it nears the lip
+    // gone, eased, by SUNK_AT, before the cart pulled down reaches it, and not in a blink
     let gone_at = gone_at.expect("the bar never left as the cart went in");
     assert!(
-        gone_at > omega_ui::CATCH_OUT / 2.0 && gone_at <= omega_ui::CATCH_OUT,
+        gone_at > SUNK_AT / 2.0 && gone_at <= SUNK_AT,
         "the bar was gone at seat {gone_at}"
     );
     assert!(a.seat() >= 1.0);
@@ -574,7 +804,7 @@ fn top_bar_fill(a: &App) -> Option<[f32; 4]> {
 }
 
 #[test]
-fn a_new_colour_in_background_retints_the_top_bar_and_the_slot() {
+fn a_new_colour_in_background_retints_the_top_bar() {
     let (_d, mut a) = on_shelf();
     let night = ChromeColours::of(palette(0));
     assert_eq!(
@@ -614,11 +844,12 @@ fn a_new_colour_in_background_retints_the_top_bar_and_the_slot() {
         Some(picked.housing),
         "the top bar kept Night"
     );
-    let slot = frame(&a)
+    let out = frame(&a);
+    let night_left = out
         .iter()
-        .filter(|d| matches!(**d, Draw::Rect { colour, .. } if colour == picked.recess))
+        .filter(|d| matches!(**d, Draw::Rect { colour, .. } if colour == night.housing))
         .count();
-    assert!(slot > 0, "the slot kept Night");
+    assert_eq!(night_left, 0, "something on the shelf kept Night's chrome");
 }
 
 #[test]
