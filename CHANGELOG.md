@@ -1,5 +1,13 @@
 # Changelog
 
+## omega-zero 1.0.0
+
+Labels fetch in the build you download: omega-zero now has its own ScreenScraper key.
+
+- Labels, in Settings, fetches the scanned label of every cart that has none in the release
+  build too. Until now a release carried no ScreenScraper developer key, so the screen said it
+  could not reach ScreenScraper. You still sign in with your own ScreenScraper account.
+
 ## omega-zero 0.0.4
 
 The slot under the shelf is gone: carts go down into the handheld, and the game comes on like a
