@@ -62,18 +62,22 @@ jobs:
           apt-get install -y --no-install-recommends zip cmake
           curl -fsSL https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin
 
+      - name: Name the tree
+        # after the tag or branch, its slashes made dashes: an artifact's name takes none
+        run: echo "TREE=omega-zero-$(printf %s "$GITHUB_REF_NAME" | tr / -)" >> "$GITHUB_ENV"
+
       - name: Build the tree
         env:
           # ScreenScraper's key for omega-zero, for the Cart Labels screen. Without it the
           # screen says the build cannot reach ScreenScraper.
           OMEGA_SS_DEVID: ${{ secrets.OMEGA_SS_DEVID }}
           OMEGA_SS_DEVPASSWORD: ${{ secrets.OMEGA_SS_DEVPASSWORD }}
-        run: task dist:device OUT="omega-zero-${GITHUB_REF_NAME}"
+        run: task dist:device OUT="$TREE"
 
       - name: Check what is about to ship
         run: |
           set -eu
-          out="omega-zero-${GITHUB_REF_NAME}"
+          out="$TREE"
           file "$out/System/omega-zero" | grep -q aarch64
           file "$out/System/mgba_libretro.so" | grep -q aarch64
           file "$out/System/gpsp_libretro.so" | grep -q aarch64
@@ -100,7 +104,7 @@ jobs:
         id: package
         run: |
           set -eu
-          out="omega-zero-${GITHUB_REF_NAME}"
+          out="$TREE"
           zip="$out-h700.zip"
           zip -qry "$zip" "$out"
           echo "zip=$zip" >> "$GITHUB_OUTPUT"
