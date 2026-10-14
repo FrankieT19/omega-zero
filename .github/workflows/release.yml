@@ -18,6 +18,42 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Check ScreenScraper's key
+        env:
+          OMEGA_SS_DEVID: ${{ secrets.OMEGA_SS_DEVID }}
+          OMEGA_SS_DEVPASSWORD: ${{ secrets.OMEGA_SS_DEVPASSWORD }}
+        run: |
+          set -eu
+          # A key ScreenScraper turns away would only show on a console, as Cart Labels saying
+          # it refused this build. A tag goes out to players, so it stops here without a key; a
+          # build by hand only warns. A ScreenScraper that cannot be asked holds nothing up.
+          if [ -z "$OMEGA_SS_DEVID" ] || [ -z "$OMEGA_SS_DEVPASSWORD" ]; then
+            case "$GITHUB_REF" in
+            refs/tags/*)
+              echo "::error::OMEGA_SS_DEVID and OMEGA_SS_DEVPASSWORD must both be set to release"
+              exit 1
+              ;;
+            esac
+            echo "::warning::No ScreenScraper key: Cart Labels will say it cannot reach ScreenScraper"
+            exit 0
+          fi
+          reply="$RUNNER_TEMP/screenscraper-reply"
+          rm -f "$reply"
+          status=0
+          # the softname label_sync.rs sends
+          code="$(curl -s -m 30 --retry 2 -A omega-zero -o "$reply" -w '%{http_code}' -G \
+            https://api.screenscraper.fr/api2/ssinfraInfos.php \
+            --data-urlencode "devid=$OMEGA_SS_DEVID" \
+            --data-urlencode "devpassword=$OMEGA_SS_DEVPASSWORD" \
+            -d softname=omega-zero -d output=json)" || status=$?
+          if [ "$code" = 403 ] || grep -qs 'Erreur de login' "$reply"; then
+            echo "::error::ScreenScraper refused OMEGA_SS_DEVID and OMEGA_SS_DEVPASSWORD"
+            exit 1
+          fi
+          if [ "$code" != 200 ]; then
+            echo "::warning::Could not check ScreenScraper's key (HTTP $code, curl $status)"
+          fi
+
       - name: Install zip, cmake and Task
         run: |
           set -eu
