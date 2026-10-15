@@ -3,6 +3,8 @@ use std::path::Path;
 use omega_store::gb::Class;
 use omega_store::{Cart, Platform, ShellFinish};
 
+use crate::models::snes::SnesShell;
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Finish {
     Solid,
@@ -52,6 +54,12 @@ pub const DUAL_MODE_SHELL: Shell = shell([0x33, 0x30, 0x31], Finish::Solid);
 
 pub const GB_CLEAR_SHELL: Shell = shell([0x7c, 0x7a, 0x8a], Finish::Translucent);
 
+/// The American SNES cart's grey, a shade darker and cooler than the Super Famicom's.
+pub const SNES_SHELL: Shell = shell([0x8b, 0x8a, 0x91], Finish::Solid);
+
+/// The Super Famicom cart's light grey, which Europe's carts share.
+pub const SFC_SHELL: Shell = shell([0xb7, 0xb6, 0xbb], Finish::Solid);
+
 const GB_CODES: &[(&str, Shell)] = &[
     ("AAU", shell([0xb3, 0x8b, 0x3a], Finish::Solid)),
     ("AAUJ", DUAL_MODE_SHELL),
@@ -88,6 +96,11 @@ pub fn shell_for(cart: &Cart) -> Shell {
     match cart.platform {
         Platform::Gba => gba_shell_for(&cart.code),
         Platform::Gb | Platform::Gbc => gb_shell_for(&cart.rom),
+        Platform::Snes => match crate::models::snes::shell_of(cart) {
+            SnesShell::Ntsc => SNES_SHELL,
+            SnesShell::Famicom => SFC_SHELL,
+        },
+        Platform::Ps1 => DEFAULT_SHELL,
     }
 }
 
@@ -188,6 +201,8 @@ pub fn shell_presets() -> Vec<(&'static str, Shell)> {
         ("Game Boy Color clear", GB_CLEAR_SHELL),
         ("Advance charcoal", DEFAULT_SHELL),
         ("Advance Video grey", FAMILY[0].1),
+        ("Super Nintendo grey", SNES_SHELL),
+        ("Super Famicom grey", SFC_SHELL),
     ];
     out.extend(
         GBA.iter()

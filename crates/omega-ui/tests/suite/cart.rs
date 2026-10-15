@@ -4,10 +4,11 @@ use std::time::{Duration, SystemTime};
 use omega_store::{scan, Platform};
 use omega_ui::{
     cart_face, clean_label, cut_label, cut_path, foot_y, gb_label_panel, gb_silhouette,
-    label_colour, label_panel, label_text, label_uncut, rest_y, seated_box, shelf_box, shell_for,
-    silhouette, stage_y, sway_reach, Finish, GbShell, BAR_H, CART_H, CART_W, GB_CART_H, GB_CART_W,
-    GB_LABEL_H, GB_LABEL_W, GB_LABEL_X, GB_LABEL_Y, GB_SHELF_SCALE, LABEL_H, LABEL_W, LABEL_X,
-    LABEL_Y, MOCKUP_H, TOP_BAR_H,
+    label_colour, label_panel, label_text, label_uncut, model_box, model_of, model_scale,
+    model_shadow, model_shelf_box, out_w, rest_y, seated_box, shelf_box, shell_for, silhouette,
+    snes_silhouette, stage_y, sway_reach, CartModel, Finish, GbShell, SnesShell, BAR_H, CART_H,
+    CART_W, GB_CART_H, GB_CART_W, GB_LABEL_H, GB_LABEL_W, GB_LABEL_X, GB_LABEL_Y, GB_SHELF_SCALE,
+    LABEL_H, LABEL_W, LABEL_X, LABEL_Y, MOCKUP_H, SFC_SHELL, SNES_SHELL, TOP_BAR_H,
 };
 use tempfile::TempDir;
 
@@ -604,11 +605,17 @@ fn between_the_bars() -> (f32, f32) {
 #[test]
 fn every_cartridge_is_centred_on_the_row_and_clears_both_bars() {
     let (ceiling, floor) = between_the_bars();
-    for (name, platform) in [
-        ("the GBA cart", Platform::Gba),
-        ("the Game Boy pak", Platform::Gb),
+    for (name, model) in [
+        ("the GBA cart", CartModel::Gba),
+        ("the Game Boy pak", CartModel::Gb(GbShell::Notched)),
+        ("the American SNES cart", CartModel::Snes(SnesShell::Ntsc)),
+        (
+            "the Super Famicom cart",
+            CartModel::Snes(SnesShell::Famicom),
+        ),
+        ("the PlayStation disc", CartModel::Disc),
     ] {
-        let h = shelf_box(platform).1;
+        let h = model_shelf_box(model).1;
         let (top, foot) = (rest_y(h), foot_y(h));
         assert!(
             (top + foot - (ceiling + floor)).abs() < 0.01,
@@ -646,6 +653,410 @@ fn a_pak_stands_at_four_fifths_and_sways_clear_of_both_bars() {
         "the swaying pak reaches {} over the bottom bar at {floor}",
         foot + reach
     );
+}
+
+#[test]
+fn each_snes_cart_sways_clear_of_both_bars_at_its_own_size() {
+    let (ceiling, floor) = between_the_bars();
+    for shell in [SnesShell::Ntsc, SnesShell::Famicom] {
+        let model = CartModel::Snes(shell);
+        assert_eq!(
+            model_scale(model),
+            1.0,
+            "the {shell:?} face is not made at the size it stands at"
+        );
+        let (w, h) = model_shelf_box(model);
+        let reach = sway_reach(w, h);
+        let (top, foot) = (rest_y(h), foot_y(h));
+        assert!(
+            top - reach >= ceiling && foot + reach <= floor,
+            "the swaying {shell:?} cart reaches {}..{}, past the bars at {ceiling} and {floor}",
+            top - reach,
+            foot + reach
+        );
+        // standing still in the middle of the row, it lands on whole art pixels
+        let left = (out_w() as f32 - w) / 2.0;
+        assert!(
+            left % 2.0 == 0.0 && top % 2.0 == 0.0,
+            "the {shell:?} cart stands at {left},{top}, off the art grid"
+        );
+    }
+}
+
+/// A LoROM image in Games/SNES with a header naming `title`, sold in `destination`.
+fn write_snes_rom(d: &TempDir, name: &str, title: &str, destination: u8) {
+    let mut rom = vec![0xffu8; 0x8_0000];
+    let h = &mut rom[0x7fc0..0x8000];
+    h[..21].fill(b' ');
+    h[..title.len()].copy_from_slice(title.as_bytes());
+    h[0x15] = 0x20;
+    h[0x17] = 0x0a;
+    h[0x19] = destination;
+    h[0x1c..0x1e].copy_from_slice(&0xa5c3u16.to_le_bytes());
+    h[0x1e..0x20].copy_from_slice(&0x5a3cu16.to_le_bytes());
+    h[0x3c..0x3e].copy_from_slice(&0x8000u16.to_le_bytes());
+    let games = d.path().join("Games/SNES");
+    std::fs::create_dir_all(&games).expect("create games dir");
+    std::fs::write(games.join(name), rom).expect("write rom");
+}
+
+fn snes_cart<'a>(carts: &'a [omega_store::Cart], stem: &str) -> &'a omega_store::Cart {
+    carts
+        .iter()
+        .find(|c| c.stem == stem)
+        .unwrap_or_else(|| panic!("{stem} was not scanned"))
+}
+
+#[test]
+fn a_snes_game_from_the_usa_stands_as_the_american_cart_and_any_other_as_the_super_famicom_s() {
+    let d = tmp_root();
+    write_snes_rom(&d, "Super Metroid (USA).sfc", "SUPER METROID", 0x01);
+    write_snes_rom(&d, "Rockman X (Japan).sfc", "ROCKMAN X", 0x00);
+    write_snes_rom(&d, "Terranigma (Europe).sfc", "TERRANIGMA", 0x02);
+    write_snes_rom(&d, "Chrono Trigger.sfc", "CHRONO TRIGGER", 0x01);
+    write_snes_rom(&d, "Star Ocean.sfc", "STAR OCEAN", 0x00);
+    write_snes_rom(&d, "Mystery (Korea).smc", "MYSTERY", 0x01);
+    std::fs::write(d.path().join("Games/SNES/Blank.sfc"), vec![0u8; 0x8000]).unwrap();
+    let carts = scan(d.path()).unwrap();
+    for (stem, want) in [
+        ("Super Metroid (USA)", SnesShell::Ntsc),
+        ("Rockman X (Japan)", SnesShell::Famicom),
+        ("Terranigma (Europe)", SnesShell::Famicom),
+        ("Chrono Trigger", SnesShell::Ntsc),
+        ("Star Ocean", SnesShell::Famicom),
+        ("Mystery (Korea)", SnesShell::Famicom),
+        ("Blank", SnesShell::Famicom),
+    ] {
+        assert_eq!(
+            model_of(snes_cart(&carts, stem)),
+            CartModel::Snes(want),
+            "{stem}"
+        );
+    }
+}
+
+#[test]
+fn cart_shell_ini_forces_either_snes_shape_whatever_the_region() {
+    let d = tmp_root();
+    write_snes_rom(&d, "Super Metroid (USA).sfc", "SUPER METROID", 0x01);
+    write_snes_rom(&d, "Rockman X (Japan).sfc", "ROCKMAN X", 0x00);
+    write_snes_rom(&d, "Terranigma (Europe).sfc", "TERRANIGMA", 0x02);
+    std::fs::write(
+        d.path().join("Config/cart_shell.ini"),
+        "Super Metroid (USA) = sfc b7b6bb solid\n\
+         Rockman X (Japan) = ntsc 8b8a91 solid\n\
+         Terranigma (Europe) = notched 9a978f solid\n",
+    )
+    .unwrap();
+    let carts = scan(d.path()).unwrap();
+    for (stem, want) in [
+        ("Super Metroid (USA)", SnesShell::Famicom),
+        ("Rockman X (Japan)", SnesShell::Ntsc),
+        ("Terranigma (Europe)", SnesShell::Famicom),
+    ] {
+        assert_eq!(
+            model_of(snes_cart(&carts, stem)),
+            CartModel::Snes(want),
+            "{stem}"
+        );
+    }
+    let forced = cart_face(snes_cart(&carts, "Rockman X (Japan)"));
+    assert_eq!(
+        (forced.w, forced.h),
+        model_box(CartModel::Snes(SnesShell::Ntsc)),
+        "a forced shape is not drawn at its own size"
+    );
+}
+
+#[test]
+fn each_snes_shell_is_the_real_cart_s_shape_the_american_one_the_bigger() {
+    let (nw, nh) = model_box(CartModel::Snes(SnesShell::Ntsc));
+    let (sw, sh) = model_box(CartModel::Snes(SnesShell::Famicom));
+    assert!(
+        nw > sw && nh > sh,
+        "the American cart, {nw}x{nh}, is not bigger than the Super Famicom's, {sw}x{sh}"
+    );
+    for (name, (w, h), real) in [
+        ("American", (nw, nh), 136.0 / 88.0),
+        ("Super Famicom", (sw, sh), 130.0 / 86.0),
+    ] {
+        let aspect = w as f32 / h as f32;
+        assert!(
+            (aspect / real - 1.0).abs() < 0.01,
+            "the {name} face is {aspect}:1, the real cart {real}:1"
+        );
+        assert!(
+            w % 4 == 0 && h % 2 == 0,
+            "the {name} face, {w}x{h}, does not halve onto the art grid"
+        );
+    }
+}
+
+#[test]
+fn a_snes_face_is_clipped_to_its_own_silhouette_and_backed_by_its_own_shadow() {
+    let d = tmp_root();
+    write_snes_rom(&d, "Super Metroid (USA).sfc", "SUPER METROID", 0x01);
+    write_snes_rom(&d, "Rockman X (Japan).sfc", "ROCKMAN X", 0x00);
+    let carts = scan(d.path()).unwrap();
+    for (stem, shell) in [
+        ("Super Metroid (USA)", SnesShell::Ntsc),
+        ("Rockman X (Japan)", SnesShell::Famicom),
+    ] {
+        let face = cart_face(snes_cart(&carts, stem));
+        let model = CartModel::Snes(shell);
+        assert_eq!((face.w, face.h), model_box(model));
+        let mask = snes_silhouette(shell, face.w, face.h);
+        for (i, (px, cover)) in face.rgba.chunks_exact(4).zip(&mask).enumerate() {
+            assert!(
+                px[3] <= *cover,
+                "{stem}: pixel {i} is {} opaque outside its outline's {cover}",
+                px[3]
+            );
+        }
+        assert_eq!(pixel_alpha(&face, 1, 1), 0, "{stem}: the corner is opaque");
+        assert!(pixel_alpha(&face, face.w / 2, face.h / 2) > 250);
+        let shadow = model_shadow(model);
+        assert_eq!((shadow.w, shadow.h), (face.w, face.h));
+        for (px, cover) in shadow.rgba.chunks_exact(4).zip(&mask) {
+            assert_eq!(&px[..3], &[0, 0, 0], "{stem}: the shadow is not black");
+            assert_eq!(px[3], *cover, "{stem}: the shadow is not the shell's shape");
+        }
+    }
+    let ntsc = snes_silhouette(SnesShell::Ntsc, 376, 242);
+    let sfc = snes_silhouette(SnesShell::Famicom, 376, 242);
+    let apart: u32 = ntsc
+        .iter()
+        .zip(&sfc)
+        .map(|(a, b)| u32::from(a.abs_diff(*b)))
+        .sum();
+    assert!(apart / 255 > 100, "the two shells are all but one shape");
+}
+
+/// The box of the pixels of `face` that are `colour`.
+fn colour_box(face: &omega_ui::CartFace, colour: [u8; 3]) -> Option<(u32, u32, u32, u32)> {
+    let mut b: Option<(u32, u32, u32, u32)> = None;
+    for y in 0..face.h {
+        for x in 0..face.w {
+            if pixel(face, x, y) == colour && pixel_alpha(face, x, y) == 255 {
+                b = Some(match b {
+                    None => (x, y, x, y),
+                    Some((x0, y0, x1, y1)) => (x0.min(x), y0.min(y), x1.max(x), y1.max(y)),
+                });
+            }
+        }
+    }
+    b
+}
+
+#[test]
+fn a_snes_label_fills_its_well_on_the_plastic_where_the_real_cart_has_it() {
+    let d = tmp_root();
+    write_snes_rom(&d, "Super Metroid (USA).sfc", "SUPER METROID", 0x01);
+    write_snes_rom(&d, "Rockman X (Japan).sfc", "ROCKMAN X", 0x00);
+    let art = [0x20, 0xc0, 0x40];
+    for stem in ["Super Metroid (USA)", "Rockman X (Japan)"] {
+        let dir = d.path().join("Labels/SNES");
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = std::fs::File::create(dir.join(format!("{stem}.png"))).unwrap();
+        let mut enc = png::Encoder::new(std::io::BufWriter::new(f), 64, 24);
+        enc.set_color(png::ColorType::Rgb);
+        enc.set_depth(png::BitDepth::Eight);
+        let rgb: Vec<u8> = (0..64 * 24).flat_map(|_| art).collect();
+        enc.write_header().unwrap().write_image_data(&rgb).unwrap();
+    }
+    let carts = scan(d.path()).unwrap();
+    // the share of the face's width and height the label takes, and how far down it starts,
+    // measured off straight-on photos of real carts: the American one's well starts just under
+    // the top of its column, a little lower here to leave room for its bevel; the Super
+    // Famicom's a tenth smaller each way than the photos had it, which reads truer
+    for (stem, (wide, tall), top) in [
+        ("Super Metroid (USA)", (0.6, 0.38), (0.0, 0.05)),
+        ("Rockman X (Japan)", (0.75, 0.38), (0.05, 0.07)),
+    ] {
+        let face = cart_face(snes_cart(&carts, stem));
+        let (x0, y0, x1, y1) = colour_box(&face, art).expect("the label art was not pasted");
+        let (lw, lh) = ((x1 - x0 + 1) as f32, (y1 - y0 + 1) as f32);
+        let (fw, fh) = (face.w as f32, face.h as f32);
+        assert!(
+            lw / fw > wide && lh / fh > tall,
+            "{stem}: the label is {lw}x{lh} on a {fw}x{fh} face"
+        );
+        assert!(
+            ((x0 + x1 + 1) as f32 / 2.0 - fw / 2.0).abs() <= 1.0,
+            "{stem}: the label is not across the middle"
+        );
+        assert!(
+            (top.0..=top.1).contains(&(y0 as f32 / fh)),
+            "{stem}: the label starts {y0} px down"
+        );
+        for y in y0..=y1 {
+            for x in x0..=x1 {
+                assert_eq!(
+                    pixel_alpha(&face, x, y),
+                    255,
+                    "{stem}: label off the plastic"
+                );
+            }
+        }
+    }
+}
+
+/// The colour a solid shell's label well is shaded in on its upper and left sides.
+fn well_shade(colour: [u8; 3]) -> [u8; 3] {
+    colour.map(|c| (c as f32 * 0.55) as u8)
+}
+
+#[test]
+fn only_the_super_famicom_label_has_round_corners_on_the_art_grid() {
+    let d = tmp_root();
+    write_rom(&d, "Advance.gba", "ADVANCE");
+    write_gb_rom(&d, "GB", "Grey.gb", 0x00);
+    write_snes_rom(&d, "Super Metroid (USA).sfc", "SUPER METROID", 0x01);
+    write_snes_rom(&d, "Rockman X (Japan).sfc", "ROCKMAN X", 0x00);
+    let art = [0x20, 0xc0, 0x40];
+    for (dir, stem) in [
+        ("GBA", "Advance"),
+        ("GB", "Grey"),
+        ("SNES", "Super Metroid (USA)"),
+        ("SNES", "Rockman X (Japan)"),
+    ] {
+        let dir = d.path().join("Labels").join(dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = std::fs::File::create(dir.join(format!("{stem}.png"))).unwrap();
+        let mut enc = png::Encoder::new(std::io::BufWriter::new(f), 64, 24);
+        enc.set_color(png::ColorType::Rgb);
+        enc.set_depth(png::BitDepth::Eight);
+        let rgb: Vec<u8> = (0..64 * 24).flat_map(|_| art).collect();
+        enc.write_header().unwrap().write_image_data(&rgb).unwrap();
+    }
+    let carts = scan(d.path()).unwrap();
+    // the GBA cart, the Game Boy pak and the American SNES cart keep their square labels in
+    // square wells, as before: every corner of the label is the art, and just outside each of
+    // its upper corners the well's shade
+    for stem in ["Advance", "Grey", "Super Metroid (USA)"] {
+        let cart = snes_cart(&carts, stem);
+        let face = cart_face(cart);
+        let (x0, y0, x1, y1) = colour_box(&face, art).expect("the label art was not pasted");
+        for (x, y) in [(x0, y0), (x1, y0), (x0, y1), (x1, y1)] {
+            assert_eq!(
+                pixel(&face, x, y),
+                art,
+                "{stem}: the label's corner {x},{y}"
+            );
+        }
+        let dark = well_shade(shell_for(cart).colour);
+        assert_eq!(
+            pixel(&face, x0 - 1, y0 - 1),
+            dark,
+            "{stem}: the well's corner"
+        );
+        assert_eq!(
+            pixel(&face, x1 + 1, y0 - 1),
+            dark,
+            "{stem}: the well's corner"
+        );
+    }
+    // the Super Famicom label's corners are round, its well's with them, stepped two pixels at
+    // a time: the label's square corner is the well's shade, a step in is the art
+    let cart = snes_cart(&carts, "Rockman X (Japan)");
+    let face = cart_face(cart);
+    let (x0, y0, x1, y1) = colour_box(&face, art).expect("the label art was not pasted");
+    // a tenth smaller each way than it was first drawn, 312 by 102, on whole art pixels
+    assert_eq!(
+        (x1 + 1 - x0, y1 + 1 - y0),
+        (280, 92),
+        "the Super Famicom label is not a tenth smaller"
+    );
+    assert!(x0 % 2 == 0 && y0 % 2 == 0, "the label is off the art grid");
+    let dark = well_shade(shell_for(cart).colour);
+    for (x, y, dx, dy) in [(x0, y0, 1i32, 1i32), (x1, y0, -1, 1)] {
+        let at = |i: i32, j: i32| {
+            pixel(
+                &face,
+                (x as i32 + i * dx) as u32,
+                (y as i32 + j * dy) as u32,
+            )
+        };
+        assert_eq!(at(0, 0), dark, "the label's corner {x},{y} is not cut off");
+        assert_eq!(
+            at(1, 1),
+            at(0, 0),
+            "the corner does not step on the art grid"
+        );
+        assert_eq!(at(6, 6), art, "the corner is cut too deep");
+    }
+    for (x, y) in [(x0, y1), (x1, y1)] {
+        assert_ne!(
+            pixel(&face, x, y),
+            art,
+            "the label's lower corner {x},{y} is square"
+        );
+    }
+    // and the well's own square corner, beyond the round one, is the plastic
+    let (wx, wy) = (x0 - 5, y0 - 5);
+    assert_ne!(pixel(&face, wx, wy), dark, "the well's corner is square");
+    assert_eq!(
+        pixel(&face, wx + 20, wy),
+        dark,
+        "the well's top is not where it was"
+    );
+}
+
+#[test]
+fn a_snes_cart_with_no_label_art_is_labelled_with_its_name() {
+    let d = tmp_root();
+    write_snes_rom(&d, "Super Metroid (USA).sfc", "SUPER METROID", 0x01);
+    write_snes_rom(&d, "Rockman X (Japan).sfc", "ROCKMAN X", 0x00);
+    let carts = scan(d.path()).unwrap();
+    for stem in ["Super Metroid (USA)", "Rockman X (Japan)"] {
+        let cart = snes_cart(&carts, stem);
+        let face = cart_face(cart);
+        let bg = label_colour(&label_text(cart));
+        let (x0, y0, x1, y1) = colour_box(&face, bg).expect("no generated label");
+        let inked = (y0..=y1)
+            .flat_map(|y| (x0..=x1).map(move |x| (x, y)))
+            .filter(|&(x, y)| pixel(&face, x, y) != bg)
+            .count();
+        assert!(inked > 100, "{stem}: no title on its label");
+    }
+}
+
+#[test]
+fn each_snes_shell_comes_in_its_own_grey() {
+    let d = tmp_root();
+    write_snes_rom(&d, "Super Metroid (USA).sfc", "SUPER METROID", 0x01);
+    write_snes_rom(&d, "Rockman X (Japan).sfc", "ROCKMAN X", 0x00);
+    write_snes_rom(&d, "Chosen (Japan).sfc", "CHOSEN", 0x00);
+    std::fs::write(
+        d.path().join("Config/cart_shell.ini"),
+        "Chosen (Japan) = auto c23f3a solid\n",
+    )
+    .unwrap();
+    let carts = scan(d.path()).unwrap();
+    assert_eq!(
+        shell_for(snes_cart(&carts, "Super Metroid (USA)")),
+        SNES_SHELL
+    );
+    assert_eq!(shell_for(snes_cart(&carts, "Rockman X (Japan)")), SFC_SHELL);
+    let chosen = shell_for(snes_cart(&carts, "Chosen (Japan)"));
+    assert_eq!(
+        chosen.colour,
+        [0xc2, 0x3f, 0x3a],
+        "cart_shell.ini's colour is not used"
+    );
+    let lum = |c: [u8; 3]| c.iter().map(|v| u32::from(*v)).sum::<u32>();
+    assert!(
+        lum(SFC_SHELL.colour) > lum(SNES_SHELL.colour) + 60,
+        "the Super Famicom's grey is not the lighter"
+    );
+    for s in [SNES_SHELL, SFC_SHELL] {
+        assert_eq!(s.finish, Finish::Solid);
+        let [r, g, b] = s.colour;
+        assert!(
+            r.abs_diff(g) < 8 && g.abs_diff(b) < 12,
+            "{s:?} is not a grey"
+        );
+    }
 }
 
 #[test]

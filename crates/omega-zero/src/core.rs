@@ -10,7 +10,7 @@ const CORE_ENV: &str = "OMEGA_CORE";
 pub fn dylib_name(core: Core) -> String {
     format!(
         "{}_libretro.{}",
-        core.as_str(),
+        core.library(),
         std::env::consts::DLL_EXTENSION
     )
 }
@@ -37,18 +37,69 @@ pub struct Opened {
     pub named: bool,
 }
 
-pub fn open_core(root: &Path, core: Core, serial: &str, colour: bool, link: Option<u8>) -> Opened {
+/// What a game is opened with besides its core: a handheld's link cable mode, its screen's
+/// colour correction and the player it is on a cable. A SNES or PlayStation game has none of it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Setup<'a> {
+    Handheld {
+        serial: &'a str,
+        colour: bool,
+        link: Option<u8>,
+    },
+    Console,
+}
+
+impl<'a> Setup<'a> {
+    /// The serial mode, colour correction and cable player the core's options are set from.
+    fn handheld(self) -> (&'a str, bool, Option<u8>) {
+        match self {
+            Setup::Handheld {
+                serial,
+                colour,
+                link,
+            } => (serial, colour, link),
+            Setup::Console => ("auto", false, None),
+        }
+    }
+}
+
+/// Opens `core` for a game, from the content root's System folder or beside omega-zero, with the
+/// options omega-zero sets on it; the mock test pattern when it is nowhere.
+pub fn open(root: &Path, core: Core, setup: Setup) -> Opened {
     let paths = candidates(root, core);
-    match open_named(root, core, serial, colour, link, &paths) {
+    match open_named(root, core, setup, &paths) {
         Some(core) => Opened { core, named: true },
         None => {
             report_missing(core, &paths);
             Opened {
-                core: Box::new(MockCore::new()),
+                core: Box::new(stand_in(core)),
                 named: false,
             }
         }
     }
+}
+
+/// The mock test pattern that stands in for a core that is nowhere, drawing its system's usual
+/// picture, so a SNES or PlayStation game without its core is still laid out as one.
+fn stand_in(core: Core) -> MockCore {
+    match core {
+        Core::Mgba | Core::Gpsp => MockCore::new(),
+        Core::Snes9x | Core::Supafaust => MockCore::sized(256, 224),
+        Core::PcsxRearmed => MockCore::sized(320, 240),
+    }
+}
+
+/// `open` for a handheld game.
+pub fn open_core(root: &Path, core: Core, serial: &str, colour: bool, link: Option<u8>) -> Opened {
+    open(
+        root,
+        core,
+        Setup::Handheld {
+            serial,
+            colour,
+            link,
+        },
+    )
 }
 
 pub fn open_core_for(
@@ -58,27 +109,34 @@ pub fn open_core_for(
     colour: bool,
     paths: &[PathBuf],
 ) -> Box<dyn RetroCore> {
-    open_named(root, core, serial, colour, None, paths).unwrap_or_else(|| {
+    let setup = Setup::Handheld {
+        serial,
+        colour,
+        link: None,
+    };
+    open_named(root, core, setup, paths).unwrap_or_else(|| {
         report_missing(core, paths);
-        Box::new(MockCore::new())
+        Box::new(stand_in(core))
     })
 }
 
 fn open_named(
     root: &Path,
     core: Core,
-    serial: &str,
-    colour: bool,
-    link: Option<u8>,
+    setup: Setup,
     paths: &[PathBuf],
 ) -> Option<Box<dyn RetroCore>> {
     let bios = root::bios_dir(root);
     let saves = root::saves_dir(root);
+    let (serial, colour, link) = setup.handheld();
     for path in paths {
         if !path.exists() {
             continue;
         }
-        match LibretroCore::open_with(path, &bios, &saves) {
+        // the options are there before the core starts, for one that reads them as it does
+        let options = core_options(core, serial, root::has_real_bios(root), colour);
+        let early: Vec<(&str, &str)> = options.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        match LibretroCore::open_with_options(path, &bios, &saves, &early) {
             Ok(mut opened) => {
                 apply_core_options(&mut opened, core, serial, root::has_real_bios(root), colour);
                 if let Some(player) = link {
@@ -112,6 +170,7 @@ pub fn colour_option(which: Core, on: bool) -> Option<(&'static str, &'static st
             "gpsp_color_correction",
             if on { "enabled" } else { "disabled" },
         )),
+        Core::Snes9x | Core::Supafaust | Core::PcsxRearmed => None,
     }
 }
 
@@ -131,24 +190,62 @@ pub fn apply_core_options(
     bios: bool,
     colour: bool,
 ) {
-    core.set_option(&format!("{}_frameskip", which.as_str()), "auto");
-    if which == Core::Mgba {
-        core.set_option("mgba_sgb_borders", "OFF");
-        core.set_option("mgba_gb_colors_preset", "1");
-        core.set_option("mgba_gb_colors", "GBC Dark Green →A");
-        if let Some((key, value)) = colour_option(which, colour) {
-            core.set_option(key, value);
+    for (key, value) in core_options(which, serial, bios, colour) {
+        core.set_option(key, &value);
+    }
+}
+
+/// Every option omega-zero sets on `which`, in the order it sets them, each spelt as that core
+/// declares it. `serial`, the BIOS and `colour` only reach the handhelds' cores.
+///
+/// Frame skipping is asked for wherever the core has it, so fast-forward can skip frames by
+/// reporting an underrun: mGBA and gpSP name it `_frameskip`, pcsx_rearmed
+/// `_frameskip_type`; Snes9x has none and skips a frame the frontend says not to draw, and
+/// Supafaust skips none. The SNES picture is kept to its 224 lines rather than the 239 a few
+/// games show, so it is exactly twice that on every canvas. Supafaust is left to run its
+/// threads wherever the system puts them: by itself it would pin the emulator thread to the
+/// second CPU and its PPU thread to the first, where the render thread and the kernel's
+/// interrupts run. The PlayStation runs its own BIOS from BIOS/ when one is there and its
+/// built-in one otherwise, and keeps memory card 1 as the game's save, in Saves/PS1; the
+/// second card, which pcsx_rearmed would keep in a file of its own in Saves, is left out.
+pub fn core_options(
+    which: Core,
+    serial: &str,
+    bios: bool,
+    colour: bool,
+) -> Vec<(&'static str, String)> {
+    let mut set: Vec<(&'static str, String)> = Vec::new();
+    let mut put = |key: &'static str, value: &str| set.push((key, value.to_string()));
+    match which {
+        Core::Mgba => {
+            put("mgba_frameskip", "auto");
+            put("mgba_sgb_borders", "OFF");
+            put("mgba_gb_colors_preset", "1");
+            put("mgba_gb_colors", "GBC Dark Green →A");
+        }
+        Core::Gpsp => {
+            put("gpsp_frameskip", "auto");
+            put("gpsp_serial", serial);
+            if bios {
+                put("gpsp_boot_mode", "bios");
+            }
+        }
+        Core::Snes9x => put("snes9x_overscan", "enabled"),
+        Core::Supafaust => {
+            put("supafaust_thread_affinity_emu", "0x0");
+            put("supafaust_thread_affinity_ppu", "0x0");
+        }
+        Core::PcsxRearmed => {
+            put("pcsx_rearmed_frameskip_type", "auto");
+            put("pcsx_rearmed_bios", "auto");
+            put("pcsx_rearmed_memcard1", "libretro");
+            put("pcsx_rearmed_memcard2", "none");
         }
     }
-    if which == Core::Gpsp {
-        core.set_option("gpsp_serial", serial);
-        if bios {
-            core.set_option("gpsp_boot_mode", "bios");
-        }
-        if let Some((key, value)) = colour_option(which, colour) {
-            core.set_option(key, value);
-        }
+    if let Some((key, value)) = colour_option(which, colour) {
+        put(key, value);
     }
+    set
 }
 
 #[cfg(test)]
@@ -176,6 +273,66 @@ mod tests {
             colour_option(Core::Gpsp, false),
             Some(("gpsp_color_correction", "disabled"))
         );
+    }
+
+    fn keys(which: Core) -> Vec<&'static str> {
+        core_options(which, "auto", true, true)
+            .into_iter()
+            .map(|(k, _)| k)
+            .collect()
+    }
+
+    #[test]
+    fn every_option_is_spelt_with_its_own_core_s_prefix() {
+        for which in Core::ALL {
+            let prefix = format!("{}_", which.as_str());
+            for key in keys(which) {
+                assert!(key.starts_with(&prefix), "{key} set on {which:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn frame_skipping_is_asked_for_by_each_core_s_own_name_for_it() {
+        let skip = |which| {
+            core_options(which, "auto", false, false)
+                .into_iter()
+                .find(|(k, _)| k.contains("frameskip"))
+        };
+        assert_eq!(skip(Core::Mgba), Some(("mgba_frameskip", "auto".into())));
+        assert_eq!(skip(Core::Gpsp), Some(("gpsp_frameskip", "auto".into())));
+        assert_eq!(
+            skip(Core::PcsxRearmed),
+            Some(("pcsx_rearmed_frameskip_type", "auto".into())),
+            "pcsx_rearmed's _frameskip is an interval, not a mode"
+        );
+        assert_eq!(skip(Core::Snes9x), None, "Snes9x has no frame skipping");
+        assert_eq!(
+            skip(Core::Supafaust),
+            None,
+            "Supafaust has no frame skipping"
+        );
+    }
+
+    #[test]
+    fn the_consoles_take_no_handheld_options() {
+        for which in [Core::Snes9x, Core::Supafaust, Core::PcsxRearmed] {
+            assert_eq!(
+                core_options(which, "rfu", true, true),
+                core_options(which, "auto", false, false),
+                "{which:?} took a serial mode, a BIOS boot or colour correction"
+            );
+        }
+        assert!(core_options(Core::PcsxRearmed, "auto", false, false)
+            .contains(&("pcsx_rearmed_memcard1", "libretro".into())));
+    }
+
+    #[test]
+    fn a_missing_console_core_is_stood_in_for_at_its_system_s_size() {
+        assert_eq!(stand_in(Core::Mgba).video_size(), (240, 160));
+        assert_eq!(stand_in(Core::Snes9x).video_size(), (256, 224));
+        assert_eq!(stand_in(Core::Supafaust).video_size(), (256, 224));
+        assert_eq!(stand_in(Core::PcsxRearmed).video_size(), (320, 240));
     }
 
     fn lock() -> std::sync::MutexGuard<'static, ()> {

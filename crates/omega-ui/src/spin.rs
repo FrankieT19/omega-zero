@@ -1,5 +1,7 @@
 use omega_gfx::{out_h, spun_x, Draw, MeshId, MeshVertex, TexId};
 
+use crate::models::disc::StackMeshes;
+use crate::models::{disc, snes, snes::SnesShell};
 use crate::silhouette::GbShell;
 
 /// How thick a cart is, as a share of its width: a Game Pak is about 8 mm thick and 57 wide.
@@ -44,28 +46,86 @@ impl Pose {
     }
 }
 
-/// The cart shells a model is built for.
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+/// The shapes a game stands on the shelf as: a cart in one of its shells, or a disc.
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum CartModel {
     Gba,
     Gb(GbShell),
+    Snes(SnesShell),
+    Disc,
 }
 
-/// The models a shelf draws its carts with, one per shell, once they are on the GPU.
+impl CartModel {
+    pub const ALL: [CartModel; 6] = [
+        CartModel::Gba,
+        CartModel::Gb(GbShell::Notched),
+        CartModel::Gb(GbShell::Rounded),
+        CartModel::Snes(SnesShell::Ntsc),
+        CartModel::Snes(SnesShell::Famicom),
+        CartModel::Disc,
+    ];
+
+    /// Its place in [`CartModel::ALL`].
+    pub fn index(self) -> usize {
+        match self {
+            CartModel::Gba => 0,
+            CartModel::Gb(GbShell::Notched) => 1,
+            CartModel::Gb(GbShell::Rounded) => 2,
+            CartModel::Snes(SnesShell::Ntsc) => 3,
+            CartModel::Snes(SnesShell::Famicom) => 4,
+            CartModel::Disc => 5,
+        }
+    }
+
+    /// How thick it is, as a share of its width.
+    pub fn thick(self) -> f32 {
+        match self {
+            CartModel::Gba | CartModel::Gb(_) => THICK,
+            CartModel::Snes(_) => snes::THICK,
+            CartModel::Disc => disc::THICK,
+        }
+    }
+}
+
+/// The models a shelf draws its carts with, one per model, once they are on the GPU, and the
+/// ones it draws a game on several discs with.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct CartMeshes {
-    pub gba: MeshId,
-    pub gb: MeshId,
-    pub gbc: MeshId,
+    models: [MeshId; CartModel::ALL.len()],
+    stacks: Option<StackMeshes>,
 }
 
 impl CartMeshes {
-    pub fn of(&self, shell: Option<GbShell>) -> MeshId {
-        match shell {
-            None => self.gba,
-            Some(GbShell::Notched) => self.gb,
-            Some(GbShell::Rounded) => self.gbc,
+    /// Every model's mesh, each made by `make`.
+    pub fn build(mut make: impl FnMut(CartModel) -> MeshId) -> CartMeshes {
+        CartMeshes {
+            models: CartModel::ALL.map(&mut make),
+            stacks: None,
         }
+    }
+
+    /// Every model's mesh and every stack's, each handed to `make` to put on the GPU: what the
+    /// frontend draws with.
+    pub fn upload(mut make: impl FnMut(&[MeshVertex]) -> MeshId) -> CartMeshes {
+        CartMeshes::build(|model| make(&cart_mesh(model))).with_stacks(StackMeshes::build(make))
+    }
+
+    /// These, and `stacks` to draw a game on several discs with. Without them such a game is
+    /// one model with every disc's face laid across it.
+    pub fn with_stacks(self, stacks: StackMeshes) -> CartMeshes {
+        CartMeshes {
+            stacks: Some(stacks),
+            ..self
+        }
+    }
+
+    pub fn of(&self, model: CartModel) -> MeshId {
+        self.models[model.index()]
+    }
+
+    /// The models stacks of discs are drawn with, once they are set.
+    pub fn stacks(&self) -> Option<StackMeshes> {
+        self.stacks
     }
 }
 
@@ -135,26 +195,41 @@ const SIDE_SAMPLE: f32 = 9.0;
 /// How much light the back edge of a side gets against its front edge.
 const SIDE_BACK_SHADE: f32 = 0.72;
 
+/// The GBA cart's outline in drawing units, all the way round clockwise, and the size of the
+/// drawing.
+pub(crate) fn gba_outline() -> (Vec<(f32, f32)>, (f32, f32)) {
+    let mut all: Vec<(f32, f32)> = GBA_HALF.to_vec();
+    all.extend(GBA_HALF.iter().rev().map(|&(x, y)| (240.0 - x, y)));
+    (all, (240.0, 141.0))
+}
+
 /// A cart's outline in drawing units, all the way round clockwise, and the size of the drawing.
-fn outline(model: CartModel) -> (Vec<(f32, f32)>, (f32, f32)) {
+pub fn outline(model: CartModel) -> (Vec<(f32, f32)>, (f32, f32)) {
     match model {
-        CartModel::Gba => {
-            let mut all: Vec<(f32, f32)> = GBA_HALF.to_vec();
-            all.extend(GBA_HALF.iter().rev().map(|&(x, y)| (240.0 - x, y)));
-            (all, (240.0, 141.0))
-        }
+        CartModel::Gba => gba_outline(),
         CartModel::Gb(GbShell::Notched) => (GB_OUTLINE.to_vec(), (240.0, 259.0)),
         CartModel::Gb(GbShell::Rounded) => (GBC_OUTLINE.to_vec(), (240.0, 259.0)),
+        CartModel::Snes(shell) => snes::outline(shell),
+        CartModel::Disc => disc::outline(),
     }
 }
 
-/// A cart in few polygons, the way a PlayStation game would have modelled it: its face, the
-/// whole texture laid over a few cells, whose outline the texture's own alpha cuts; and its
-/// sides, one flat polygon for each cut of its outline, back to its thickness, each taking its
-/// colour from the face just inside its edge. Sides come first, so the face covers them.
+/// A model in few polygons, the way a PlayStation game would have modelled it.
 pub fn cart_mesh(model: CartModel) -> Vec<MeshVertex> {
-    let (points, (uw, uh)) = outline(model);
-    let thick = THICK;
+    match model {
+        CartModel::Disc => disc::mesh(),
+        _ => {
+            let (points, units) = outline(model);
+            extruded(&points, units, model.thick())
+        }
+    }
+}
+
+/// A cart in few polygons: its face, the whole texture laid over a few cells, whose outline
+/// the texture's own alpha cuts; and its sides, one flat polygon for each cut of its outline
+/// `points` (in drawing units, the drawing `uw` by `uh`), back to `thick`, each taking its
+/// colour from the face just inside its edge. Sides come first, so the face covers them.
+pub(crate) fn extruded(points: &[(f32, f32)], (uw, uh): (f32, f32), thick: f32) -> Vec<MeshVertex> {
     let mut out = Vec::new();
     for (i, &a) in points.iter().enumerate() {
         let b = points[(i + 1) % points.len()];
@@ -342,17 +417,78 @@ mod tests {
 
     #[test]
     fn every_cart_outline_stays_within_the_band_its_side_is_drawn_in() {
-        for (name, mask, w, h) in [
-            ("GBA", cart_mask(), CART_W, CART_H),
-            ("GB", gb_cart_mask(GbShell::Notched), GB_CART_W, GB_CART_H),
-            ("GBC", gb_cart_mask(GbShell::Rounded), GB_CART_W, GB_CART_H),
+        let (ntsc, sfc) = (snes::spec(SnesShell::Ntsc), snes::spec(SnesShell::Famicom));
+        let (_, (_, units)) = snes::outline(SnesShell::Ntsc);
+        // the American cart's column stands proud of its shoulders: only the rows above them
+        // come in further, and only by the step
+        let shoulder = (snes::NTSC_SHOULDER / units * ntsc.h as f32).ceil() as u32;
+        for (name, mask, w, h, from) in [
+            ("GBA", cart_mask(), CART_W, CART_H, 0),
+            (
+                "GB",
+                gb_cart_mask(GbShell::Notched),
+                GB_CART_W,
+                GB_CART_H,
+                0,
+            ),
+            (
+                "GBC",
+                gb_cart_mask(GbShell::Rounded),
+                GB_CART_W,
+                GB_CART_H,
+                0,
+            ),
+            ("SNES", ntsc.mask, ntsc.w, ntsc.h, shoulder),
+            ("SFC", sfc.mask, sfc.w, sfc.h, 0),
         ] {
-            let inset = widest_inset(mask, w as usize, h as usize) as f32;
+            let rows = &mask[(from * w) as usize..];
+            let inset = widest_inset(rows, w as usize, (h - from) as usize) as f32;
             assert!(
                 inset <= OUTLINE_INSET * w as f32,
                 "the {name} outline comes {inset} px in, past the {} px its side is drawn in",
                 OUTLINE_INSET * w as f32
             );
+        }
+        let step = widest_inset(ntsc.mask, ntsc.w as usize, shoulder as usize) as f32;
+        assert!(
+            step <= 0.18 * ntsc.w as f32,
+            "the American cart's shoulders come {step} px in, more than its column's step"
+        );
+    }
+
+    /// Only the Super Famicom cart's label is round at its corners: every other shape's goes
+    /// through the square label's drawing untouched.
+    #[test]
+    fn only_the_super_famicom_label_is_round() {
+        for model in CartModel::ALL {
+            let round = crate::cart::spec(model).label_round;
+            match model {
+                CartModel::Snes(SnesShell::Famicom) => assert!(round > 0),
+                _ => assert_eq!(round, 0, "the {model:?} label is round"),
+            }
+        }
+    }
+
+    /// A side takes its colour from the face just inside its edge, so that has to be the
+    /// cart's plastic, not the clear corner beyond its outline.
+    #[test]
+    fn every_side_takes_its_colour_from_the_plastic_inside_its_edge() {
+        for model in CartModel::ALL {
+            if model == CartModel::Disc {
+                continue;
+            }
+            let s = crate::cart::spec(model);
+            let cover = |u: f32, v: f32| {
+                let (x, y) = ((u * s.w as f32) as u32, (v * s.h as f32) as u32);
+                s.mask[(y.min(s.h - 1) * s.w + x.min(s.w - 1)) as usize]
+            };
+            for v in cart_mesh(model).iter().filter(|v| v.normal[2] == 0.0) {
+                let [u, t] = v.uv;
+                assert!(
+                    cover(u, t) > 192,
+                    "a side of the {model:?} model takes its colour from {u},{t}, outside the cart"
+                );
+            }
         }
     }
 }

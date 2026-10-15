@@ -7,7 +7,7 @@ pub const VIDEO_MODE_FILE: &str = "Config/video_mode.ini";
 
 const _: () = assert!(
     SRC_W == omega_retro::GBA_W && SRC_H == omega_retro::GBA_H,
-    "the game texture is not the size of the frames the cores publish"
+    "the handheld layouts are not drawn for the GBA screen a Game Boy picture is centred in"
 );
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -45,9 +45,15 @@ pub fn write_video_mode(root: &Path, stem: &str, mode: VideoMode) -> std::io::Re
     ini::write(root, VIDEO_MODE_FILE, stem, mode.as_str())
 }
 
+/// The part of the game texture a picture mode shows: a Game Boy game's own window when it is
+/// stretched, otherwise all of it. A SNES or PlayStation picture fills the texture, which takes
+/// each frame's size.
 pub fn source_rect(platform: Platform, mode: VideoMode) -> [f32; 4] {
+    if is_console(platform) {
+        return WHOLE_TEXTURE;
+    }
     let (w, h) = platform.picture();
-    if mode == VideoMode::Actual || (w, h) == (SRC_W, SRC_H) {
+    if mode == VideoMode::Actual || (w, h) == (SRC_W, SRC_H) || w > SRC_W || h > SRC_H {
         return WHOLE_TEXTURE;
     }
     let x = SRC_W.saturating_sub(w) / 2;
@@ -74,6 +80,18 @@ pub fn screen(platform: Platform, mode: VideoMode) -> Screen {
     screen_on(canvas(), platform, mode)
 }
 
+/// The screen for a game whose last picture was `frame` pixels wide and high. Only a SNES or
+/// PlayStation game's layout follows its frames; a handheld's is always the GBA screen's.
+pub fn screen_for(platform: Platform, mode: VideoMode, frame: (u32, u32)) -> Screen {
+    screen_on_frame(canvas(), platform, mode, frame)
+}
+
+/// Whether `platform` is a console played on a television, whose pictures come in every size
+/// and are laid out by their own, rather than a handheld drawn for the GBA's screen.
+fn is_console(platform: Platform) -> bool {
+    matches!(platform, Platform::Snes | Platform::Ps1)
+}
+
 /// The GBA frame at three panel pixels to a game pixel, which every canvas but 640x480 holds.
 const FRAME: (f32, f32) = ((SRC_W * SCALE) as f32, (SRC_H * SCALE) as f32);
 
@@ -81,7 +99,22 @@ const FRAME: (f32, f32) = ((SRC_W * SCALE) as f32, (SRC_H * SCALE) as f32);
 /// above the middle, as a screen does in a console's face.
 const TOP_ROOM: f32 = 120.0;
 
+/// The screen on canvas `c` before a game has drawn: a SNES or PlayStation game is laid out for
+/// its system's usual picture.
 pub fn screen_on(c: Canvas, platform: Platform, mode: VideoMode) -> Screen {
+    screen_on_frame(c, platform, mode, platform.picture())
+}
+
+/// The screen on canvas `c` for a game whose last picture was `frame`.
+pub fn screen_on_frame(
+    c: Canvas,
+    platform: Platform,
+    mode: VideoMode,
+    frame: (u32, u32),
+) -> Screen {
+    if is_console(platform) {
+        return console_screen(c, platform, mode, frame);
+    }
     let uv = source_rect(platform, mode);
     let actual = source_rect(platform, VideoMode::Actual);
     let (cw, ch) = (c.w as f32, c.h as f32);
@@ -100,7 +133,7 @@ pub fn screen_on(c: Canvas, platform: Platform, mode: VideoMode) -> Screen {
         };
     }
     match platform {
-        Platform::Gba => {
+        Platform::Gba | Platform::Snes | Platform::Ps1 => {
             let h = (cw * SRC_H as f32 / SRC_W as f32).round();
             let view = GameView {
                 rect: [0.0, 0.0, cw, h],
@@ -133,6 +166,66 @@ fn lcd(rect: [f32; 4], uv: [f32; 4]) -> GameView {
         rect,
         uv,
         filter: Filter::Lcd3x,
+    }
+}
+
+/// The SNES's lines are 256 pixels wide, its hi-res modes' 512 pixels half as wide each.
+const SNES_W: f32 = 256.0;
+
+/// A SNES or PlayStation game on a television's screen, centred with the console's body around
+/// it, every frame size drawn through the sharp filter into the same rect.
+///
+/// The SNES at its actual size is twice its 256 pixels and its lines, 512x448 (512x478 for a
+/// game showing its overscan), on every canvas: 3x would not fit any of them. A hi-res frame,
+/// 512 pixels a line, or an interlaced one, twice the lines, fills the same rect. Stretched, the
+/// SNES takes a television's 4:3, as large as the canvas holds.
+///
+/// The PlayStation at its actual size is that 4:3: 640x480 on 640x480, where its usual 320x240
+/// is exactly 2x, centred on 720x480, and 720x540 across 720x720. Stretched, it fills the
+/// canvas.
+fn console_screen(c: Canvas, platform: Platform, mode: VideoMode, frame: (u32, u32)) -> Screen {
+    let (cw, ch) = (c.w as f32, c.h as f32);
+    let (w, h) = match (platform, mode) {
+        (Platform::Snes, VideoMode::Actual) => snes_whole(cw, ch, frame.1),
+        (Platform::Ps1, VideoMode::Stretch) => (cw, ch),
+        _ => four_three(cw, ch),
+    };
+    let rect = [((cw - w) / 2.0).round(), ((ch - h) / 2.0).round(), w, h];
+    let view = GameView {
+        rect,
+        uv: WHOLE_TEXTURE,
+        filter: Filter::Sharp,
+    };
+    Screen {
+        view,
+        still: view,
+        bands: around(c, rect),
+    }
+}
+
+/// The SNES picture at the largest whole scale the canvas holds, for a frame `lines` high: an
+/// interlaced frame's lines count as the half they each are of the picture.
+fn snes_whole(cw: f32, ch: f32, lines: u32) -> (f32, f32) {
+    let lines = match lines {
+        0 => 224,
+        l if l > 256 => l / 2,
+        l => l,
+    } as f32;
+    let scale = (cw / SNES_W).min(ch / lines).floor().max(1.0);
+    let (w, h) = (SNES_W * scale, lines * scale);
+    if w <= cw && h <= ch {
+        (w, h)
+    } else {
+        four_three(cw, ch)
+    }
+}
+
+/// The largest 4:3 rect the canvas holds.
+fn four_three(cw: f32, ch: f32) -> (f32, f32) {
+    if cw * 3.0 > ch * 4.0 {
+        ((ch * 4.0 / 3.0).round(), ch)
+    } else {
+        (cw, (cw * 3.0 / 4.0).round())
     }
 }
 

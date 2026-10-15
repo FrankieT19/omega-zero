@@ -131,3 +131,19 @@ fn the_index_clamps_at_both_ends() {
         Some("2026-08-09_00-00-01")
     );
 }
+
+#[test]
+fn a_console_screenshot_keeps_its_own_size() {
+    let d = tempfile::tempdir().expect("tempdir");
+    for (w, h) in [(256, 224), (320, 240), (640, 480)] {
+        let e = entry(d.path(), "2026-08-09_14-32-05");
+        write_png(&e.thumb, w, h, [0x20, 0x90, 0xd0]);
+        let face = photo_face(&e);
+        assert_eq!(
+            (face.w, face.h),
+            (w, h),
+            "the screenshot was not kept at its size"
+        );
+        assert_eq!(pixel(&face, w - 1, h - 1), [0x20, 0x90, 0xd0]);
+    }
+}

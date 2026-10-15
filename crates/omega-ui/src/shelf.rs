@@ -1,12 +1,14 @@
 use omega_gfx::{out_w, Draw, MeshId, TexId, FOCAL};
 use omega_store::{Cart, Platform};
 
-use crate::cart::{cart_box, gb_shell_of, label_colour, label_text, CART_H};
+use crate::cart::{cart_box, label_colour, label_text, model_box, model_of, CART_H};
 use crate::chrome::BAR_H;
 use crate::hud::Millis;
+use crate::models::disc::{self, DiscStack};
+use crate::models::snes;
 use crate::motion::ease;
 use crate::silhouette::GbShell;
-use crate::spin::{self, CartMeshes, Pose};
+use crate::spin::{self, CartMeshes, CartModel, Pose};
 use crate::stage::{stage_y, MOCKUP_H};
 use crate::status_bar::TOP_BAR_H;
 
@@ -21,7 +23,26 @@ pub fn shelf_scale(platform: Platform) -> f32 {
     match platform {
         Platform::Gba => 1.0,
         Platform::Gb | Platform::Gbc => GB_SHELF_SCALE,
+        Platform::Snes => snes::SHELF_SCALE,
+        Platform::Ps1 => disc::SHELF_SCALE,
     }
+}
+
+/// How big `model` stands on the shelf, as a share of its own size.
+pub fn model_scale(model: CartModel) -> f32 {
+    match model {
+        CartModel::Gba => 1.0,
+        CartModel::Gb(_) => GB_SHELF_SCALE,
+        CartModel::Snes(_) => snes::SHELF_SCALE,
+        CartModel::Disc => disc::SHELF_SCALE,
+    }
+}
+
+/// The size `model` stands on the shelf at, and spaces its neighbours by.
+pub fn model_shelf_box(model: CartModel) -> (f32, f32) {
+    let (w, h) = model_box(model);
+    let scale = model_scale(model);
+    (w as f32 * scale, h as f32 * scale)
 }
 
 /// The size a cart for `platform` stands on the shelf at, and spaces its neighbours by.
@@ -90,36 +111,38 @@ pub struct Shelf {
     pub index: usize,
     pub scroll: f32,
     faces: Vec<TexId>,
-    shadow: Option<TexId>,
-    gb_shadow: Option<TexId>,
-    gbc_shadow: Option<TexId>,
-    shells: Vec<Option<GbShell>>,
+    shadows: [Option<TexId>; CartModel::ALL.len()],
+    models: Vec<CartModel>,
+    /// How many discs each cart stands as: one, but for a game on several discs.
+    discs: Vec<usize>,
     meshes: Option<CartMeshes>,
     ride: f32,
     vel: f32,
     held: Option<(i32, Millis, usize)>,
     calm: f32,
     age: f32,
+    /// How far the discs have turned about their own middles, in radians.
+    spin: f32,
     still: bool,
 }
 
 impl Shelf {
     pub fn new(carts: Vec<Cart>) -> Self {
         Shelf {
-            shells: carts.iter().map(gb_shell_of).collect(),
+            models: carts.iter().map(model_of).collect(),
+            discs: carts.iter().map(disc::stack_of).collect(),
             carts,
             index: 0,
             scroll: 0.0,
             faces: Vec::new(),
-            shadow: None,
-            gb_shadow: None,
-            gbc_shadow: None,
+            shadows: [None; CartModel::ALL.len()],
             meshes: None,
             ride: 0.0,
             vel: 0.0,
             held: None,
             calm: 0.0,
             age: 0.0,
+            spin: 0.0,
             still: false,
         }
     }
@@ -132,7 +155,12 @@ impl Shelf {
     }
 
     pub fn set_shadow(&mut self, face: TexId) {
-        self.shadow = Some(face);
+        self.set_model_shadow(CartModel::Gba, face);
+    }
+
+    /// The black outline that backs a `model` cart not drawn as a model.
+    pub fn set_model_shadow(&mut self, model: CartModel, face: TexId) {
+        self.shadows[model.index()] = Some(face);
     }
 
     /// The models carts are drawn with from now on, sides and all.
@@ -141,20 +169,56 @@ impl Shelf {
     }
 
     pub fn set_gb_shadow(&mut self, shell: GbShell, face: TexId) {
-        match shell {
-            GbShell::Notched => self.gb_shadow = Some(face),
-            GbShell::Rounded => self.gbc_shadow = Some(face),
-        }
+        self.set_model_shadow(CartModel::Gb(shell), face);
     }
 
     pub fn set_faces(&mut self, faces: Vec<TexId>) {
         self.faces = faces;
     }
 
-    /// The model the cart `stem` is drawn with, once models are set.
+    /// The model the cart `stem` is drawn with, once models are set: a game on several discs
+    /// all its discs in one model.
     pub fn mesh_for(&self, stem: &str) -> Option<MeshId> {
         let i = self.carts.iter().position(|c| c.stem == stem)?;
-        Some(self.meshes?.of(self.shells.get(i).copied().flatten()))
+        let meshes = self.meshes?;
+        let model = *self.models.get(i)?;
+        match (model, meshes.stacks()) {
+            (CartModel::Disc, Some(stacks)) => Some(stacks.whole(self.discs_at(i))),
+            _ => Some(meshes.of(model)),
+        }
+    }
+
+    /// The discs the game `stem` stands as, once its face and the models are set; `None` for
+    /// a cart.
+    pub fn stack_for(&self, stem: &str) -> Option<DiscStack> {
+        let i = self.carts.iter().position(|c| c.stem == stem)?;
+        self.stack_at(i)
+    }
+
+    /// The discs the game at `i` stands as, once its face and the models are set.
+    pub fn stack_at(&self, i: usize) -> Option<DiscStack> {
+        if self.model_at(i)? != CartModel::Disc {
+            return None;
+        }
+        Some(DiscStack {
+            tex: *self.faces.get(i)?,
+            discs: self.discs_at(i),
+            meshes: self.meshes?.stacks()?,
+        })
+    }
+
+    /// How many discs the cart at `i` stands as.
+    fn discs_at(&self, i: usize) -> usize {
+        match self.discs.get(i) {
+            Some(n) => *n,
+            // a cart pushed onto the row after it was made has not been counted
+            None => self.carts.get(i).map_or(1, disc::stack_of),
+        }
+    }
+
+    /// The model the cart at `i` stands as.
+    pub fn model_at(&self, i: usize) -> Option<CartModel> {
+        self.models.get(i).copied()
     }
 
     pub fn find(&self, stem: &str) -> Option<(&Cart, Option<TexId>)> {
@@ -310,16 +374,13 @@ impl Shelf {
     /// Where the selected cart's left edge is on the row right now, and how big it is drawn
     /// there as a share of its own size.
     pub fn selected_at(&self) -> (f32, f32) {
-        let platform = self
-            .carts
-            .get(self.index)
-            .map_or(Platform::Gba, |c| c.platform);
-        let w = shelf_box(platform).0;
+        let model = self.model_at(self.index).unwrap_or(CartModel::Gba);
+        let w = model_shelf_box(model).0;
         let offset = self.scroll_target() - self.scroll;
         let scale = shrink(offset);
         (
             out_w() as f32 / 2.0 + offset * w - w * scale / 2.0,
-            scale * shelf_scale(platform),
+            scale * model_scale(model),
         )
     }
 
@@ -368,6 +429,8 @@ impl Shelf {
             self.calm = (self.calm + CALM_IN * dt).min(1.0);
         }
         self.age = (self.age + dt).rem_euclid(LOOP_S);
+        self.spin = (self.spin + disc::SPIN * std::f32::consts::TAU * ease(self.calm) * dt)
+            .rem_euclid(std::f32::consts::TAU);
     }
 
     /// The row, none of its carts held.
@@ -398,7 +461,13 @@ impl Shelf {
             let t = offset.abs().min(1.0);
             let scale = shrink(offset);
             let alpha = (1.0 + (SIDE_ALPHA - 1.0) * t) * (1.0 - recede);
-            let (cw, ch) = shelf_box(cart.platform);
+            // a cart pushed onto the row after it was made has no model looked up yet
+            let model = self
+                .models
+                .get(i)
+                .copied()
+                .unwrap_or_else(|| model_of(cart));
+            let (cw, ch) = model_shelf_box(model);
             let (w, h) = (cw * scale, ch * scale);
             let away = offset.signum() * (1.0 + offset.abs());
             let x = out_w() as f32 / 2.0 + offset * cw - w / 2.0 + away * PART * recede;
@@ -415,7 +484,6 @@ impl Shelf {
             };
             let y = y - pose.lift;
             if let (Some(tex), Some(meshes)) = (face, self.meshes) {
-                let mesh = meshes.of(self.shells.get(i).copied().flatten());
                 // a side cart is the face dimmed over its black backing, as one opaque model
                 let colour = match alpha < 1.0 {
                     true => {
@@ -424,14 +492,20 @@ impl Shelf {
                     }
                     false => [1.0, 1.0, 1.0, dim],
                 };
-                out.push(spin::posed_cart(
-                    (x, y, w, h),
-                    mesh,
-                    tex,
-                    colour,
-                    0.0,
-                    pose.yaw,
-                ));
+                match self.stack_at(i) {
+                    // a game on several discs is each of them, one behind the other
+                    Some(stack) => {
+                        disc::push_stack(out, (x, y, w, h), &stack, colour, self.spin, pose.yaw)
+                    }
+                    None => out.push(spin::posed_cart(
+                        (x, y, w, h),
+                        meshes.of(model),
+                        tex,
+                        colour,
+                        0.0,
+                        pose.yaw,
+                    )),
+                }
                 continue;
             }
             if let Some(tex) = face {
@@ -446,12 +520,7 @@ impl Shelf {
                 );
             }
             if alpha < 1.0 {
-                let backing = match self.shells.get(i).copied().flatten() {
-                    None => self.shadow,
-                    Some(GbShell::Notched) => self.gb_shadow,
-                    Some(GbShell::Rounded) => self.gbc_shadow,
-                };
-                if let Some(tex) = backing {
+                if let Some(tex) = self.shadows[model.index()] {
                     out.push(spin::posed_face(
                         (x, y, w, h),
                         tex,

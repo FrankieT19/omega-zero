@@ -263,6 +263,8 @@ pub struct Sprites {
     meshes: Vec<Mesh>,
     white: gl::types::GLuint,
     textures: Vec<gl::types::GLuint>,
+    /// Each texture's width and height, for a screenshot drawn through the game's own filter.
+    sizes: Vec<(u32, u32)>,
 }
 
 /// A model's triangles on the GPU.
@@ -325,6 +327,7 @@ impl Sprites {
             meshes: Vec::new(),
             white,
             textures: Vec::new(),
+            sizes: Vec::new(),
         })
     }
 
@@ -339,6 +342,7 @@ impl Sprites {
     fn push(&mut self, w: u32, h: u32, rgba: &[u8], filter: gl::types::GLenum) -> TexId {
         let tex = crate::gl::texture(w, h, filter, gl::CLAMP_TO_EDGE, gl::RGBA, Some(rgba));
         self.textures.push(tex);
+        self.sizes.push((w, h));
         TexId(self.textures.len() - 1)
     }
 
@@ -349,6 +353,7 @@ impl Sprites {
         if rgba.len() < (w * h * 4) as usize {
             return;
         }
+        self.sizes[id.0] = (w, h);
         unsafe {
             gl::BindTexture(gl::TEXTURE_2D, *tex);
             gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
@@ -452,6 +457,11 @@ impl Sprites {
 
     pub fn source(&self, id: TexId) -> Option<gl::types::GLuint> {
         self.textures.get(id.0).copied()
+    }
+
+    /// The width and height texture `id` was last given.
+    pub fn source_size(&self, id: TexId) -> Option<(u32, u32)> {
+        self.sizes.get(id.0).copied()
     }
 
     pub fn draw(&self, items: &[Draw], quad: &Quad) {

@@ -9,18 +9,26 @@ pub const API_VERSION: c_uint = 1;
 pub const GET_CAN_DUPE: c_uint = 3;
 pub const GET_SYSTEM_DIRECTORY: c_uint = 9;
 pub const SET_PIXEL_FORMAT: c_uint = 10;
+pub const SET_DISK_CONTROL_INTERFACE: c_uint = 13;
 pub const GET_VARIABLE: c_uint = 15;
 pub const SET_VARIABLES: c_uint = 16;
 pub const GET_VARIABLE_UPDATE: c_uint = 17;
 pub const GET_RUMBLE_INTERFACE: c_uint = 23;
 pub const GET_LOG_INTERFACE: c_uint = 27;
 pub const GET_SAVE_DIRECTORY: c_uint = 31;
+pub const SET_SYSTEM_AV_INFO: c_uint = 32;
+pub const SET_GEOMETRY: c_uint = 37;
+pub const GET_DISK_CONTROL_INTERFACE_VERSION: c_uint = 57;
+pub const SET_DISK_CONTROL_EXT_INTERFACE: c_uint = 58;
+pub const EXPERIMENTAL: c_uint = 0x10000;
+pub const GET_AUDIO_VIDEO_ENABLE: c_uint = 47 | EXPERIMENTAL;
 pub const SET_AUDIO_BUFFER_STATUS_CALLBACK: c_uint = 62;
 pub const SET_NETPACKET_INTERFACE: c_uint = 78;
 
 pub const RUMBLE_STRONG: c_uint = 0;
 pub const RUMBLE_WEAK: c_uint = 1;
 
+pub const PIXEL_FORMAT_0RGB1555: c_uint = 0;
 pub const PIXEL_FORMAT_XRGB8888: c_uint = 1;
 pub const PIXEL_FORMAT_RGB565: c_uint = 2;
 pub const DEVICE_JOYPAD: c_uint = 1;
@@ -42,7 +50,7 @@ pub struct GameInfo {
 }
 
 #[repr(C)]
-#[derive(Default)]
+#[derive(Copy, Clone, Default, PartialEq, Debug)]
 pub struct GameGeometry {
     pub base_width: c_uint,
     pub base_height: c_uint,
@@ -52,17 +60,101 @@ pub struct GameGeometry {
 }
 
 #[repr(C)]
-#[derive(Default)]
+#[derive(Copy, Clone, Default)]
 pub struct SystemTiming {
     pub fps: f64,
     pub sample_rate: f64,
 }
 
 #[repr(C)]
-#[derive(Default)]
+#[derive(Copy, Clone, Default)]
 pub struct SystemAvInfo {
     pub geometry: GameGeometry,
     pub timing: SystemTiming,
+}
+
+/// What a core says of itself before it loads anything.
+#[repr(C)]
+pub struct SystemInfo {
+    pub library_name: *const c_char,
+    pub library_version: *const c_char,
+    pub valid_extensions: *const c_char,
+    /// The core reads the game from its path itself and is handed no copy of it in memory.
+    pub need_fullpath: bool,
+    pub block_extract: bool,
+}
+
+impl Default for SystemInfo {
+    fn default() -> Self {
+        SystemInfo {
+            library_name: std::ptr::null(),
+            library_version: std::ptr::null(),
+            valid_extensions: std::ptr::null(),
+            need_fullpath: false,
+            block_extract: false,
+        }
+    }
+}
+
+pub type SetEjectStateFn = unsafe extern "C" fn(ejected: bool) -> bool;
+pub type GetEjectStateFn = unsafe extern "C" fn() -> bool;
+pub type GetImageIndexFn = unsafe extern "C" fn() -> c_uint;
+pub type SetImageIndexFn = unsafe extern "C" fn(index: c_uint) -> bool;
+pub type GetNumImagesFn = unsafe extern "C" fn() -> c_uint;
+pub type ReplaceImageIndexFn = unsafe extern "C" fn(index: c_uint, info: *const GameInfo) -> bool;
+pub type AddImageIndexFn = unsafe extern "C" fn() -> bool;
+pub type SetInitialImageFn = unsafe extern "C" fn(index: c_uint, path: *const c_char) -> bool;
+pub type GetImagePathFn =
+    unsafe extern "C" fn(index: c_uint, path: *mut c_char, len: usize) -> bool;
+pub type GetImageLabelFn =
+    unsafe extern "C" fn(index: c_uint, label: *mut c_char, len: usize) -> bool;
+
+/// libretro's disk control, the drive of a game on several discs, as a core hands it over
+/// through `SET_DISK_CONTROL_INTERFACE`.
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct DiskControlCallback {
+    pub set_eject_state: Option<SetEjectStateFn>,
+    pub get_eject_state: Option<GetEjectStateFn>,
+    pub get_image_index: Option<GetImageIndexFn>,
+    pub set_image_index: Option<SetImageIndexFn>,
+    pub get_num_images: Option<GetNumImagesFn>,
+    pub replace_image_index: Option<ReplaceImageIndexFn>,
+    pub add_image_index: Option<AddImageIndexFn>,
+}
+
+/// The same drive through `SET_DISK_CONTROL_EXT_INTERFACE`, which can also say which disc to
+/// start from and where each disc is read from.
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct DiskControlExtCallback {
+    pub set_eject_state: Option<SetEjectStateFn>,
+    pub get_eject_state: Option<GetEjectStateFn>,
+    pub get_image_index: Option<GetImageIndexFn>,
+    pub set_image_index: Option<SetImageIndexFn>,
+    pub get_num_images: Option<GetNumImagesFn>,
+    pub replace_image_index: Option<ReplaceImageIndexFn>,
+    pub add_image_index: Option<AddImageIndexFn>,
+    pub set_initial_image: Option<SetInitialImageFn>,
+    pub get_image_path: Option<GetImagePathFn>,
+    pub get_image_label: Option<GetImageLabelFn>,
+}
+
+impl From<DiskControlCallback> for DiskControlExtCallback {
+    fn from(d: DiskControlCallback) -> Self {
+        DiskControlExtCallback {
+            set_eject_state: d.set_eject_state,
+            get_eject_state: d.get_eject_state,
+            get_image_index: d.get_image_index,
+            set_image_index: d.set_image_index,
+            get_num_images: d.get_num_images,
+            replace_image_index: d.replace_image_index,
+            add_image_index: d.add_image_index,
+            set_initial_image: None,
+            get_image_path: None,
+            get_image_label: None,
+        }
+    }
 }
 
 #[repr(C)]
@@ -128,6 +220,7 @@ pub struct Api {
     pub init: unsafe extern "C" fn(),
     pub deinit: unsafe extern "C" fn(),
     pub api_version: unsafe extern "C" fn() -> c_uint,
+    pub get_system_info: unsafe extern "C" fn(*mut SystemInfo),
     pub get_system_av_info: unsafe extern "C" fn(*mut SystemAvInfo),
     pub set_environment: unsafe extern "C" fn(EnvironmentFn),
     pub set_video_refresh: unsafe extern "C" fn(VideoRefreshFn),
@@ -158,6 +251,7 @@ impl Api {
             init: get!("retro_init"),
             deinit: get!("retro_deinit"),
             api_version: get!("retro_api_version"),
+            get_system_info: get!("retro_get_system_info"),
             get_system_av_info: get!("retro_get_system_av_info"),
             set_environment: get!("retro_set_environment"),
             set_video_refresh: get!("retro_set_video_refresh"),

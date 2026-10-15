@@ -5,9 +5,10 @@ use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_store::Cart;
 use omega_ui::{
-    bezel_mark_face, cart_face, cart_mesh, cart_shadow, chip_face, chip_shadow_face,
-    gb_cart_shadow, generated_face, label_uncut, lid_shadow_face, mark_height, mark_rect, rim,
-    socket_face, wallpaper_face, CartFace, CartMeshes, CartModel, GbShell, UndoFace, BEZEL_FILL,
+    bezel_mark_face, cart_face, chip_face, chip_face_in, chip_shadow_face, chip_shadow_face_in,
+    generated_face, label_uncut, lid_shadow_face, mark_height, mark_rect, model_shadow, rim,
+    socket_face, wallpaper_face, CartFace, CartMeshes, CartModel, UndoFace, BEZEL_FILL,
+    SNES_SOCKETS,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
@@ -29,6 +30,7 @@ mod sync_bluetooth;
 mod sync_clock;
 mod sync_controls;
 mod sync_core_picker;
+mod sync_disc;
 mod sync_hud;
 mod sync_info;
 mod sync_keyboard;
@@ -49,6 +51,7 @@ use sync_bluetooth::{sync_bluetooth, BluetoothTexes};
 use sync_clock::{sync_clock, Clocks};
 use sync_controls::sync_controls;
 use sync_core_picker::sync_core_picker;
+use sync_disc::{sync_disc, DiscTexes};
 use sync_hud::{sync_hud, HudTexes};
 use sync_info::{sync_info, InfoTexes};
 use sync_keyboard::{sync_keyboard, KeyboardTexes};
@@ -74,6 +77,8 @@ pub struct Frontend {
     cutter: LabelCutter,
     /// The link screen's art, LINK panel and bar.
     link: LinkTexes,
+    /// The DISC screen's panel and bar.
+    disc: DiscTexes,
     core_asked: Option<String>,
     core_board_tex: Option<TexId>,
     core_lid_tex: Option<TexId>,
@@ -94,7 +99,7 @@ pub struct Frontend {
     keyboard: KeyboardTexes,
     info: InfoTexes,
     labels: Baked<(ListView, u8)>,
-    controls: Baked<u8>,
+    controls: Baked<(crate::screens::controls::ControlsView, u8)>,
     background: Baked<(ListView, u8)>,
     /// The POWER menu's panel and the one shown after its choice.
     power: PowerPanels,
@@ -106,6 +111,9 @@ pub struct Frontend {
     boot_logo: Option<TexId>,
     /// The opening's lines while it plays.
     opening: OpeningTexes,
+    /// The system and size of the last game picture uploaded, which a SNES or PlayStation
+    /// game is laid out by.
+    picture: Option<(omega_store::Platform, (u32, u32))>,
 }
 
 /// Each cart's face for the boot, drawn on as many threads as there are cores, and whether its
@@ -166,6 +174,7 @@ impl Frontend {
             faces: FaceBuilder::spawn(),
             cutter: LabelCutter::spawn(),
             link: LinkTexes::default(),
+            disc: DiscTexes::default(),
             core_asked: None,
             core_board_tex: None,
             core_lid_tex: None,
@@ -190,6 +199,7 @@ impl Frontend {
             hud: HudTexes::default(),
             boot_logo: None,
             opening: OpeningTexes::default(),
+            picture: None,
         }
     }
 
@@ -255,22 +265,19 @@ impl Frontend {
             .collect();
         let blank = sprite(chip_face(None));
         let shadows = [sprite(chip_shadow_face()), sprite(lid_shadow_face())];
-        self.session
-            .app_mut()
-            .set_core_part_faces(sockets, chips, blank, shadows);
-        let shadow = cart_shadow();
-        let id = compositor.create_texture(shadow.w, shadow.h, &shadow.rgba);
-        self.session.app_mut().set_cart_shadow(id);
-        let notched = gb_cart_shadow(GbShell::Notched);
-        let notched = compositor.create_texture(notched.w, notched.h, &notched.rgba);
-        let rounded = gb_cart_shadow(GbShell::Rounded);
-        let rounded = compositor.create_texture(rounded.w, rounded.h, &rounded.rgba);
-        self.session.app_mut().set_gb_cart_shadows(notched, rounded);
-        let meshes = CartMeshes {
-            gba: compositor.create_mesh(&cart_mesh(CartModel::Gba)),
-            gb: compositor.create_mesh(&cart_mesh(CartModel::Gb(GbShell::Notched))),
-            gbc: compositor.create_mesh(&cart_mesh(CartModel::Gb(GbShell::Rounded))),
-        };
+        let wide = (
+            sprite(chip_face_in(SNES_SOCKETS, None)),
+            sprite(chip_shadow_face_in(SNES_SOCKETS)),
+        );
+        let app = self.session.app_mut();
+        app.set_core_part_faces(sockets, chips, blank, shadows);
+        app.set_chip_faces_for(SNES_SOCKETS, wide.0, wide.1);
+        for model in CartModel::ALL {
+            let shadow = model_shadow(model);
+            let id = compositor.create_texture(shadow.w, shadow.h, &shadow.rgba);
+            self.session.app_mut().set_model_shadow(model, id);
+        }
+        let meshes = CartMeshes::upload(|mesh| compositor.create_mesh(mesh));
         self.session.app_mut().set_cart_meshes(meshes);
         self.upload_wallpaper(compositor);
     }
@@ -298,8 +305,16 @@ impl Frontend {
         compositor.set_blue_light(self.session.app().blue_light());
         compositor.set_shake(self.session.app().screen_shake());
         compositor.set_screen_power(self.session.app().screen_power());
-        let screen = self.session.app().screen();
         let platform = self.session.app().platform();
+        let frame = self.session.frame();
+        if let Some(f) = &frame {
+            self.picture = Some((platform, f.size()));
+        }
+        let size = match self.picture {
+            Some((p, size)) if p == platform => size,
+            _ => platform.picture(),
+        };
+        let screen = crate::video_mode::screen_for(platform, self.session.app().video_mode, size);
         compositor.set_game_view(screen.view);
         compositor.set_still_view(screen.still);
         let picture = crate::video_mode::picture_rect(platform, screen.view);
@@ -307,8 +322,8 @@ impl Frontend {
         let bezel = self.bezel(platform, screen.bands, picture, overlay, compositor);
         compositor.set_bezel(bezel);
         compositor.begin_frame();
-        if let Some(frame) = self.session.frame() {
-            compositor.upload_game(&frame);
+        if let Some(frame) = frame {
+            compositor.upload_game_sized(&frame, frame.size());
             crate::latency::taken();
         }
         sync_clock(self.session.app_mut(), compositor, &mut self.clocks);
@@ -346,6 +361,7 @@ impl Frontend {
             &mut self.core_built,
         );
         sync_link(self.session.app_mut(), compositor, &mut self.link);
+        sync_disc(self.session.app_mut(), compositor, &mut self.disc);
         sync_switcher(
             self.session.app_mut(),
             compositor,

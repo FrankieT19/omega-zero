@@ -1,5 +1,7 @@
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU32, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{
+    AtomicBool, AtomicU16, AtomicU32, AtomicU64, AtomicU8, AtomicUsize, Ordering,
+};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
@@ -7,8 +9,9 @@ use std::time::{Duration, Instant};
 
 use crate::cable::{self, Cable};
 use omega_retro::{
-    ButtonMask, Link, LinkChannel, RetroCore, Rumble, GBA_H, GBA_W, NETPACKET_RELIABLE,
+    AvInfo, ButtonMask, Link, LinkChannel, RetroCore, Rumble, GBA_H, GBA_W, NETPACKET_RELIABLE,
 };
+use omega_store::Platform;
 
 use crate::audio::Ring;
 use crate::drc::{drc_ratio, drc_target};
@@ -37,6 +40,94 @@ const RATE_WINDOW: u32 = 300;
 const TRACE_EVERY: u64 = 300;
 
 const MAX_LINK_PACKETS_PER_PRESENT: u32 = 256;
+
+/// How far a core's own rate may sit from the present's 60 Hz and still run one frame to a
+/// present, as the handhelds' 59.73 and the SNES's 60.10 always have: a game a few tenths of a
+/// percent fast or slow is never noticed, a frame shown twice now and then would be.
+const LOCKSTEP: f64 = 0.02;
+
+/// How many of a core's frames each 60 Hz present runs. A core near 60 runs one a present, as
+/// every core always did; any other, a PAL game's 50, runs at its own rate, the fraction of a
+/// frame each present owes carried over to the next.
+#[derive(Clone, Copy, Debug)]
+pub struct Pace {
+    /// Frames a present at the core's own rate, or none for exactly one.
+    per_present: Option<f64>,
+    owed: f64,
+}
+
+impl Pace {
+    pub fn new(fps: f64) -> Pace {
+        let per = fps * PRESENT.as_secs_f64();
+        let lockstep = fps.is_nan() || fps <= 0.0 || (per - 1.0).abs() <= LOCKSTEP;
+        Pace {
+            per_present: (!lockstep).then_some(per),
+            owed: 0.0,
+        }
+    }
+
+    /// Whether the core runs one frame to a present.
+    pub fn lockstep(&self) -> bool {
+        self.per_present.is_none()
+    }
+
+    /// Frames a present, on average.
+    pub fn per_present(&self) -> f64 {
+        self.per_present.unwrap_or(1.0)
+    }
+
+    /// The frames this present runs at normal speed; asked once a present.
+    pub fn due(&mut self) -> u32 {
+        let Some(per) = self.per_present else {
+            return 1;
+        };
+        self.owed += per;
+        let whole = self.owed.floor();
+        self.owed -= whole;
+        whole as u32
+    }
+
+    /// The most frames a present runs fast-forwarding at `steps` times the game's speed.
+    pub fn fast(&self, steps: u32) -> u32 {
+        match self.per_present {
+            None => steps,
+            Some(per) => ((f64::from(steps) * per).round() as u32).max(1),
+        }
+    }
+
+    /// The rate the resampler takes the core's sound at, so that the frames a present runs
+    /// fill it: stretched to the present for a core in lockstep, its own otherwise.
+    fn sound_hz(&self, av: AvInfo) -> f64 {
+        match av.fps {
+            fps if fps > 0.0 && self.lockstep() => av.sample_rate / (fps * PRESENT.as_secs_f64()),
+            _ => av.sample_rate,
+        }
+    }
+}
+
+/// How a system's games are played beyond running their core: whether held X and Y are turbo
+/// A and B, and whether L2 rewinds, for which the emulator thread keeps snapshots.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Rules {
+    pub turbo: bool,
+    pub rewinds: bool,
+}
+
+impl Rules {
+    pub fn of(platform: Platform) -> Rules {
+        Rules {
+            turbo: platform.turbo_xy(),
+            rewinds: platform.rewinds(),
+        }
+    }
+}
+
+impl Default for Rules {
+    /// The handhelds', which every game was before the SNES and the PlayStation.
+    fn default() -> Self {
+        Rules::of(Platform::Gba)
+    }
+}
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Speed {
@@ -80,6 +171,7 @@ enum Cmd {
     EndLink,
     BeginCable(u8, Box<dyn LinkChannel>),
     SetOption(String, String),
+    SetDisc(usize),
 }
 
 struct Shared {
@@ -106,6 +198,10 @@ struct Shared {
     requested: AtomicBool,
     clock: Mutex<Clock>,
     clocked: Condvar,
+    discs: AtomicUsize,
+    disc: AtomicUsize,
+    /// The disc a swap last put in and the file it is read from, until the session keeps it.
+    swapped: Mutex<Option<(usize, String)>>,
 }
 
 #[derive(Default)]
@@ -122,7 +218,7 @@ impl EmuHandle {
         sav: Option<Vec<u8>>,
         resume: Option<Vec<u8>>,
     ) -> Self {
-        Self::spawn_as(core, rom, ring, sav, resume, None)
+        Self::spawn_as(core, rom, ring, sav, resume, None, Rules::default())
     }
 
     pub fn spawn_linked(
@@ -133,9 +229,25 @@ impl EmuHandle {
         resume: Option<Vec<u8>>,
         player: u8,
     ) -> Self {
-        Self::spawn_as(core, rom, ring, sav, resume, Some(player))
+        Self::spawn_as(core, rom, ring, sav, resume, Some(player), Rules::default())
     }
 
+    /// Runs a game of `platform`, played by its rules: turbo X/Y and rewind only where the
+    /// system has them. A linked `player` is for a GBA game only.
+    pub fn spawn_for(
+        platform: Platform,
+        core: Box<dyn RetroCore>,
+        rom: PathBuf,
+        ring: Arc<Ring>,
+        sav: Option<Vec<u8>>,
+        resume: Option<Vec<u8>>,
+        player: Option<u8>,
+    ) -> Self {
+        let player = player.filter(|_| platform == Platform::Gba);
+        Self::spawn_as(core, rom, ring, sav, resume, player, Rules::of(platform))
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn spawn_as(
         core: Box<dyn RetroCore>,
         rom: PathBuf,
@@ -143,6 +255,7 @@ impl EmuHandle {
         sav: Option<Vec<u8>>,
         resume: Option<Vec<u8>>,
         player: Option<u8>,
+        rules: Rules,
     ) -> Self {
         let rumble = core.rumble();
         let link = core.net();
@@ -171,6 +284,9 @@ impl EmuHandle {
             requested: AtomicBool::new(false),
             clock: Mutex::new(Clock::default()),
             clocked: Condvar::new(),
+            discs: AtomicUsize::new(1),
+            disc: AtomicUsize::new(0),
+            swapped: Mutex::new(None),
         });
         let (tx, rx) = channel();
         let worker = Worker {
@@ -178,6 +294,7 @@ impl EmuHandle {
             shared: shared.clone(),
             cmds: rx,
             player,
+            rules,
         };
         let worker_link = link.clone();
         let join = std::thread::Builder::new()
@@ -245,6 +362,31 @@ impl EmuHandle {
             &self.shared,
             Cmd::SetOption(key.to_owned(), value.to_owned()),
         );
+    }
+
+    /// Swaps the disc in the drive for disc `index` of the game, counting from 0.
+    pub fn set_disc(&self, index: usize) {
+        request(&self.cmds, &self.shared, Cmd::SetDisc(index));
+    }
+
+    /// How many discs the game is on, 1 for any game not on several, once the core has loaded.
+    pub fn disc_count(&self) -> usize {
+        self.shared.discs.load(Ordering::Acquire)
+    }
+
+    /// Which disc is in the drive, counting from 0, as of the last swap.
+    pub fn disc_index(&self) -> usize {
+        self.shared.disc.load(Ordering::Acquire)
+    }
+
+    /// The disc the last swap put in and the file it is read from, once: the session keeps
+    /// it, so that the game comes back on that disc.
+    pub fn take_swapped_disc(&self) -> Option<(usize, String)> {
+        self.shared
+            .swapped
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take()
     }
 
     pub fn set_driven(&self, driven: bool) {
@@ -446,6 +588,7 @@ struct Worker {
     shared: Arc<Shared>,
     cmds: Receiver<Cmd>,
     player: Option<u8>,
+    rules: Rules,
 }
 
 impl Worker {
@@ -490,16 +633,17 @@ impl Worker {
                 self.shared.resume_refused.store(true, Ordering::Release);
             }
         }
-        let av = core.av_info();
+        self.shared
+            .discs
+            .store(core.disc_count(), Ordering::Release);
+        self.shared.disc.store(core.disc_index(), Ordering::Release);
+        let mut av = core.av_info();
+        let mut pace = Pace::new(av.fps);
         let device_hz = match ring.sample_rate() {
             0 => av.sample_rate,
             hz => hz as f64,
         };
-        let core_hz = match av.fps {
-            fps if fps > 0.0 => av.sample_rate / (fps * PRESENT.as_secs_f64()),
-            _ => av.sample_rate,
-        };
-        let mut resampler = Resampler::new(core_hz, device_hz);
+        let mut resampler = Resampler::new(pace.sound_hz(av), device_hz);
         ring.clear_faults();
         self.shared
             .state
@@ -507,7 +651,11 @@ impl Worker {
 
         let mut out = Vec::new();
         let mut gated = (false, false);
-        let rewind = RewindThread::spawn(REWIND_BYTES);
+        // a system whose states are too big to keep many of, the PlayStation, keeps none
+        let rewind = self
+            .rules
+            .rewinds
+            .then(|| RewindThread::spawn(REWIND_BYTES));
         let mut since_snapshot = 0;
         let mut cost = FrameCost::seed();
         let mut post_cost = PRESENT - FAST_TARGET;
@@ -576,7 +724,9 @@ impl Worker {
             let speed = self.speed();
             self.shared.observed.store(speed as u8, Ordering::Release);
             let ff_sound = self.shared.ff_sound.load(Ordering::Relaxed);
-            let rewinding = speed != Speed::Paused && self.shared.rewind.load(Ordering::Relaxed);
+            let rewinding = rewind.is_some()
+                && speed != Speed::Paused
+                && self.shared.rewind.load(Ordering::Relaxed);
             let gate = (
                 speed == Speed::Fast && !ff_sound,
                 speed == Speed::Paused || rewinding,
@@ -601,18 +751,18 @@ impl Worker {
             let mut span = 1u32;
             let ceiling = match speed {
                 Speed::Paused => 0,
-                Speed::Normal if lock && !ticked => 0,
-                Speed::Normal => 1,
-                Speed::Fast => self.shared.fast_steps.load(Ordering::Relaxed),
+                Speed::Normal if (lock && !ticked) || rewinding => 0,
+                Speed::Normal => pace.due(),
+                Speed::Fast => pace.fast(self.shared.fast_steps.load(Ordering::Relaxed)),
             };
-            if rewinding {
+            if let (true, Some(rewind)) = (rewinding, rewind.as_ref()) {
                 if let Some(state) = rewind.pop() {
                     if let Err(e) = core.unserialize(&state) {
                         eprintln!("omega-zero: rewind: {e}");
                     }
                     core.set_frame_skip(false);
                     core.run_frame(ButtonMask(0));
-                    self.publish(core.video_xrgb8888());
+                    self.publish(core.video_xrgb8888(), core.video_size());
                 }
                 self.shared
                     .rewind_fill
@@ -631,7 +781,11 @@ impl Worker {
                 loop {
                     ran += 1;
                     let last = ran >= ceiling || cost.last(began.elapsed(), budget);
-                    let input = input.turbo(turbo_frame);
+                    let input = if self.rules.turbo {
+                        input.turbo(turbo_frame)
+                    } else {
+                        input
+                    };
                     turbo_frame = turbo_frame.wrapping_add(1);
                     core.set_frame_skip(!last);
                     let frame_began = Instant::now();
@@ -727,14 +881,14 @@ impl Worker {
                     }
                 }
                 flush_outbound(&mut transport, &link);
-                self.publish(core.video_xrgb8888());
+                self.publish(core.video_xrgb8888(), core.video_size());
                 self.frame_done(served);
 
                 since_snapshot += 1;
                 if cable.is_some() || speed == Speed::Fast {
                     since_snapshot = 0;
                 }
-                if since_snapshot >= SNAPSHOT_EVERY {
+                if let Some(rewind) = rewind.as_ref().filter(|_| since_snapshot >= SNAPSHOT_EVERY) {
                     since_snapshot = 0;
                     if let Ok(state) = core.serialize() {
                         rewind.push(state);
@@ -753,9 +907,15 @@ impl Worker {
                             / PRESENT.as_nanos() as f64;
                     }
                     let base = if lock { scale } else { 1.0 };
-                    resampler.set_ratio(
-                        drc_ratio(queued, target) * base * f64::from(span) / f64::from(ran),
-                    );
+                    // fast-forward squeezes the frames it ran into the presents they took; at
+                    // normal speed a core at its own rate fills them on average, a present that
+                    // ran no frame made up by the next ones
+                    let (squeeze, over) = if speed == Speed::Fast || pace.lockstep() {
+                        (f64::from(span) * pace.per_present(), f64::from(ran))
+                    } else {
+                        (1.0, 1.0)
+                    };
+                    resampler.set_ratio(drc_ratio(queued, target) * base * squeeze / over);
                     resampler.process(&audio, &mut out);
                     crate::audio::volume::apply(
                         &mut out,
@@ -769,6 +929,19 @@ impl Worker {
                             "omega-zero: audio: {queued}/{target} queued, {dropped} dropped, {starved} starved, locked {lock} at {scale:.5}"
                         );
                     }
+                }
+
+                // a PlayStation game can change its rate as it runs; the pace and the
+                // sound follow it from the next present
+                let latest = core.av_info();
+                if latest != av {
+                    eprintln!(
+                        "omega-zero: emu: the core now runs at {:.3} fps, {:.0} Hz",
+                        latest.fps, latest.sample_rate
+                    );
+                    av = latest;
+                    pace = Pace::new(av.fps);
+                    resampler = Resampler::new(pace.sound_hz(av), device_hz);
                 }
             }
 
@@ -847,7 +1020,7 @@ impl Worker {
                 let _ = reply.send(core.save_ram());
             }
             Cmd::Thumb(reply) => {
-                let _ = reply.send(crate::thumb::png(core.video_xrgb8888()));
+                let _ = reply.send(crate::thumb::png(core.video_xrgb8888(), core.video_size()));
             }
             Cmd::BeginLink(client_id, t) => {
                 self.shared.link_lost.store(false, Ordering::Relaxed);
@@ -881,6 +1054,20 @@ impl Worker {
             }
             Cmd::SetOption(key, value) => {
                 core.set_option(&key, &value);
+            }
+            Cmd::SetDisc(index) => {
+                if !core.set_disc(index) {
+                    eprintln!("omega-zero: emu: no disc {index} to swap in");
+                    return;
+                }
+                self.shared.disc.store(core.disc_index(), Ordering::Release);
+                if let Some(path) = core.disc_path(index) {
+                    *self
+                        .shared
+                        .swapped
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner()) = Some((index, path));
+                }
             }
             Cmd::EndLink => {
                 self.shared.link_lost.store(false, Ordering::Relaxed);
@@ -938,11 +1125,11 @@ impl Worker {
         }
     }
 
-    fn publish(&self, video: &[u8]) {
+    fn publish(&self, video: &[u8], size: (u32, u32)) {
         let mut buf = self.frames.take_write();
         buf.clear();
         buf.extend_from_slice(video);
-        self.frames.publish(buf);
+        self.frames.publish(buf, size);
         self.shared.published.fetch_add(1, Ordering::Relaxed);
         crate::latency::published();
     }
@@ -1251,6 +1438,72 @@ mod tests {
             Some(vec![4]),
             "packets past the cap must stay queued in the transport, not be dropped"
         );
+    }
+
+    #[test]
+    fn a_core_near_60_runs_one_frame_a_present() {
+        for fps in [59.7275, 60.0988, 59.94, 59.826, 60.0, 0.0, f64::NAN] {
+            let mut pace = Pace::new(fps);
+            assert!(pace.lockstep(), "{fps} fps is not in lockstep");
+            assert!(
+                (0..600).all(|_| pace.due() == 1),
+                "{fps} fps skipped a present"
+            );
+            assert_eq!(pace.fast(6), 6);
+        }
+    }
+
+    #[test]
+    fn a_pal_game_runs_fifty_frames_a_second_on_a_60_hz_present() {
+        let mut pace = Pace::new(50.0);
+        assert!(!pace.lockstep());
+        let ran: Vec<u32> = (0..600).map(|_| pace.due()).collect();
+        assert_eq!(ran.iter().sum::<u32>(), 500, "ten seconds of presents");
+        assert!(ran.iter().all(|&n| n <= 1), "a present ran two frames");
+        assert!(
+            ran.windows(2).all(|w| w != [0, 0]),
+            "two presents in a row ran nothing"
+        );
+        assert_eq!(pace.fast(6), 5, "six times a PAL game's speed");
+    }
+
+    #[test]
+    fn a_core_faster_than_the_present_runs_two_frames_in_some() {
+        let mut pace = Pace::new(75.0);
+        let ran: u32 = (0..240).map(|_| pace.due()).sum();
+        assert_eq!(ran, 300);
+    }
+
+    #[test]
+    fn the_sound_is_stretched_to_the_present_only_in_lockstep() {
+        let gba = AvInfo {
+            fps: 59.7275,
+            sample_rate: 32_768.0,
+        };
+        assert_eq!(
+            Pace::new(gba.fps).sound_hz(gba),
+            gba.sample_rate / (gba.fps * PRESENT.as_secs_f64()),
+            "the handhelds' sound must stay exactly as it was"
+        );
+        let pal = AvInfo {
+            fps: 50.0,
+            sample_rate: 44_100.0,
+        };
+        assert_eq!(Pace::new(pal.fps).sound_hz(pal), 44_100.0);
+    }
+
+    #[test]
+    fn only_the_handhelds_have_turbo_and_only_the_playstation_has_no_rewind() {
+        for platform in Platform::ALL {
+            let rules = Rules::of(platform);
+            assert_eq!(
+                rules.turbo,
+                matches!(platform, Platform::Gba | Platform::Gb | Platform::Gbc),
+                "{platform:?}"
+            );
+            assert_eq!(rules.rewinds, platform != Platform::Ps1, "{platform:?}");
+        }
+        assert_eq!(Rules::default(), Rules::of(Platform::Gba));
     }
 
     #[test]

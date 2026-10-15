@@ -75,7 +75,8 @@ fn box_average(src: &[u8], sw: u32, sh: u32, x0: f32, y0: f32, x1: f32, y1: f32)
     out
 }
 
-fn decode(path: &Path) -> Option<(Vec<u8>, u32, u32)> {
+/// The png at `path` as RGBA, with its width and height.
+pub(crate) fn decode(path: &Path) -> Option<(Vec<u8>, u32, u32)> {
     let file = std::fs::File::open(path).ok()?;
     let mut dec = png::Decoder::new(std::io::BufReader::new(file));
     dec.set_transformations(png::Transformations::normalize_to_color8());

@@ -87,3 +87,35 @@ fn sav_path(root: &Path, platform: Platform, stem: &str) -> PathBuf {
         .join(platform.dir_name())
         .join(format!("{stem}.sav"))
 }
+
+/// Where a game on several discs keeps the disc it was last swapped to, beside its save: the
+/// disc's number counting from 0 on one line and the file the core reads it from on the next.
+fn disc_path(root: &Path, platform: Platform, stem: &str) -> PathBuf {
+    crate::root::saves_dir(root)
+        .join(platform.dir_name())
+        .join(format!("{stem}.disc"))
+}
+
+/// Keeps disc `index`, read from `path`, as the one the game is on.
+pub fn write_disc(
+    root: &Path,
+    platform: Platform,
+    stem: &str,
+    index: usize,
+    path: &str,
+) -> std::io::Result<()> {
+    let at = disc_path(root, platform, stem);
+    if let Some(dir) = at.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    atomic_write(&at, format!("{index}\n{path}\n").as_bytes())
+}
+
+/// The disc a game was last swapped to and the file it is read from, if it ever was.
+pub fn read_disc(root: &Path, platform: Platform, stem: &str) -> Option<(usize, String)> {
+    let text = std::fs::read_to_string(disc_path(root, platform, stem)).ok()?;
+    let mut lines = text.lines();
+    let index = lines.next()?.trim().parse().ok()?;
+    let path = lines.next()?.to_string();
+    Some((index, path))
+}

@@ -1,7 +1,8 @@
 use omega_store::{Cart, Platform};
 use omega_ui::{
-    cart_mesh, gb_silhouette, posed_face, push_cart_side, rest_y, silhouette, CartMeshes,
-    CartModel, Draw, GbShell, MeshId, Pose, Shelf, TexId, CART_H, OUTLINE_INSET, THICK,
+    cart_mesh, gb_silhouette, outline, posed_face, push_cart_side, rest_y, silhouette,
+    snes_silhouette, CartMeshes, CartModel, Draw, GbShell, MeshId, Pose, Shelf, SnesShell, TexId,
+    CART_H, OUTLINE_INSET, THICK,
 };
 
 const DT: f32 = 1.0 / 60.0;
@@ -272,6 +273,18 @@ fn every_side_of_a_cart_model_faces_out_of_the_cart() {
             (240, 259),
             gb_silhouette(GbShell::Rounded, 240, 259),
         ),
+        (
+            "American SNES",
+            CartModel::Snes(SnesShell::Ntsc),
+            (544, 352),
+            snes_silhouette(SnesShell::Ntsc, 544, 352),
+        ),
+        (
+            "Super Famicom",
+            CartModel::Snes(SnesShell::Famicom),
+            (520, 344),
+            snes_silhouette(SnesShell::Famicom, 520, 344),
+        ),
     ] {
         let cover = |x: f32, y: f32| {
             let (x, y) = (x.round() as i32, y.round() as i32);
@@ -303,7 +316,8 @@ fn every_side_of_a_cart_model_faces_out_of_the_cart() {
                 "the {name} side at ({mx}, {my}) faces ({nx}, {ny}), not out of the cart"
             );
             assert!(
-                quad.iter().all(|v| v.xyz[2] == 0.0 || v.xyz[2] == THICK),
+                quad.iter()
+                    .all(|v| v.xyz[2] == 0.0 || v.xyz[2] == model.thick()),
                 "a {name} side does not run from the face back to the cart's thickness"
             );
         }
@@ -313,11 +327,9 @@ fn every_side_of_a_cart_model_faces_out_of_the_cart() {
 #[test]
 fn a_shelf_with_models_draws_each_cart_as_one_model_turned_as_it_is_held() {
     let mut s = faced(3);
-    s.set_meshes(CartMeshes {
-        gba: MeshId::from_raw(1),
-        gb: MeshId::from_raw(2),
-        gbc: MeshId::from_raw(3),
-    });
+    s.set_meshes(CartMeshes::build(|model| {
+        MeshId::from_raw(model.index() + 1)
+    }));
     run(&mut s, 2.6);
     let out = row(&s);
     assert!(
@@ -345,4 +357,74 @@ fn a_shelf_with_models_draws_each_cart_as_one_model_turned_as_it_is_held() {
         yaw != 0.0 && yaw == s.pose().yaw,
         "the middle cart is not held as it sways"
     );
+}
+
+#[test]
+fn each_snes_cart_is_drawn_to_the_real_cart_s_size_and_thickness() {
+    // the American cart is 136 by 88 mm and the Super Famicom's 130 by 86, both 20 mm thick:
+    // drawn four units to the millimetre
+    for (shell, (w, h)) in [
+        (SnesShell::Ntsc, (136.0, 88.0)),
+        (SnesShell::Famicom, (130.0, 86.0)),
+    ] {
+        let model = CartModel::Snes(shell);
+        let (points, units) = outline(model);
+        assert_eq!(units, (w * 4.0, h * 4.0), "the {shell:?} drawing");
+        let span = |pick: fn(&(f32, f32)) -> f32| {
+            let v: Vec<f32> = points.iter().map(pick).collect();
+            v.iter().copied().fold(f32::MIN, f32::max) - v.iter().copied().fold(f32::MAX, f32::min)
+        };
+        assert_eq!(
+            (span(|p| p.0), span(|p| p.1)),
+            units,
+            "the {shell:?} outline does not fill its drawing"
+        );
+        let thick = model.thick() * w;
+        assert!(
+            (thick - 20.0).abs() < 1.0,
+            "the {shell:?} cart is {thick} mm thick, not 20"
+        );
+    }
+}
+
+/// The Super Famicom cart's top is straight across from corner to corner, its corners 3.5 mm
+/// round in a few cuts, its sides straightening 3.5 mm down.
+#[test]
+fn the_super_famicom_cart_s_top_is_straight_with_its_corners_3_5_mm_round() {
+    let (points, (w, _)) = outline(CartModel::Snes(SnesShell::Famicom));
+    let mm = 4.0;
+    let r = 3.5 * mm;
+    let along_top: Vec<f32> = points.iter().filter(|p| p.1 == 0.0).map(|p| p.0).collect();
+    let (left, right) = (
+        along_top.iter().copied().fold(f32::MAX, f32::min),
+        along_top.iter().copied().fold(f32::MIN, f32::max),
+    );
+    assert!(
+        left == r && right == w - r,
+        "the top runs straight only from {left} to {right}, not from corner to corner"
+    );
+    let side = points
+        .iter()
+        .filter(|p| p.0 == w)
+        .map(|p| p.1)
+        .fold(f32::MAX, f32::min);
+    assert_eq!(side, r, "the side straightens {} mm down", side / mm);
+    let corner: Vec<(f32, f32)> = points
+        .iter()
+        .copied()
+        .filter(|p| p.0 >= w - r && p.1 <= r)
+        .collect();
+    assert!(
+        (3..=5).contains(&corner.len()),
+        "the corner is cut in {} points",
+        corner.len()
+    );
+    for p in corner {
+        let d = ((p.0 - (w - r)).powi(2) + (p.1 - r).powi(2)).sqrt();
+        assert!(
+            (d - r).abs() < 0.05,
+            "the corner at {p:?} is {} mm from its middle, not 3.5",
+            d / mm
+        );
+    }
 }

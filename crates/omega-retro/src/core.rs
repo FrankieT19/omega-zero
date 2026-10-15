@@ -4,8 +4,16 @@ use std::path::Path;
 use crate::link::Link;
 use crate::rumble::Rumble;
 
+/// The GBA's screen. A picture smaller than it, a Game Boy's, reaches the frontend centred in
+/// one on black, as the handheld layouts expect; every SNES and PlayStation mode is bigger in
+/// both directions and arrives at its own size.
 pub const GBA_W: u32 = 240;
 pub const GBA_H: u32 = 160;
+
+/// The biggest picture the host takes from a core, room for the SNES's 512x478 and the
+/// PlayStation's 640x512; anything past it is cut off.
+pub const MAX_FRAME_W: u32 = 1024;
+pub const MAX_FRAME_H: u32 = 576;
 
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub struct ButtonMask(pub u16);
@@ -23,6 +31,10 @@ impl ButtonMask {
     pub const X: u16 = 1 << 9;
     pub const L: u16 = 1 << 10;
     pub const R: u16 = 1 << 11;
+    pub const L2: u16 = 1 << 12;
+    pub const R2: u16 = 1 << 13;
+    pub const L3: u16 = 1 << 14;
+    pub const R3: u16 = 1 << 15;
 
     pub fn turbo(self, frame: u32) -> ButtonMask {
         let mut mask = self.0 & !(Self::X | Self::Y);
@@ -38,7 +50,7 @@ impl ButtonMask {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct AvInfo {
     pub fps: f64,
     pub sample_rate: f64,
@@ -79,7 +91,12 @@ pub trait RetroCore: Send {
     }
     fn set_option(&mut self, _key: &str, _value: &str) {}
     fn set_frame_skip(&mut self, _skip: bool) {}
+    /// The last picture the core drew, XRGB8888 in rows `video_size().0` pixels long.
     fn video_xrgb8888(&self) -> &[u8];
+    /// How big that picture is, width by height. A core that never says draws the GBA's screen.
+    fn video_size(&self) -> (u32, u32) {
+        (GBA_W, GBA_H)
+    }
     fn take_audio(&mut self) -> Vec<i16>;
     fn serialize(&mut self) -> Result<Vec<u8>, CoreError>;
     fn unserialize(&mut self, data: &[u8]) -> Result<(), CoreError>;
@@ -95,6 +112,27 @@ pub trait RetroCore: Send {
     fn start_link(&mut self, _client_id: u16) {}
     fn pump_link(&mut self) {}
     fn stop_link(&mut self) {}
+    /// How many discs the game in the core is on, through libretro's disk control.
+    fn disc_count(&self) -> usize {
+        1
+    }
+    /// Which of them is in the drive, counting from 0.
+    fn disc_index(&self) -> usize {
+        0
+    }
+    /// Opens the drive, puts disc `index` in and closes it, as a player swapping discs would;
+    /// false if the core has no such disc or no disk control.
+    fn set_disc(&mut self, _index: usize) -> bool {
+        false
+    }
+    /// The file disc `index` is read from, as the core names it, when it can say.
+    fn disc_path(&self, _index: usize) -> Option<String> {
+        None
+    }
+    /// Asks for disc `index`, read from `path`, to be the one in the drive when the game loads,
+    /// as it was when the game was last put away; called before `load`. A core that checks finds
+    /// `path` at that index or starts from the first disc.
+    fn set_initial_disc(&mut self, _index: usize, _path: &str) {}
 }
 
 #[cfg(test)]

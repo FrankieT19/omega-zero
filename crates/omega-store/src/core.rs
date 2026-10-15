@@ -10,15 +10,35 @@ pub enum Core {
     #[default]
     Mgba,
     Gpsp,
+    Snes9x,
+    Supafaust,
+    PcsxRearmed,
 }
 
 impl Core {
-    pub const ALL: [Core; 2] = [Core::Mgba, Core::Gpsp];
+    pub const ALL: [Core; 5] = [
+        Core::Mgba,
+        Core::Gpsp,
+        Core::Snes9x,
+        Core::Supafaust,
+        Core::PcsxRearmed,
+    ];
 
     pub fn as_str(&self) -> &'static str {
         match self {
             Core::Mgba => "mgba",
             Core::Gpsp => "gpsp",
+            Core::Snes9x => "snes9x",
+            Core::Supafaust => "supafaust",
+            Core::PcsxRearmed => "pcsx_rearmed",
+        }
+    }
+
+    /// The libretro name its library is built under, `<name>_libretro.so`.
+    pub fn library(&self) -> &'static str {
+        match self {
+            Core::Supafaust => "mednafen_supafaust",
+            other => other.as_str(),
         }
     }
 
@@ -26,10 +46,15 @@ impl Core {
         self as usize
     }
 
+    /// The core's name as its chip in the core picker wears it, in its own case: as long as the
+    /// chip has room for, six letters at most, so Supafaust is Faust.
     pub fn text(self) -> &'static str {
         match self {
             Core::Mgba => "mGBA",
             Core::Gpsp => "gpSP",
+            Core::Snes9x => "Snes9x",
+            Core::Supafaust => "Faust",
+            Core::PcsxRearmed => "PCSX",
         }
     }
 
@@ -37,21 +62,30 @@ impl Core {
         match s.trim().to_ascii_lowercase().as_str() {
             "mgba" => Some(Core::Mgba),
             "gpsp" => Some(Core::Gpsp),
+            "snes9x" => Some(Core::Snes9x),
+            "supafaust" => Some(Core::Supafaust),
+            "pcsx_rearmed" => Some(Core::PcsxRearmed),
             _ => None,
         }
     }
 
     pub fn runs(self, platform: Platform) -> bool {
-        match self {
-            Core::Mgba => true,
-            Core::Gpsp => platform == Platform::Gba,
+        Core::for_platform(platform).contains(&self)
+    }
+
+    /// The cores that run `platform`, the default first, in the order the core picker's
+    /// sockets show them.
+    pub fn for_platform(platform: Platform) -> &'static [Core] {
+        match platform {
+            Platform::Gba => &[Core::Mgba, Core::Gpsp],
+            Platform::Gb | Platform::Gbc => &[Core::Mgba],
+            Platform::Snes => &[Core::Snes9x, Core::Supafaust],
+            Platform::Ps1 => &[Core::PcsxRearmed],
         }
     }
 
     pub fn default_for(platform: Platform) -> Core {
-        match platform {
-            Platform::Gba | Platform::Gb | Platform::Gbc => Core::Mgba,
-        }
+        Core::for_platform(platform)[0]
     }
 }
 

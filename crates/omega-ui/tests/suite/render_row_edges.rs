@@ -5,8 +5,8 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use omega_gfx::{Compositor, HeadlessSurface};
 use omega_store::{Cart, Platform};
 use omega_ui::{
-    cart_face, cart_mesh, cart_shadow, out_h, out_w, CartDive, CartMeshes, CartModel, Draw,
-    GbShell, Shelf, TexId, CART_W,
+    cart_face, cart_mesh, cart_shadow, out_h, out_w, CartDive, CartMeshes, Draw, Shelf, TexId,
+    CART_W,
 };
 
 static GL: Mutex<()> = Mutex::new(());
@@ -49,11 +49,7 @@ fn uploaded(n: usize, c: &mut Compositor) -> (Shelf, Vec<TexId>) {
     let tex = c.create_texture(shadow.w, shadow.h, &shadow.rgba);
     s.set_shadow(tex);
     // the models the handheld draws carts with, as the frontend uploads them
-    s.set_meshes(CartMeshes {
-        gba: c.create_mesh(&cart_mesh(CartModel::Gba)),
-        gb: c.create_mesh(&cart_mesh(CartModel::Gb(GbShell::Notched))),
-        gbc: c.create_mesh(&cart_mesh(CartModel::Gb(GbShell::Rounded))),
-    });
+    s.set_meshes(CartMeshes::build(|model| c.create_mesh(&cart_mesh(model))));
     (s, faces)
 }
 
@@ -199,6 +195,7 @@ fn the_dive_takes_over_the_cart_where_the_row_had_it() {
         cart: &cart,
         face: Some(faces[s.index]),
         mesh: s.mesh_for(&cart.stem),
+        stack: s.stack_for(&cart.stem),
         rest,
         scale,
         pose: s.pose(),

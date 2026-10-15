@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+The SNES and the PlayStation join the Game Boys: their games run, and they stand on shelves of
+their own, SNES carts and PlayStation discs modelled like the Game Boy carts.
+
+- SNES games go in `Games/SNES` (`.sfc`, `.smc`). A game from the USA stands as the American SNES
+  cart; one from Japan, Europe or anywhere else stands as the Super Famicom cart, as it was sold.
+  The region comes from the ROM's header, a tag in the file name such as `(USA)` or `(Japan)`
+  wins over it, and `cart_shell.ini` can set a cart's shape to `ntsc` or `sfc`.
+- Two SNES cores, Snes9x and Supafaust, chosen per cart with X, as for the GBA's two. Snes9x is
+  the default.
+- PlayStation games go in `Games/PS1` as `.cue` with their `.bin`, `.chd`, `.pbp` or `.m3u`, also
+  one folder down. They run on PCSX ReARMed, which carries its own BIOS; a real one in `BIOS/` is
+  used when it is there.
+- A PlayStation game stands on its shelf as its disc. A game on several discs is one entry, its
+  discs stacked one behind another with a gap between them, and the whole stack goes down into
+  the handheld. Files named `(Disc 1)`, `(Disc 2)` and so on are put together as one game, with
+  a playlist made for them under `Config/playlists/PS1/`. In a game, SELECT+MENU opens DISC to
+  put another disc in, and the disc in the drive is the one there when the game is resumed.
+- In a SNES or PlayStation game, X, Y, L1 and R1 go to the game. A PlayStation game takes L2 and
+  R2 too: fast-forward is SELECT+R2 held, and it has no rewind. The SNES keeps L2 rewind and R2
+  fast-forward.
+- The SNES picture is drawn at twice its size; the PlayStation's fills the screen at 4:3. A
+  game made for 50 Hz runs at 50 Hz.
+- Labels fetches SNES labels, and the label of each PlayStation disc.
+- Snes9x is free for non-commercial use only; Supafaust and PCSX ReARMed are GPL-2.0. Their
+  licences and source are in `System/licenses/`.
+
 ## omega-zero 1.0.1
 
 The boot no longer waits on the labels: each one is cut to its cart once, as it is fetched.

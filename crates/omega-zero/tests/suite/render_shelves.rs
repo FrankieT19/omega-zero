@@ -705,6 +705,7 @@ fn label_top(p: CartPlatform) -> usize {
     match p {
         CartPlatform::Gba => LABEL_Y as usize,
         CartPlatform::Gb | CartPlatform::Gbc => GB_LABEL_Y as usize,
+        other => unreachable!("no {other:?} cart on this card"),
     }
 }
 
@@ -766,6 +767,7 @@ fn both_cartridges_dive_into_the_handheld_at_their_shelf_size() {
                 cart: &cart,
                 face: Some(tex),
                 mesh: None,
+                stack: None,
                 rest,
                 scale,
                 pose: Pose::REST,
@@ -871,6 +873,7 @@ fn no_frame_of_the_travel_jumps_further_than_the_cartridge_is_tall() {
                     cart: &cart,
                     face: None,
                     mesh: None,
+                    stack: None,
                     rest,
                     scale,
                     pose: Pose::REST,

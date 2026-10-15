@@ -111,14 +111,13 @@ sets its speed, lit once latched, or the link, which outranks it.
 
 The shelf has no slot: a cart played rises and dives out of the bottom of the screen into the
 handheld. The carts stand centred between the top bar and the bottom bar, and the shelf's system,
-GBA, GB or GBC, is `<omega-pill>` in the bar's `middle`, between its two actions and in the
-middle of the screen, `centred`. It is the bar's own button pill standing on its own, both ends
+GBA, GB, GBC, SNES or PS1, is `<omega-pill>` in the bar's `middle`, between its two actions and in
+the middle of the screen, `centred`. It is the bar's own button pill standing on its own, both ends
 rounded, the bar's full height, 3 dark pixels either side of the word's ink, as `pill_face` in
 `crates/omega-ui/src/kit/action.rs` draws it. It is always there on the shelf, even with only one
-shelf, and sinks with the shelf's actions when the bar changes them. L1 and R1 change the system
-and the pill rises into place with the new one over 220 ms; a letter jumped to with Up or Down
-shows in it for about 2.2 s, then the system rises back. It is gone while the core picker is
-open.
+shelf, and sinks with the shelf's actions when the bar changes them. L1 and R1 change the system and
+the pill rises into place with the new one over 220 ms; a letter jumped to with Up or Down shows in
+it for about 2.2 s, then the system rises back. It is gone while the core picker is open.
 
 ## Pages around the menus
 
@@ -272,6 +271,18 @@ its radio arcs, and the clicks of a plug going home. The device moves them a who
 time: the plug drops into the port and lifts out of it, a failed link shakes it a pixel either
 way, and the arcs pulse in the four steps of a fade. The plug and the adapter keep their own
 colours, the plug the purple of the real GBA link cable; everything else follows the palette.
+
+## The DISC screen
+
+On a PlayStation game, SELECT + MENU opens the DISC screen instead of the link screen, a card of
+its own in the storybook: the backdrop, a lone DISC panel where the LINK panel goes with DISC (the
+disc picked, of how many, lit with its carets), IN DRIVE (the disc in the drive) and the game's
+title as a note; the game's discs side by side between it and the bar, the picked one 6 art pixels
+higher and the others faded back a step; and the bar, B RETURN and A SWAP with ◀▶ PICK between
+them. Left and Right pick, A swaps the picked disc in and a DISC toast says which ("Disc 2
+inserted"), B, SELECT or SELECT + MENU close it. A game on one disc opens nothing and says "Only
+one disc". Each disc is the shelf's face for it, drawn flat until the shelf's disc stack takes
+its place.
 
 ## The rules
 

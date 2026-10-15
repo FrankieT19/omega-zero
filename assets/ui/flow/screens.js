@@ -192,7 +192,7 @@ window.FlowScreens = (() => {
 
   // The shelves, one a system, L1 and R1 going round them; and the letters the placeholder carts
   // start with, the same on every shelf, which Up and Down jump between.
-  const SYSTEMS = ['GBA', 'GB', 'GBC'];
+  const SYSTEMS = ['GBA', 'GB', 'GBC', 'SNES', 'PS1'];
   const INITIALS = ['A', 'C', 'F', 'K', 'M', 'P', 'S', 'Z'];
 
   // The shelf, as far as these screens go: START to Settings, SELECT to Controls, L1 and R1 to

@@ -1173,3 +1173,44 @@ fn waiting_on_an_unlocked_worker_does_not_block() {
         "the wait blocked"
     );
 }
+
+#[test]
+#[ignore = "real time: needs a quiet machine; task test:timing runs it"]
+fn a_pal_core_runs_fifty_frames_a_second_of_wall_time() {
+    let _turn = turn();
+    let emu = spawn_with_core(Box::new(MockCore::new().at_fps(50.0)));
+    std::thread::sleep(Duration::from_millis(100));
+    let (from, began) = (frame_count(&emu), Instant::now());
+    std::thread::sleep(Duration::from_secs(2));
+    let ran = frame_count(&emu) - from;
+    let rate = ran as f64 / began.elapsed().as_secs_f64();
+    assert!(
+        (47.0..=52.0).contains(&rate),
+        "a 50 Hz core ran {rate:.1} frames a second"
+    );
+}
+
+#[test]
+#[ignore = "real time: needs a quiet machine; task test:timing runs it"]
+fn a_driven_pal_core_runs_five_frames_in_six_ticks() {
+    let _turn = turn();
+    let emu = spawn_with_core(Box::new(MockCore::new().at_fps(50.0)));
+    emu.set_driven(true);
+    assert!(
+        wait_for(|| emu.locked()),
+        "the worker never locked to the display"
+    );
+    emu.tick(PANEL);
+    emu.wait_frame(Duration::from_millis(100));
+    let before = frame_count(&emu);
+    for _ in 0..60 {
+        emu.tick(PANEL);
+        assert!(
+            emu.wait_frame(Duration::from_millis(100)),
+            "a tick was never served"
+        );
+        std::thread::sleep(Duration::from_millis(8));
+    }
+    let ran = frame_count(&emu) - before;
+    assert!((49..=51).contains(&ran), "{ran} frames in 60 ticks, not 50");
+}

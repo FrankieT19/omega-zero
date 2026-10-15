@@ -2,6 +2,10 @@
 //! with the player's own ScreenScraper account, and the scan of its real label, from the
 //! ROM's own region first, is saved where the shelf looks for it. A cart ScreenScraper has
 //! no label scan for keeps the label omega-zero draws.
+//!
+//! A PlayStation game is looked up disc by disc, never reading a disc image whole: by its cue
+//! sheet's CRC, the serial printed on it, or its file's name and size (see [`lookups`]). Each
+//! disc keeps the scan of its own printed face, and the first disc's is its game's as well.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -11,7 +15,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::time::Duration;
 
-use omega_store::Platform;
+use omega_store::{ps1, Cart, Platform, Region};
 
 use crate::json::Json;
 
@@ -85,20 +89,97 @@ impl Account {
     }
 }
 
-/// A cart to find a label for.
+/// A cart, or one disc of a PlayStation game, to find a label for.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Want {
     pub platform: Platform,
+    /// The cart's name on the shelf, which a label saved is announced under.
     pub stem: String,
+    /// The file looked up: the ROM, or the one disc of a PlayStation game.
     pub rom: PathBuf,
-    /// The GBA header's game code, whose last letter is the cart's region.
+    /// The GBA header's game code, whose last letter is the cart's region, or the disc's
+    /// serial; empty when there is none, or for a disc after the first, whose serial is read
+    /// when it is looked up.
     pub code: String,
+    /// Which of its game's discs `rom` is, from 0, and how many discs the game has: a cart is
+    /// the one disc of its game.
+    pub disc: usize,
+    pub discs: usize,
 }
 
 impl Want {
-    pub fn label_path(&self, root: &Path) -> PathBuf {
-        label_path(root, self.platform, &self.stem)
+    /// A cart that is its game's only disc.
+    pub fn cart(cart: &Cart) -> Want {
+        Want {
+            platform: cart.platform,
+            stem: cart.stem.clone(),
+            rom: cart.rom.clone(),
+            code: cart.code.clone(),
+            disc: 0,
+            discs: 1,
+        }
     }
+
+    /// Where a label found is saved: the cart's own label, or a disc's own one, the first
+    /// disc's being its game's as well.
+    pub fn label_paths(&self, root: &Path) -> Vec<PathBuf> {
+        let own = label_path(root, self.platform, &self.stem);
+        if self.platform != Platform::Ps1 {
+            return vec![own];
+        }
+        let mut paths = vec![ps1::disc_label(root, &self.rom)];
+        if self.disc == 0 && !paths.contains(&own) {
+            paths.push(own);
+        }
+        paths
+    }
+
+    /// The name shown while this is looked up: the cart's without its tags, and which disc.
+    pub fn title(&self) -> String {
+        let name = title(&self.stem);
+        if self.discs > 1 {
+            format!("{name}, disc {}", self.disc + 1)
+        } else {
+            name
+        }
+    }
+}
+
+/// What a sync looks up of `carts`: each cart with no label, and each disc of a PlayStation
+/// game that has none of its own, the first disc also when its game has none. Without a
+/// `root` a disc counts as labelled when its game is.
+pub fn wants<'a>(root: Option<&Path>, carts: impl IntoIterator<Item = &'a Cart>) -> Vec<Want> {
+    let mut out = Vec::new();
+    for cart in carts {
+        if cart.platform != Platform::Ps1 {
+            if cart.label.is_none() {
+                out.push(Want::cart(cart));
+            }
+            continue;
+        }
+        let discs = ps1::discs(&cart.rom);
+        for (i, disc) in discs.iter().enumerate() {
+            let own = match root {
+                Some(root) => ps1::disc_label(root, disc).is_file(),
+                None => cart.label.is_some(),
+            };
+            if own && (i > 0 || cart.label.is_some()) {
+                continue;
+            }
+            out.push(Want {
+                rom: disc.clone(),
+                code: if i == 0 {
+                    cart.code.clone()
+                } else {
+                    String::new()
+                },
+                disc: i,
+                discs: discs.len(),
+                ..Want::cart(cart)
+            });
+        }
+    }
+    out
 }
 
 pub fn label_path(root: &Path, platform: Platform, stem: &str) -> PathBuf {
@@ -113,10 +194,12 @@ pub fn system_id(platform: Platform) -> u32 {
         Platform::Gba => 12,
         Platform::Gb => 9,
         Platform::Gbc => 10,
+        Platform::Snes => 4,
+        Platform::Ps1 => 57,
     }
 }
 
-const TAG_REGIONS: [(&str, &str); 14] = [
+const TAG_REGIONS: [(&str, &str); 16] = [
     ("USA", "us"),
     ("Europe", "eu"),
     ("Japan", "jp"),
@@ -131,7 +214,17 @@ const TAG_REGIONS: [(&str, &str); 14] = [
     ("China", "cn"),
     ("Netherlands", "nl"),
     ("Sweden", "se"),
+    ("UK", "uk"),
+    ("Canada", "ca"),
 ];
+
+/// Where ScreenScraper keeps the labels of European releases: under `eu` for some systems, and
+/// under each country for others, the SNES among them.
+const EUROPE: [&str; 9] = ["eu", "uk", "fr", "de", "sp", "it", "nl", "se", "au"];
+
+/// The labels of North America's releases, whose SNES carts are the American shape, Brazil's
+/// among them.
+const AMERICA: [&str; 3] = ["us", "ca", "br"];
 
 const CODE_REGIONS: [(char, &str); 10] = [
     ('E', "us"),
@@ -149,31 +242,100 @@ const CODE_REGIONS: [(char, &str); 10] = [
 /// The regions to take a label from, best first: those named in the ROM's file name, then
 /// the one its game code says, then a world release and the three big ones.
 pub fn regions(stem: &str, code: &str) -> Vec<&'static str> {
-    let mut out = Vec::new();
-    let mut add = |r: &'static str| {
-        if !out.contains(&r) {
+    let mut out = tag_regions(stem);
+    if let Some(letter) = code.chars().nth(3) {
+        if let Some((_, r)) = CODE_REGIONS.iter().find(|(c, _)| *c == letter) {
             out.push(r);
         }
-    };
-    for tag in stem
-        .split(['(', ')'])
+    }
+    out.extend(["wor", "us", "eu", "jp"]);
+    once_each(out)
+}
+
+/// The regions the tags of a file name name, in the order they come.
+fn tag_regions(stem: &str) -> Vec<&'static str> {
+    stem.split(['(', ')'])
         .skip(1)
         .step_by(2)
         .flat_map(|t| t.split(','))
-    {
-        if let Some((_, r)) = TAG_REGIONS.iter().find(|(name, _)| *name == tag.trim()) {
-            add(r);
+        .filter_map(|tag| {
+            TAG_REGIONS
+                .iter()
+                .find(|(name, _)| *name == tag.trim())
+                .map(|(_, r)| *r)
+        })
+        .collect()
+}
+
+fn once_each(mut regions: Vec<&'static str>) -> Vec<&'static str> {
+    let mut seen = Vec::new();
+    regions.retain(|r| {
+        let first = !seen.contains(r);
+        seen.push(*r);
+        first
+    });
+    regions
+}
+
+/// ScreenScraper's name for a region.
+fn region_code(region: Region) -> Option<&'static str> {
+    match region {
+        Region::Usa => Some("us"),
+        Region::Europe => Some("eu"),
+        Region::Japan => Some("jp"),
+        Region::Other => None,
+    }
+}
+
+/// The regions to take the label of `want` from, best first.
+///
+/// A SNES cart's label must suit the shell it is drawn in, the American one for a game from
+/// the USA and the Super Famicom's for any other, the European cart being shaped like the
+/// Super Famicom's: the regions its file name names, then the one its header says, then the
+/// others whose carts are its shape, then a world release, the American labels coming last on a
+/// Super Famicom shell and the rest last on an American one. ScreenScraper keeps the SNES's
+/// European labels under each country rather than under `eu`, so a European cart looks through
+/// them all before a Japanese one.
+///
+/// A PlayStation disc's are those its file name names, then the one its serial says (and for a
+/// European disc each European country after it), then a world release and the three big ones.
+/// A Game Boy's are as [`regions`] says.
+pub fn label_regions(want: &Want) -> Vec<&'static str> {
+    let mut out = tag_regions(&want.stem);
+    match want.platform {
+        Platform::Gba | Platform::Gb | Platform::Gbc => return regions(&want.stem, &want.code),
+        Platform::Snes => {
+            let region = omega_store::snes::region(&want.rom, &want.stem);
+            out.extend(region.and_then(region_code));
+            if region == Some(Region::Usa) {
+                out.retain(|r| AMERICA.contains(r) || *r == "wor");
+                out.extend(AMERICA);
+                out.push("wor");
+                out.extend(EUROPE);
+                out.push("jp");
+            } else {
+                out.retain(|r| !AMERICA.contains(r));
+                if region == Some(Region::Europe) {
+                    out.extend(EUROPE);
+                    out.push("jp");
+                } else {
+                    out.push("jp");
+                    out.extend(EUROPE);
+                }
+                out.push("wor");
+                out.extend(AMERICA);
+            }
+        }
+        Platform::Ps1 => {
+            let region = ps1::serial_region(&want.code);
+            out.extend(region.and_then(region_code));
+            if region == Some(Region::Europe) {
+                out.extend(EUROPE);
+            }
+            out.extend(["wor", "us", "eu", "jp"]);
         }
     }
-    if let Some(letter) = code.chars().nth(3) {
-        if let Some((_, r)) = CODE_REGIONS.iter().find(|(c, _)| *c == letter) {
-            add(r);
-        }
-    }
-    for r in ["wor", "us", "eu", "jp"] {
-        add(r);
-    }
-    out
+    once_each(out)
 }
 
 /// The CRC-32 a ROM is known by.
@@ -207,28 +369,126 @@ fn escape(value: &str) -> String {
         .collect()
 }
 
-/// What ScreenScraper is asked about one ROM.
-pub struct Lookup<'a> {
+/// What ScreenScraper is asked about one ROM or disc.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Lookup {
     pub system: u32,
-    pub crc: u32,
-    pub file_name: &'a str,
+    /// ScreenScraper's kind of file: `rom` for a cart, `iso` for a disc image.
+    pub kind: &'static str,
+    /// The CRC-32 of the file, for a file small enough to read whole: a cart, or a disc's cue
+    /// sheet, which ScreenScraper knows by its own CRC. A disc image is never read whole.
+    pub crc: Option<u32>,
+    pub file_name: String,
     pub size: u64,
+    /// The serial printed on a disc, such as `SLUS-00594`, the way ScreenScraper writes it.
+    pub serial: Option<String>,
+}
+
+/// The largest disc file read whole for its CRC: a cue sheet is a few hundred bytes, and any
+/// image far more than this.
+const CUE_MAX: u64 = 64 * 1024;
+
+/// The copier header some SNES dumps start with, which leaves the file 512 bytes past a whole
+/// number of KiB.
+const COPIER: u64 = 512;
+
+/// The ways `want` is asked about, tried in turn while ScreenScraper knows none of them.
+///
+/// A cart is asked about by the CRC of all of it, its name and size; a SNES dump with a copier
+/// header in front, which ScreenScraper keeps both with and without, also by the CRC and size
+/// of the ROM after it. A PlayStation disc is never read whole, hundreds of megabytes taking
+/// far too long on the console: it is asked about by its cue sheet's CRC (ScreenScraper keeps
+/// the cue sheets of the discs it knows, a few hundred bytes each), then by the serial printed
+/// on it, then by its file's name and size alone, which ScreenScraper matches as best it can.
+/// Nothing when the file cannot be read.
+pub fn lookups(want: &Want) -> Vec<Lookup> {
+    let file_name = want
+        .rom
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let system = system_id(want.platform);
+    if want.platform != Platform::Ps1 {
+        let Ok(bytes) = std::fs::read(&want.rom) else {
+            return Vec::new();
+        };
+        let whole = Lookup {
+            system,
+            kind: "rom",
+            crc: Some(crc32(&bytes)),
+            file_name,
+            size: bytes.len() as u64,
+            serial: None,
+        };
+        let mut out = vec![whole.clone()];
+        if want.platform == Platform::Snes && whole.size % 1024 == COPIER {
+            let rom = &bytes[COPIER as usize..];
+            out.push(Lookup {
+                crc: Some(crc32(rom)),
+                size: rom.len() as u64,
+                ..whole
+            });
+        }
+        return out;
+    }
+    let Ok(meta) = std::fs::metadata(&want.rom) else {
+        return Vec::new();
+    };
+    let named = Lookup {
+        system,
+        kind: "iso",
+        crc: None,
+        file_name,
+        size: meta.len(),
+        serial: None,
+    };
+    let mut out = Vec::new();
+    let is_cue = want
+        .rom
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("cue"));
+    if is_cue && meta.len() <= CUE_MAX {
+        if let Ok(sheet) = std::fs::read(&want.rom) {
+            out.push(Lookup {
+                crc: Some(crc32(&sheet)),
+                ..named.clone()
+            });
+        }
+    }
+    let serial = Some(want.code.clone())
+        .filter(|c| !c.is_empty())
+        .or_else(|| ps1::serial(&want.rom));
+    if serial.is_some() {
+        out.push(Lookup {
+            serial,
+            ..named.clone()
+        });
+    }
+    out.push(named);
+    out
 }
 
 pub fn game_url(key: (&str, &str), account: &Account, rom: &Lookup) -> String {
-    let params = [
+    let mut params = vec![
         ("devid", key.0.to_string()),
         ("devpassword", key.1.to_string()),
         ("softname", SOFTNAME.to_string()),
         ("output", "json".to_string()),
         ("ssid", account.user.clone()),
         ("sspassword", account.password.clone()),
-        ("crc", format!("{:08X}", rom.crc)),
-        ("systemeid", rom.system.to_string()),
-        ("romtype", "rom".to_string()),
-        ("romnom", rom.file_name.to_string()),
-        ("romtaille", rom.size.to_string()),
     ];
+    if let Some(crc) = rom.crc {
+        params.push(("crc", format!("{crc:08X}")));
+    }
+    if let Some(serial) = &rom.serial {
+        params.push(("serialnum", serial.clone()));
+    }
+    params.extend([
+        ("systemeid", rom.system.to_string()),
+        ("romtype", rom.kind.to_string()),
+        ("romnom", rom.file_name.clone()),
+        ("romtaille", rom.size.to_string()),
+    ]);
     let query: Vec<String> = params
         .iter()
         .map(|(k, v)| format!("{k}={}", escape(v)))
@@ -246,6 +506,16 @@ pub struct Media {
     pub kind: String,
     pub region: String,
     pub url: String,
+    /// Which disc of a game on several the media shows, from 1, when the reply says.
+    pub support: Option<u64>,
+}
+
+/// What ScreenScraper knows of a game it found.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Found {
+    pub medias: Vec<Media>,
+    /// Which disc of its game the file asked about is, from 1, when the reply says.
+    pub disc: Option<u64>,
 }
 
 /// Whose credentials ScreenScraper turned away.
@@ -257,7 +527,7 @@ pub enum Who {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Reply {
-    Game(Vec<Media>),
+    Game(Found),
     NotFound,
     Refused(Who),
     /// Too many requests at once: worth one more try after a pause.
@@ -318,6 +588,12 @@ pub fn read_reply(status: u16, body: &[u8]) -> (Reply, Option<Quota>) {
         .map(Json::list)
         .unwrap_or_default()
         .iter()
+        // the game's own media, not those of the system or the company it names
+        .filter(|m| {
+            m.get("parent")
+                .and_then(Json::text)
+                .is_none_or(|p| p == "jeu")
+        })
         .filter_map(|m| {
             Some(Media {
                 kind: m.get("type")?.text()?.to_string(),
@@ -327,24 +603,62 @@ pub fn read_reply(status: u16, body: &[u8]) -> (Reply, Option<Quota>) {
                     .unwrap_or_default()
                     .to_string(),
                 url: m.get("url")?.text()?.to_string(),
+                support: m.get("support").and_then(Json::count),
             })
         })
         .collect();
-    (Reply::Game(medias), quota)
+    let disc = game
+        .get("rom")
+        .and_then(|r| r.get("romnumsupport"))
+        .and_then(Json::count)
+        .filter(|n| *n >= 1);
+    (Reply::Game(Found { medias, disc }), quota)
 }
 
 /// The scan of the cart's own label, from the first of `regions` that has one, else from
 /// any region.
 pub fn pick_label<'a>(medias: &'a [Media], regions: &[&str]) -> Option<&'a Media> {
-    let scans: Vec<&Media> = medias
-        .iter()
-        .filter(|m| m.kind == "support-texture")
-        .collect();
+    pick(medias, |m| m.kind == "support-texture", regions)
+}
+
+/// Of the media that are `wanted`, the one from the first of `regions` that has one, else
+/// from any region.
+fn pick<'a>(
+    medias: &'a [Media],
+    wanted: impl Fn(&Media) -> bool,
+    regions: &[&str],
+) -> Option<&'a Media> {
+    let scans: Vec<&Media> = medias.iter().filter(|m| wanted(m)).collect();
     regions
         .iter()
         .find_map(|r| scans.iter().find(|m| m.region == *r))
         .or_else(|| scans.first())
         .copied()
+}
+
+/// The kinds of media that show what `platform`'s shelf draws, best first. A cart's is the
+/// scan of its label (`support-2D` being a cart ScreenScraper draws around that label). A
+/// disc's is the scan of its printed face, round and seen square-on, which ScreenScraper keeps
+/// as `support-texture` and draws `support-2D` from, so the drawn one is taken only when there
+/// is no scan.
+pub fn label_kinds(platform: Platform) -> &'static [&'static str] {
+    match platform {
+        Platform::Ps1 => &["support-texture", "support-2D"],
+        _ => &["support-texture"],
+    }
+}
+
+/// The media `want`'s label is taken from: of the best of [`label_kinds`] there is, the one
+/// from the best of [`label_regions`]. A disc takes only the media of its own disc, as the
+/// reply numbers it or else as its game's playlist does, media the reply does not number
+/// counting as the first disc's.
+pub fn pick_media<'a>(found: &'a Found, want: &Want) -> Option<&'a Media> {
+    let regions = label_regions(want);
+    let disc = found.disc.unwrap_or(want.disc as u64 + 1);
+    let own_disc = |m: &Media| want.platform != Platform::Ps1 || m.support.unwrap_or(1) == disc;
+    label_kinds(want.platform)
+        .iter()
+        .find_map(|kind| pick(&found.medias, |m| m.kind == *kind && own_disc(m), &regions))
 }
 
 /// How a sync went.
@@ -441,6 +755,30 @@ fn keep(path: &Path, png: &[u8]) -> std::io::Result<()> {
     omega_store::atomic_write(path, png)
 }
 
+/// What ScreenScraper says to one request, asked once more after a pause when it is busy;
+/// nothing when it cannot be reached.
+fn ask(
+    http: &mut dyn Http,
+    url: &str,
+    pause: &mut dyn FnMut(Duration),
+    news: &mut dyn FnMut(LabelNews),
+) -> Option<Reply> {
+    let mut reply = Reply::Busy;
+    for attempt in 0..2 {
+        let (status, body) = http.get(url)?;
+        let quota;
+        (reply, quota) = read_reply(status, &body);
+        if let Some(q) = quota {
+            news(LabelNews::Quota(q));
+        }
+        if reply != Reply::Busy || attempt > 0 {
+            break;
+        }
+        pause(Duration::from_secs(2));
+    }
+    Some(reply)
+}
+
 /// One sync: whose account, which carts, and the card their labels go on.
 pub struct Sync<'a> {
     pub key: (&'a str, &'a str),
@@ -472,58 +810,38 @@ pub fn sync(
         news(LabelNews::Working {
             done,
             total: wants.len(),
-            title: title(&want.stem),
+            title: want.title(),
         });
-        let Ok(bytes) = std::fs::read(&want.rom) else {
-            tally.unknown += 1;
-            continue;
-        };
-        let file_name = want
-            .rom
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        let url = game_url(
-            key,
-            account,
-            &Lookup {
-                system: system_id(want.platform),
-                crc: crc32(&bytes),
-                file_name: &file_name,
-                size: bytes.len() as u64,
-            },
-        );
         let mut asked = None;
-        for attempt in 0..2 {
-            let Some((status, body)) = http.get(&url) else {
+        for rom in lookups(want) {
+            let url = game_url(key, account, &rom);
+            let Some(reply) = ask(http, &url, pause, news) else {
                 return news(LabelNews::Failed(SyncFail::Offline));
             };
-            let (reply, quota) = read_reply(status, &body);
-            if let Some(q) = quota {
-                news(LabelNews::Quota(q));
-            }
-            if reply == Reply::Busy && attempt == 0 {
-                pause(Duration::from_secs(2));
-                continue;
-            }
+            let unknown = reply == Reply::NotFound;
             asked = Some(reply);
-            break;
+            if !unknown {
+                break;
+            }
         }
         match asked {
-            Some(Reply::Game(medias)) => {
-                let regions = regions(&want.stem, &want.code);
-                let scan = pick_label(&medias, &regions)
+            Some(Reply::Game(found)) => {
+                let scan = pick_media(&found, want)
                     .and_then(|m| http.get(&media_url(&m.url)))
                     .filter(|(status, body)| *status == 200 && is_png(body));
-                match scan {
-                    Some((_, png)) if keep(&want.label_path(root), &png).is_ok() => {
-                        tally.saved += 1;
-                        news(LabelNews::Saved {
-                            platform: want.platform,
-                            stem: want.stem.clone(),
-                        });
-                    }
-                    _ => tally.bare += 1,
+                let kept = scan.is_some_and(|(_, png)| {
+                    want.label_paths(root)
+                        .iter()
+                        .all(|path| keep(path, &png).is_ok())
+                });
+                if kept {
+                    tally.saved += 1;
+                    news(LabelNews::Saved {
+                        platform: want.platform,
+                        stem: want.stem.clone(),
+                    });
+                } else {
+                    tally.bare += 1;
                 }
             }
             Some(Reply::NotFound | Reply::Other(_) | Reply::Busy) | None => tally.unknown += 1,

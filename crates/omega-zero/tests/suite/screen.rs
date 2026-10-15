@@ -130,3 +130,172 @@ fn the_picture_is_the_game_s_own_window_inside_its_view() {
         [0.0, 0.0, 720.0, 480.0]
     );
 }
+
+use omega_zero::video_mode::{picture_rect, screen_on_frame};
+
+const CONSOLES: [Platform; 2] = [Platform::Snes, Platform::Ps1];
+
+/// Every picture size the SNES and the PlayStation draw.
+const FRAMES: [(u32, u32); 10] = [
+    (256, 224),
+    (256, 239),
+    (512, 224),
+    (512, 448),
+    (256, 240),
+    (320, 240),
+    (368, 240),
+    (512, 240),
+    (640, 480),
+    (320, 256),
+];
+
+#[test]
+fn a_snes_game_is_twice_its_size_in_the_middle_of_every_canvas() {
+    for (c, x, y) in [
+        (Canvas::FOUR_THREE, 64.0, 16.0),
+        (Canvas::WIDE, 104.0, 16.0),
+        (Canvas::SQUARE, 104.0, 136.0),
+    ] {
+        let s = screen_on_frame(c, Platform::Snes, VideoMode::Actual, (256, 224));
+        assert_eq!(s.view.rect, [x, y, 512.0, 448.0], "{c:?}");
+        assert_eq!(s.view.uv, WHOLE_TEXTURE);
+        assert_eq!(s.view.filter, Filter::Sharp);
+        assert_eq!(s.still, s.view);
+        assert_eq!(
+            s.bands.len(),
+            4,
+            "{c:?}: the console's body is not all round the picture"
+        );
+    }
+}
+
+#[test]
+fn a_hi_res_or_interlaced_snes_frame_fills_the_same_rect() {
+    for c in Canvas::ALL {
+        let low = screen_on_frame(c, Platform::Snes, VideoMode::Actual, (256, 224)).view;
+        for frame in [(512, 224), (512, 448), (256, 448)] {
+            let s = screen_on_frame(c, Platform::Snes, VideoMode::Actual, frame);
+            assert_eq!(s.view, low, "{c:?} {frame:?}");
+        }
+    }
+}
+
+#[test]
+fn a_snes_game_showing_its_overscan_is_still_twice_its_size() {
+    let s = screen_on_frame(
+        Canvas::FOUR_THREE,
+        Platform::Snes,
+        VideoMode::Actual,
+        (256, 239),
+    );
+    assert_eq!(s.view.rect, [64.0, 1.0, 512.0, 478.0]);
+}
+
+#[test]
+fn a_stretched_snes_game_takes_a_television_s_shape() {
+    for (c, rect) in [
+        (Canvas::FOUR_THREE, [0.0, 0.0, 640.0, 480.0]),
+        (Canvas::WIDE, [40.0, 0.0, 640.0, 480.0]),
+        (Canvas::SQUARE, [0.0, 90.0, 720.0, 540.0]),
+    ] {
+        let s = screen_on_frame(c, Platform::Snes, VideoMode::Stretch, (256, 224));
+        assert_eq!(s.view.rect, rect, "{c:?}");
+        assert_eq!(s.view.filter, Filter::Sharp);
+    }
+}
+
+#[test]
+fn a_playstation_game_is_4_3_and_any_frame_size_fills_it() {
+    for (c, rect) in [
+        (Canvas::FOUR_THREE, [0.0, 0.0, 640.0, 480.0]),
+        (Canvas::WIDE, [40.0, 0.0, 640.0, 480.0]),
+        (Canvas::SQUARE, [0.0, 90.0, 720.0, 540.0]),
+    ] {
+        for frame in FRAMES {
+            let s = screen_on_frame(c, Platform::Ps1, VideoMode::Actual, frame);
+            assert_eq!(s.view.rect, rect, "{c:?} {frame:?}");
+            assert_eq!(s.view.uv, WHOLE_TEXTURE);
+            assert_eq!(s.view.filter, Filter::Sharp);
+        }
+    }
+    assert!(
+        screen_on_frame(
+            Canvas::FOUR_THREE,
+            Platform::Ps1,
+            VideoMode::Actual,
+            (320, 240)
+        )
+        .bands
+        .is_empty(),
+        "320x240 at 2x fills 640x480"
+    );
+    assert_eq!(
+        screen_on_frame(Canvas::WIDE, Platform::Ps1, VideoMode::Actual, (320, 240)).bands,
+        vec![[0.0, 0.0, 40.0, 480.0], [680.0, 0.0, 40.0, 480.0]]
+    );
+}
+
+#[test]
+fn a_stretched_playstation_game_fills_the_canvas() {
+    for c in Canvas::ALL {
+        let s = screen_on_frame(c, Platform::Ps1, VideoMode::Stretch, (320, 240));
+        assert_eq!(s.view.rect, [0.0, 0.0, c.w as f32, c.h as f32]);
+        assert!(s.bands.is_empty());
+    }
+}
+
+#[test]
+fn a_console_s_picture_and_its_bands_cover_every_canvas_exactly_once() {
+    for c in Canvas::ALL {
+        for platform in CONSOLES {
+            for mode in MODES {
+                for frame in FRAMES {
+                    let s = screen_on_frame(c, platform, mode, frame);
+                    let covered =
+                        area(s.view.rect, c) + s.bands.iter().map(|b| area(*b, c)).sum::<f32>();
+                    assert!(
+                        (covered - (c.w * c.h) as f32).abs() < 0.5,
+                        "{c:?} {platform:?} {mode:?} {frame:?}: {covered} px covered"
+                    );
+                    let [x, y, w, h] = s.view.rect;
+                    assert!(
+                        x >= 0.0 && y >= 0.0 && x + w <= c.w as f32 && y + h <= c.h as f32,
+                        "{c:?} {platform:?} {mode:?} {frame:?}: the picture leaves the canvas"
+                    );
+                    assert_eq!(
+                        picture_rect(platform, s.view),
+                        s.view.rect,
+                        "the whole frame is the game's picture"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a_handheld_s_screen_ignores_the_frame_size() {
+    for c in Canvas::ALL {
+        for platform in PLATFORMS {
+            for mode in MODES {
+                assert_eq!(
+                    screen_on_frame(c, platform, mode, (640, 480)),
+                    screen_on(c, platform, mode),
+                    "{c:?} {platform:?} {mode:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn before_its_first_frame_a_console_game_is_laid_out_for_its_usual_picture() {
+    for c in Canvas::ALL {
+        for platform in CONSOLES {
+            assert_eq!(
+                screen_on(c, platform, VideoMode::Actual),
+                screen_on_frame(c, platform, VideoMode::Actual, platform.picture())
+            );
+        }
+    }
+}

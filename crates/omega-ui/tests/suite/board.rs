@@ -6,7 +6,7 @@ use omega_ui::{
     LID_SHADOW_H, LID_SHADOW_W, LID_TURN, ROM_H, ROM_W, ROM_X, ROM_Y, SHADOW_H, SHADOW_W,
     SLIDE_SHARE, SLIDE_UP, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W,
 };
-use omega_ui::{out_h, stage_x, stage_y, BAR_H, TOP_BAR_H};
+use omega_ui::{out_h, stage_x, stage_y, BAR_H, SFC_SHELL, SNES_SHELL, TOP_BAR_H};
 
 fn cart(stem: &str, code: &str) -> Cart {
     Cart {
@@ -408,5 +408,227 @@ fn the_seated_chips_name_is_printed_in_whole_pixels() {
         inks.sort_unstable();
         inks.dedup();
         assert_eq!(inks.len(), 1, "{core:?}'s name has soft edges: {inks:?}");
+    }
+}
+
+fn snes_cart(stem: &str) -> Cart {
+    Cart {
+        platform: Platform::Snes,
+        stem: stem.into(),
+        rom: format!("Games/SNES/{stem}.sfc").into(),
+        label: None,
+        code: String::new(),
+        shell: None,
+        title: String::new(),
+    }
+}
+
+/// How many runs of gold cross row `y` of `face`: the contacts along the board's edge.
+fn contacts(face: &CartFace, y: u32) -> usize {
+    let gold = |x: u32| near(rgb(face, x, y), [0xd4, 0xa9, 0x3c]);
+    (0..face.w)
+        .filter(|&x| gold(x) && (x == 0 || !gold(x - 1)))
+        .count()
+}
+
+#[test]
+fn a_snes_cart_opens_on_a_snes_board_in_its_own_plastic() {
+    let gba = board_face(&cart(EMERALD, "BPEE"));
+    let ntsc = board_face(&snes_cart("Super Metroid (USA)"));
+    let sfc = board_face(&snes_cart("Rockman X (Japan)"));
+    for (name, face) in [("American", &ntsc), ("Super Famicom", &sfc)] {
+        assert_eq!((face.w, face.h), (BOARD_W, BOARD_H), "the {name} board");
+        assert_flat(face, "the SNES board");
+        assert_eq!(
+            (0..face.h).map(|y| contacts(face, y)).max(),
+            Some(23),
+            "the {name} board has not the SNES cart's 23 contacts along its edge"
+        );
+    }
+    assert_eq!((0..gba.h).map(|y| contacts(&gba, y)).max(), Some(30));
+    assert!(
+        near(rgb(&ntsc, 1, 50), SNES_SHELL.colour),
+        "the American cart's shell is not its grey"
+    );
+    assert!(
+        near(rgb(&sfc, 1, 50), SFC_SHELL.colour),
+        "the Super Famicom cart's shell is not its grey"
+    );
+    // the Super Famicom's top corners are round, the American cart's square
+    assert_eq!(alpha(&sfc, 1, 1), 0);
+    assert_eq!(alpha(&ntsc, 1, 1), 255);
+}
+
+#[test]
+fn the_snes_rom_chip_carries_its_marking_where_the_gba_s_does() {
+    let face = board_face(&snes_cart("Super Metroid (USA)"));
+    let ink = [0xbd, 0xbd, 0xbd];
+    let inked = (ROM_Y..ROM_Y + ROM_H)
+        .flat_map(|y| (ROM_X..ROM_X + ROM_W).map(move |x| (x, y)))
+        .filter(|&(x, y)| rgb(&face, x, y) == ink)
+        .count();
+    assert!(
+        inked > 100,
+        "the ROM chip carries {inked} pixels of marking"
+    );
+}
+
+#[test]
+fn the_snes_boards_sockets_sit_on_whole_art_pixels_and_hold_their_chip() {
+    let s = omega_ui::SNES_SOCKETS;
+    let whole = |v: f32| v.fract() == 0.0;
+    for i in 0..2 {
+        assert!(
+            whole(s.u[i]) && whole(s.chip_u(i)),
+            "socket {i} is off the grid"
+        );
+        assert!(
+            s.u[i] < s.chip_u(i) && s.chip_u(i) + s.chip_w as f32 <= s.u[i] + s.w as f32,
+            "the chip overhangs socket {i}"
+        );
+        assert!(s.u[i] + s.w as f32 <= BOARD_W as f32);
+    }
+    assert!(s.v < s.chip_v() && s.chip_v() + s.chip_h as f32 <= s.v + s.h as f32);
+    assert!(s.u[0] + s.w as f32 <= s.u[1], "the sockets overlap");
+    assert_eq!(s.shadow_w(), s.chip_w + 4);
+    assert_eq!(omega_ui::sockets_for(Platform::Snes), s);
+    assert_eq!(omega_ui::sockets_for(Platform::Gba), omega_ui::GBA_SOCKETS);
+    let gba = omega_ui::GBA_SOCKETS;
+    assert_eq!(
+        (gba.u, gba.v, gba.w, gba.h, gba.chip_w, gba.chip_h),
+        (SOCKET_U, SOCKET_V, SOCKET_W, SOCKET_H, CHIP_W, CHIP_H),
+        "the GBA board's sockets moved"
+    );
+    assert_eq!(gba.chip_u(0), CHIP_U[0]);
+    assert_eq!(gba.chip_v(), CHIP_V);
+    assert_eq!(gba.shadow_w(), SHADOW_W);
+}
+
+#[test]
+fn each_core_is_made_for_its_boards_sockets() {
+    for core in Core::ALL {
+        let s = omega_ui::sockets_of(core);
+        let socket = socket_face(core);
+        let chip = chip_face(Some(core));
+        assert_eq!((socket.w, socket.h), (s.w, s.h), "{core:?}'s socket");
+        assert_eq!((chip.w, chip.h), (s.chip_w, s.chip_h), "{core:?}'s chip");
+    }
+    for (core, sockets) in [
+        (Core::Mgba, omega_ui::GBA_SOCKETS),
+        (Core::Snes9x, omega_ui::SNES_SOCKETS),
+    ] {
+        let blank = omega_ui::chip_face_in(sockets, None);
+        assert_eq!((blank.w, blank.h), (sockets.chip_w, sockets.chip_h));
+        assert_flat(&blank, "a blank chip");
+        let shadow = omega_ui::chip_shadow_face_in(sockets);
+        assert_eq!((shadow.w, shadow.h), (sockets.shadow_w(), SHADOW_H));
+        assert_eq!(
+            omega_ui::sockets_of(core),
+            sockets,
+            "{core:?} is on the wrong board"
+        );
+    }
+    assert_eq!(
+        chip_face(None).w,
+        CHIP_W,
+        "the GBA's blank chip changed size"
+    );
+}
+
+/// Every core's name is whole on its chip and on its socket, with room either side of it, as
+/// mGBA's has on the GBA board: four pixels before it and three after.
+#[test]
+fn every_cores_name_fits_its_chip_with_room_either_side() {
+    let red = |face: &CartFace, x: u32, y: u32| face.rgba[((y * face.w + x) * 4) as usize];
+    let ink_across = |named: &CartFace, blank: &CartFace| -> (u32, u32) {
+        let xs: Vec<u32> = (0..named.h)
+            .flat_map(|y| (0..named.w).map(move |x| (x, y)))
+            .filter(|&(x, y)| alpha(named, x, y) == 255 && red(named, x, y) != red(blank, x, y))
+            .map(|(x, _)| x)
+            .collect();
+        (
+            *xs.iter().min().expect("no name"),
+            *xs.iter().max().expect("no name"),
+        )
+    };
+    let shown = |core: Core| -> Vec<String> {
+        omega_ui::kit::pixel::letters(core.text(), omega_ui::kit::pixel::ADVANCE)
+    };
+    for core in Core::ALL {
+        let s = omega_ui::sockets_of(core);
+        let named = chip_face(Some(core));
+        let (left, right) = ink_across(&named, &omega_ui::chip_face_in(s, None));
+        assert!(
+            left >= 3 && named.w - 1 - right >= 3,
+            "{core:?}'s name {:?} runs from {left} to {right} on a chip {} wide",
+            core.text(),
+            named.w
+        );
+        assert!(
+            core.text().chars().count() <= 6,
+            "{:?} is too long for any chip",
+            core.text()
+        );
+        assert!(!shown(core).is_empty());
+    }
+    assert_eq!(
+        Core::ALL.map(Core::text),
+        ["mGBA", "gpSP", "Snes9x", "Faust", "PCSX"]
+    );
+}
+
+#[test]
+fn the_snes_board_leaves_the_sockets_places_bare() {
+    let face = board_face(&snes_cart("Super Metroid (USA)"));
+    let bare = [[0x3a, 0x9a, 0x3c], [0x58, 0xb3, 0x53]];
+    let s = omega_ui::SNES_SOCKETS;
+    for u in s.u {
+        for y in s.v as u32..s.v as u32 + s.h {
+            for x in u as u32..u as u32 + s.w {
+                let c = rgb(&face, x, y);
+                assert!(
+                    bare.iter().any(|b| near(c, *b)),
+                    "something {c:?} is in a socket's place at {x},{y}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_cart_of_another_shape_opens_from_its_own_place_to_a_lid_of_its_shape() {
+    use omega_ui::{lid_of, model_box, model_cart_at, slide_up, CartModel};
+    assert_eq!(
+        model_cart_at(CartModel::Gba, 10.0, 0.9),
+        omega_ui::shelf_cart_at(10.0, 0.9)
+    );
+    assert_eq!(slide_up(CartModel::Gba), SLIDE_UP);
+    for model in CartModel::ALL {
+        let (mw, mh) = model_box(model);
+        let shelf = model_cart_at(model, 100.0, 1.0);
+        assert_eq!((shelf.w, shelf.h), (mw as f32, mh as f32), "{model:?}");
+        assert_eq!(lid_of(model, shelf, 0.0), (shelf, 0.0), "{model:?}");
+        let (rest, turn) = lid_of(model, shelf, 1.0);
+        assert_eq!(turn, LID_TURN);
+        let (gba, _) = lid_at(1.0);
+        assert!(
+            rest.h <= gba.h + 0.01,
+            "{model:?}'s lid stands taller than the GBA's"
+        );
+        assert!(
+            (rest.y + rest.h - gba.y - gba.h).abs() < 0.01,
+            "{model:?}'s lid rests on another foot"
+        );
+        assert!(
+            (rest.x + rest.w / 2.0 - gba.x - gba.w / 2.0).abs() < 0.01,
+            "{model:?}'s lid is off the board's middle"
+        );
+        // squashed as the GBA's lid is squashed from its cart, and no more
+        let squash = |w: f32, h: f32, cw: f32, ch: f32| (w / h) / (cw / ch);
+        let gba_squash = squash(gba.w, gba.h, omega_ui::CART_W as f32, CART_H as f32);
+        assert!(
+            (squash(rest.w, rest.h, mw as f32, mh as f32) - gba_squash).abs() < 0.01,
+            "{model:?}'s lid is not its cart's shape"
+        );
     }
 }
