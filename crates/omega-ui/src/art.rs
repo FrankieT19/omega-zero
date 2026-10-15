@@ -39,14 +39,29 @@ pub fn size(path: &Path) -> Option<(u32, u32)> {
     Some((reader.info().width, reader.info().height))
 }
 
-/// `rgba`, `w` by `h`, as a png.
+/// `rgba`, `w` by `h`, as a png: without its alpha when every pixel is opaque, as a cart's label
+/// is, and each row filtered as suits it. Compressing harder saves under one byte in a hundred
+/// on a label and takes a third as long again.
 pub fn encode(rgba: &[u8], w: u32, h: u32) -> Option<Vec<u8>> {
+    let opaque = rgba.chunks_exact(4).all(|px| px[3] == 255);
+    let rgb: Vec<u8>;
+    let (colour, data) = if opaque {
+        rgb = rgba
+            .chunks_exact(4)
+            .flat_map(|px| &px[..3])
+            .copied()
+            .collect();
+        (png::ColorType::Rgb, &rgb[..])
+    } else {
+        (png::ColorType::Rgba, rgba)
+    };
     let mut out = Vec::new();
     let mut enc = png::Encoder::new(&mut out, w, h);
-    enc.set_color(png::ColorType::Rgba);
+    enc.set_color(colour);
     enc.set_depth(png::BitDepth::Eight);
+    enc.set_adaptive_filter(png::AdaptiveFilterType::Adaptive);
     let mut writer = enc.write_header().ok()?;
-    writer.write_image_data(rgba).ok()?;
+    writer.write_image_data(data).ok()?;
     writer.finish().ok()?;
     Some(out)
 }

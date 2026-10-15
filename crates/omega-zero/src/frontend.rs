@@ -247,9 +247,18 @@ impl Frontend {
                 compositor.create_texture(f.w, f.h, &f.rgba)
             })
             .collect();
-        for cart in self.session.app().carts_nearest_first() {
-            if uncut.contains(&(cart.platform as u8, cart.stem.clone())) {
-                self.cutter.request(cart.clone());
+        let nearest = self.session.app().carts_nearest_first();
+        let (due, rest): (Vec<&Cart>, Vec<&Cart>) = nearest
+            .into_iter()
+            .partition(|c| uncut.contains(&(c.platform as u8, c.stem.clone())));
+        for cart in due {
+            self.cutter.request(cart.clone());
+        }
+        // then the scans cut already are shrunk, once; a PlayStation game's discs can have
+        // labels when the game has none of its own
+        for cart in rest {
+            if cart.label.is_some() || cart.platform == omega_store::Platform::Ps1 {
+                self.cutter.shrink(cart.clone());
             }
         }
         self.session.app_mut().set_faces(faces);

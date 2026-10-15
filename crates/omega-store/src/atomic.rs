@@ -2,12 +2,22 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::SystemTime;
 
 static SEQ: AtomicU64 = AtomicU64::new(0);
 
 pub fn atomic_write(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    write_dated(path, bytes, None)
+}
+
+/// As [`atomic_write`], the file dated `modified` from the moment it is there to be read.
+pub fn atomic_write_dated(path: &Path, bytes: &[u8], modified: SystemTime) -> std::io::Result<()> {
+    write_dated(path, bytes, Some(modified))
+}
+
+fn write_dated(path: &Path, bytes: &[u8], modified: Option<SystemTime>) -> std::io::Result<()> {
     let tmp = temp_path(path);
-    match write_then_rename(&tmp, path, bytes) {
+    match write_then_rename(&tmp, path, bytes, modified) {
         Ok(()) => {}
         Err(e) => {
             let _ = std::fs::remove_file(&tmp);
@@ -26,9 +36,17 @@ pub(crate) fn sync_dir(path: &Path) {
     }
 }
 
-fn write_then_rename(tmp: &Path, path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+fn write_then_rename(
+    tmp: &Path,
+    path: &Path,
+    bytes: &[u8],
+    modified: Option<SystemTime>,
+) -> std::io::Result<()> {
     let mut f = File::create(tmp)?;
     f.write_all(bytes)?;
+    if let Some(time) = modified {
+        f.set_modified(time)?;
+    }
     f.sync_all()?;
     drop(f);
     std::fs::rename(tmp, path)

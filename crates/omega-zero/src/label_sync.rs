@@ -23,9 +23,17 @@ const API: &str = "https://api.screenscraper.fr/api2";
 pub const SOFTNAME: &str = "omega-zero";
 pub const ACCOUNT_FILE: &str = "Config/screenscraper.conf";
 
-/// The widest label scan worth fetching: the shelf's labels are narrower than this even
-/// with the cart drawn large.
-const LABEL_MAX_W: u32 = 600;
+/// The widest label scan worth fetching for `platform`: half as wide again as its widest face's
+/// label, never drawn bigger than a texel to a pixel, which leaves room for a scan of a wider
+/// shape to still cover its faces. The cutter shrinks the scan to what they need once cut.
+pub fn fetch_width(platform: Platform) -> u32 {
+    let widest = omega_ui::face_labels(platform)
+        .iter()
+        .map(|&(w, _)| w)
+        .max()
+        .unwrap_or(0);
+    (widest * 3).div_ceil(2)
+}
 
 /// The key ScreenScraper gives a program, separate from the player's account and required
 /// with it on every request. It comes from whoever builds omega-zero, never from the source, and
@@ -496,9 +504,9 @@ pub fn game_url(key: (&str, &str), account: &Account, rom: &Lookup) -> String {
     format!("{API}/jeuInfos.php?{}", query.join("&"))
 }
 
-/// A media URL from a reply, asked for as a PNG no wider than a label needs.
-pub fn media_url(url: &str) -> String {
-    format!("{url}&maxwidth={LABEL_MAX_W}&outputformat=png")
+/// A media URL from a reply, asked for as a PNG no wider than `platform`'s labels need.
+pub fn media_url(url: &str, platform: Platform) -> String {
+    format!("{url}&maxwidth={}&outputformat=png", fetch_width(platform))
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -827,7 +835,7 @@ pub fn sync(
         match asked {
             Some(Reply::Game(found)) => {
                 let scan = pick_media(&found, want)
-                    .and_then(|m| http.get(&media_url(&m.url)))
+                    .and_then(|m| http.get(&media_url(&m.url, want.platform)))
                     .filter(|(status, body)| *status == 200 && is_png(body));
                 let kept = scan.is_some_and(|(_, png)| {
                     want.label_paths(root)

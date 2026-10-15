@@ -21,6 +21,7 @@ mod kit_hints;
 mod kit_hud;
 mod kit_layout;
 mod label;
+mod label_shrink;
 mod letters;
 mod link_art;
 mod network;

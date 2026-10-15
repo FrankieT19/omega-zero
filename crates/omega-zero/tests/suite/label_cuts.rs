@@ -158,3 +158,43 @@ fn a_label_a_sync_saves_is_cut_and_its_cart_drawn_in_it() {
         "the saved label was never cut and its cart never drawn in it"
     );
 }
+
+#[test]
+fn a_boot_shrinks_the_scans_cut_before_and_leaves_their_cuts_as_they_were() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    clocked(d.path());
+    write_scan(d.path(), "Emerald");
+    // cut as the release before scans were shrunk cut it, the scan left whole
+    let carts = omega_store::scan(d.path()).expect("scan the card");
+    let emerald = carts.iter().find(|c| c.stem == "Emerald").unwrap();
+    assert!(omega_ui::cut_label(emerald));
+    let scan = d.path().join("Labels/GBA/Emerald.png");
+    let cut = d.path().join("Labels/GBA/.cut/Emerald.png");
+    let modified = |p: &Path| std::fs::metadata(p).and_then(|m| m.modified()).unwrap();
+    let (made, scanned) = (modified(&cut), modified(&scan));
+    let width = |p: &Path| {
+        let file = std::fs::File::open(p).expect("open scan");
+        png::Decoder::new(file)
+            .read_info()
+            .expect("png header")
+            .info()
+            .width
+    };
+
+    let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
+    f.upload_faces(&mut c);
+    assert!(
+        compose_until(&mut f, &mut c, |_, px| magenta_px(px) > 500
+            && width(&scan) < 600),
+        "the scan was never shrunk, or its cart never drawn from its cut"
+    );
+    assert_eq!(modified(&cut), made, "the boot cut the scan again");
+    assert_eq!(modified(&scan), scanned, "the shrunk scan lost its time");
+    assert!(f.app().carts().all(|c| !label_uncut(c)));
+}

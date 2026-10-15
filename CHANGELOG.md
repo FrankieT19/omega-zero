@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Labels take about a quarter of the room on the card. Once a label is cut to its cart, the
+  label itself is shrunk to the smallest size that still covers every face its system draws it
+  on, since no face is drawn bigger than that; until now each one was kept 600 pixels wide. Every
+  cart looks as it did. Labels already on the card, or copied there by hand, are shrunk once in
+  the background after the boot.
+- Labels fetches each label at about two thirds of the width it did, so a sync downloads about
+  half as much.
+
 ## omega-zero 1.1.0
 
 The SNES and the PlayStation join the Game Boys: their games run, and they stand on shelves of
