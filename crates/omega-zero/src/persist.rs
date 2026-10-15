@@ -34,6 +34,42 @@ pub fn flush(
     Ok(())
 }
 
+/// Where the game whose core is opening is named, as `<system>/<stem>`, until it has run a
+/// moment. A boot that finds it names a game whose start took omega-zero down, and leaves that
+/// game on the shelf: a core that aborts as it opens a game would otherwise have every boot open
+/// it again, and the console would never get past its boot screen.
+const STARTING: &str = "Config/.starting";
+
+fn starting_key(platform: Platform, stem: &str) -> String {
+    format!("{}/{stem}", platform.dir_name())
+}
+
+/// Notes that `stem`'s core is opening, on the card before it opens.
+pub fn mark_starting(root: &Path, platform: Platform, stem: &str) {
+    let key = starting_key(platform, stem);
+    if let Err(e) = atomic_write(&root.join(STARTING), key.as_bytes()) {
+        eprintln!("omega-zero: could not note {key} starting: {e}");
+    }
+}
+
+pub fn clear_starting(root: &Path) {
+    let _ = std::fs::remove_file(root.join(STARTING));
+}
+
+/// The game noted as starting when omega-zero last stopped, the note taken off the card.
+pub fn take_starting(root: &Path) -> Option<String> {
+    let key = std::fs::read_to_string(root.join(STARTING)).ok()?;
+    clear_starting(root);
+    Some(key)
+}
+
+/// The system and stem a note of a game starting names, as `mark_starting` wrote it.
+pub fn starting_game(key: &str) -> Option<(Platform, String)> {
+    let (dir, stem) = key.trim_end_matches(['\r', '\n']).split_once('/')?;
+    let platform = Platform::ALL.into_iter().find(|p| p.dir_name() == dir)?;
+    (!stem.is_empty()).then(|| (platform, stem.to_string()))
+}
+
 pub fn eject(
     root: &Path,
     platform: Platform,

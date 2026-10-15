@@ -44,6 +44,7 @@ use crate::screens::keyboard::typing_of;
 use crate::screens::lone::Lone;
 use crate::screens::power::{PowerScreen, PowerSlide};
 use crate::ssh::{ssh_server, Ssh};
+use crate::start_notice::StartNotice;
 use crate::video_mode::{self, VideoMode};
 use crate::wifi::{wifi_jobs, WifiJobs};
 use crate::wifi_screen::{Summary, Watch, Wifi, WifiScreen};
@@ -339,6 +340,9 @@ pub struct App {
     pub(crate) top_readouts: Readouts,
     pub(crate) shelf_platform: omega_ui::Printed,
     pub(crate) name_pending: bool,
+    /// A game's start took omega-zero down last time: the boot leaves it on the shelf, or the
+    /// seated cart where that game is not there, rather than resume either.
+    hold_resume: bool,
     /// The letter jumped to with Up or Down, shown in the pill for a while in place of the
     /// system.
     pub(crate) pill_letter: Option<char>,
@@ -389,6 +393,9 @@ pub struct App {
     pub(crate) boot_fade: Option<BootFade>,
     /// The opening over the shelf while it plays at boot.
     pub(crate) opening: Option<Opening>,
+    /// The notice that the last start of a game took omega-zero down, from the boot that found
+    /// it noted until it is put away.
+    pub(crate) start_notice: Option<StartNotice>,
 }
 
 fn shelves_of(carts: Vec<Cart>) -> Vec<(Platform, Shelf)> {
@@ -432,6 +439,7 @@ impl App {
             bar_faces: None,
             boot_fade: None,
             opening: None,
+            start_notice: None,
             phase: Phase::Shelf,
             shelves,
             shelf_at,
@@ -492,6 +500,7 @@ impl App {
             top_readouts: Readouts::default(),
             shelf_platform: omega_ui::Printed::default(),
             name_pending: false,
+            hold_resume: false,
             pill_letter: None,
             shelf_named: None,
             hud: Hud::new(),
@@ -524,6 +533,11 @@ impl App {
         app.ssh.start(app.state.ssh, Some(root));
         app.bluetooth.start(app.state.bluetooth);
         app.labels = Labels::new(label_jobs(root), Account::load(root));
+        if let Some(fell) = persist::take_starting(root) {
+            eprintln!("omega-zero: {fell} took omega-zero down as it started; it is not resumed");
+            app.hold_resume = true;
+            app.start_notice = StartNotice::of(root, &fell);
+        }
         if app.state.clock_set {
             app.start();
         } else {
@@ -533,7 +547,17 @@ impl App {
     }
 
     pub(crate) fn start(&mut self) {
-        let seated = if self.single_cart() {
+        // the game whose start took omega-zero down is the one left on the shelf; a notice
+        // naming a game not on the shelf would be wrong to say it was left there
+        let fell = self
+            .start_notice_names()
+            .and_then(|f| self.seat_of(&f.stem, Some(f.platform)));
+        if fell.is_none() {
+            self.start_notice = None;
+        }
+        let seated = if fell.is_some() {
+            fell
+        } else if self.single_cart() {
             Some((self.shelf_at, 0))
         } else {
             let stem = self.state.cart.clone();
@@ -541,7 +565,15 @@ impl App {
             stem.and_then(|stem| self.seat_of(&stem, platform))
         };
         self.phase = Phase::Shelf;
+        let held = std::mem::take(&mut self.hold_resume);
         match seated {
+            Some((at, i)) if held => {
+                self.shelf_at = at;
+                self.shelf_mut().select(i);
+                self.state.cart = None;
+                self.state.cart_platform = None;
+                self.name_pending = true;
+            }
             Some((at, i)) => {
                 self.shelf_at = at;
                 self.shelf_mut().select(i);
@@ -563,7 +595,7 @@ impl App {
         &self.shelves[self.shelf_at].1
     }
 
-    fn shelf_mut(&mut self) -> &mut Shelf {
+    pub(crate) fn shelf_mut(&mut self) -> &mut Shelf {
         &mut self.shelves[self.shelf_at].1
     }
 
@@ -1117,7 +1149,7 @@ impl App {
     }
 
     pub fn apply(&mut self, action: Action) {
-        let taken = self.opening_takes(action);
+        let taken = self.opening_takes(action) || self.start_notice_takes(action);
         self.press_ends_boot_fade(action);
         if taken {
             return;
@@ -1586,6 +1618,7 @@ impl App {
         self.clock += dt as f64 * 1000.0;
         self.step_boot_fade(dt);
         self.step_opening(dt);
+        self.step_start_notice(dt);
         // a letter jumped to shows in the pill for a while, then the system comes back
         if self.pill_letter.is_some()
             && self
@@ -1597,7 +1630,11 @@ impl App {
             self.name_pending = true;
         }
         // the pill rises with the shelf's system once the shelf can be seen
-        if self.name_pending && self.shelf_platform.face.is_some() && !self.opening_covers() {
+        if self.name_pending
+            && self.shelf_platform.face.is_some()
+            && !self.opening_covers()
+            && !self.start_notice_hides_shelf()
+        {
             self.name_pending = false;
             self.shelf_named = Some(self.now());
         }
@@ -1890,9 +1927,10 @@ impl App {
     }
 
     pub fn draw(&self, out: &mut Vec<Draw>) {
-        // nothing under the opening's black need be drawn
-        if self.opening_covers() {
+        // nothing under the opening's black, or the start notice's, need be drawn
+        if self.opening_covers() || self.start_notice_covers() {
             self.draw_opening(out);
+            self.draw_start_notice(out);
             return self.draw_boot_logo(out);
         }
         // the power screens stand over whatever POWER was held on
@@ -1929,6 +1967,7 @@ impl App {
         }
         self.hud.draw_at(self.now(), self.top_bar_reach(), out);
         self.draw_opening(out);
+        self.draw_start_notice(out);
         self.draw_boot_logo(out);
     }
 
@@ -2300,7 +2339,8 @@ impl App {
     }
 
     fn insert(&mut self, clean: bool) {
-        if !self.on_shelf() {
+        // no game starts under the start notice
+        if !self.on_shelf() || self.start_notice_shown() {
             return;
         }
         let Some(cart) = self

@@ -48,6 +48,10 @@ struct Host {
     options: std::collections::HashMap<String, std::ffi::CString>,
     options_dirty: bool,
     declared: std::collections::HashMap<String, Vec<String>>,
+    /// The first value the core listed for each option it declared, its default: what an option
+    /// omega-zero leaves alone reads as, as in any frontend, so no core falls back on defaults
+    /// of its own. Supafaust forgets its own once a game is loaded.
+    defaults: std::collections::HashMap<String, std::ffi::CString>,
 }
 
 impl Host {
@@ -76,6 +80,7 @@ impl Host {
             options: std::collections::HashMap::new(),
             options_dirty: false,
             declared: std::collections::HashMap::new(),
+            defaults: std::collections::HashMap::new(),
         }
     }
 
@@ -266,16 +271,18 @@ unsafe extern "C" fn environment(cmd: c_uint, data: *mut c_void) -> bool {
             let Ok(key) = std::ffi::CStr::from_ptr(var.key).to_str() else {
                 return false;
             };
-            with_host(|h| match h.options.get(key) {
-                Some(value) => {
-                    var.value = value.as_ptr();
-                    true
-                }
-                None => {
-                    var.value = ptr::null();
-                    false
-                }
-            })
+            with_host(
+                |h| match h.options.get(key).or_else(|| h.defaults.get(key)) {
+                    Some(value) => {
+                        var.value = value.as_ptr();
+                        true
+                    }
+                    None => {
+                        var.value = ptr::null();
+                        false
+                    }
+                },
+            )
             .unwrap_or(false)
         }
         GET_VARIABLE_UPDATE => {
@@ -291,7 +298,11 @@ unsafe extern "C" fn environment(cmd: c_uint, data: *mut c_void) -> bool {
         }
         SET_VARIABLES => {
             if data.is_null() {
-                return with_host(|h| h.declared.clear()).is_some();
+                return with_host(|h| {
+                    h.declared.clear();
+                    h.defaults.clear();
+                })
+                .is_some();
             }
             let mut list = std::collections::HashMap::new();
             let mut p = data as *const Variable;
@@ -322,7 +333,17 @@ unsafe extern "C" fn environment(cmd: c_uint, data: *mut c_void) -> bool {
                 list.insert(key.to_string(), values);
                 p = p.add(1);
             }
-            with_host(|h| h.declared = list).is_some()
+            let defaults = list
+                .iter()
+                .filter_map(|(key, values)| {
+                    Some((key.clone(), CString::new(values.first()?.as_str()).ok()?))
+                })
+                .collect();
+            with_host(|h| {
+                h.declared = list;
+                h.defaults = defaults;
+            })
+            .is_some()
         }
         GET_RUMBLE_INTERFACE => {
             if data.is_null() {
@@ -1044,6 +1065,48 @@ mod tests {
 
         assert!(!ok);
         assert!(var.value.is_null());
+    }
+
+    /// What `key` reads as to the core, if it reads as anything.
+    fn read_variable(key: &str) -> Option<String> {
+        let key = CString::new(key).unwrap();
+        let mut var = Variable {
+            key: key.as_ptr(),
+            value: ptr::null(),
+        };
+        let ok = unsafe { environment(GET_VARIABLE, &mut var as *mut Variable as *mut c_void) };
+        (ok && !var.value.is_null()).then(|| {
+            unsafe { CStr::from_ptr(var.value) }
+                .to_string_lossy()
+                .into_owned()
+        })
+    }
+
+    #[test]
+    fn an_option_left_alone_reads_as_the_first_value_the_core_listed() {
+        let mut options = HashMap::new();
+        options.insert("faust_slend".to_string(), CString::new("200").unwrap());
+        let mut host = host_with(options, true);
+        let (a, _ak, _av) = declaration("faust_slstart", "First line; 0|1|2");
+        let (b, _bk, _bv) = declaration("faust_slend", "Last line; 223|222");
+        let list = [a, b, end_of_list()];
+        let _active = Active::bind(&mut host);
+        assert!(unsafe { environment(SET_VARIABLES, list.as_ptr() as *mut c_void) });
+
+        assert_eq!(read_variable("faust_slstart").as_deref(), Some("0"));
+        assert_eq!(
+            read_variable("faust_slend").as_deref(),
+            Some("200"),
+            "the default won over the value omega-zero set"
+        );
+        assert_eq!(read_variable("faust_never_declared"), None);
+
+        assert!(unsafe { environment(SET_VARIABLES, ptr::null_mut()) });
+        assert_eq!(
+            read_variable("faust_slstart"),
+            None,
+            "a default outlived its declaration"
+        );
     }
 
     #[test]
