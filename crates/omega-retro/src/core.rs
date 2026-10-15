@@ -4,8 +4,16 @@ use std::path::Path;
 use crate::link::Link;
 use crate::rumble::Rumble;
 
+/// The GBA's screen. A picture smaller than it, a Game Boy's, reaches the frontend centred in
+/// one on black, as the handheld layouts expect; every SNES and PlayStation mode is bigger in
+/// both directions and arrives at its own size.
 pub const GBA_W: u32 = 240;
 pub const GBA_H: u32 = 160;
+
+/// The biggest picture the host takes from a core, room for the SNES's 512x478 and the
+/// PlayStation's 640x512; anything past it is cut off.
+pub const MAX_FRAME_W: u32 = 1024;
+pub const MAX_FRAME_H: u32 = 576;
 
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub struct ButtonMask(pub u16);
@@ -42,7 +50,7 @@ impl ButtonMask {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct AvInfo {
     pub fps: f64,
     pub sample_rate: f64,
@@ -83,7 +91,12 @@ pub trait RetroCore: Send {
     }
     fn set_option(&mut self, _key: &str, _value: &str) {}
     fn set_frame_skip(&mut self, _skip: bool) {}
+    /// The last picture the core drew, XRGB8888 in rows `video_size().0` pixels long.
     fn video_xrgb8888(&self) -> &[u8];
+    /// How big that picture is, width by height. A core that never says draws the GBA's screen.
+    fn video_size(&self) -> (u32, u32) {
+        (GBA_W, GBA_H)
+    }
     fn take_audio(&mut self) -> Vec<i16>;
     fn serialize(&mut self) -> Result<Vec<u8>, CoreError>;
     fn unserialize(&mut self, data: &[u8]) -> Result<(), CoreError>;
@@ -112,6 +125,14 @@ pub trait RetroCore: Send {
     fn set_disc(&mut self, _index: usize) -> bool {
         false
     }
+    /// The file disc `index` is read from, as the core names it, when it can say.
+    fn disc_path(&self, _index: usize) -> Option<String> {
+        None
+    }
+    /// Asks for disc `index`, read from `path`, to be the one in the drive when the game loads,
+    /// as it was when the game was last put away; called before `load`. A core that checks finds
+    /// `path` at that index or starts from the first disc.
+    fn set_initial_disc(&mut self, _index: usize, _path: &str) {}
 }
 
 #[cfg(test)]
