@@ -7,7 +7,9 @@ use crate::surface::GfxError;
 
 /// The whole-number scale the LCD mask is drawn for, three panel pixels to a game pixel.
 pub const SCALE: u32 = 3;
-/// The game texture, a GBA frame. Game Boy pictures arrive centred inside it.
+/// A GBA frame, the size the game texture starts at and the handheld layouts are drawn for. Game
+/// Boy pictures arrive centred inside it; a SNES or PlayStation picture brings its own size, and
+/// the texture takes it.
 pub const SRC_W: u32 = 240;
 pub const SRC_H: u32 = 160;
 
@@ -58,12 +60,16 @@ struct Sharp {
     u_glow: gl::types::GLint,
     u_uv: gl::types::GLint,
     u_scale: gl::types::GLint,
+    /// The size of the texture drawn, in texels.
+    u_src: gl::types::GLint,
 }
 
 pub struct GamePass {
     lcd: Lcd,
     sharp: Sharp,
     game: gl::types::GLuint,
+    /// The game texture's width and height, the last picture's.
+    size: (u32, u32),
     mask: gl::types::GLuint,
     power: f32,
     view: Option<GameView>,
@@ -94,7 +100,6 @@ impl GamePass {
             gl::Uniform2f(uniform(lcd, "u_target"), out_w() as f32, out_h() as f32);
             gl::UseProgram(sharp);
             gl::Uniform1i(uniform(sharp, "u_game"), 0);
-            gl::Uniform2f(uniform(sharp, "u_src"), SRC_W as f32, SRC_H as f32);
             gl::Uniform2f(uniform(sharp, "u_target"), out_w() as f32, out_h() as f32);
         }
         Ok(GamePass {
@@ -113,8 +118,10 @@ impl GamePass {
                 u_glow: uniform(sharp, "u_glow"),
                 u_uv: uniform(sharp, "u_uv"),
                 u_scale: uniform(sharp, "u_scale"),
+                u_src: uniform(sharp, "u_src"),
             },
             game,
+            size: (SRC_W, SRC_H),
             mask,
             power: 1.0,
             view: None,
@@ -141,40 +148,72 @@ impl GamePass {
         self.still = Some(view);
     }
 
+    /// A GBA-sized picture, 240x160.
     pub fn upload(&mut self, xrgb8888: &[u8]) {
-        if xrgb8888.len() < (SRC_W * SRC_H * 4) as usize {
+        self.upload_sized(xrgb8888, (SRC_W, SRC_H));
+    }
+
+    /// A picture `size` pixels wide and high. The texture is made again at that size when the
+    /// picture's size changes, as a PlayStation game's does between its menus and its game, and
+    /// otherwise only written over, as a GBA frame always was.
+    pub fn upload_sized(&mut self, xrgb8888: &[u8], size: (u32, u32)) {
+        let (w, h) = size;
+        if w == 0 || h == 0 || xrgb8888.len() < (w * h * 4) as usize {
             return;
         }
+        let pixels = xrgb8888.as_ptr() as *const std::ffi::c_void;
         unsafe {
             gl::BindTexture(gl::TEXTURE_2D, self.game);
             gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
-            gl::TexSubImage2D(
-                gl::TEXTURE_2D,
-                0,
-                0,
-                0,
-                SRC_W as i32,
-                SRC_H as i32,
-                gl::BGRA,
-                gl::UNSIGNED_BYTE,
-                xrgb8888.as_ptr() as *const std::ffi::c_void,
-            );
+            if size == self.size {
+                gl::TexSubImage2D(
+                    gl::TEXTURE_2D,
+                    0,
+                    0,
+                    0,
+                    w as i32,
+                    h as i32,
+                    gl::BGRA,
+                    gl::UNSIGNED_BYTE,
+                    pixels,
+                );
+            } else {
+                gl::TexImage2D(
+                    gl::TEXTURE_2D,
+                    0,
+                    crate::gl::internal_format(gl::BGRA),
+                    w as i32,
+                    h as i32,
+                    0,
+                    gl::BGRA,
+                    gl::UNSIGNED_BYTE,
+                    pixels,
+                );
+                self.size = size;
+            }
         }
+    }
+
+    /// The game texture's width and height, the last picture's.
+    pub fn size(&self) -> (u32, u32) {
+        self.size
     }
 
     pub fn draw(&self, quad: &Quad) {
         let view = self.view.unwrap_or_else(|| GameView::canvas(WHOLE_TEXTURE));
-        self.draw_source(self.game, quad, view);
+        self.draw_source(self.game, self.size, quad, view);
     }
 
-    pub fn draw_still(&self, tex: gl::types::GLuint, quad: &Quad) {
+    /// A still, `size` texels, through the still's view.
+    pub fn draw_still(&self, tex: gl::types::GLuint, size: (u32, u32), quad: &Quad) {
         let view = self
             .still
             .unwrap_or_else(|| GameView::canvas(WHOLE_TEXTURE));
-        self.draw_source(tex, quad, view);
+        self.draw_source(tex, size, quad, view);
     }
 
-    fn draw_source(&self, tex: gl::types::GLuint, quad: &Quad, view: GameView) {
+    fn draw_source(&self, tex: gl::types::GLuint, src: (u32, u32), quad: &Quad, view: GameView) {
+        let (src_w, src_h) = (src.0 as f32, src.1 as f32);
         let (x, y, w, h) = screen_rect_in(self.power, view.rect);
         let uv = view.uv;
         match view.filter {
@@ -199,10 +238,11 @@ impl GamePass {
                 gl::UseProgram(self.sharp.prog);
                 gl::Uniform4f(self.sharp.u_rect, x, y, w, h);
                 gl::Uniform4f(self.sharp.u_uv, uv[0], uv[1], uv[2], uv[3]);
+                gl::Uniform2f(self.sharp.u_src, src_w, src_h);
                 gl::Uniform2f(
                     self.sharp.u_scale,
-                    view.rect[2] / (uv[2] * SRC_W as f32),
-                    view.rect[3] / (uv[3] * SRC_H as f32),
+                    view.rect[2] / (uv[2] * src_w),
+                    view.rect[3] / (uv[3] * src_h),
                 );
                 gl::Uniform1f(self.sharp.u_bright, screen_brightness(self.power));
                 gl::Uniform1f(self.sharp.u_glow, screen_glow(self.power));

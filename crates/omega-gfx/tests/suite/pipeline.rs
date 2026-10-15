@@ -911,3 +911,110 @@ fn a_turned_model_shows_the_side_that_turns_towards_the_eye_and_hides_the_other(
         "the side turned away shows past the face"
     );
 }
+
+/// A picture `w` by `h` whose every texel tells where it is: red across, green down.
+fn located(w: usize, h: usize) -> (Vec<u8>, impl Fn(usize, usize) -> [u8; 3]) {
+    let at = move |x: usize, y: usize| [(x * 255 / (w - 1)) as u8, (y * 255 / (h - 1)) as u8, 0x40];
+    let mut bgrx = Vec::with_capacity(w * h * 4);
+    for y in 0..h {
+        for x in 0..w {
+            let [r, g, b] = at(x, y);
+            bgrx.extend_from_slice(&[b, g, r, 0]);
+        }
+    }
+    (bgrx, at)
+}
+
+fn sharp(rect: [f32; 4]) -> GameView {
+    GameView {
+        rect,
+        uv: WHOLE,
+        filter: Filter::Sharp,
+    }
+}
+
+/// Every texel of a `w` by `h` picture drawn at 2x from the canvas's top left lands on its own
+/// 2x2 block of the canvas.
+fn assert_at_2x(frame: &[u8], w: usize, h: usize, at: &impl Fn(usize, usize) -> [u8; 3]) {
+    for (x, y) in [
+        (0, 0),
+        (w - 1, 0),
+        (0, h - 1),
+        (w - 1, h - 1),
+        (w / 2, h / 3),
+    ] {
+        for (dx, dy) in [(0, 0), (1, 1)] {
+            assert_eq!(
+                px(frame, 2 * x + dx, 2 * y + dy),
+                at(x, y),
+                "texel {x},{y} of the {w}x{h} picture is not at 2x"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_console_picture_is_drawn_whole_at_its_own_size() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    c.set_screen_power(1.0);
+    for (w, h) in [(320, 240), (256, 224), (320, 240), (240, 160)] {
+        let (picture, at) = located(w, h);
+        c.set_game_view(sharp([0.0, 0.0, 2.0 * w as f32, 2.0 * h as f32]));
+        c.begin_frame();
+        c.upload_game_sized(&picture, (w as u32, h as u32));
+        assert_eq!(c.game_size(), (w as u32, h as u32));
+        c.draw_game();
+        assert_at_2x(&c.read_frame(), w, h, &at);
+    }
+}
+
+#[test]
+fn a_gba_frame_uploaded_after_a_console_picture_fills_the_texture_again() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let (big, _) = located(640, 480);
+    c.upload_game_sized(&big, (640, 480));
+    let (gba, at) = located(SRC_W as usize, SRC_H as usize);
+    c.upload_game(&gba);
+    assert_eq!(c.game_size(), (SRC_W, SRC_H));
+    c.set_screen_power(1.0);
+    c.set_game_view(sharp([0.0, 0.0, 480.0, 320.0]));
+    c.begin_frame();
+    c.draw_game();
+    assert_at_2x(&c.read_frame(), SRC_W as usize, SRC_H as usize, &at);
+}
+
+#[test]
+fn a_short_picture_is_not_uploaded() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    c.upload_game_sized(&[0u8; 16], (320, 240));
+    assert_eq!(
+        c.game_size(),
+        (SRC_W, SRC_H),
+        "a frame too short for its size was taken"
+    );
+}
+
+#[test]
+fn a_console_still_is_drawn_whole_through_its_view() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let (w, h) = (320usize, 240usize);
+    let (bgrx, at) = located(w, h);
+    let rgba: Vec<u8> = bgrx
+        .chunks_exact(4)
+        .flat_map(|p| [p[2], p[1], p[0], 255])
+        .collect();
+    let tex = c.create_texture_nearest(w as u32, h as u32, &rgba);
+    c.set_screen_power(1.0);
+    c.set_still_view(sharp([0.0, 0.0, 640.0, 480.0]));
+    c.begin_frame();
+    c.draw_list(&[Draw::Shot { tex }]);
+    assert_at_2x(&c.read_frame(), w, h, &at);
+}
