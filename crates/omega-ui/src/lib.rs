@@ -73,7 +73,10 @@ pub use keyboard::{
 };
 pub use kit::badge::BadgeIcon;
 pub use kit::gauge::GaugeIcon;
-pub use models::disc::{stack_of, MAX_STACK};
+pub use models::disc::{
+    push_disc, push_stack, stack_of, DiscStack, StackDive, StackMeshes, DISC_PX, MAX_STACK,
+    STACK_DIVE,
+};
 pub use models::snes::{silhouette as snes_silhouette, SnesShell};
 pub use motion::ease;
 pub use opening::{opening_line, OPENING_ADVANCE, OPENING_PITCH, OPENING_RISE};

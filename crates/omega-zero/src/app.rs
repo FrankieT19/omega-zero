@@ -2025,6 +2025,7 @@ impl App {
             cart,
             face,
             mesh: self.shelf().mesh_for(stem),
+            stack: self.shelf().stack_for(stem),
             rest,
             scale,
             pose: self.shelf().pose(),

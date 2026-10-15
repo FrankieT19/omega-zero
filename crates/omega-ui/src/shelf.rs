@@ -4,7 +4,8 @@ use omega_store::{Cart, Platform};
 use crate::cart::{cart_box, label_colour, label_text, model_box, model_of, CART_H};
 use crate::chrome::BAR_H;
 use crate::hud::Millis;
-use crate::models::{disc, snes};
+use crate::models::disc::{self, DiscStack};
+use crate::models::snes;
 use crate::motion::ease;
 use crate::silhouette::GbShell;
 use crate::spin::{self, CartMeshes, CartModel, Pose};
@@ -112,12 +113,16 @@ pub struct Shelf {
     faces: Vec<TexId>,
     shadows: [Option<TexId>; CartModel::ALL.len()],
     models: Vec<CartModel>,
+    /// How many discs each cart stands as: one, but for a game on several discs.
+    discs: Vec<usize>,
     meshes: Option<CartMeshes>,
     ride: f32,
     vel: f32,
     held: Option<(i32, Millis, usize)>,
     calm: f32,
     age: f32,
+    /// How far the discs have turned about their own middles, in radians.
+    spin: f32,
     still: bool,
 }
 
@@ -125,6 +130,7 @@ impl Shelf {
     pub fn new(carts: Vec<Cart>) -> Self {
         Shelf {
             models: carts.iter().map(model_of).collect(),
+            discs: carts.iter().map(disc::stack_of).collect(),
             carts,
             index: 0,
             scroll: 0.0,
@@ -136,6 +142,7 @@ impl Shelf {
             held: None,
             calm: 0.0,
             age: 0.0,
+            spin: 0.0,
             still: false,
         }
     }
@@ -169,10 +176,44 @@ impl Shelf {
         self.faces = faces;
     }
 
-    /// The model the cart `stem` is drawn with, once models are set.
+    /// The model the cart `stem` is drawn with, once models are set: a game on several discs
+    /// all its discs in one model.
     pub fn mesh_for(&self, stem: &str) -> Option<MeshId> {
         let i = self.carts.iter().position(|c| c.stem == stem)?;
-        Some(self.meshes?.of(*self.models.get(i)?))
+        let meshes = self.meshes?;
+        let model = *self.models.get(i)?;
+        match (model, meshes.stacks()) {
+            (CartModel::Disc, Some(stacks)) => Some(stacks.whole(self.discs_at(i))),
+            _ => Some(meshes.of(model)),
+        }
+    }
+
+    /// The discs the game `stem` stands as, once its face and the models are set; `None` for
+    /// a cart.
+    pub fn stack_for(&self, stem: &str) -> Option<DiscStack> {
+        let i = self.carts.iter().position(|c| c.stem == stem)?;
+        self.stack_at(i)
+    }
+
+    /// The discs the game at `i` stands as, once its face and the models are set.
+    pub fn stack_at(&self, i: usize) -> Option<DiscStack> {
+        if self.model_at(i)? != CartModel::Disc {
+            return None;
+        }
+        Some(DiscStack {
+            tex: *self.faces.get(i)?,
+            discs: self.discs_at(i),
+            meshes: self.meshes?.stacks()?,
+        })
+    }
+
+    /// How many discs the cart at `i` stands as.
+    fn discs_at(&self, i: usize) -> usize {
+        match self.discs.get(i) {
+            Some(n) => *n,
+            // a cart pushed onto the row after it was made has not been counted
+            None => self.carts.get(i).map_or(1, disc::stack_of),
+        }
     }
 
     /// The model the cart at `i` stands as.
@@ -388,6 +429,8 @@ impl Shelf {
             self.calm = (self.calm + CALM_IN * dt).min(1.0);
         }
         self.age = (self.age + dt).rem_euclid(LOOP_S);
+        self.spin = (self.spin + disc::SPIN * std::f32::consts::TAU * ease(self.calm) * dt)
+            .rem_euclid(std::f32::consts::TAU);
     }
 
     /// The row, none of its carts held.
@@ -441,7 +484,6 @@ impl Shelf {
             };
             let y = y - pose.lift;
             if let (Some(tex), Some(meshes)) = (face, self.meshes) {
-                let mesh = meshes.of(model);
                 // a side cart is the face dimmed over its black backing, as one opaque model
                 let colour = match alpha < 1.0 {
                     true => {
@@ -450,14 +492,20 @@ impl Shelf {
                     }
                     false => [1.0, 1.0, 1.0, dim],
                 };
-                out.push(spin::posed_cart(
-                    (x, y, w, h),
-                    mesh,
-                    tex,
-                    colour,
-                    0.0,
-                    pose.yaw,
-                ));
+                match self.stack_at(i) {
+                    // a game on several discs is each of them, one behind the other
+                    Some(stack) => {
+                        disc::push_stack(out, (x, y, w, h), &stack, colour, self.spin, pose.yaw)
+                    }
+                    None => out.push(spin::posed_cart(
+                        (x, y, w, h),
+                        meshes.of(model),
+                        tex,
+                        colour,
+                        0.0,
+                        pose.yaw,
+                    )),
+                }
                 continue;
             }
             if let Some(tex) = face {

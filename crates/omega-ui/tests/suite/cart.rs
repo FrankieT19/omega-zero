@@ -490,6 +490,7 @@ fn every_cartridge_is_centred_on_the_row_and_clears_both_bars() {
             "the Super Famicom cart",
             CartModel::Snes(SnesShell::Famicom),
         ),
+        ("the PlayStation disc", CartModel::Disc),
     ] {
         let h = model_shelf_box(model).1;
         let (top, foot) = (rest_y(h), foot_y(h));

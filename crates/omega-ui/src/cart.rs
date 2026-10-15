@@ -122,10 +122,6 @@ pub fn model_shadow(model: CartModel) -> CartFace {
     shadow(s.w, s.h, s.mask)
 }
 
-pub(crate) fn gba_spec() -> Spec {
-    spec(CartModel::Gba)
-}
-
 pub(crate) fn spec(model: CartModel) -> Spec {
     match model {
         CartModel::Snes(shell) => snes::spec(shell),

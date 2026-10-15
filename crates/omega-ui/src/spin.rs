@@ -1,5 +1,6 @@
 use omega_gfx::{out_h, spun_x, Draw, MeshId, MeshVertex, TexId};
 
+use crate::models::disc::StackMeshes;
 use crate::models::{disc, snes, snes::SnesShell};
 use crate::silhouette::GbShell;
 
@@ -86,18 +87,45 @@ impl CartModel {
     }
 }
 
-/// The models a shelf draws its carts with, one per model, once they are on the GPU.
+/// The models a shelf draws its carts with, one per model, once they are on the GPU, and the
+/// ones it draws a game on several discs with.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct CartMeshes([MeshId; CartModel::ALL.len()]);
+pub struct CartMeshes {
+    models: [MeshId; CartModel::ALL.len()],
+    stacks: Option<StackMeshes>,
+}
 
 impl CartMeshes {
     /// Every model's mesh, each made by `make`.
     pub fn build(mut make: impl FnMut(CartModel) -> MeshId) -> CartMeshes {
-        CartMeshes(CartModel::ALL.map(&mut make))
+        CartMeshes {
+            models: CartModel::ALL.map(&mut make),
+            stacks: None,
+        }
+    }
+
+    /// Every model's mesh and every stack's, each handed to `make` to put on the GPU: what the
+    /// frontend draws with.
+    pub fn upload(mut make: impl FnMut(&[MeshVertex]) -> MeshId) -> CartMeshes {
+        CartMeshes::build(|model| make(&cart_mesh(model))).with_stacks(StackMeshes::build(make))
+    }
+
+    /// These, and `stacks` to draw a game on several discs with. Without them such a game is
+    /// one model with every disc's face laid across it.
+    pub fn with_stacks(self, stacks: StackMeshes) -> CartMeshes {
+        CartMeshes {
+            stacks: Some(stacks),
+            ..self
+        }
     }
 
     pub fn of(&self, model: CartModel) -> MeshId {
-        self.0[model.index()]
+        self.models[model.index()]
+    }
+
+    /// The models stacks of discs are drawn with, once they are set.
+    pub fn stacks(&self) -> Option<StackMeshes> {
+        self.stacks
     }
 }
 

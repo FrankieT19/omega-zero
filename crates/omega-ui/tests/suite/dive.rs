@@ -65,14 +65,27 @@ fn snes(stem: &str) -> Cart {
     }
 }
 
-/// A cart of every shape that dives: the GBA cart, the Game Boy pak, and the SNES cart in the
-/// American shell and the Super Famicom's.
-fn both() -> [(&'static str, Cart); 4] {
+fn disc() -> Cart {
+    Cart {
+        platform: Platform::Ps1,
+        stem: "Vagrant Story".into(),
+        rom: "Games/PS1/Vagrant Story.cue".into(),
+        label: None,
+        code: String::new(),
+        shell: None,
+        title: String::new(),
+    }
+}
+
+/// A cart of every shape that dives: the GBA cart, the Game Boy pak, the SNES cart in the
+/// American shell and the Super Famicom's, and the PlayStation disc.
+fn both() -> [(&'static str, Cart); 5] {
     [
         ("the GBA cart", cart()),
         ("the Game Boy pak", pak()),
         ("the American SNES cart", snes("Super Metroid (USA)")),
         ("the Super Famicom cart", snes("Rockman X (Japan)")),
+        ("the PlayStation disc", disc()),
     ]
 }
 
@@ -130,6 +143,7 @@ fn going_in(c: &Cart, seat: f32) -> CartDive<'_> {
         cart: c,
         face: Some(FACE),
         mesh: None,
+        stack: None,
         rest,
         scale,
         pose: Pose::REST,

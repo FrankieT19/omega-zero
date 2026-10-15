@@ -8,6 +8,7 @@ use omega_store::Cart;
 use crate::cart::{label_colour, label_text, model_box, model_of};
 use crate::kit::palette::Palette;
 use crate::kit::pixel::keyed;
+use crate::models::disc::{self, DiscStack, StackDive, STACK_DIVE};
 use crate::motion::ease;
 use crate::plate::UndoFace;
 use crate::shelf::{foot_y, model_scale};
@@ -78,6 +79,9 @@ pub struct CartDive<'a> {
     pub face: Option<TexId>,
     /// The model the cart is drawn with, sides and all; without one its face is spun flat.
     pub mesh: Option<MeshId>,
+    /// The discs a game on discs stands as, drawn as the shelf draws them; see [`STACK_DIVE`]
+    /// for how they go in.
+    pub stack: Option<DiscStack>,
     pub rest: f32,
     /// How big the cart was drawn on the shelf, as a share of its own size, with `rest` its
     /// left edge there: both as `Shelf::selected_at` gives them.
@@ -109,26 +113,7 @@ impl CartDive<'_> {
             });
         }
 
-        let model = model_of(self.cart);
-        let (cw, ch) = model_box(model);
-        let (cw, ch) = (cw as f32, ch as f32);
-
-        // The cart comes to the middle of the row, square and level, as it rises a little;
-        // then it is pulled down out of the bottom of the screen, into the handheld.
-        let scale = self.scale.clamp(0.0, 1.0);
-        let shelf = model_scale(model);
-        let row = (scale / shelf).min(1.0);
-        let w0 = cw * scale;
-        let (sw, sh) = (cw * shelf, ch * shelf);
-        let k = ease((seat / SETTLE).min(1.0));
-        let grown = row + (1.0 - row) * k;
-        let (cw, ch) = (sw * grown, sh * grown);
-        let centre = self.rest + w0 / 2.0;
-        let x = centre + (cx() - centre) * k - cw / 2.0;
-        let pose = self.pose.toward_rest(k);
-        let top = foot_y(sh) - ch;
-        let gone = out_h() as f32 - top;
-        let y = top + dive(seat, gone) - pose.lift;
+        let ((x, y, cw, ch), pose) = self.placed(seat, true);
         if self.game && self.screen > 0.0 {
             out.push(Draw::Game);
         }
@@ -136,8 +121,23 @@ impl CartDive<'_> {
         if seat >= 1.0 {
             return;
         }
-        match (self.face, self.mesh) {
-            (Some(tex), Some(mesh)) => out.push(spin::posed_cart(
+        match (self.face, self.stack, self.mesh) {
+            (Some(_), Some(stack), _) => match STACK_DIVE {
+                StackDive::Whole => {
+                    disc::push_stack(out, (x, y, cw, ch), &stack, [1.0; 4], 0.0, pose.yaw)
+                }
+                // the discs behind the first stay where the stack came to, at the top of its
+                // rise, and go dark with the shelf behind them
+                StackDive::FrontDisc => {
+                    let (rect, held) = self.placed(seat, false);
+                    let k = 1.0 - dim;
+                    for disc in (1..stack.discs).rev() {
+                        disc::push_disc(out, rect, &stack, disc, [k, k, k, 1.0], 0.0, held.yaw);
+                    }
+                    disc::push_disc(out, (x, y, cw, ch), &stack, 0, [1.0; 4], 0.0, pose.yaw);
+                }
+            },
+            (Some(tex), None, Some(mesh)) => out.push(spin::posed_cart(
                 (x, y, cw, ch),
                 mesh,
                 tex,
@@ -145,11 +145,11 @@ impl CartDive<'_> {
                 0.0,
                 pose.yaw,
             )),
-            (Some(tex), None) => {
+            (Some(tex), None, None) => {
                 spin::push_cart_side(out, (x, y, cw, ch), tex, 0.0, pose.yaw, 1.0, 1.0);
                 out.push(spin::posed_face((x, y, cw, ch), tex, 1.0, 0.0, pose.yaw));
             }
-            (None, _) => {
+            (None, _, _) => {
                 let c = label_colour(&label_text(self.cart));
                 out.push(Draw::Rect {
                     x,
@@ -178,6 +178,34 @@ impl CartDive<'_> {
                 alpha,
             });
         }
+    }
+
+    /// Where the cart is drawn `seat` of the way in, and how it is held: it comes to the middle
+    /// of the row, square and level, as it rises a little; then, if it `drops`, it is pulled
+    /// down out of the bottom of the screen, into the handheld, and otherwise it stays at the
+    /// top of its rise.
+    fn placed(&self, seat: f32, drops: bool) -> ((f32, f32, f32, f32), Pose) {
+        let model = model_of(self.cart);
+        let (cw, ch) = model_box(model);
+        let (cw, ch) = (cw as f32, ch as f32);
+        let scale = self.scale.clamp(0.0, 1.0);
+        let shelf = model_scale(model);
+        let row = (scale / shelf).min(1.0);
+        let w0 = cw * scale;
+        let (sw, sh) = (cw * shelf, ch * shelf);
+        let k = ease((seat / SETTLE).min(1.0));
+        let grown = row + (1.0 - row) * k;
+        let (cw, ch) = (sw * grown, sh * grown);
+        let centre = self.rest + w0 / 2.0;
+        let x = centre + (cx() - centre) * k - cw / 2.0;
+        let pose = self.pose.toward_rest(k);
+        let top = foot_y(sh) - ch;
+        let gone = out_h() as f32 - top;
+        let fall = match drops {
+            true => dive(seat, gone),
+            false => dive(seat.min(RISE), gone),
+        };
+        ((x, top + fall - pose.lift, cw, ch), pose)
     }
 }
 

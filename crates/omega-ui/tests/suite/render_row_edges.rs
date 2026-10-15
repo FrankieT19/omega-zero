@@ -195,6 +195,7 @@ fn the_dive_takes_over_the_cart_where_the_row_had_it() {
         cart: &cart,
         face: Some(faces[s.index]),
         mesh: s.mesh_for(&cart.stem),
+        stack: s.stack_for(&cart.stem),
         rest,
         scale,
         pose: s.pose(),

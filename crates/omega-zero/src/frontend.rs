@@ -4,9 +4,9 @@ use omega_gfx::{out_h, out_w, Bezel, Compositor, Draw, TexId};
 use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_ui::{
-    bezel_mark_face, cart_face, cart_mesh, chip_face, chip_face_in, chip_shadow_face,
-    chip_shadow_face_in, lid_shadow_face, mark_height, mark_rect, model_shadow, rim, socket_face,
-    wallpaper_face, CartFace, CartMeshes, CartModel, UndoFace, BEZEL_FILL, SNES_SOCKETS,
+    bezel_mark_face, cart_face, chip_face, chip_face_in, chip_shadow_face, chip_shadow_face_in,
+    lid_shadow_face, mark_height, mark_rect, model_shadow, rim, socket_face, wallpaper_face,
+    CartFace, CartMeshes, CartModel, UndoFace, BEZEL_FILL, SNES_SOCKETS,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
@@ -232,7 +232,7 @@ impl Frontend {
             let id = compositor.create_texture(shadow.w, shadow.h, &shadow.rgba);
             self.session.app_mut().set_model_shadow(model, id);
         }
-        let meshes = CartMeshes::build(|model| compositor.create_mesh(&cart_mesh(model)));
+        let meshes = CartMeshes::upload(|mesh| compositor.create_mesh(mesh));
         self.session.app_mut().set_cart_meshes(meshes);
         self.upload_wallpaper(compositor);
     }
