@@ -94,7 +94,7 @@ pub struct Frontend {
     keyboard: KeyboardTexes,
     info: InfoTexes,
     labels: Baked<(ListView, u8)>,
-    controls: Baked<u8>,
+    controls: Baked<(crate::screens::controls::ControlsView, u8)>,
     background: Baked<(ListView, u8)>,
     /// The POWER menu's panel and the one shown after its choice.
     power: PowerPanels,

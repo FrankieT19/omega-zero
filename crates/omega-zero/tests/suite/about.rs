@@ -161,8 +161,11 @@ fn the_battery_says_how_full_it_is_and_whether_it_charges() {
 fn every_credit_is_kept_and_slot_is_not_named() {
     let all = CREDITS.join("\n");
     for owed in [
-        "mGBA",
-        "gpSP",
+        "mGBA (MPL-2.0)",
+        "gpSP (GPL-2.0)",
+        "Snes9x (no commercial use)",
+        "Mednafen's\nSupafaust",
+        "PCSX-ReARMed (both GPL-2.0)",
         "BaseOS by pvaibhav",
         "Pixel Code by Qwerasd",
         "GigaHerz's LCD3x",

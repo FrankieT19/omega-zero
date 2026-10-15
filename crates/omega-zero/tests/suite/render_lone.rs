@@ -143,7 +143,7 @@ impl Rig {
     fn face(&self, screen: Screen, colour: u8) -> UndoFace {
         let (app, pal) = (self.f.app(), palette(colour));
         match screen {
-            Screen::Controls => controls_face(&ControlsView::new(), pal),
+            Screen::Controls => controls_face(&ControlsView::new(omega_store::Platform::Gba), pal),
             Screen::Background => background_face(&app.background_view().expect("open"), pal),
             Screen::DateTime => clock_face(app.picker().expect("open"), pal),
             Screen::Labels => labels_face(&app.labels_view().expect("open"), pal),

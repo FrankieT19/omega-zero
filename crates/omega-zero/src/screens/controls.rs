@@ -1,11 +1,16 @@
 //! Controls, opened with a SELECT tap on the shelf and titled CONTROLS: what each button does
-//! on the shelf and in a game, as `App::apply` and the gestures in omega-input do it.
+//! on the shelf and in a game of the shelf's system, as `App::apply` and the gestures in
+//! omega-input do it. A PlayStation game has L2 and R2 of its own, so it fast-forwards on
+//! SELECT+R2, has nothing to rewind it and swaps discs on SELECT+MENU; only the GBA and the Game
+//! Boys link and have a colour correction; only the GBA and the SNES have a core to pick; only
+//! the Game Boys leave L1 and R1 to the picture's size.
 //!
 //! It is a lone panel, as flow.html's `#screen=controls`: SHELF and IN GAME side by side, each a
 //! heading and then a line a button, the buttons in the frame's bright colour and what they do
-//! in cream, on the grid flow.css's .keymap sets. It is baked once for each palette.
+//! in cream, on the grid flow.css's .keymap sets. It is baked once for each system and palette.
 
 use omega_input::{Action, Btn};
+use omega_store::{Core, Platform};
 use omega_ui::kit::palette::Palette;
 use omega_ui::kit::panel::panel_face;
 use omega_ui::kit::pixel::ADVANCE;
@@ -32,41 +37,62 @@ pub struct ControlsView {
 }
 
 impl ControlsView {
-    pub fn new() -> Self {
+    /// What the buttons do on the shelf of `platform`'s games, and in one of them.
+    pub fn new(platform: Platform) -> Self {
+        let mut shelf = vec![("A", "PLAY"), ("HOLD A", "CLEAN START")];
+        if Core::for_platform(platform).len() > 1 {
+            shelf.push(("X", "CORE"));
+        }
+        shelf.extend([
+            ("START", "SETTINGS"),
+            ("SELECT", "CONTROLS"),
+            ("◀▶", "BROWSE"),
+            ("▲▼", "LETTER"),
+            ("L1 R1", "SHELF"),
+        ]);
+
+        let mut game = Vec::new();
+        if platform.game_owns_l2_r2() {
+            game.extend([
+                ("SELECT+R2", "FAST FORWARD"),
+                ("SELECT+R2 ×2", "LATCH FAST FWD"),
+            ]);
+        } else {
+            if platform.rewinds() {
+                game.push(("L2", "REWIND"));
+            }
+            game.extend([("R2", "FAST FORWARD"), ("R2 ×2", "LATCH FAST FWD")]);
+        }
+        game.extend([("MENU ×2", "SAVE STATES"), ("HOLD MENU", "EJECT")]);
+        match platform {
+            Platform::Gba | Platform::Gb | Platform::Gbc => game.push(("SELECT+MENU", "LINK")),
+            Platform::Ps1 => game.push(("SELECT+MENU", "DISC")),
+            Platform::Snes => {}
+        }
+        game.extend([
+            ("SELECT+▲▼", "BRIGHTNESS"),
+            ("SELECT+◀▶", "BLUE LIGHT"),
+            ("SELECT+L1", "LOAD STATE"),
+            ("SELECT+R1", "SAVE STATE"),
+        ]);
+        if platform.colour_correction() {
+            game.push(("SELECT+Y", "COLOUR"));
+        }
+        if platform.owns_shoulders() {
+            game.push(("L1 R1", "PICTURE SIZE"));
+        }
+        game.extend([("VOL+ VOL-", "MUTE"), ("HOLD POWER", "POWER MENU")]);
+
         ControlsView {
             title: "CONTROLS",
             groups: vec![
                 ControlsGroup {
                     name: "SHELF",
-                    lines: vec![
-                        ("A", "PLAY"),
-                        ("HOLD A", "CLEAN START"),
-                        ("X", "CORE (GBA)"),
-                        ("START", "SETTINGS"),
-                        ("SELECT", "CONTROLS"),
-                        ("◀▶", "BROWSE"),
-                        ("▲▼", "LETTER"),
-                        ("L1 R1", "SHELF"),
-                    ],
+                    lines: shelf,
                 },
                 ControlsGroup {
                     name: "IN GAME",
-                    lines: vec![
-                        ("L2", "REWIND"),
-                        ("R2", "FAST FORWARD"),
-                        ("R2 ×2", "LATCH FAST FWD"),
-                        ("MENU ×2", "SAVE STATES"),
-                        ("HOLD MENU", "EJECT"),
-                        ("SELECT+MENU", "LINK"),
-                        ("SELECT+▲▼", "BRIGHTNESS"),
-                        ("SELECT+◀▶", "BLUE LIGHT"),
-                        ("SELECT+L1", "LOAD STATE"),
-                        ("SELECT+R1", "SAVE STATE"),
-                        ("SELECT+Y", "COLOUR"),
-                        ("L1 R1", "GB PICTURE SIZE"),
-                        ("VOL+ VOL-", "MUTE"),
-                        ("HOLD POWER", "POWER MENU"),
-                    ],
+                    lines: game,
                 },
             ],
         }
@@ -75,7 +101,7 @@ impl ControlsView {
 
 impl Default for ControlsView {
     fn default() -> Self {
-        ControlsView::new()
+        ControlsView::new(Platform::default())
     }
 }
 
@@ -161,9 +187,11 @@ impl App {
         }
     }
 
-    /// What the Controls screen says, while it is open.
+    /// What the Controls screen says, while it is open: for the system of the shelf it was
+    /// opened on.
     pub fn controls_view(&self) -> Option<ControlsView> {
-        matches!(self.phase, Phase::Controls).then(ControlsView::new)
+        let platform = self.shelves[self.shelf_at].0;
+        matches!(self.phase, Phase::Controls).then(|| ControlsView::new(platform))
     }
 
     pub fn set_controls_panel(&mut self, panel: Lone) {
