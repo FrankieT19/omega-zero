@@ -9,7 +9,7 @@ const GBC_CART_SVG: &str = include_str!("../assets/gbc_cart.svg");
 const GB_DETAIL_SVG: &str = include_str!("../assets/gb_cart_detail.svg");
 const GBC_DETAIL_SVG: &str = include_str!("../assets/gbc_cart_detail.svg");
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum GbShell {
     Notched,
     Rounded,

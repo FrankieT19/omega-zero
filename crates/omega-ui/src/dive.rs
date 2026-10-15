@@ -5,12 +5,12 @@
 use omega_gfx::{out_h, out_w, Draw, MeshId, TexId};
 use omega_store::Cart;
 
-use crate::cart::{cart_box, label_colour, label_text};
+use crate::cart::{label_colour, label_text, model_box, model_of};
 use crate::kit::palette::Palette;
 use crate::kit::pixel::keyed;
 use crate::motion::ease;
 use crate::plate::UndoFace;
-use crate::shelf::{foot_y, shelf_scale};
+use crate::shelf::{foot_y, model_scale};
 use crate::spin::{self, Pose};
 use crate::sprite::SPRITE_PX;
 
@@ -109,13 +109,14 @@ impl CartDive<'_> {
             });
         }
 
-        let (cw, ch) = cart_box(self.cart.platform);
+        let model = model_of(self.cart);
+        let (cw, ch) = model_box(model);
         let (cw, ch) = (cw as f32, ch as f32);
 
         // The cart comes to the middle of the row, square and level, as it rises a little;
         // then it is pulled down out of the bottom of the screen, into the handheld.
         let scale = self.scale.clamp(0.0, 1.0);
-        let shelf = shelf_scale(self.cart.platform);
+        let shelf = model_scale(model);
         let row = (scale / shelf).min(1.0);
         let w0 = cw * scale;
         let (sw, sh) = (cw * shelf, ch * shelf);

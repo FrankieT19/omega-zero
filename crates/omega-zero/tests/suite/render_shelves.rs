@@ -705,6 +705,7 @@ fn label_top(p: CartPlatform) -> usize {
     match p {
         CartPlatform::Gba => LABEL_Y as usize,
         CartPlatform::Gb | CartPlatform::Gbc => GB_LABEL_Y as usize,
+        other => unreachable!("no {other:?} cart on this card"),
     }
 }
 

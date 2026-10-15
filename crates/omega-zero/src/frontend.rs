@@ -4,9 +4,9 @@ use omega_gfx::{out_h, out_w, Bezel, Compositor, Draw, TexId};
 use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_ui::{
-    bezel_mark_face, cart_face, cart_mesh, cart_shadow, chip_face, chip_shadow_face,
-    gb_cart_shadow, lid_shadow_face, mark_height, mark_rect, rim, socket_face, wallpaper_face,
-    CartFace, CartMeshes, CartModel, GbShell, UndoFace, BEZEL_FILL,
+    bezel_mark_face, cart_face, cart_mesh, chip_face, chip_shadow_face, lid_shadow_face,
+    mark_height, mark_rect, model_shadow, rim, socket_face, wallpaper_face, CartFace, CartMeshes,
+    CartModel, UndoFace, BEZEL_FILL,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
@@ -205,7 +205,7 @@ impl Frontend {
         self.session.app_mut().set_faces(faces);
         // the core picker's parts are pixel art, a texel to an art pixel, kept sharp at 2x
         let mut sprite = |f: CartFace| compositor.create_texture_nearest(f.w, f.h, &f.rgba);
-        let sockets = omega_store::Core::ALL
+        let sockets = omega_store::Core::for_platform(omega_store::Platform::Gba)
             .iter()
             .map(|c| sprite(socket_face(*c)))
             .collect();
@@ -218,19 +218,12 @@ impl Frontend {
         self.session
             .app_mut()
             .set_core_part_faces(sockets, chips, blank, shadows);
-        let shadow = cart_shadow();
-        let id = compositor.create_texture(shadow.w, shadow.h, &shadow.rgba);
-        self.session.app_mut().set_cart_shadow(id);
-        let notched = gb_cart_shadow(GbShell::Notched);
-        let notched = compositor.create_texture(notched.w, notched.h, &notched.rgba);
-        let rounded = gb_cart_shadow(GbShell::Rounded);
-        let rounded = compositor.create_texture(rounded.w, rounded.h, &rounded.rgba);
-        self.session.app_mut().set_gb_cart_shadows(notched, rounded);
-        let meshes = CartMeshes {
-            gba: compositor.create_mesh(&cart_mesh(CartModel::Gba)),
-            gb: compositor.create_mesh(&cart_mesh(CartModel::Gb(GbShell::Notched))),
-            gbc: compositor.create_mesh(&cart_mesh(CartModel::Gb(GbShell::Rounded))),
-        };
+        for model in CartModel::ALL {
+            let shadow = model_shadow(model);
+            let id = compositor.create_texture(shadow.w, shadow.h, &shadow.rgba);
+            self.session.app_mut().set_model_shadow(model, id);
+        }
+        let meshes = CartMeshes::build(|model| compositor.create_mesh(&cart_mesh(model)));
         self.session.app_mut().set_cart_meshes(meshes);
         self.upload_wallpaper(compositor);
     }

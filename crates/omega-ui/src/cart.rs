@@ -2,11 +2,13 @@ use omega_store::gb::Class;
 use omega_store::{Cart, Outline, Platform};
 
 use crate::art;
+use crate::models::{disc, snes, snes::SnesShell};
 use crate::shell::{shell_for, Finish, Shell};
 use crate::silhouette::{
     cart_depth, cart_mask, detail_mask, gb_cart_depth, gb_cart_mask, gb_detail_mask, Detail,
     GbShell,
 };
+use crate::spin::CartModel;
 use crate::text;
 
 pub const CART_W: u32 = 360;
@@ -60,34 +62,31 @@ pub struct CartFace {
     pub h: u32,
 }
 
-struct Spec {
-    w: u32,
-    h: u32,
-    label: (u32, u32, u32, u32),
-    mask: &'static [u8],
-    depth: &'static [u8],
-    detail: &'static Detail,
-    max_h: f32,
-    rim: u32,
-    board: Board,
+/// How a model's face is laid out: its size in pixels, where its label goes, its outline and
+/// relief, and the board a clear shell shows.
+pub(crate) struct Spec {
+    pub(crate) w: u32,
+    pub(crate) h: u32,
+    pub(crate) label: (u32, u32, u32, u32),
+    pub(crate) mask: &'static [u8],
+    pub(crate) depth: &'static [u8],
+    pub(crate) detail: &'static Detail,
+    pub(crate) max_h: f32,
+    pub(crate) rim: u32,
+    pub(crate) board: Board,
 }
 
-struct Board {
-    x: (f32, f32),
-    top: f32,
-    pins: (f32, f32),
-    contacts_from: f32,
-    traces_from: f32,
-}
-
-enum Shape {
-    Gba,
-    Gb(GbShell),
+pub(crate) struct Board {
+    pub(crate) x: (f32, f32),
+    pub(crate) top: f32,
+    pub(crate) pins: (f32, f32),
+    pub(crate) contacts_from: f32,
+    pub(crate) traces_from: f32,
 }
 
 pub fn gb_shell_of(cart: &Cart) -> Option<GbShell> {
     match cart.platform {
-        Platform::Gba => None,
+        Platform::Gba | Platform::Snes | Platform::Ps1 => None,
         Platform::Gb | Platform::Gbc => Some(match cart.shell.map(|c| c.outline) {
             Some(Outline::Notched) => GbShell::Notched,
             Some(Outline::Rounded) => GbShell::Rounded,
@@ -99,16 +98,39 @@ pub fn gb_shell_of(cart: &Cart) -> Option<GbShell> {
     }
 }
 
-fn shape_of(cart: &Cart) -> Shape {
-    match gb_shell_of(cart) {
-        None => Shape::Gba,
-        Some(shell) => Shape::Gb(shell),
+/// The model `cart` stands on the shelf as.
+pub fn model_of(cart: &Cart) -> CartModel {
+    match cart.platform {
+        Platform::Gba => CartModel::Gba,
+        Platform::Gb | Platform::Gbc => {
+            CartModel::Gb(gb_shell_of(cart).unwrap_or(GbShell::Notched))
+        }
+        Platform::Snes => CartModel::Snes(snes::shell_of(cart)),
+        Platform::Ps1 => CartModel::Disc,
     }
 }
 
-fn spec(shape: Shape) -> Spec {
-    match shape {
-        Shape::Gba => Spec {
+/// The size of `model`'s face in pixels, the size it is drawn at in the handheld.
+pub fn model_box(model: CartModel) -> (u32, u32) {
+    let s = spec(model);
+    (s.w, s.h)
+}
+
+/// `model`'s outline in black, to back a cart that is not drawn as a model.
+pub fn model_shadow(model: CartModel) -> CartFace {
+    let s = spec(model);
+    shadow(s.w, s.h, s.mask)
+}
+
+pub(crate) fn gba_spec() -> Spec {
+    spec(CartModel::Gba)
+}
+
+fn spec(model: CartModel) -> Spec {
+    match model {
+        CartModel::Snes(shell) => snes::spec(shell),
+        CartModel::Disc => disc::spec(),
+        CartModel::Gba => Spec {
             w: CART_W,
             h: CART_H,
             label: (LABEL_X, LABEL_Y, LABEL_W, LABEL_H),
@@ -125,7 +147,7 @@ fn spec(shape: Shape) -> Spec {
                 traces_from: 0.76,
             },
         },
-        Shape::Gb(shell) => Spec {
+        CartModel::Gb(shell) => Spec {
             w: GB_CART_W,
             h: GB_CART_H,
             label: (GB_LABEL_X, GB_LABEL_Y, GB_LABEL_W, GB_LABEL_H),
@@ -153,15 +175,25 @@ pub fn seated_box(platform: Platform) -> (u32, u32) {
     match platform {
         Platform::Gba => (SEATED_W, SEATED_H),
         Platform::Gb | Platform::Gbc => (SEATED_W, GB_SEATED_H),
+        Platform::Snes => {
+            let (_, (w, h)) = snes::outline(SnesShell::Famicom);
+            (w.round() as u32, h.round() as u32)
+        }
+        Platform::Ps1 => {
+            let (_, (w, h)) = crate::spin::outline(CartModel::Disc);
+            (w.round() as u32, h.round() as u32)
+        }
     }
 }
 
+/// The size of a face for `platform` in pixels: its first model's, where it has several.
 pub fn cart_box(platform: Platform) -> (u32, u32) {
-    let s = spec(match platform {
-        Platform::Gba => Shape::Gba,
-        Platform::Gb | Platform::Gbc => Shape::Gb(GbShell::Notched),
-    });
-    (s.w, s.h)
+    model_box(match platform {
+        Platform::Gba => CartModel::Gba,
+        Platform::Gb | Platform::Gbc => CartModel::Gb(GbShell::Notched),
+        Platform::Snes => CartModel::Snes(SnesShell::Famicom),
+        Platform::Ps1 => CartModel::Disc,
+    })
 }
 
 pub fn cart_shadow() -> CartFace {
@@ -181,7 +213,13 @@ fn shadow(w: u32, h: u32, mask: &[u8]) -> CartFace {
 }
 
 pub fn cart_face(cart: &Cart) -> CartFace {
-    let s = spec(shape_of(cart));
+    let model = model_of(cart);
+    if model == CartModel::Disc {
+        if let Some(face) = disc::face(cart) {
+            return face;
+        }
+    }
+    let s = spec(model);
     let shell = shell_for(cart);
     let mut face = shell_face(&s, &shell);
     let (_, _, lw, lh) = s.label;

@@ -47,7 +47,8 @@ pub fn write_video_mode(root: &Path, stem: &str, mode: VideoMode) -> std::io::Re
 
 pub fn source_rect(platform: Platform, mode: VideoMode) -> [f32; 4] {
     let (w, h) = platform.picture();
-    if mode == VideoMode::Actual || (w, h) == (SRC_W, SRC_H) {
+    // the SNES and PlayStation fill the texture until their frames carry their own size
+    if mode == VideoMode::Actual || (w, h) == (SRC_W, SRC_H) || w > SRC_W || h > SRC_H {
         return WHOLE_TEXTURE;
     }
     let x = SRC_W.saturating_sub(w) / 2;
@@ -100,7 +101,7 @@ pub fn screen_on(c: Canvas, platform: Platform, mode: VideoMode) -> Screen {
         };
     }
     match platform {
-        Platform::Gba => {
+        Platform::Gba | Platform::Snes | Platform::Ps1 => {
             let h = (cw * SRC_H as f32 / SRC_W as f32).round();
             let view = GameView {
                 rect: [0.0, 0.0, cw, h],

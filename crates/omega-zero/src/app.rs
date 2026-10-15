@@ -14,10 +14,10 @@ use omega_ui::kit::fade::stepped;
 use omega_ui::{
     backdrop_shift, board_from, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease, grown,
     lid_from, lift_of, on_board, posed_cart, posed_face, push_cart_side, shelf_cart_at, CartDive,
-    CartMeshes, ChromeColours, ClockPicker, CornerBadge, Draw, FfState, GaugeIcon, GbShell, Hud,
-    HudKind, KeyboardFaces, LinkBadge, LinkFaces, Links, Millis, Placed, Polaroids, PowerChoice,
-    Refusal, SettingsFaces, SettingsRow, Shelf, TexId, Toast, CART_W, CHIP_H, CHIP_U, CHIP_V,
-    CHIP_W, HOP_LIFT, LID_SHADOW_H, LID_SHADOW_W, SHADOW_AT, SHADOW_H, SHADOW_W, SOCKET_H,
+    CartMeshes, CartModel, ChromeColours, ClockPicker, CornerBadge, Draw, FfState, GaugeIcon,
+    GbShell, Hud, HudKind, KeyboardFaces, LinkBadge, LinkFaces, Links, Millis, Placed, Polaroids,
+    PowerChoice, Refusal, SettingsFaces, SettingsRow, Shelf, TexId, Toast, CART_W, CHIP_H, CHIP_U,
+    CHIP_V, CHIP_W, HOP_LIFT, LID_SHADOW_H, LID_SHADOW_W, SHADOW_AT, SHADOW_H, SHADOW_W, SOCKET_H,
     SOCKET_U, SOCKET_V, SOCKET_W, SPRITE_PX, TOP_BAR_H, TURN_PAD,
 };
 
@@ -627,6 +627,13 @@ impl App {
         }
     }
 
+    /// The black outline that backs a `model` cart not drawn as a model, on every shelf.
+    pub fn set_model_shadow(&mut self, model: CartModel, face: TexId) {
+        for (_, shelf) in &mut self.shelves {
+            shelf.set_model_shadow(model, face);
+        }
+    }
+
     pub fn set_gb_cart_shadows(&mut self, notched: TexId, rounded: TexId) {
         for (_, shelf) in &mut self.shelves {
             shelf.set_gb_shadow(GbShell::Notched, notched);
@@ -789,7 +796,7 @@ impl App {
     }
 
     fn frontend_owns_the_shoulders(&self) -> bool {
-        matches!(self.phase, Phase::Playing { .. }) && self.platform != Platform::Gba
+        matches!(self.phase, Phase::Playing { .. }) && self.platform.owns_shoulders()
     }
 
     pub fn taken_buttons(&self) -> &'static [Btn] {
@@ -2075,8 +2082,8 @@ impl App {
             // the parts are pixel art like the board, a texel to `px` screen pixels as it is
             // drawn, each put down on whole art pixels
             let px = SPRITE_PX as f32 * zoom;
-            for (i, tex) in self.core_socket_faces.iter().copied().enumerate() {
-                let (x, y) = on_board(board, SOCKET_U[i], SOCKET_V);
+            for (tex, u) in self.core_socket_faces.iter().copied().zip(SOCKET_U) {
+                let (x, y) = on_board(board, u, SOCKET_V);
                 out.push(Draw::Tex {
                     x: even(x),
                     y: even(y),

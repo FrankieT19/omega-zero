@@ -13,6 +13,7 @@ mod hud;
 mod keyboard;
 pub mod kit;
 pub mod link_art;
+mod models;
 mod motion;
 pub mod network;
 mod opening;
@@ -50,9 +51,9 @@ pub use board::{
 };
 pub use cart::{
     cart_box, cart_face, cart_shadow, clean_label, gb_cart_shadow, gb_label_panel, gb_shell_of,
-    label_colour, label_panel, label_tags, label_text, seated_box, CartFace, CART_H, CART_W,
-    GB_CART_H, GB_CART_W, GB_LABEL_H, GB_LABEL_W, GB_LABEL_X, GB_LABEL_Y, LABEL_H, LABEL_W,
-    LABEL_X, LABEL_Y,
+    label_colour, label_panel, label_tags, label_text, model_box, model_of, model_shadow,
+    seated_box, CartFace, CART_H, CART_W, GB_CART_H, GB_CART_W, GB_LABEL_H, GB_LABEL_W, GB_LABEL_X,
+    GB_LABEL_Y, LABEL_H, LABEL_W, LABEL_X, LABEL_Y,
 };
 pub use chrome::{edge, housing, set_theme, ChromeColours, BAR_H};
 pub use clock::{clock_label, date_time_text, hhmm, zone_text, ClockPicker, Field};
@@ -71,6 +72,8 @@ pub use keyboard::{
 };
 pub use kit::badge::BadgeIcon;
 pub use kit::gauge::GaugeIcon;
+pub use models::disc::{stack_of, MAX_STACK};
+pub use models::snes::SnesShell;
 pub use motion::ease;
 pub use opening::{opening_line, OPENING_ADVANCE, OPENING_PITCH, OPENING_RISE};
 pub use plate::{word_cap_top, UndoFace, HINT_H};
@@ -82,7 +85,10 @@ pub use settings_menu::{
     settings_row_width, settings_title_face, FaceAt, QuickValue, Rebake, RowShown, SettingsBaked,
     SettingsFaces, SettingsFrame, SettingsGroup, SettingsMenu, SettingsRow,
 };
-pub use shelf::{foot_y, rest_y, shelf_box, shelf_scale, sway_reach, Shelf, GB_SHELF_SCALE};
+pub use shelf::{
+    foot_y, model_scale, model_shelf_box, rest_y, shelf_box, shelf_scale, sway_reach, Shelf,
+    GB_SHELF_SCALE,
+};
 pub use shell::{
     gb_table_shells, gba_shell_for, lookup_order_is_exact_then_family_then_default, shell_for,
     shell_presets, table_keys, Finish, Shell, DEFAULT_SHELL, DMG_SHELL, DUAL_MODE_SHELL,
@@ -90,8 +96,8 @@ pub use shell::{
 };
 pub use silhouette::{gb_silhouette, silhouette, GbShell};
 pub use spin::{
-    cart_mesh, posed_cart, posed_face, push_cart_side, CartMeshes, CartModel, Pose, OUTLINE_INSET,
-    THICK,
+    cart_mesh, outline, posed_cart, posed_face, push_cart_side, CartMeshes, CartModel, Pose,
+    OUTLINE_INSET, THICK,
 };
 pub use sprite::{CELL, CELL_PX, SPRITE_PX};
 pub use stage::{stage_x, stage_y, MOCKUP_H, MOCKUP_W};

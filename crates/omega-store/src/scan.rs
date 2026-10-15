@@ -73,7 +73,16 @@ pub fn scan(root: &Path) -> Result<Vec<Cart>, StoreError> {
                     header_title(&rom).unwrap_or_default(),
                     header_code(&rom).unwrap_or_default(),
                 ),
-                _ => (crate::gb::title(&rom).unwrap_or_default(), String::new()),
+                Platform::Gb | Platform::Gbc => {
+                    (crate::gb::title(&rom).unwrap_or_default(), String::new())
+                }
+                Platform::Snes => (
+                    crate::snes::header(&rom)
+                        .map(|h| h.title)
+                        .unwrap_or_default(),
+                    String::new(),
+                ),
+                Platform::Ps1 => (String::new(), crate::ps1::serial(&rom).unwrap_or_default()),
             };
             carts.push(Cart {
                 platform,

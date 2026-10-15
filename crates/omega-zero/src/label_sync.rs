@@ -113,6 +113,8 @@ pub fn system_id(platform: Platform) -> u32 {
         Platform::Gba => 12,
         Platform::Gb => 9,
         Platform::Gbc => 10,
+        Platform::Snes => 4,
+        Platform::Ps1 => 57,
     }
 }
 

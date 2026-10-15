@@ -313,11 +313,9 @@ fn every_side_of_a_cart_model_faces_out_of_the_cart() {
 #[test]
 fn a_shelf_with_models_draws_each_cart_as_one_model_turned_as_it_is_held() {
     let mut s = faced(3);
-    s.set_meshes(CartMeshes {
-        gba: MeshId::from_raw(1),
-        gb: MeshId::from_raw(2),
-        gbc: MeshId::from_raw(3),
-    });
+    s.set_meshes(CartMeshes::build(|model| {
+        MeshId::from_raw(model.index() + 1)
+    }));
     run(&mut s, 2.6);
     let out = row(&s);
     assert!(

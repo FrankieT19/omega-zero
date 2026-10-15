@@ -10,7 +10,7 @@ const CORE_ENV: &str = "OMEGA_CORE";
 pub fn dylib_name(core: Core) -> String {
     format!(
         "{}_libretro.{}",
-        core.as_str(),
+        core.library(),
         std::env::consts::DLL_EXTENSION
     )
 }
@@ -112,6 +112,7 @@ pub fn colour_option(which: Core, on: bool) -> Option<(&'static str, &'static st
             "gpsp_color_correction",
             if on { "enabled" } else { "disabled" },
         )),
+        Core::Snes9x | Core::Supafaust | Core::PcsxRearmed => None,
     }
 }
 

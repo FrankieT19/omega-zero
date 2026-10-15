@@ -75,7 +75,7 @@ fn render_board() {
             w: board.w,
             h: board.h,
         };
-        for (i, core) in Core::ALL.iter().enumerate() {
+        for (i, core) in Core::for_platform(Platform::Gba).iter().enumerate() {
             over(
                 &mut f,
                 &socket_face(*core),
