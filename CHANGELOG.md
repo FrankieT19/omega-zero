@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## omega-zero 1.1.0
 
 The SNES and the PlayStation join the Game Boys: their games run, and they stand on shelves of
 their own, SNES carts and PlayStation discs modelled like the Game Boy carts.
