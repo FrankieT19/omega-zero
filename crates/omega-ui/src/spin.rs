@@ -419,20 +419,9 @@ mod tests {
     fn every_cart_outline_stays_within_the_band_its_side_is_drawn_in() {
         let (ntsc, sfc) = (snes::spec(SnesShell::Ntsc), snes::spec(SnesShell::Famicom));
         let (_, (_, units)) = snes::outline(SnesShell::Ntsc);
-        // the American cart's column stands proud of its shoulders, and the Super Famicom cart's
-        // roof over its shoulders: only those rows come in further
+        // the American cart's column stands proud of its shoulders: only the rows above them
+        // come in further, and only by the step
         let shoulder = (snes::NTSC_SHOULDER / units * ntsc.h as f32).ceil() as u32;
-        let (sfc_points, (sfc_w, sfc_units)) = snes::outline(SnesShell::Famicom);
-        let eaves = sfc_points
-            .iter()
-            .filter(|p| p.0 >= (1.0 - OUTLINE_INSET) * sfc_w)
-            .map(|p| p.1)
-            .fold(f32::MAX, f32::min);
-        let roof = (eaves / sfc_units * sfc.h as f32).ceil() as u32;
-        assert!(
-            roof <= sfc.h / 7,
-            "the Super Famicom cart's roof takes {roof} rows"
-        );
         for (name, mask, w, h, from) in [
             ("GBA", cart_mask(), CART_W, CART_H, 0),
             (
@@ -450,7 +439,7 @@ mod tests {
                 0,
             ),
             ("SNES", ntsc.mask, ntsc.w, ntsc.h, shoulder),
-            ("SFC", sfc.mask, sfc.w, sfc.h, roof),
+            ("SFC", sfc.mask, sfc.w, sfc.h, 0),
         ] {
             let rows = &mask[(from * w) as usize..];
             let inset = widest_inset(rows, w as usize, (h - from) as usize) as f32;

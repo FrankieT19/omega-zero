@@ -745,10 +745,10 @@ fn a_snes_label_fills_its_well_on_the_plastic_where_the_real_cart_has_it() {
     // the share of the face's width and height the label takes, and how far down it starts,
     // measured off straight-on photos of real carts: the American one's well starts just under
     // the top of its column, a little lower here to leave room for its bevel; the Super
-    // Famicom's under its roof
+    // Famicom's a tenth smaller each way than the photos had it, which reads truer
     for (stem, (wide, tall), top) in [
         ("Super Metroid (USA)", (0.6, 0.38), (0.0, 0.05)),
-        ("Rockman X (Japan)", (0.85, 0.42), (0.13, 0.17)),
+        ("Rockman X (Japan)", (0.75, 0.38), (0.05, 0.07)),
     ] {
         let face = cart_face(snes_cart(&carts, stem));
         let (x0, y0, x1, y1) = colour_box(&face, art).expect("the label art was not pasted");
@@ -838,6 +838,13 @@ fn only_the_super_famicom_label_has_round_corners_on_the_art_grid() {
     let cart = snes_cart(&carts, "Rockman X (Japan)");
     let face = cart_face(cart);
     let (x0, y0, x1, y1) = colour_box(&face, art).expect("the label art was not pasted");
+    // a tenth smaller each way than it was first drawn, 312 by 102, on whole art pixels
+    assert_eq!(
+        (x1 + 1 - x0, y1 + 1 - y0),
+        (280, 92),
+        "the Super Famicom label is not a tenth smaller"
+    );
+    assert!(x0 % 2 == 0 && y0 % 2 == 0, "the label is off the art grid");
     let dark = well_shade(shell_for(cart).colour);
     for (x, y, dx, dy) in [(x0, y0, 1i32, 1i32), (x1, y0, -1, 1)] {
         let at = |i: i32, j: i32| {
