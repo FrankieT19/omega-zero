@@ -27,6 +27,7 @@ use crate::bluetooth::bluetooth_jobs;
 use crate::bluetooth_screen::{Bluetooth, BluetoothScreen};
 use crate::boot_fade::BootFade;
 use crate::core_picker::{Chip, CorePicker, Outcome, Press};
+use crate::disc_screen::{DiscBar, DiscScreen};
 use crate::label_screen::{Labels, LabelsScreen};
 use crate::label_sync::{label_jobs, Account, LabelJobs, NoKey, Want};
 use crate::link_kind::{link_carried, link_kind, serial_option, LinkKind};
@@ -294,6 +295,15 @@ pub struct App {
     pub(crate) core_chip_faces_for: Vec<(Sockets, TexId, TexId)>,
     pub(crate) core_lid_shadow_face: Option<TexId>,
     pub(crate) game_menu: Option<GameMenu>,
+    /// The DISC screen SELECT + MENU opens over a PlayStation game on several discs.
+    pub(crate) disc_screen: Option<DiscScreen>,
+    /// The game a disc was swapped into the drive of, and that disc, counting from 0.
+    pub(crate) disc_in: Option<(String, usize)>,
+    /// A disc swapped in that the core has yet to be handed.
+    pub(crate) disc_swap: Option<usize>,
+    /// The DISC screen's panel, and its bar.
+    pub(crate) disc_panel: Option<Lone>,
+    pub(crate) disc_bar: Option<DiscBar>,
     pub(crate) link_sprites: Option<LinkSprites>,
     pub(crate) link_hardware: LinkKind,
     pub(crate) last_role: LinkRow,
@@ -444,6 +454,11 @@ impl App {
             core_chip_faces_for: Vec::new(),
             core_lid_shadow_face: None,
             game_menu: None,
+            disc_screen: None,
+            disc_in: None,
+            disc_swap: None,
+            disc_panel: None,
+            disc_bar: None,
             link_sprites: None,
             link_hardware: LinkKind::Cable,
             last_role: LinkRow::Host,
@@ -1017,8 +1032,9 @@ impl App {
         self.core_picker.map(|p| p.chip(self.now()))
     }
 
+    /// Whether a screen over the game holds it paused: the link screen or the DISC screen.
     pub fn game_menu_open(&self) -> bool {
-        self.game_menu.is_some()
+        self.game_menu.is_some() || self.disc_screen.is_some()
     }
 
     pub fn game_menu(&self) -> Option<GameMenu> {
@@ -1155,6 +1171,9 @@ impl App {
         }
         if self.game_menu.is_some() {
             return self.game_menu_input(action);
+        }
+        if self.disc_screen.is_some() {
+            return self.disc_input(action);
         }
         let now = self.now();
         match self.phase {
@@ -1881,6 +1900,9 @@ impl App {
         if let Some(menu) = self.game_menu {
             self.draw_game_menu(menu, out);
         }
+        if let Some(screen) = &self.disc_screen {
+            self.draw_disc_screen(screen, out);
+        }
         self.hud.draw_at(self.now(), self.top_bar_reach(), out);
         self.draw_opening(out);
         self.draw_boot_logo(out);
@@ -2267,6 +2289,9 @@ impl App {
         self.play_held = None;
         self.refusal = None;
         self.refused_from = None;
+        // a game goes in with its first disc in the drive
+        self.disc_in = None;
+        self.disc_swap = None;
         self.phase = Phase::Inserting {
             cart,
             t: 0.0,
@@ -2447,6 +2472,11 @@ impl App {
         if self.link_active() {
             return self.refuse();
         }
+        // link play is the GBA's and the Game Boys': a SNES or PlayStation game never starts it
+        if !matches!(self.platform, Platform::Gba | Platform::Gb | Platform::Gbc) {
+            self.hud.toast(Toast::NoLink, self.now());
+            return;
+        }
         if self.core == Core::Mgba {
             let wireless = self
                 .seated()
@@ -2484,7 +2514,12 @@ impl App {
         self.game_menu = Some(GameMenu::Pick(self.last_role));
     }
 
+    /// SELECT + MENU in a game: the DISC screen on a PlayStation game, else the link screen, or
+    /// the link under way.
     fn game_menu_shortcut(&mut self) {
+        if self.swaps_discs() {
+            return self.open_disc_screen();
+        }
         let Some(client_id) = self.link_client_id() else {
             return self.open_game_menu();
         };
@@ -2671,6 +2706,7 @@ impl App {
 
     fn close_game_menu(&mut self) {
         self.game_menu = None;
+        self.disc_screen = None;
         if let Some(mut starting) = self.starting.take() {
             starting.starter.cancel();
         }

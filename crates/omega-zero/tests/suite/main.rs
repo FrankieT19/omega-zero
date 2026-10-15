@@ -24,6 +24,7 @@ mod clock;
 mod controls;
 mod core_options;
 mod core_picker;
+mod disc_screen;
 mod dist;
 mod drc;
 mod eject;
