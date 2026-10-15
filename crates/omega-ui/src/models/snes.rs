@@ -6,8 +6,8 @@
 //! straight-on photos of real carts. The American cart is boxy: a raised column down its middle,
 //! its top standing a little proud of the ribbed panels either side, the label well open at the
 //! top of the column and a deep well across its bottom. The Super Famicom's is a rounded oblong,
-//! its sides rolled back into the cart, five grip slots high on each, the label wide across its
-//! top and a ribbed slot across the cover under it. The ribs and slots are relief in the face,
+//! its top a gentle arc into big round corners, its sides rolled back into the cart, five grip
+//! slots high on each, the label wide across its top and a ribbed slot across the cover under it. The ribs and slots are relief in the face,
 //! not geometry: the sides take their colour from the face just inside the outline, so a rib
 //! that reaches that far runs on round the side, as it does on the real carts.
 
@@ -63,13 +63,21 @@ const NTSC_HALF: &[(f32, f32)] = &[
 ];
 const NTSC_UNITS: (f32, f32) = (544.0, 352.0);
 
-/// The Super Famicom cart's, right half, in drawing units (520 by 344): its round top corner in
-/// three cuts and its foot in two.
+/// The Super Famicom cart's, right half, in drawing units (520 by 344), clockwise from the
+/// middle of its top: the top's arc in two cuts, the round corner in four, down the side, and
+/// the foot's corner in two. The top is a gentle arc, 2 mm higher in the middle than it would
+/// be at the sides, that meets each side in a corner 10 mm round, the way the cart's rolled top
+/// and sides read from the front. The few rows of the arc come in further than `OUTLINE_INSET`,
+/// so a face spun flat, with no model, leaves their sides undrawn; the model draws them as
+/// walls like any other.
 const SFC_HALF: &[(f32, f32)] = &[
-    (506.0, 0.0),
-    (513.0, 1.88),
-    (518.12, 7.0),
-    (520.0, 14.0),
+    (260.0, 0.0),
+    (371.09, 1.46),
+    (482.1, 5.84),
+    (496.75, 9.46),
+    (509.02, 18.25),
+    (517.15, 30.96),
+    (520.0, 45.78),
     (520.0, 340.0),
     (518.83, 342.83),
     (516.0, 344.0),
@@ -87,9 +95,10 @@ pub const SFC_H: u32 = 238;
 
 /// The label on each face, in its pixels: the American cart's well runs from just under the top
 /// of the column to two fifths of the way down, 83 mm by 36; the Super Famicom's is wider and
-/// all but as tall, 113 mm by 37, across the top of the cart.
+/// all but as tall, 113 mm by 36, across the top of the cart, its corners clear of the round
+/// ones of the top.
 const NTSC_LABEL: (u32, u32, u32, u32) = (74, 6, 228, 96);
-const SFC_LABEL: (u32, u32, u32, u32) = (24, 12, 312, 102);
+const SFC_LABEL: (u32, u32, u32, u32) = (24, 14, 312, 100);
 
 /// How far in from the outline a clear shell's plastic lightens at its rim, in pixels.
 const RIM: u32 = 6;
@@ -114,7 +123,9 @@ pub(crate) fn outline(shell: SnesShell) -> (Vec<(f32, f32)>, (f32, f32)) {
         SnesShell::Famicom => (SFC_HALF, SFC_UNITS),
     };
     let mut all = half.to_vec();
-    all.extend(half.iter().rev().map(|&(x, y)| (units.0 - x, y)));
+    // a half that starts in the middle of the top shares that point with its mirror
+    let mirrored = half.iter().rev().map(|&(x, y)| (units.0 - x, y));
+    all.extend(mirrored.filter(|p| *p != half[0]));
     (all, units)
 }
 

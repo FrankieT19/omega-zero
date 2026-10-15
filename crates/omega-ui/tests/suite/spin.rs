@@ -386,3 +386,55 @@ fn each_snes_cart_is_drawn_to_the_real_cart_s_size_and_thickness() {
         );
     }
 }
+
+/// The Super Famicom cart reads round at the top: its top is a gentle arc, highest in the
+/// middle, that turns down ever more steeply into corners a centimetre round, in a few cuts.
+#[test]
+fn the_super_famicom_cart_s_top_arches_into_big_round_corners() {
+    let (points, (w, _)) = outline(CartModel::Snes(SnesShell::Famicom));
+    let mm = 4.0;
+    let side = points
+        .iter()
+        .filter(|p| p.0 == w)
+        .map(|p| p.1)
+        .fold(f32::MAX, f32::min);
+    assert!(
+        side >= 10.0 * mm,
+        "the right side straightens {} mm down: its corner is not a centimetre round",
+        side / mm
+    );
+    let mut top: Vec<(f32, f32)> = points
+        .iter()
+        .copied()
+        .filter(|p| p.1 < side && p.0 >= w / 2.0)
+        .collect();
+    top.sort_by(|a, b| a.0.total_cmp(&b.0));
+    assert_eq!(
+        top[0],
+        (w / 2.0, 0.0),
+        "the top is not highest in its middle"
+    );
+    let ends = top
+        .iter()
+        .find(|p| p.0 >= w - 10.0 * mm)
+        .expect("no cut where the corner starts");
+    assert!(
+        ends.1 >= 1.25 * mm,
+        "the top comes down only {} mm by the corner: it reads flat",
+        ends.1 / mm
+    );
+    let slopes: Vec<f32> = top
+        .windows(2)
+        .map(|p| (p[1].1 - p[0].1) / (p[1].0 - p[0].0))
+        .chain([f32::INFINITY])
+        .collect();
+    assert!(
+        slopes.windows(2).all(|s| s[1] > s[0]),
+        "the top does not turn down ever more steeply: {slopes:?}"
+    );
+    assert!(
+        (5..=8).contains(&top.len()),
+        "the top is cut {} times, not in a few low-poly cuts",
+        top.len()
+    );
+}
