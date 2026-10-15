@@ -9,7 +9,10 @@
 - A game whose core takes omega-zero down as it starts is no longer opened again at every boot.
   The next boot leaves it on the shelf, selected, rather than resume it, so the console can no
   longer get stuck on its boot screen over one game.
-- When omega-zero goes down, the card keeps what it last said in `crash/omega-zero.log`.
+- When omega-zero goes down, the card keeps what it last said in `crash/omega-zero.log` and its
+  whole memory as it went down in `crash/omega-zero.core.gz`, for a debugger. It starts again once
+  the core is written, some seconds later. A crash within ten minutes of the last keeps the first
+  core, and none is written when it would leave the card less than 512 MB.
 
 ## omega-zero 1.1.0
 
