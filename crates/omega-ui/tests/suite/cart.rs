@@ -1,9 +1,13 @@
+use std::path::Path;
+use std::time::{Duration, SystemTime};
+
 use omega_store::{scan, Platform};
 use omega_ui::{
-    cart_face, clean_label, foot_y, gb_label_panel, gb_silhouette, label_colour, label_panel,
-    label_text, rest_y, seated_box, shelf_box, shell_for, silhouette, stage_y, sway_reach, Finish,
-    GbShell, BAR_H, CART_H, CART_W, GB_CART_H, GB_CART_W, GB_LABEL_H, GB_LABEL_W, GB_LABEL_X,
-    GB_LABEL_Y, GB_SHELF_SCALE, LABEL_H, LABEL_W, LABEL_X, LABEL_Y, MOCKUP_H, TOP_BAR_H,
+    cart_face, clean_label, cut_label, cut_path, foot_y, gb_label_panel, gb_silhouette,
+    label_colour, label_panel, label_text, label_uncut, rest_y, seated_box, shelf_box, shell_for,
+    silhouette, stage_y, sway_reach, Finish, GbShell, BAR_H, CART_H, CART_W, GB_CART_H, GB_CART_W,
+    GB_LABEL_H, GB_LABEL_W, GB_LABEL_X, GB_LABEL_Y, GB_SHELF_SCALE, LABEL_H, LABEL_W, LABEL_X,
+    LABEL_Y, MOCKUP_H, TOP_BAR_H,
 };
 use tempfile::TempDir;
 
@@ -48,14 +52,18 @@ fn write_rom(d: &TempDir, name: &str, title: &str) {
 }
 
 fn write_label(d: &TempDir, name: &str, w: u32, h: u32, px: impl Fn(u32, u32) -> [u8; 3]) {
+    std::fs::create_dir_all(d.path().join("Labels/GBA")).expect("create labels dir");
+    write_png(&d.path().join("Labels/GBA").join(name), w, h, px);
+}
+
+fn write_png(path: &Path, w: u32, h: u32, px: impl Fn(u32, u32) -> [u8; 3]) {
     let mut rgb = Vec::with_capacity((w * h * 3) as usize);
     for y in 0..h {
         for x in 0..w {
             rgb.extend_from_slice(&px(x, y));
         }
     }
-    std::fs::create_dir_all(d.path().join("Labels/GBA")).expect("create labels dir");
-    let f = std::fs::File::create(d.path().join("Labels/GBA").join(name)).expect("create label");
+    let f = std::fs::File::create(path).expect("create png");
     let mut enc = png::Encoder::new(std::io::BufWriter::new(f), w, h);
     enc.set_color(png::ColorType::Rgb);
     enc.set_depth(png::BitDepth::Eight);
@@ -88,6 +96,122 @@ fn a_malformed_label_falls_back_to_a_generated_one() {
     let face = cart_face(cart);
     assert_eq!((face.w, face.h), (CART_W, CART_H));
     assert!(face.rgba.iter().any(|b| *b != 0), "face is blank");
+}
+
+fn modified(path: &Path) -> SystemTime {
+    std::fs::metadata(path).unwrap().modified().unwrap()
+}
+
+fn set_modified(path: &Path, at: SystemTime) {
+    std::fs::File::options()
+        .write(true)
+        .open(path)
+        .unwrap()
+        .set_modified(at)
+        .unwrap();
+}
+
+fn png_size(path: &Path) -> (u32, u32) {
+    let file = std::fs::File::open(path).expect("open png");
+    let reader = png::Decoder::new(file).read_info().expect("png header");
+    (reader.info().width, reader.info().height)
+}
+
+fn gradient(x: u32, y: u32) -> [u8; 3] {
+    [(x % 256) as u8, (y % 256) as u8, ((x * 3 + y) % 256) as u8]
+}
+
+#[test]
+fn a_cut_label_draws_the_face_its_scan_draws() {
+    let d = tmp_root();
+    write_rom(&d, "Cut.gba", "CUT");
+    write_label(&d, "Cut.png", 600, 310, gradient);
+    let cart = &scan(d.path()).unwrap()[0];
+    assert!(label_uncut(cart), "a scan no cut was made of");
+    let from_scan = cart_face(cart);
+
+    assert!(cut_label(cart), "the scan is cut");
+    let cut = d.path().join("Labels/GBA/.cut/Cut.png");
+    assert_eq!(cut_path(cart.label.as_deref().unwrap()), Some(cut.clone()));
+    assert_eq!(png_size(&cut), (LABEL_W, LABEL_H), "cut to the label panel");
+    assert!(!label_uncut(cart), "the cut is kept for the next boot");
+    assert!(
+        cart_face(cart).rgba == from_scan.rgba,
+        "a face drawn from the cut is the face drawn from the scan"
+    );
+}
+
+#[test]
+fn a_face_draws_its_label_from_the_cut() {
+    let d = tmp_root();
+    write_rom(&d, "Kept.gba", "KEPT");
+    write_label(&d, "Kept.png", 600, 310, |_, _| [0xd0, 0x20, 0xa0]);
+    let cart = &scan(d.path()).unwrap()[0];
+    assert!(cut_label(cart));
+    let cut = d.path().join("Labels/GBA/.cut/Kept.png");
+    write_png(&cut, LABEL_W, LABEL_H, |_, _| [0x10, 0xc0, 0x40]);
+    set_modified(&cut, modified(cart.label.as_deref().unwrap()));
+
+    let face = cart_face(cart);
+    assert_eq!(
+        label_pixel(&face, LABEL_W / 2, LABEL_H / 2),
+        [0x10, 0xc0, 0x40]
+    );
+}
+
+#[test]
+fn a_scan_put_in_place_of_the_one_cut_is_cut_again() {
+    let d = tmp_root();
+    write_rom(&d, "Swapped.gba", "SWAPPED");
+    write_label(&d, "Swapped.png", 600, 310, |_, _| [0xd0, 0x20, 0xa0]);
+    let cart = &scan(d.path()).unwrap()[0];
+    assert!(cut_label(cart));
+    let scan_path = cart.label.clone().unwrap();
+    let before = modified(&scan_path);
+    write_label(&d, "Swapped.png", 600, 310, |_, _| [0x20, 0x40, 0xe0]);
+    set_modified(&scan_path, before - Duration::from_secs(3600));
+
+    assert!(
+        label_uncut(cart),
+        "an older scan in its place is cut again too"
+    );
+    let face = cart_face(cart);
+    assert_eq!(
+        label_pixel(&face, LABEL_W / 2, LABEL_H / 2),
+        [0x20, 0x40, 0xe0],
+        "until it is, the face shows the new scan, not the old cut"
+    );
+}
+
+#[test]
+fn a_cut_of_another_size_is_cut_again() {
+    let d = tmp_root();
+    write_rom(&d, "Small.gba", "SMALL");
+    write_label(&d, "Small.png", 600, 310, |_, _| [0xd0, 0x20, 0xa0]);
+    let cart = &scan(d.path()).unwrap()[0];
+    let cut = d.path().join("Labels/GBA/.cut/Small.png");
+    std::fs::create_dir_all(cut.parent().unwrap()).unwrap();
+    write_png(&cut, 10, 10, |_, _| [0x10, 0xc0, 0x40]);
+    set_modified(&cut, modified(cart.label.as_deref().unwrap()));
+
+    assert!(label_uncut(cart), "a cut made for another panel");
+    let face = cart_face(cart);
+    assert_eq!(
+        label_pixel(&face, LABEL_W / 2, LABEL_H / 2),
+        [0xd0, 0x20, 0xa0]
+    );
+    assert!(cut_label(cart));
+    assert_eq!(png_size(&cut), (LABEL_W, LABEL_H));
+}
+
+#[test]
+fn a_cart_without_a_label_scan_has_nothing_to_cut() {
+    let d = tmp_root();
+    write_rom(&d, "Bare.gba", "BARE");
+    let cart = &scan(d.path()).unwrap()[0];
+    assert!(!label_uncut(cart));
+    assert!(!cut_label(cart));
+    assert!(!d.path().join("Labels/GBA/.cut").exists());
 }
 
 #[test]

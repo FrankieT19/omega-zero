@@ -36,6 +36,7 @@ mod gpsp;
 mod headphones;
 mod input;
 mod keyboard;
+mod label_cuts;
 mod label_screen;
 mod label_sync;
 mod led;

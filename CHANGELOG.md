@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- A card with hundreds of labels boots as quickly as one with none. Each label is cut to its
+  cart's face once, right after Labels fetches it, and kept in `Labels/<system>/.cut/`; a boot
+  draws the carts from those small cuts, on every core. Until now each boot decoded every
+  full-size label before its first frame, and with a few hundred of them the boot logo stayed up
+  long enough to look frozen. Labels already on the card, or copied there by hand, are cut once
+  in the background after the boot, the carts on screen first, and wear a generated label until
+  then.
+
 ## omega-zero 1.0.0
 
 Labels fetch in the build you download: omega-zero now has its own ScreenScraper key.
