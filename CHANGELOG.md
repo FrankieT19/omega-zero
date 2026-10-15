@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## omega-zero 1.2.0
+
+Supafaust runs SNES games, a game that takes the console down can no longer trap it at boot, and
+labels take a quarter of the room and no longer hold the boot.
 
 - SNES games run on Supafaust. Chosen with X, Supafaust took omega-zero down on a game's first
   frame and left the console on its boot screen: it forgets the defaults of its own options once
