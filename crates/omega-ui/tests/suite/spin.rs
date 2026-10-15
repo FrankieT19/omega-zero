@@ -387,10 +387,11 @@ fn each_snes_cart_is_drawn_to_the_real_cart_s_size_and_thickness() {
     }
 }
 
-/// The Super Famicom cart reads round at the top: its top is a gentle arc, highest in the
-/// middle, that turns down ever more steeply into corners a centimetre round, in a few cuts.
+/// The Super Famicom cart's top is a low roof: from each corner, as round as the cart's own,
+/// 3.5 mm, a straight run rises 10 degrees to the middle, where the two meet in a flat only a
+/// few millimetres across.
 #[test]
-fn the_super_famicom_cart_s_top_arches_into_big_round_corners() {
+fn the_super_famicom_cart_s_top_is_a_low_roof_over_its_round_corners() {
     let (points, (w, _)) = outline(CartModel::Snes(SnesShell::Famicom));
     let mm = 4.0;
     let side = points
@@ -398,43 +399,49 @@ fn the_super_famicom_cart_s_top_arches_into_big_round_corners() {
         .filter(|p| p.0 == w)
         .map(|p| p.1)
         .fold(f32::MAX, f32::min);
-    assert!(
-        side >= 10.0 * mm,
-        "the right side straightens {} mm down: its corner is not a centimetre round",
-        side / mm
-    );
+    // the right half's top from the middle out: the end of the flat at the peak, the eaves,
+    // and the corner's cuts down to where the side straightens
     let mut top: Vec<(f32, f32)> = points
         .iter()
         .copied()
-        .filter(|p| p.1 < side && p.0 >= w / 2.0)
+        .filter(|p| p.1 <= side && p.0 > w / 2.0)
         .collect();
     top.sort_by(|a, b| a.0.total_cmp(&b.0));
-    assert_eq!(
-        top[0],
-        (w / 2.0, 0.0),
-        "the top is not highest in its middle"
-    );
-    let ends = top
-        .iter()
-        .find(|p| p.0 >= w - 10.0 * mm)
-        .expect("no cut where the corner starts");
+    let (peak, eaves) = (top[0], top[1]);
     assert!(
-        ends.1 >= 1.25 * mm,
-        "the top comes down only {} mm by the corner: it reads flat",
-        ends.1 / mm
+        peak.1 == 0.0 && peak.0 - w / 2.0 <= 2.0 * mm,
+        "the peak is not a small flat at the top: it ends at {peak:?}"
     );
-    let slopes: Vec<f32> = top
-        .windows(2)
-        .map(|p| (p[1].1 - p[0].1) / (p[1].0 - p[0].0))
-        .chain([f32::INFINITY])
-        .collect();
+    let rise = ((eaves.1 - peak.1) / (eaves.0 - peak.0))
+        .atan()
+        .to_degrees();
     assert!(
-        slopes.windows(2).all(|s| s[1] > s[0]),
-        "the top does not turn down ever more steeply: {slopes:?}"
+        (rise - 10.0).abs() <= 0.5,
+        "the roof rises {rise} degrees, not 10"
     );
     assert!(
-        (5..=8).contains(&top.len()),
-        "the top is cut {} times, not in a few low-poly cuts",
-        top.len()
+        eaves.0 > w - 4.0 * mm,
+        "the roof's straight run stops at {eaves:?}, short of the corner"
     );
+    let centre = (w - 3.5 * mm, side);
+    for p in &top[1..] {
+        let r = ((p.0 - centre.0).powi(2) + (p.1 - centre.1).powi(2)).sqrt();
+        assert!(
+            (r - 3.5 * mm).abs() < 0.05,
+            "the corner at {p:?} is {} mm from its middle, not 3.5",
+            r / mm
+        );
+    }
+    assert!(
+        (4..=6).contains(&top[1..].len()),
+        "the corner is cut {} times",
+        top.len() - 2
+    );
+    // the left half is the mirror: the two runs meet in the middle
+    for p in [peak, eaves] {
+        assert!(
+            points.contains(&(w - p.0, p.1)),
+            "the left run does not mirror the right at {p:?}"
+        );
+    }
 }
