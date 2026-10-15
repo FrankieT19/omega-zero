@@ -282,6 +282,42 @@ fn each_disc_wears_its_own_label_and_disc_one_falls_back_to_the_games() {
     );
 }
 
+/// A game whose discs sit in a folder of their own, or whose playlist was made for it under
+/// Config, still finds each disc's label on the card.
+#[test]
+fn each_disc_finds_its_label_wherever_its_game_is_kept() {
+    let d = tempfile::tempdir().unwrap();
+    let folder = d.path().join("Games/PS1/Chrono Cross (USA)");
+    std::fs::create_dir_all(&folder).unwrap();
+    let discs: Vec<_> = (1..=2)
+        .map(|n| folder.join(format!("Chrono Cross (USA) (Disc {n}).cue")))
+        .collect();
+    let list: String = discs.iter().map(|p| format!("{}\n", p.display())).collect();
+    let playlists = d.path().join("Config/playlists/PS1");
+    std::fs::create_dir_all(&playlists).unwrap();
+    std::fs::write(playlists.join("Chrono Cross (USA).m3u"), list).unwrap();
+    label(&d, "Chrono Cross (USA) (Disc 2)", [0x30, 0xe0, 0x30]);
+    for rom in [playlists.join("Chrono Cross (USA).m3u"), discs[1].clone()] {
+        let cart = Cart {
+            platform: omega_store::Platform::Ps1,
+            stem: "Chrono Cross (USA)".into(),
+            rom: rom.clone(),
+            label: None,
+            code: String::new(),
+            shell: None,
+            title: String::new(),
+        };
+        let face = cart_face(&cart);
+        let last = face.w / DISC_PX - 1;
+        assert_eq!(
+            pixel(&face, last * DISC_PX + PRINT_AT.0, PRINT_AT.1),
+            [0x30, 0xe0, 0x30, 255],
+            "{}: disc 2's label is not found",
+            rom.display()
+        );
+    }
+}
+
 /// Every mesh `StackMeshes::build` makes, with the id it was given.
 fn built() -> (StackMeshes, Vec<(MeshId, Vec<MeshVertex>)>) {
     let mut made = Vec::new();

@@ -260,10 +260,19 @@ fn print(
     }
 }
 
-/// The card `rom` is on: the folder `Games` sits in.
+/// The card `rom` is on: the folder holding the `Games` folder it is in, or the `Config` folder
+/// a playlist made for a game on several discs is kept in.
 fn card_root(rom: &Path) -> Option<PathBuf> {
-    let games = rom.parent()?.parent()?;
-    (games.file_name()? == "Games").then(|| games.parent().map(Path::to_path_buf))?
+    rom.ancestors()
+        .skip(1)
+        .find(|dir| {
+            matches!(
+                dir.file_name().and_then(|n| n.to_str()),
+                Some("Games" | "Config")
+            )
+        })
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
 }
 
 /// The label of disc `disc` of `cart`, `paths` its discs: its own, kept under its own name,
