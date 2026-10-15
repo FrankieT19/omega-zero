@@ -1,7 +1,9 @@
+use std::path::PathBuf;
+
 use omega_store::gb::Class;
 use omega_store::{Cart, Outline, Platform};
 
-use crate::art;
+use crate::label_cut::label_art;
 use crate::shell::{shell_for, Finish, Shell};
 use crate::silhouette::{
     cart_depth, cart_mask, detail_mask, gb_cart_depth, gb_cart_mask, gb_detail_mask, Detail,
@@ -180,12 +182,31 @@ fn shadow(w: u32, h: u32, mask: &[u8]) -> CartFace {
     CartFace { rgba, w, h }
 }
 
+/// The label scans `cart`'s face is drawn with, each with the size it is drawn at there.
+pub(crate) fn label_scans(cart: &Cart) -> Vec<(PathBuf, u32, u32)> {
+    let (_, _, w, h) = spec(shape_of(cart)).label;
+    cart.label.iter().map(|p| (p.clone(), w, h)).collect()
+}
+
+/// `cart`'s face, its label drawn from the cut kept for its scan, or from the scan itself when
+/// there is no cut of it yet.
 pub fn cart_face(cart: &Cart) -> CartFace {
+    face_of(cart, true)
+}
+
+/// `cart`'s face in a generated label whatever scan it has: what a boot draws until the scan
+/// is cut.
+pub fn generated_face(cart: &Cart) -> CartFace {
+    face_of(cart, false)
+}
+
+fn face_of(cart: &Cart, scans: bool) -> CartFace {
     let s = spec(shape_of(cart));
     let shell = shell_for(cart);
     let mut face = shell_face(&s, &shell);
     let (_, _, lw, lh) = s.label;
-    let label = match cart.label.as_deref().and_then(|p| art::cover(p, lw, lh)) {
+    let scan = cart.label.as_deref().filter(|_| scans);
+    let label = match scan.and_then(|p| label_art(p, lw, lh)) {
         Some(rgba) => rgba,
         None => generated_label(&s, &label_text(cart)),
     };
