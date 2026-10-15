@@ -111,14 +111,13 @@ sets its speed, lit once latched, or the link, which outranks it.
 
 The shelf has no slot: a cart played rises and dives out of the bottom of the screen into the
 handheld. The carts stand centred between the top bar and the bottom bar, and the shelf's system,
-GBA, GB or GBC, is `<omega-pill>` in the bar's `middle`, between its two actions and in the
-middle of the screen, `centred`. It is the bar's own button pill standing on its own, both ends
+GBA, GB, GBC, SNES or PS1, is `<omega-pill>` in the bar's `middle`, between its two actions and in
+the middle of the screen, `centred`. It is the bar's own button pill standing on its own, both ends
 rounded, the bar's full height, 3 dark pixels either side of the word's ink, as `pill_face` in
 `crates/omega-ui/src/kit/action.rs` draws it. It is always there on the shelf, even with only one
-shelf, and sinks with the shelf's actions when the bar changes them. L1 and R1 change the system
-and the pill rises into place with the new one over 220 ms; a letter jumped to with Up or Down
-shows in it for about 2.2 s, then the system rises back. It is gone while the core picker is
-open.
+shelf, and sinks with the shelf's actions when the bar changes them. L1 and R1 change the system and
+the pill rises into place with the new one over 220 ms; a letter jumped to with Up or Down shows in
+it for about 2.2 s, then the system rises back. It is gone while the core picker is open.
 
 ## Pages around the menus
 
