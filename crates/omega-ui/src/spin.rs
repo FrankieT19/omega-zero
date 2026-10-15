@@ -419,17 +419,20 @@ mod tests {
     fn every_cart_outline_stays_within_the_band_its_side_is_drawn_in() {
         let (ntsc, sfc) = (snes::spec(SnesShell::Ntsc), snes::spec(SnesShell::Famicom));
         let (_, (_, units)) = snes::outline(SnesShell::Ntsc);
-        // the American cart's column stands proud of its shoulders, and the middle of the Super
-        // Famicom cart's top above its ends: only those rows come in further
+        // the American cart's column stands proud of its shoulders, and the Super Famicom cart's
+        // roof over its shoulders: only those rows come in further
         let shoulder = (snes::NTSC_SHOULDER / units * ntsc.h as f32).ceil() as u32;
         let (sfc_points, (sfc_w, sfc_units)) = snes::outline(SnesShell::Famicom);
-        let arc_foot = sfc_points
+        let eaves = sfc_points
             .iter()
             .filter(|p| p.0 >= (1.0 - OUTLINE_INSET) * sfc_w)
             .map(|p| p.1)
             .fold(f32::MAX, f32::min);
-        let arc = (arc_foot / sfc_units * sfc.h as f32).ceil() as u32;
-        assert!(arc <= 6, "the Super Famicom cart's arc takes {arc} rows");
+        let roof = (eaves / sfc_units * sfc.h as f32).ceil() as u32;
+        assert!(
+            roof <= sfc.h / 7,
+            "the Super Famicom cart's roof takes {roof} rows"
+        );
         for (name, mask, w, h, from) in [
             ("GBA", cart_mask(), CART_W, CART_H, 0),
             (
@@ -447,7 +450,7 @@ mod tests {
                 0,
             ),
             ("SNES", ntsc.mask, ntsc.w, ntsc.h, shoulder),
-            ("SFC", sfc.mask, sfc.w, sfc.h, arc),
+            ("SFC", sfc.mask, sfc.w, sfc.h, roof),
         ] {
             let rows = &mask[(from * w) as usize..];
             let inset = widest_inset(rows, w as usize, (h - from) as usize) as f32;
@@ -462,6 +465,19 @@ mod tests {
             step <= 0.18 * ntsc.w as f32,
             "the American cart's shoulders come {step} px in, more than its column's step"
         );
+    }
+
+    /// Only the Super Famicom cart's label is round at its corners: every other shape's goes
+    /// through the square label's drawing untouched.
+    #[test]
+    fn only_the_super_famicom_label_is_round() {
+        for model in CartModel::ALL {
+            let round = crate::cart::spec(model).label_round;
+            match model {
+                CartModel::Snes(SnesShell::Famicom) => assert!(round > 0),
+                _ => assert_eq!(round, 0, "the {model:?} label is round"),
+            }
+        }
     }
 
     /// A side takes its colour from the face just inside its edge, so that has to be the

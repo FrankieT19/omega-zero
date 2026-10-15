@@ -68,6 +68,9 @@ pub(crate) struct Spec {
     pub(crate) w: u32,
     pub(crate) h: u32,
     pub(crate) label: (u32, u32, u32, u32),
+    /// How round the label's corners are, in pixels, its well's bevel round with them: none, a
+    /// square label, but on the Super Famicom cart.
+    pub(crate) label_round: u32,
     pub(crate) mask: &'static [u8],
     pub(crate) depth: &'static [u8],
     pub(crate) detail: &'static Detail,
@@ -130,6 +133,7 @@ pub(crate) fn spec(model: CartModel) -> Spec {
             w: CART_W,
             h: CART_H,
             label: (LABEL_X, LABEL_Y, LABEL_W, LABEL_H),
+            label_round: 0,
             mask: cart_mask(),
             depth: cart_depth(),
             detail: detail_mask(),
@@ -147,6 +151,7 @@ pub(crate) fn spec(model: CartModel) -> Spec {
             w: GB_CART_W,
             h: GB_CART_H,
             label: (GB_LABEL_X, GB_LABEL_Y, GB_LABEL_W, GB_LABEL_H),
+            label_round: 0,
             mask: gb_cart_mask(shell),
             depth: gb_cart_depth(shell),
             detail: gb_detail_mask(shell),
@@ -451,10 +456,18 @@ fn recess_label(s: &Spec, face: &mut CartFace, shell: &Shell) {
         face.rgba[d + 1] = c[1];
         face.rgba[d + 2] = c[2];
     };
+    let round = s.label_round;
     for y in y0..y1 {
         for x in x0..x1 {
-            let inside = (lx..lx + lw).contains(&x) && (ly..ly + lh).contains(&y);
+            let inside = match round {
+                0 => (lx..lx + lw).contains(&x) && (ly..ly + lh).contains(&y),
+                _ => in_round_rect(x, y, s.label, round),
+            };
             if inside {
+                continue;
+            }
+            // a round label's well is round with it, its corners as far out as its sides
+            if round > 0 && !in_round_rect(x, y, (x0, y0, x1 - x0, y1 - y0), round + bevel) {
                 continue;
             }
             let from_top = y.saturating_sub(y0);
@@ -468,6 +481,20 @@ fn recess_label(s: &Spec, face: &mut CartFace, shell: &Shell) {
     }
 }
 
+/// Whether the face's pixel `x, y` is inside the rect `rx, ry, rw, rh` with its corners
+/// rounded `r` pixels: decided for each two-pixel cell of the face as a whole, so a round
+/// corner steps on the art grid as everything else does.
+fn in_round_rect(x: u32, y: u32, (rx, ry, rw, rh): (u32, u32, u32, u32), r: u32) -> bool {
+    if !(rx..rx + rw).contains(&x) || !(ry..ry + rh).contains(&y) {
+        return false;
+    }
+    let (cx, cy) = ((x & !1) as f32 + 1.0, (y & !1) as f32 + 1.0);
+    let r = r as f32;
+    let dx = (rx as f32 + r - cx).max(cx - (rx + rw) as f32 + r).max(0.0);
+    let dy = (ry as f32 + r - cy).max(cy - (ry + rh) as f32 + r).max(0.0);
+    dx * dx + dy * dy <= r * r
+}
+
 fn paste_label(s: &Spec, face: &mut CartFace, label: &[u8]) {
     let (lx, ly, lw, lh) = s.label;
     for y in 0..lh {
@@ -475,6 +502,9 @@ fn paste_label(s: &Spec, face: &mut CartFace, label: &[u8]) {
             let src = ((y * lw + x) * 4) as usize;
             let a = label[src + 3] as u32;
             if a == 0 {
+                continue;
+            }
+            if s.label_round > 0 && !in_round_rect(x + lx, y + ly, s.label, s.label_round) {
                 continue;
             }
             let d = (((y + ly) * s.w + x + lx) * 4) as usize;

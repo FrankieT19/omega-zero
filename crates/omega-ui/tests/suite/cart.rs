@@ -744,10 +744,11 @@ fn a_snes_label_fills_its_well_on_the_plastic_where_the_real_cart_has_it() {
     let carts = scan(d.path()).unwrap();
     // the share of the face's width and height the label takes, and how far down it starts,
     // measured off straight-on photos of real carts: the American one's well starts just under
-    // the top of its column, a little lower here to leave room for its bevel
+    // the top of its column, a little lower here to leave room for its bevel; the Super
+    // Famicom's under its roof
     for (stem, (wide, tall), top) in [
         ("Super Metroid (USA)", (0.6, 0.38), (0.0, 0.05)),
-        ("Rockman X (Japan)", (0.85, 0.42), (0.03, 0.07)),
+        ("Rockman X (Japan)", (0.85, 0.42), (0.13, 0.17)),
     ] {
         let face = cart_face(snes_cart(&carts, stem));
         let (x0, y0, x1, y1) = colour_box(&face, art).expect("the label art was not pasted");
@@ -775,6 +776,100 @@ fn a_snes_label_fills_its_well_on_the_plastic_where_the_real_cart_has_it() {
             }
         }
     }
+}
+
+/// The colour a solid shell's label well is shaded in on its upper and left sides.
+fn well_shade(colour: [u8; 3]) -> [u8; 3] {
+    colour.map(|c| (c as f32 * 0.55) as u8)
+}
+
+#[test]
+fn only_the_super_famicom_label_has_round_corners_on_the_art_grid() {
+    let d = tmp_root();
+    write_rom(&d, "Advance.gba", "ADVANCE");
+    write_gb_rom(&d, "GB", "Grey.gb", 0x00);
+    write_snes_rom(&d, "Super Metroid (USA).sfc", "SUPER METROID", 0x01);
+    write_snes_rom(&d, "Rockman X (Japan).sfc", "ROCKMAN X", 0x00);
+    let art = [0x20, 0xc0, 0x40];
+    for (dir, stem) in [
+        ("GBA", "Advance"),
+        ("GB", "Grey"),
+        ("SNES", "Super Metroid (USA)"),
+        ("SNES", "Rockman X (Japan)"),
+    ] {
+        let dir = d.path().join("Labels").join(dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = std::fs::File::create(dir.join(format!("{stem}.png"))).unwrap();
+        let mut enc = png::Encoder::new(std::io::BufWriter::new(f), 64, 24);
+        enc.set_color(png::ColorType::Rgb);
+        enc.set_depth(png::BitDepth::Eight);
+        let rgb: Vec<u8> = (0..64 * 24).flat_map(|_| art).collect();
+        enc.write_header().unwrap().write_image_data(&rgb).unwrap();
+    }
+    let carts = scan(d.path()).unwrap();
+    // the GBA cart, the Game Boy pak and the American SNES cart keep their square labels in
+    // square wells, as before: every corner of the label is the art, and just outside each of
+    // its upper corners the well's shade
+    for stem in ["Advance", "Grey", "Super Metroid (USA)"] {
+        let cart = snes_cart(&carts, stem);
+        let face = cart_face(cart);
+        let (x0, y0, x1, y1) = colour_box(&face, art).expect("the label art was not pasted");
+        for (x, y) in [(x0, y0), (x1, y0), (x0, y1), (x1, y1)] {
+            assert_eq!(
+                pixel(&face, x, y),
+                art,
+                "{stem}: the label's corner {x},{y}"
+            );
+        }
+        let dark = well_shade(shell_for(cart).colour);
+        assert_eq!(
+            pixel(&face, x0 - 1, y0 - 1),
+            dark,
+            "{stem}: the well's corner"
+        );
+        assert_eq!(
+            pixel(&face, x1 + 1, y0 - 1),
+            dark,
+            "{stem}: the well's corner"
+        );
+    }
+    // the Super Famicom label's corners are round, its well's with them, stepped two pixels at
+    // a time: the label's square corner is the well's shade, a step in is the art
+    let cart = snes_cart(&carts, "Rockman X (Japan)");
+    let face = cart_face(cart);
+    let (x0, y0, x1, y1) = colour_box(&face, art).expect("the label art was not pasted");
+    let dark = well_shade(shell_for(cart).colour);
+    for (x, y, dx, dy) in [(x0, y0, 1i32, 1i32), (x1, y0, -1, 1)] {
+        let at = |i: i32, j: i32| {
+            pixel(
+                &face,
+                (x as i32 + i * dx) as u32,
+                (y as i32 + j * dy) as u32,
+            )
+        };
+        assert_eq!(at(0, 0), dark, "the label's corner {x},{y} is not cut off");
+        assert_eq!(
+            at(1, 1),
+            at(0, 0),
+            "the corner does not step on the art grid"
+        );
+        assert_eq!(at(6, 6), art, "the corner is cut too deep");
+    }
+    for (x, y) in [(x0, y1), (x1, y1)] {
+        assert_ne!(
+            pixel(&face, x, y),
+            art,
+            "the label's lower corner {x},{y} is square"
+        );
+    }
+    // and the well's own square corner, beyond the round one, is the plastic
+    let (wx, wy) = (x0 - 5, y0 - 5);
+    assert_ne!(pixel(&face, wx, wy), dark, "the well's corner is square");
+    assert_eq!(
+        pixel(&face, wx + 20, wy),
+        dark,
+        "the well's top is not where it was"
+    );
 }
 
 #[test]
