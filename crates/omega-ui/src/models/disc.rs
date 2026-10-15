@@ -15,7 +15,7 @@ use std::f32::consts::{PI, TAU};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use omega_gfx::{Draw, MeshId, MeshVertex, TexId};
+use omega_gfx::{Draw, MeshId, MeshVertex, TexId, FOCAL};
 use omega_store::{ps1, Cart, Platform};
 
 use crate::art;
@@ -429,11 +429,10 @@ fn walls(
 const SIDE_BACK_SHADE: f32 = 0.72;
 
 /// Disc `disc` of a stack of `discs` in few polygons, standing `disc` places behind the front
-/// one and taking its face from its own part of the stack's texture: the rim's walls, then the
-/// hole's, then the face over them.
-pub(crate) fn layer(disc: usize, discs: usize) -> Vec<MeshVertex> {
+/// one, `up` of its height higher, and taking its face from its own part of the stack's
+/// texture: the rim's walls, then the hole's, then the face over them.
+fn layer(disc: usize, discs: usize, up: f32) -> Vec<MeshVertex> {
     let z = disc as f32 * PITCH;
-    let up = z * RISE;
     let shade = 1.0 - STACK_SHADE * disc as f32;
     let cell = |u: f32| (disc as f32 + u) / discs as f32;
     let mut out = Vec::new();
@@ -465,18 +464,27 @@ pub(crate) fn layer(disc: usize, discs: usize) -> Vec<MeshVertex> {
     out
 }
 
-/// A stack of `discs` in one model, the back disc first, so drawn in one go it is drawn back to
-/// front.
-pub(crate) fn stack_mesh(discs: usize) -> Vec<MeshVertex> {
+/// A stack of `discs` in one model, each disc risen as `push_disc` raises it and the back disc
+/// first, so drawn in one go it is drawn back to front. Turned in the canvas it turns as one
+/// thing; `push_stack` turns each disc about its own middle.
+fn stack_mesh(discs: usize) -> Vec<MeshVertex> {
     (0..discs)
         .rev()
-        .flat_map(|disc| layer(disc, discs))
+        .flat_map(|disc| layer(disc, discs, disc as f32 * PITCH * RISE))
         .collect()
 }
 
 /// The disc in few polygons.
 pub(crate) fn mesh() -> Vec<MeshVertex> {
-    layer(0, 1)
+    layer(0, 1, 0.0)
+}
+
+/// How far above the front disc of a stack, at `w, h`, disc `disc` is drawn: `RISE` of how far
+/// it stands behind, seen as far off as it stands, so it shows over the front disc as much as
+/// it would were it risen in its model.
+fn rise(disc: usize, (w, h): (f32, f32)) -> f32 {
+    let back = disc as f32 * PITCH;
+    back * RISE * h * FOCAL / (FOCAL + back * w)
 }
 
 /// The models stacks of discs are drawn with, once they are on the GPU: each disc of each size
@@ -493,7 +501,7 @@ impl StackMeshes {
         let mut discs = Vec::with_capacity(MAX_STACK);
         let mut whole = Vec::with_capacity(MAX_STACK);
         for n in 1..=MAX_STACK {
-            let one: Vec<MeshId> = (0..n).map(|disc| make(&layer(disc, n))).collect();
+            let one: Vec<MeshId> = (0..n).map(|disc| make(&layer(disc, n, 0.0))).collect();
             discs.push(std::array::from_fn(|disc| one[disc.min(n - 1)]));
             whole.push(match n {
                 1 => one[0],
@@ -540,11 +548,11 @@ impl DiscStack {
 }
 
 /// Disc `disc` of `stack` (0 being disc 1), in its place behind the front disc, which stands at
-/// `rect`: tinted `colour`, turned `turn` radians about its own middle and spun `yaw` about
-/// the front disc's upright middle, as `posed_cart` holds a cart.
+/// `rect`, and [`rise`] above it: tinted `colour`, turned `turn` radians about its own middle
+/// and spun `yaw` about the stack's upright middle, as `posed_cart` holds a cart.
 pub fn push_disc(
     out: &mut Vec<Draw>,
-    rect: (f32, f32, f32, f32),
+    (x, y, w, h): (f32, f32, f32, f32),
     stack: &DiscStack,
     disc: usize,
     colour: [f32; 4],
@@ -552,7 +560,7 @@ pub fn push_disc(
     yaw: f32,
 ) {
     out.push(posed_cart(
-        rect,
+        (x, y - rise(disc, (w, h)), w, h),
         stack.mesh(disc),
         stack.tex,
         colour,

@@ -305,13 +305,12 @@ fn vertices(made: &[(MeshId, Vec<MeshVertex>)], id: MeshId) -> &[MeshVertex] {
 fn each_disc_of_a_stack_stands_behind_the_last_with_a_gap_a_little_wider_than_a_disc() {
     let (stacks, made) = built();
     for discs in 2..=4 {
-        let mut last: Option<(f32, f32, f32)> = None;
+        let mut last: Option<(f32, f32)> = None;
         for disc in 0..discs {
             let mesh = vertices(&made, stacks.disc(disc, discs));
             let face: Vec<_> = mesh.iter().filter(|v| v.normal[2] == -1.0).collect();
             let front = face[0].xyz[2];
             let back = mesh.iter().map(|v| v.xyz[2]).fold(f32::MIN, f32::max);
-            let top = mesh.iter().map(|v| v.xyz[1]).fold(f32::MAX, f32::min);
             assert!(
                 face.iter().all(|v| v.xyz[2] == front),
                 "disc {disc} of {discs}: its face is not flat"
@@ -322,28 +321,82 @@ fn each_disc_of_a_stack_stands_behind_the_last_with_a_gap_a_little_wider_than_a_
                     .all(|v| v.uv[0] >= u0 - 1e-6 && v.uv[0] <= u1 + 1e-6),
                 "disc {disc} of {discs} takes its face from beyond its own {u0}..{u1}"
             );
-            if let Some((was_front, was_back, was_top)) = last {
+            if let Some((was_front, was_back)) = last {
                 let (thick, gap) = (was_back - was_front, front - was_back);
                 assert!(
                     gap > thick && gap < 2.0 * thick,
                     "disc {disc} of {discs} stands {gap} behind the last, a disc being {thick}"
                 );
-                assert!(
-                    top < was_top,
-                    "disc {disc} of {discs} does not show over the last"
-                );
             }
-            last = Some((front, back, top));
+            last = Some((front, back));
         }
-        let whole: Vec<MeshVertex> = (0..discs)
-            .rev()
-            .flat_map(|disc| vertices(&made, stacks.disc(disc, discs)).to_vec())
-            .collect();
+        // in one model, its discs from the back to the front, each risen over the one before
+        let whole = vertices(&made, stacks.whole(discs));
+        let mut at = 0;
+        let mut was_up = f32::INFINITY;
+        for disc in (0..discs).rev() {
+            let one = vertices(&made, stacks.disc(disc, discs));
+            let risen = &whole[at..at + one.len()];
+            at += one.len();
+            let up = one[0].xyz[1] - risen[0].xyz[1];
+            assert!(
+                one.iter().zip(risen).all(|(a, b)| {
+                    (a.xyz[1] - b.xyz[1] - up).abs() < 1e-6
+                        && (a.xyz[0], a.xyz[2], a.normal, a.uv, a.shade)
+                            == (b.xyz[0], b.xyz[2], b.normal, b.uv, b.shade)
+                }),
+                "disc {disc} of the stack of {discs} in one model is not the disc risen"
+            );
+            assert!(
+                up < was_up && (disc > 0 || up == 0.0),
+                "disc {disc} of the stack of {discs} in one model is risen {up}, after {was_up}"
+            );
+            was_up = up;
+        }
         assert_eq!(
-            vertices(&made, stacks.whole(discs)),
-            &whole[..],
-            "the stack of {discs} in one model is not its discs from the back to the front"
+            at,
+            whole.len(),
+            "the stack of {discs} has more than its discs"
         );
+    }
+}
+
+/// Each disc behind the first shows over the one in front of it, its face drawn where it stands
+/// in the stack drawn as one model. (The back edges of its walls, a disc's thickness further
+/// off, may land a pixel apart.)
+#[test]
+fn each_disc_of_a_stack_shows_over_the_one_in_front() {
+    let (stacks, made) = built();
+    let stack = DiscStack {
+        tex: TexId::from_raw(5),
+        discs: 4,
+        meshes: stacks,
+    };
+    let rect = (100.0, 120.0, 288.0, 288.0);
+    let mut out = Vec::new();
+    omega_ui::push_stack(&mut out, rect, &stack, [1.0; 4], 0.0, 0.0);
+    let drawn = models_of(&out, stack.tex);
+    let ys: Vec<f32> = drawn.iter().map(|m| m.1[1]).collect();
+    assert!(
+        ys.windows(2).all(|w| w[0] < w[1]) && ys[3] == rect.1,
+        "the discs do not rise from the front disc to the back one: {ys:?}"
+    );
+    let whole = vertices(&made, stack.whole());
+    let mut at = 0;
+    for (mesh, [x, y, w, h], ..) in drawn {
+        let one = vertices(&made, mesh);
+        let faces = one
+            .iter()
+            .zip(&whole[at..])
+            .filter(|(v, _)| v.normal[2] == -1.0);
+        for (v, risen) in faces {
+            let (a, b) = (projected(v, (x, y, w, h), 0.0), projected(risen, rect, 0.0));
+            assert!(
+                (a.0 - b.0).abs() < 1e-3 && (a.1 - b.1).abs() < 1e-3,
+                "a disc drawn on its own lands at {a:?}, and in the stack's one model at {b:?}"
+            );
+        }
+        at += one.len();
     }
 }
 
@@ -364,11 +417,11 @@ fn projected(v: &MeshVertex, (x, y, w, h): (f32, f32, f32, f32), yaw: f32) -> (f
 #[test]
 fn the_tallest_stack_sways_clear_of_both_bars_and_its_neighbours() {
     let (stacks, made) = built();
-    let rim: Vec<MeshVertex> = walls(vertices(&made, stacks.whole(4)))
-        .into_iter()
-        .flatten()
-        .copied()
-        .collect();
+    let stack = DiscStack {
+        tex: TexId::from_raw(5),
+        discs: 4,
+        meshes: stacks,
+    };
     let (w, h) = model_shelf_box(CartModel::Disc);
     let x = out_w() as f32 / 2.0 - w / 2.0;
     let (ceiling, floor) = (stage_y() + TOP_BAR_H, stage_y() + MOCKUP_H - BAR_H);
@@ -381,8 +434,19 @@ fn the_tallest_stack_sways_clear_of_both_bars_and_its_neighbours() {
     for deg in -SWAY_DEG..=SWAY_DEG {
         let yaw = (deg as f32).to_radians();
         for lift in [-BOB, BOB] {
-            for v in &rim {
-                let (px, py) = projected(v, (x, top - lift, w, h), yaw);
+            let mut out = Vec::new();
+            omega_ui::push_stack(&mut out, (x, top - lift, w, h), &stack, [1.0; 4], 0.0, yaw);
+            let rims = models_of(&out, stack.tex)
+                .into_iter()
+                .flat_map(|(mesh, rect, ..)| {
+                    walls(vertices(&made, mesh))
+                        .into_iter()
+                        .flatten()
+                        .map(move |v| (*v, rect))
+                        .collect::<Vec<_>>()
+                });
+            for (v, [rx, ry, rw, rh]) in rims {
+                let (px, py) = projected(&v, (rx, ry, rw, rh), yaw);
                 assert!(
                     py >= ceiling && py <= floor,
                     "turned {deg} degrees, the stack reaches {py}, past the bars at {ceiling} \
@@ -461,11 +525,13 @@ fn a_stack_is_drawn_from_its_back_disc_to_its_front_one_each_its_own_model() {
         let meshes: Vec<MeshId> = drawn.iter().map(|m| m.0).collect();
         let back_to_front: Vec<MeshId> = (0..discs).rev().map(|k| stack.mesh(k)).collect();
         assert_eq!(meshes, back_to_front, "{stem} is not drawn back to front");
-        let (_, rect, colour, yaw) = drawn[0];
+        let (_, rect, colour, yaw) = drawn[discs - 1];
+        let held = |m: &(MeshId, [f32; 4], [f32; 4], f32)| {
+            (m.1[0], m.1[2], m.1[3], m.2, m.3) == (rect[0], rect[2], rect[3], colour, yaw)
+                && m.1[1] <= rect[1]
+        };
         assert!(
-            drawn
-                .iter()
-                .all(|m| m.1 == rect && m.2 == colour && m.3 == yaw),
+            drawn.iter().all(held),
             "{stem}'s discs are not held as one stack"
         );
         assert_eq!(colour, [1.0; 4], "{stem} in the middle is dimmed");
@@ -552,9 +618,10 @@ fn a_stack_goes_in_back_to_front_from_where_a_lone_disc_would() {
         );
         for back in &drawn[..3] {
             match STACK_DIVE {
-                StackDive::Whole => assert_eq!(
-                    (back.1, back.2),
-                    (rect, [1.0; 4]),
+                StackDive::Whole => assert!(
+                    (back.1[0], back.1[2], back.1[3], back.2)
+                        == (rect[0], rect[2], rect[3], [1.0; 4])
+                        && back.1[1] < rect[1],
                     "the stack comes apart at {seat}"
                 ),
                 StackDive::FrontDisc => {
