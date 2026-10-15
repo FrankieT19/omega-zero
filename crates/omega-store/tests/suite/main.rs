@@ -14,6 +14,7 @@ mod gba;
 mod ini;
 mod platform;
 mod ps1;
+mod ps1_scan;
 mod region;
 mod ring;
 mod scan;
