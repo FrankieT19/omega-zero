@@ -1289,17 +1289,9 @@ impl App {
         self.wifi.status().joined()
     }
 
-    /// The carts with no label, for a sync to look up.
+    /// The carts with no label, and the PlayStation discs with none, for a sync to look up.
     pub(crate) fn label_wants(&self) -> Vec<Want> {
-        self.carts()
-            .filter(|c| c.label.is_none())
-            .map(|c| Want {
-                platform: c.platform,
-                stem: c.stem.clone(),
-                rom: c.rom.clone(),
-                code: c.code.clone(),
-            })
-            .collect()
+        crate::label_sync::wants(self.root.as_deref(), self.carts())
     }
 
     /// Puts each label a sync saved on its cart, for the frontend to redraw the cart with.
@@ -1314,7 +1306,10 @@ impl App {
             else {
                 continue;
             };
-            cart.label = Some(path);
+            // a later disc's label, saved under the disc's own name, leaves the game's as it was
+            if path.is_file() {
+                cart.label = Some(path);
+            }
             self.stale_faces.push((platform, stem));
         }
     }
