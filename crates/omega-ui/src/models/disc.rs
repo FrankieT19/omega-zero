@@ -18,8 +18,8 @@ use std::sync::OnceLock;
 use omega_gfx::{Draw, MeshId, MeshVertex, TexId, FOCAL};
 use omega_store::{ps1, Cart, Platform};
 
-use crate::art;
 use crate::cart::{label_colour, label_text, Board, CartFace, Spec};
+use crate::label_cut::label_art;
 use crate::silhouette::Detail;
 use crate::spin::posed_cart;
 use crate::sprite::SPRITE_PX;
@@ -286,15 +286,27 @@ fn label_of(cart: &Cart, paths: &[PathBuf], disc: usize) -> Option<PathBuf> {
     own.or_else(|| cart.label.clone().filter(|_| disc == 0))
 }
 
-/// The faces of every disc of `cart`, side by side, disc 1 on the left.
-pub(crate) fn face(cart: &Cart) -> Option<CartFace> {
+/// The label scans of `cart`'s discs, each with the size its disc's face shows it at.
+pub(crate) fn label_scans(cart: &Cart) -> Vec<(PathBuf, u32, u32)> {
+    let paths = ps1::discs(&cart.rom);
+    (0..stack_of(cart))
+        .filter_map(|disc| label_of(cart, &paths, disc))
+        .map(|scan| (scan, DISC_PX, DISC_PX))
+        .collect()
+}
+
+/// The faces of every disc of `cart`, side by side, disc 1 on the left, their labels drawn from
+/// their scans when `scans` and generated when not.
+pub(crate) fn face(cart: &Cart, scans: bool) -> Option<CartFace> {
     let discs = stack_of(cart);
     let paths = ps1::discs(&cart.rom);
     let title = label_text(cart);
     let w = DISC_PX * discs as u32;
     let mut rgba = vec![0u8; (w * DISC_PX * 4) as usize];
     for disc in 0..discs {
-        let art = label_of(cart, &paths, disc).and_then(|p| art::cover(&p, DISC_PX, DISC_PX));
+        let art = label_of(cart, &paths, disc)
+            .filter(|_| scans)
+            .and_then(|p| label_art(&p, DISC_PX, DISC_PX));
         let one = disc_face(&title, disc, discs, art.as_deref());
         let row = (DISC_PX * 4) as usize;
         for (y, line) in one.chunks_exact(row).enumerate() {

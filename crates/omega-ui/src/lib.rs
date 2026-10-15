@@ -12,6 +12,7 @@ mod footer;
 mod hud;
 mod keyboard;
 pub mod kit;
+mod label_cut;
 pub mod link_art;
 mod models;
 mod motion;
@@ -52,9 +53,9 @@ pub use board::{
 };
 pub use cart::{
     cart_box, cart_face, cart_shadow, clean_label, gb_cart_shadow, gb_label_panel, gb_shell_of,
-    label_colour, label_panel, label_tags, label_text, model_box, model_of, model_shadow,
-    seated_box, CartFace, CART_H, CART_W, GB_CART_H, GB_CART_W, GB_LABEL_H, GB_LABEL_W, GB_LABEL_X,
-    GB_LABEL_Y, LABEL_H, LABEL_W, LABEL_X, LABEL_Y,
+    generated_face, label_colour, label_panel, label_tags, label_text, model_box, model_of,
+    model_shadow, seated_box, CartFace, CART_H, CART_W, GB_CART_H, GB_CART_W, GB_LABEL_H,
+    GB_LABEL_W, GB_LABEL_X, GB_LABEL_Y, LABEL_H, LABEL_W, LABEL_X, LABEL_Y,
 };
 pub use chrome::{edge, housing, set_theme, ChromeColours, BAR_H};
 pub use clock::{clock_label, date_time_text, hhmm, zone_text, ClockPicker, Field};
@@ -73,6 +74,7 @@ pub use keyboard::{
 };
 pub use kit::badge::BadgeIcon;
 pub use kit::gauge::GaugeIcon;
+pub use label_cut::{cut_label, cut_path, label_uncut, CUT_DIR};
 pub use models::disc::{
     push_disc, push_disc_alone, push_stack, stack_of, DiscStack, StackDive, StackMeshes, DISC_PX,
     MAX_STACK, STACK_DIVE,

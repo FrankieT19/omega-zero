@@ -3,15 +3,18 @@ use std::time::{Duration, Instant};
 use omega_gfx::{out_h, out_w, Bezel, Compositor, Draw, TexId};
 use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
+use omega_store::Cart;
 use omega_ui::{
     bezel_mark_face, cart_face, chip_face, chip_face_in, chip_shadow_face, chip_shadow_face_in,
-    lid_shadow_face, mark_height, mark_rect, model_shadow, rim, socket_face, wallpaper_face,
-    CartFace, CartMeshes, CartModel, UndoFace, BEZEL_FILL, SNES_SOCKETS,
+    generated_face, label_uncut, lid_shadow_face, mark_height, mark_rect, model_shadow, rim,
+    socket_face, wallpaper_face, CartFace, CartMeshes, CartModel, UndoFace, BEZEL_FILL,
+    SNES_SOCKETS,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
 use crate::face_builder::FaceBuilder;
 use crate::frontend::faces::upload_nearest;
+use crate::label_cutter::LabelCutter;
 use crate::list_view::ListView;
 use crate::opening::Facts;
 use crate::screens::about::AboutView;
@@ -70,6 +73,8 @@ pub struct Frontend {
     draws: Vec<Draw>,
     polaroid_texes: Vec<TexId>,
     faces: FaceBuilder,
+    /// Cuts the label scans with no cut yet, each cart drawn again once its label is cut.
+    cutter: LabelCutter,
     /// The link screen's art, LINK panel and bar.
     link: LinkTexes,
     /// The DISC screen's panel and bar.
@@ -111,6 +116,30 @@ pub struct Frontend {
     picture: Option<(omega_store::Platform, (u32, u32))>,
 }
 
+/// Each cart's face for the boot, drawn on as many threads as there are cores, and whether its
+/// label scan is still to be cut: that face wears a generated label for now.
+fn boot_faces(carts: &[&Cart]) -> Vec<(CartFace, bool)> {
+    let face = |c: &Cart| {
+        if label_uncut(c) {
+            (generated_face(c), true)
+        } else {
+            (cart_face(c), false)
+        }
+    };
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get());
+    let chunk = carts.len().div_ceil(threads).max(1);
+    std::thread::scope(|s| {
+        let parts: Vec<_> = carts
+            .chunks(chunk)
+            .map(|part| s.spawn(move || part.iter().map(|c| face(c)).collect::<Vec<_>>()))
+            .collect();
+        parts
+            .into_iter()
+            .flat_map(|p| p.join().unwrap_or_else(|e| std::panic::resume_unwind(e)))
+            .collect()
+    })
+}
+
 /// A card's own overlay for one system, read once and checked against each layout it is
 /// laid over: one that would hide the game is refused rather than drawn.
 struct Overlay {
@@ -143,6 +172,7 @@ impl Frontend {
             draws: Vec::new(),
             polaroid_texes: Vec::new(),
             faces: FaceBuilder::spawn(),
+            cutter: LabelCutter::spawn(),
             link: LinkTexes::default(),
             disc: DiscTexes::default(),
             core_asked: None,
@@ -201,16 +231,27 @@ impl Frontend {
         }
     }
 
+    /// Draws every cart's face. A label with no cut is not decoded here, where it would hold
+    /// the boot logo up: that cart is drawn in a generated label and its scan is cut on the
+    /// cutter's threads, the carts on screen first.
     pub fn upload_faces(&mut self, compositor: &mut Compositor) {
-        let faces = self
-            .session
-            .app()
-            .carts()
-            .map(|c| {
-                let f = cart_face(c);
+        let carts: Vec<&Cart> = self.session.app().carts().collect();
+        let mut uncut = std::collections::HashSet::new();
+        let faces = carts
+            .iter()
+            .zip(boot_faces(&carts))
+            .map(|(c, (f, cut_due))| {
+                if cut_due {
+                    uncut.insert((c.platform as u8, c.stem.clone()));
+                }
                 compositor.create_texture(f.w, f.h, &f.rgba)
             })
             .collect();
+        for cart in self.session.app().carts_nearest_first() {
+            if uncut.contains(&(cart.platform as u8, cart.stem.clone())) {
+                self.cutter.request(cart.clone());
+            }
+        }
         self.session.app_mut().set_faces(faces);
         // the core picker's parts are pixel art, a texel to an art pixel, kept sharp at 2x
         let mut sprite = |f: CartFace| compositor.create_texture_nearest(f.w, f.h, &f.rgba);
@@ -333,19 +374,32 @@ impl Frontend {
         compositor.draw_list(&self.draws);
     }
 
-    /// Draws again each cart a label arrived for, on the face it already has, and drops the
-    /// core picker's lid when it was made for one of them.
+    /// Draws again each cart a label arrived for, on the face it already has, once its scan
+    /// is cut, and each cart whose scan the cutter has cut since.
     fn relabel(&mut self, compositor: &mut Compositor) {
         for (cart, tex) in self.session.app_mut().take_stale_faces() {
-            let face = cart_face(&cart);
-            compositor.update_texture(tex, face.w, face.h, &face.rgba);
-            if [&self.core_asked, &self.core_built]
-                .iter()
-                .any(|s| s.as_deref() == Some(cart.stem.as_str()))
-            {
-                self.core_asked = None;
-                self.core_built = None;
+            if label_uncut(&cart) {
+                self.cutter.request(cart);
+            } else {
+                self.redraw(compositor, &cart, tex);
             }
+        }
+        for (cart, tex) in self.session.app().faces_of(self.cutter.take()) {
+            self.redraw(compositor, &cart, tex);
+        }
+    }
+
+    /// Draws `cart` again on its face `tex`, and drops the core picker's lid when it was made
+    /// for it.
+    fn redraw(&mut self, compositor: &mut Compositor, cart: &Cart, tex: TexId) {
+        let face = cart_face(cart);
+        compositor.update_texture(tex, face.w, face.h, &face.rgba);
+        if [&self.core_asked, &self.core_built]
+            .iter()
+            .any(|s| s.as_deref() == Some(cart.stem.as_str()))
+        {
+            self.core_asked = None;
+            self.core_built = None;
         }
     }
 

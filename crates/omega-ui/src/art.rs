@@ -30,6 +30,27 @@ pub fn exact(path: &Path, w: u32, h: u32) -> Option<Vec<u8>> {
     ((sw, sh) == (w, h)).then_some(rgba)
 }
 
+/// How big the png at `path` is, read from its header alone.
+pub fn size(path: &Path) -> Option<(u32, u32)> {
+    let file = std::fs::File::open(path).ok()?;
+    let reader = png::Decoder::new(std::io::BufReader::new(file))
+        .read_info()
+        .ok()?;
+    Some((reader.info().width, reader.info().height))
+}
+
+/// `rgba`, `w` by `h`, as a png.
+pub fn encode(rgba: &[u8], w: u32, h: u32) -> Option<Vec<u8>> {
+    let mut out = Vec::new();
+    let mut enc = png::Encoder::new(&mut out, w, h);
+    enc.set_color(png::ColorType::Rgba);
+    enc.set_depth(png::BitDepth::Eight);
+    let mut writer = enc.write_header().ok()?;
+    writer.write_image_data(rgba).ok()?;
+    writer.finish().ok()?;
+    Some(out)
+}
+
 fn box_average(src: &[u8], sw: u32, sh: u32, x0: f32, y0: f32, x1: f32, y1: f32) -> [u8; 4] {
     let xa = (x0.floor().max(0.0) as u32).min(sw - 1);
     let ya = (y0.floor().max(0.0) as u32).min(sh - 1);

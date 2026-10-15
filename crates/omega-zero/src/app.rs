@@ -1350,7 +1350,12 @@ impl App {
     /// The carts whose faces must be drawn again, with the faces they are drawn on now.
     pub fn take_stale_faces(&mut self) -> Vec<(Cart, TexId)> {
         let stale = std::mem::take(&mut self.stale_faces);
-        stale
+        self.faces_of(stale)
+    }
+
+    /// The carts named, with the faces they are drawn on now.
+    pub fn faces_of(&self, carts: Vec<(Platform, String)>) -> Vec<(Cart, TexId)> {
+        carts
             .into_iter()
             .filter_map(|(platform, stem)| {
                 let (_, shelf) = self.shelves.iter().find(|(p, _)| *p == platform)?;
@@ -1358,6 +1363,24 @@ impl App {
                 Some((cart.clone(), face?))
             })
             .collect()
+    }
+
+    /// Every cart, the shelf in view first and on each shelf the carts nearest its picked one
+    /// first, either way round: the order a boot draws their labels in, so the ones on screen
+    /// come first.
+    pub fn carts_nearest_first(&self) -> Vec<&Cart> {
+        let n = self.shelves.len();
+        let mut carts = Vec::new();
+        for (_, shelf) in self.shelves.iter().cycle().skip(self.shelf_at).take(n) {
+            let len = shelf.carts.len();
+            let mut row: Vec<(usize, &Cart)> = shelf.carts.iter().enumerate().collect();
+            row.sort_by_key(|(i, _)| {
+                let d = i.abs_diff(shelf.index);
+                d.min(len - d)
+            });
+            carts.extend(row.into_iter().map(|(_, c)| c));
+        }
+        carts
     }
 
     pub fn set_label_jobs(&mut self, jobs: Box<dyn LabelJobs>) {

@@ -17,6 +17,7 @@ pub mod frames;
 pub mod frontend;
 pub mod input;
 pub mod json;
+pub mod label_cutter;
 pub mod label_screen;
 pub mod label_sync;
 pub mod latency;

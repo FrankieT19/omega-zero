@@ -5,9 +5,10 @@
 use omega_gfx::{MeshVertex, FOCAL};
 use omega_store::{scan, Cart};
 use omega_ui::{
-    cart_face, cart_mesh, foot_y, label_colour, label_text, model_shelf_box, out_w, rest_y,
-    stage_y, CartDive, CartFace, CartMeshes, CartModel, DiscStack, Draw, MeshId, Pose, Shelf,
-    StackDive, StackMeshes, TexId, BAR_H, DISC_PX, MOCKUP_H, STACK_DIVE, TOP_BAR_H,
+    cart_face, cart_mesh, cut_label, foot_y, generated_face, label_colour, label_text, label_uncut,
+    model_shelf_box, out_w, rest_y, stage_y, CartDive, CartFace, CartMeshes, CartModel, DiscStack,
+    Draw, MeshId, Pose, Shelf, StackDive, StackMeshes, TexId, BAR_H, DISC_PX, MOCKUP_H, STACK_DIVE,
+    TOP_BAR_H,
 };
 use tempfile::TempDir;
 
@@ -279,6 +280,32 @@ fn each_disc_wears_its_own_label_and_disc_one_falls_back_to_the_games() {
     assert_eq!(
         pixel(&face, PRINT_AT.0, PRINT_AT.1),
         [0xe0, 0xe0, 0x30, 255]
+    );
+}
+
+/// Each disc's label is cut once like a cart's, so a boot draws a stack from its discs' cuts.
+#[test]
+fn each_discs_label_is_cut_and_the_stack_drawn_from_the_cuts_is_the_one_from_its_scans() {
+    let d = card(&[("Starfall Saga (USA)", 3)]);
+    label(&d, "Starfall Saga (USA)", [0xe0, 0x30, 0x30]);
+    label(&d, "Starfall Saga (USA) (Disc 2)", [0x30, 0xe0, 0x30]);
+    let cart = &carts(&d)[0];
+    let from_scans = cart_face(cart);
+    assert!(label_uncut(cart), "the discs' scans are not cut yet");
+    assert!(
+        generated_face(cart).rgba != from_scans.rgba,
+        "the generated stack wears the scans"
+    );
+
+    assert!(cut_label(cart));
+    for name in ["Starfall Saga (USA)", "Starfall Saga (USA) (Disc 2)"] {
+        let cut = d.path().join(format!("Labels/PS1/.cut/{name}.png"));
+        assert!(cut.is_file(), "{name} was not cut");
+    }
+    assert!(!label_uncut(cart), "a disc's scan is still uncut");
+    assert!(
+        cart_face(cart).rgba == from_scans.rgba,
+        "the stack drawn from the cuts is not the one drawn from the scans"
     );
 }
 
