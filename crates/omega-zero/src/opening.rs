@@ -3,6 +3,8 @@
 //! in, types its way through ten seconds of it, fades it back out and fades the shelf in. A
 //! press cuts it short: the terminal fades out at once, then the shelf comes in, and the press
 //! goes no further. Once the shelf shows through, a press ends it there and is the shelf's.
+//! When the boot left a game on the shelf because its start took omega-zero down, the black
+//! stays and the start notice comes up on it in place of the shelf (`start_notice`).
 
 use omega_gfx::{out_h, out_w};
 use omega_input::Action;
@@ -32,8 +34,8 @@ pub const CUT_OUT_MS: f32 = 200.0;
 pub const CUT_REVEAL_MS: f32 = 300.0;
 
 /// The terminal's size, in letters and lines: the screen it was written for.
-const COLS: u32 = 32;
-const LINES: u32 = 22;
+pub(crate) const COLS: u32 = 32;
+pub(crate) const LINES: u32 = 22;
 
 /// How long a count of memory takes to run up, and in how many steps.
 const COUNT_MS: f32 = 800.0;
@@ -383,7 +385,9 @@ fn origin() -> (f32, f32) {
 impl App {
     /// Plays the opening over the shelf from the next frame, telling `facts`. It is only
     /// played while the boot is still on the shelf it landed on, as the boot logo's fade is.
+    /// The start notice names the handheld as it does, whether it plays or not.
     pub fn start_opening(&mut self, facts: &Facts) {
+        self.tell_start_notice(facts);
         if self.boot_fades() {
             self.opening = Some(Opening::new(facts));
         }
@@ -418,6 +422,12 @@ impl App {
     /// Whether the opening keeps the screen black, so nothing under it need be drawn.
     pub(crate) fn opening_covers(&self) -> bool {
         self.opening.as_ref().is_some_and(|o| o.veil() >= 1.0)
+    }
+
+    /// Whether the opening has put its terminal away and its black would start to lift off the
+    /// shelf now.
+    pub(crate) fn opening_lifting(&self) -> bool {
+        self.opening.as_ref().is_some_and(Opening::revealing)
     }
 
     /// Whether the opening takes `action`. A press cuts the terminal short and goes no
@@ -482,37 +492,45 @@ impl App {
 
     /// The black over everything and the terminal on it, as far as each has faded.
     pub(crate) fn draw_opening(&self, out: &mut Vec<Draw>) {
-        let Some(o) = &self.opening else {
-            return;
+        if let Some(o) = &self.opening {
+            draw_terminal(o.veil(), o.ink(), &o.faces, out);
+        }
+    }
+}
+
+/// A terminal over everything: the black under it, `veil` opaque, and its rows' `faces` on the
+/// terminal's grid, as bright as `ink`.
+pub(crate) fn draw_terminal(
+    veil: f32,
+    ink: f32,
+    faces: &[Option<(TexId, u32, u32)>],
+    out: &mut Vec<Draw>,
+) {
+    if veil <= 0.0 {
+        return;
+    }
+    out.push(Draw::Rect {
+        x: 0.0,
+        y: 0.0,
+        w: out_w() as f32,
+        h: out_h() as f32,
+        colour: [0.0, 0.0, 0.0, veil],
+    });
+    if ink <= 0.0 {
+        return;
+    }
+    let (x, y) = origin();
+    for (row, face) in faces.iter().enumerate() {
+        let Some((tex, w, h)) = *face else {
+            continue;
         };
-        let veil = o.veil();
-        if veil <= 0.0 {
-            return;
-        }
-        out.push(Draw::Rect {
-            x: 0.0,
-            y: 0.0,
-            w: out_w() as f32,
-            h: out_h() as f32,
-            colour: [0.0, 0.0, 0.0, veil],
+        out.push(Draw::Tex {
+            x,
+            y: y + (row as u32 * OPENING_PITCH) as f32 - OPENING_RISE as f32,
+            w: w as f32,
+            h: h as f32,
+            tex,
+            alpha: ink,
         });
-        let ink = o.ink();
-        if ink <= 0.0 {
-            return;
-        }
-        let (x, y) = origin();
-        for (row, face) in o.faces.iter().enumerate() {
-            let Some((tex, w, h)) = *face else {
-                continue;
-            };
-            out.push(Draw::Tex {
-                x,
-                y: y + (row as u32 * OPENING_PITCH) as f32 - OPENING_RISE as f32,
-                w: w as f32,
-                h: h as f32,
-                tex,
-                alpha: ink,
-            });
-        }
     }
 }

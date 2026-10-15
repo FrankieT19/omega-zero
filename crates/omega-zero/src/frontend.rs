@@ -40,6 +40,7 @@ mod sync_network;
 mod sync_opening;
 mod sync_power;
 mod sync_settings;
+mod sync_start_notice;
 mod sync_switcher;
 mod sync_top_bar;
 
@@ -58,9 +59,10 @@ use sync_keyboard::{sync_keyboard, KeyboardTexes};
 use sync_labels::sync_labels;
 use sync_link::{sync_link, LinkTexes};
 use sync_network::{sync_network, NetworkTexes};
-use sync_opening::{sync_opening, OpeningTexes};
+use sync_opening::{sync_opening, TerminalRows};
 use sync_power::{sync_power, PowerPanels};
 use sync_settings::{sync_settings, SettingsTexes};
+use sync_start_notice::sync_start_notice;
 use sync_switcher::{sync_switcher, Switcher};
 use sync_top_bar::{sync_top_bar, TopBarTexes};
 
@@ -110,7 +112,9 @@ pub struct Frontend {
     /// The boot logo's texture while it fades over the shelf.
     boot_logo: Option<TexId>,
     /// The opening's lines while it plays.
-    opening: OpeningTexes,
+    opening: TerminalRows,
+    /// The start notice's lines while it is shown.
+    start_notice: TerminalRows,
     /// The system and size of the last game picture uploaded, which a SNES or PlayStation
     /// game is laid out by.
     picture: Option<(omega_store::Platform, (u32, u32))>,
@@ -198,7 +202,8 @@ impl Frontend {
             bar: BarTexes::default(),
             hud: HudTexes::default(),
             boot_logo: None,
-            opening: OpeningTexes::default(),
+            opening: TerminalRows::default(),
+            start_notice: TerminalRows::default(),
             picture: None,
         }
     }
@@ -350,6 +355,7 @@ impl Frontend {
         sync_bar(self.session.app_mut(), compositor, &mut self.bar);
         sync_hud(self.session.app_mut(), compositor, &mut self.hud);
         sync_opening(self.session.app_mut(), compositor, &mut self.opening);
+        sync_start_notice(self.session.app_mut(), compositor, &mut self.start_notice);
         self.relabel(compositor);
         sync_core_picker(
             self.session.app_mut(),

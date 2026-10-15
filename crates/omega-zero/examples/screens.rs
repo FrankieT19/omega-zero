@@ -3,7 +3,8 @@
 //!
 //! `screens OUT [BASELINE]` writes OUT/<name>.png. With BASELINE, every shot is also compared
 //! with BASELINE/<name>.png and the run fails on the first byte that differs. SCREENS_SCRIPT
-//! names a file to run in place of the built-in script.
+//! names a file to run in place of the built-in script. After the script, the opening and the
+//! start notice it gives way to are drawn on a card of their own.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -11,10 +12,11 @@ use std::time::{Duration, Instant};
 use omega_gfx::{out_h, out_w, Bezel, Compositor, Draw, HeadlessSurface};
 use omega_input::{Btn, InputSource, Millis, RawEvent};
 use omega_power::SimPlatform;
-use omega_store::{write_app_state, AppState, Platform};
+use omega_store::{write_app_state, write_selected_core, AppState, Core, Platform};
 use omega_ui::BEZEL_FILL;
 use omega_zero::frontend::Frontend;
 use omega_zero::label_sync::{LabelJob, LabelJobs, LabelNews, Quota};
+use omega_zero::opening::Facts;
 use omega_zero::video_mode::{screen, screen_for, VideoMode};
 use omega_zero::wifi::{SimWifi, WifiJob, WifiJobs, WifiNews};
 
@@ -725,6 +727,69 @@ fn compare(name: &str, rgba: &[u8], baseline: &Path) -> Result<(), String> {
     }
 }
 
+/// The opening with all its lines up, the start notice after it with its prompt up, and the
+/// shelf A puts it away to, on a card whose last start, Mega Man X's on Supafaust, took
+/// omega-zero down. Each is compared with BASELINE's only where BASELINE has one: a baseline
+/// from before they were drawn has none.
+fn notice_shots(
+    compositor: &mut Compositor,
+    out: &Path,
+    baseline: Option<&Path>,
+    failures: &mut Vec<String>,
+) {
+    let root = tempfile::tempdir().expect("a scratch card");
+    card(root.path());
+    let stem = "Mega Man X (U) (V1.1) [!]";
+    std::fs::write(
+        root.path().join(format!("Games/SNES/{stem}.sfc")),
+        vec![0u8; 0x8000],
+    )
+    .expect("write a SNES rom");
+    write_selected_core(root.path(), stem, Core::Supafaust).expect("choose its core");
+    write_app_state(
+        root.path(),
+        &AppState {
+            clock_set: true,
+            cart: Some(stem.into()),
+            cart_platform: Some(Platform::Snes),
+            ..Default::default()
+        },
+    )
+    .expect("write omega-zero.state");
+    std::fs::write(root.path().join("Config/.starting"), format!("SNES/{stem}"))
+        .expect("note the game starting");
+    let mut frontend = booted(root.path(), compositor);
+    frontend.start_opening(&Facts::default());
+    let mut input = Scripted::default();
+    let mut frame = 0u64;
+    let mut shoot = |name: &str, frontend: &mut Frontend, compositor: &mut Compositor| {
+        settle(frontend, compositor);
+        frontend.compose(compositor);
+        let rgba = panel_frame(compositor);
+        write_png(&out.join(format!("{name}.png")), &rgba);
+        if let Some(baseline) = baseline.filter(|b| b.join(format!("{name}.png")).exists()) {
+            if let Err(e) = compare(name, &rgba, baseline) {
+                failures.push(e);
+            }
+        }
+    };
+    for _ in 0..600 {
+        tick(&mut frontend, compositor, &mut input, &mut frame);
+    }
+    shoot("opening", &mut frontend, compositor);
+    while !frontend.app().start_notice_prompted() && frame < 1200 {
+        tick(&mut frontend, compositor, &mut input, &mut frame);
+    }
+    shoot("start-notice", &mut frontend, compositor);
+    input.0.push(RawEvent::Down(Btn::A));
+    tick(&mut frontend, compositor, &mut input, &mut frame);
+    input.0.push(RawEvent::Up(Btn::A));
+    for _ in 0..60 {
+        tick(&mut frontend, compositor, &mut input, &mut frame);
+    }
+    shoot("start-notice-shelf", &mut frontend, compositor);
+}
+
 fn main() {
     let args: Vec<PathBuf> = std::env::args().skip(1).map(PathBuf::from).collect();
     let (out, baseline) = match args.as_slice() {
@@ -800,6 +865,8 @@ fn main() {
             }
         }
     }
+    drop(frontend);
+    notice_shots(&mut compositor, &out, baseline.as_deref(), &mut failures);
     for platform in [Platform::Gba, Platform::Gb] {
         for mode in [VideoMode::Actual, VideoMode::Stretch] {
             for power in [0.05, 0.5, 1.0] {

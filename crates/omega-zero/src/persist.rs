@@ -63,6 +63,13 @@ pub fn take_starting(root: &Path) -> Option<String> {
     Some(key)
 }
 
+/// The system and stem a note of a game starting names, as `mark_starting` wrote it.
+pub fn starting_game(key: &str) -> Option<(Platform, String)> {
+    let (dir, stem) = key.trim_end_matches(['\r', '\n']).split_once('/')?;
+    let platform = Platform::ALL.into_iter().find(|p| p.dir_name() == dir)?;
+    (!stem.is_empty()).then(|| (platform, stem.to_string()))
+}
+
 pub fn eject(
     root: &Path,
     platform: Platform,
