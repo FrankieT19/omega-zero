@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 544 352">
+  <!-- the column stands proud of the panels: its left edge catches the light, its right throws a shadow on the panel -->
+  <rect x="92" y="2" width="3" height="350" fill="#fff"/>
+  <rect x="450" y="2" width="2" height="350" fill="#000"/>
+  <rect x="452" y="11" width="4" height="341" fill="#000" fill-opacity="0.45"/>
+  <!-- the grooves between the six slabs of each side panel, round onto the cart's sides -->
+  <rect x="0" y="66.33" width="92" height="3" fill="#000"/>
+  <rect x="0" y="69.33" width="92" height="2" fill="#fff"/>
+  <rect x="452" y="66.33" width="92" height="3" fill="#000"/>
+  <rect x="452" y="69.33" width="92" height="2" fill="#fff"/>
+  <rect x="0" y="123.17" width="92" height="3" fill="#000"/>
+  <rect x="0" y="126.17" width="92" height="2" fill="#fff"/>
+  <rect x="452" y="123.17" width="92" height="3" fill="#000"/>
+  <rect x="452" y="126.17" width="92" height="2" fill="#fff"/>
+  <rect x="0" y="180" width="92" height="3" fill="#000"/>
+  <rect x="0" y="183" width="92" height="2" fill="#fff"/>
+  <rect x="452" y="180" width="92" height="3" fill="#000"/>
+  <rect x="452" y="183" width="92" height="2" fill="#fff"/>
+  <rect x="0" y="236.83" width="92" height="3" fill="#000"/>
+  <rect x="0" y="239.83" width="92" height="2" fill="#fff"/>
+  <rect x="452" y="236.83" width="92" height="3" fill="#000"/>
+  <rect x="452" y="239.83" width="92" height="2" fill="#fff"/>
+  <rect x="0" y="293.67" width="92" height="3" fill="#000"/>
+  <rect x="0" y="296.67" width="92" height="2" fill="#fff"/>
+  <rect x="452" y="293.67" width="92" height="3" fill="#000"/>
+  <rect x="452" y="296.67" width="92" height="2" fill="#fff"/>
+  <!-- the well across the bottom of the column: its floor a little in shade, its top and left walls in shadow, its bottom and right lips lit -->
+  <rect x="104" y="204" width="336" height="140" fill="#000" fill-opacity="0.22"/>
+  <rect x="104" y="204" width="336" height="6" fill="#000"/>
+  <rect x="104" y="204" width="6" height="140" fill="#000"/>
+  <rect x="110" y="340" width="330" height="4" fill="#fff"/>
+  <rect x="436" y="210" width="4" height="130" fill="#fff"/>
+  <!-- the two grooves down the well, deep at the top and running out towards the bottom -->
+  <path d="M 222 210 L 226 210 L 226 300 Z" fill="#000"/>
+  <path d="M 226 210 L 229 210 L 226 300 Z" fill="#fff"/>
+  <path d="M 314 210 L 318 210 L 318 300 Z" fill="#000"/>
+  <path d="M 318 210 L 321 210 L 318 300 Z" fill="#fff"/>
+  <!-- the screws in the bottom slabs -->
+  <circle cx="44" cy="326" r="9" fill="#000"/>
+  <circle cx="43.4" cy="325.4" r="5.6" fill="#fff"/>
+  <rect x="40.8" y="325.1" width="6.4" height="1.8" fill="#000"/>
+  <rect x="43.1" y="322.8" width="1.8" height="6.4" fill="#000"/>
+  <circle cx="500" cy="326" r="9" fill="#000"/>
+  <circle cx="499.4" cy="325.4" r="5.6" fill="#fff"/>
+  <rect x="496.8" y="325.1" width="6.4" height="1.8" fill="#000"/>
+  <rect x="499.1" y="322.8" width="1.8" height="6.4" fill="#000"/>
+</svg>

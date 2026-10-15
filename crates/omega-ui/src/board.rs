@@ -10,10 +10,11 @@
 
 use crate::stage::{stage_x, stage_y};
 use omega_gfx::out_w;
-use omega_store::{Cart, Core};
+use omega_store::{Cart, Core, Platform};
 
 use crate::cart::{clean_label, CartFace, CART_H, CART_W};
 use crate::kit::pixel::{blank, fill, ink, letters, ACCENT, ADVANCE, CAP, LINE};
+use crate::models::snes::{self, SnesShell};
 use crate::motion::ease;
 use crate::plate::UndoFace;
 use crate::shelf::foot_y;
@@ -146,14 +147,20 @@ impl Plastic {
     }
 }
 
+/// The open cart: the back of its shell, the board in it, the ROM chip marked with the game's
+/// title. A SNES cart opens on a SNES board in its own shell.
 pub fn board_face(cart: &Cart) -> CartFace {
     let plastic = Plastic::of(shell_for(cart).colour);
     let mut face = blank(BOARD_W, BOARD_H);
-    shell(&mut face, &plastic);
-    pcb(&mut face, &plastic);
-    rom_chip(&mut face);
-    parts(&mut face);
-    latches(&mut face, &plastic);
+    if cart.platform == Platform::Snes {
+        snes_board(&mut face, &plastic, snes::shell_of(cart));
+    } else {
+        shell(&mut face, &plastic);
+        pcb(&mut face, &plastic);
+        rom_chip(&mut face);
+        parts(&mut face);
+        latches(&mut face, &plastic);
+    }
     let mut face = cart_face(face);
     over(&mut face, &rom_marking_face(&cart.stem), ROM_X, ROM_Y);
     face
@@ -728,4 +735,214 @@ pub fn chip_shadow_face() -> CartFace {
 
 pub fn lid_shadow_face() -> CartFace {
     shadow(LID_SHADOW_W, LID_SHADOW_H)
+}
+
+/// The SNES board in its shell, laid out as the GBA's is, so the ROM chip carries its marking
+/// in the same place and the sockets stand where they stand there: the back of the shell, its
+/// corners as the cart's, and a screw post in each bottom corner; the board's wide body with a
+/// notch in either side for the shell's ribs, and the tab across the middle of its foot with
+/// the cart's 23 contacts; the mask ROM lying across, the lockout chip and the decoder, the
+/// battery for the saves, and the board's name in its silkscreen.
+fn snes_board(face: &mut UndoFace, p: &Plastic, shell: SnesShell) {
+    snes_shell(face, p, shell);
+    snes_pcb(face, p);
+    snes_rom_chip(face);
+    snes_parts(face);
+}
+
+/// The board's body inside the shell, and the tab its contacts are on, under the body.
+const SNES_PCB: [i32; 4] = [12, 10, 162, 72];
+const SNES_TAB: [i32; 4] = [35, 82, 116, 16];
+/// The screw posts' middles, in the shell's bottom corners either side of the tab.
+const SNES_POSTS: [(i32, i32); 2] = [(20, 92), (165, 92)];
+/// A resistor's colour bands, and an electrolytic capacitor's can and its stripe.
+const BAND_RED: Rgb = [0xc0, 0x3a, 0x30];
+const BAND_DARK: Rgb = [0x3a, 0x2a, 0x22];
+const CAN: Rgb = [0x2c, 0x3e, 0x8c];
+const CAN_STRIPE: Rgb = [0x9a, 0xa8, 0xd8];
+
+/// The back of a SNES shell: the plastic outlined in its deepest shade, the Super Famicom's top
+/// corners round and the American cart's square; the floor inside, its top and left walls in
+/// shade as the light falls from the top right; and the two screw posts.
+fn snes_shell(face: &mut UndoFace, p: &Plastic, shell: SnesShell) {
+    const RIM: i32 = 3;
+    let (w, h) = (BOARD_W as i32, BOARD_H as i32);
+    let (top, foot): (&[i32], &[i32]) = match shell {
+        SnesShell::Famicom => (&[6, 4, 2, 1, 1], &[2, 1]),
+        SnesShell::Ntsc => (&[2, 1], &[2, 1]),
+    };
+    let side = |y: i32| rounded(y, h, top, foot);
+    let inside = |x: i32, y: i32| (0..h).contains(&y) && x >= side(y) && x < w - side(y);
+    for y in 0..h {
+        for x in side(y)..w - side(y) {
+            let edge = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+                .iter()
+                .any(|(dx, dy)| !inside(x + dx, y + dy));
+            dot(face, x, y, if edge { p.deep } else { p.face });
+        }
+    }
+    let inner = |y: i32| RIM + rounded(y - RIM, h - 2 * RIM, &top[top.len().min(2)..], &[1]);
+    for y in RIM..h - RIM {
+        let side = inner(y);
+        let shade = match y - RIM {
+            0 | 1 => p.wall_deep,
+            2..=4 => p.wall,
+            _ => p.floor,
+        };
+        fill(face, [side, y, w - 2 * side, 1], shade);
+        if y - RIM > 4 {
+            fill(face, [side, y, 3, 1], p.wall);
+        }
+    }
+    for (cx, cy) in SNES_POSTS {
+        checker(face, [cx - 5, cy + 6, 12, 2], p.deep);
+        disc(face, cx, cy, 6, p.deep);
+        disc(face, cx, cy, 5, p.face);
+        disc(face, cx - 1, cy - 1, 2, lighter(p.face));
+        disc(face, cx, cy, 2, p.deep);
+    }
+}
+
+/// The board: its body and its tab in green, edged darker, shadow on the floor under its right
+/// and bottom edges, its notches, its traces and vias, and the 23 contacts down the tab.
+fn snes_pcb(face: &mut UndoFace, p: &Plastic) {
+    let [x, y, w, h] = SNES_PCB;
+    let [tx, ty, tw, th] = SNES_TAB;
+    checker(face, [x + w, y + 2, 2, h], p.deep);
+    checker(face, [x + 2, y + h, tx - x - 2, 2], p.deep);
+    checker(face, [tx + tw, y + h, x + w - tx - tw + 2, 2], p.deep);
+    checker(face, [tx + tw, ty + 2, 2, th - 2], p.deep);
+    fill(face, [x, y, w, h], PCB_EDGE);
+    fill(face, [tx, ty - 1, tw, th + 1], PCB_EDGE);
+    fill(face, [x + 1, y + 1, w - 2, h - 2], PCB);
+    fill(face, [tx + 1, ty - 1, tw - 2, th], PCB);
+    for (cx, cy) in [
+        (x, y),
+        (x + w - 1, y),
+        (tx, ty + th - 1),
+        (tx + tw - 1, ty + th - 1),
+    ] {
+        dot(face, cx, cy, p.floor);
+    }
+    // the notches the shell's ribs hold the board by
+    for nx in [x, x + w - 3] {
+        fill(face, [nx, y + 16, 3, 6], p.floor);
+        let edge = if nx == x { nx + 3 } else { nx - 1 };
+        fill(face, [edge, y + 16, 1, 6], PCB_EDGE);
+    }
+
+    for trace in SNES_TRACES {
+        path(face, trace, TRACE);
+    }
+    for &(x, y) in SNES_VIAS {
+        via(face, x, y);
+    }
+
+    // 23 contacts, three pixels of gold and two of board, down to the tab's edge
+    for n in 0..23 {
+        let cx = tx + 2 + n * 5;
+        fill(face, [cx, ty + 2, 3, th - 2], GOLD);
+        fill(face, [cx + 2, ty + 3, 1, th - 3], GOLD_DARK);
+        dot(face, cx, ty + 2, PCB);
+        dot(face, cx + 2, ty + 2, PCB);
+    }
+}
+
+const SNES_TRACES: &[&[(i32, i32)]] = &[
+    // the ROM's address and data lines over to the first socket
+    &[(76, 30), (82, 30), (86, 34), (86, 41)],
+    &[(76, 34), (80, 34), (83, 37), (83, 41)],
+    &[(76, 38), (78, 38), (80, 40), (80, 41)],
+    // the ROM's bottom row of pins down to the tab
+    &[(40, 71), (40, 83)],
+    &[(46, 71), (46, 83)],
+    &[(52, 71), (52, 83)],
+    &[(58, 71), (58, 77), (61, 80), (61, 83)],
+    &[(64, 71), (64, 75), (71, 82), (71, 83)],
+    &[(70, 71), (70, 73), (78, 81), (78, 83)],
+    // the lockout chip and the decoder, along under them and down past the battery
+    &[
+        (97, 26),
+        (97, 29),
+        (110, 29),
+        (113, 32),
+        (125, 32),
+        (128, 29),
+        (128, 26),
+    ],
+    &[
+        (138, 23),
+        (142, 27),
+        (142, 36),
+        (145, 39),
+        (171, 39),
+        (171, 60),
+    ],
+    // the sockets' pins down to the tab
+    &[(90, 67), (90, 83)],
+    &[(95, 67), (95, 83)],
+    &[(100, 67), (100, 83)],
+    &[(105, 67), (105, 83)],
+    &[(110, 67), (110, 83)],
+    &[(140, 67), (140, 76), (136, 80), (136, 83)],
+    &[(145, 67), (145, 76), (141, 80), (141, 83)],
+    &[(150, 67), (150, 76), (146, 80), (146, 83)],
+];
+
+const SNES_VIAS: &[(i32, i32)] = &[(79, 26), (110, 38), (131, 76), (30, 66), (171, 62)];
+
+/// The mask ROM, a long DIP lying across the board: a black body, a row of pins along its top
+/// and its bottom, the notch at its first pin's end.
+fn snes_rom_chip(face: &mut UndoFace) {
+    let [x, y, w, h] = [ROM_X as i32, ROM_Y as i32, ROM_W as i32, ROM_H as i32];
+    for n in 0..18 {
+        let px = x + 3 + n * 3;
+        fill(face, [px, y - 2, 2, 2], PIN);
+        fill(face, [px, y + h, 2, 2], PIN);
+        dot(face, px + 1, y - 1, PIN_DARK);
+    }
+    body(face, [x, y, w, h]);
+    fill(face, [x, y + h / 2 - 3, 2, 6], BODY_HI);
+    fill(face, [x + 3, y + h - 5, 2, 2], BODY_HI);
+}
+
+/// The rest of the board: the lockout chip and the decoder, small DIPs with their names in the
+/// silkscreen; the battery in its holder; an electrolytic capacitor; a resistor between the
+/// sockets; ceramic capacitors in their printed outlines; and the board's name.
+fn snes_parts(face: &mut UndoFace) {
+    for (x, name) in [(86, "CIC"), (114, "139")] {
+        for n in 0..8 {
+            let px = x + 1 + n * 3;
+            fill(face, [px, 13, 1, 2], PIN);
+            fill(face, [px, 23, 1, 2], PIN);
+        }
+        body(face, [x, 15, 24, 8]);
+        dot(face, x + 2, 20, BODY_HI);
+        if x == 86 {
+            print(face, name, x + 2, 28, SILK);
+        }
+    }
+
+    // the battery: its holder, the cell, and the tab soldered over it
+    disc(face, 158, 26, 10, BODY);
+    disc(face, 158, 26, 9, CELL_EDGE);
+    disc(face, 158, 26, 8, CELL);
+    ring(face, 158, 26, 6, CELL_RING);
+    fill(face, [155, 15, 7, 4], PIN);
+    fill(face, [155, 18, 7, 1], PIN_DARK);
+
+    disc(face, 143, 18, 3, CAN);
+    fill(face, [141, 16, 1, 5], CAN_STRIPE);
+
+    // a resistor between the sockets: leads, a tan body, three bands
+    fill(face, [117, 71, 14, 1], PIN);
+    fill(face, [119, 70, 10, 3], PART);
+    for (bx, c) in [(121, BAND_RED), (123, BAND_DARK), (126, BAND_RED)] {
+        fill(face, [bx, 70, 1, 3], c);
+    }
+
+    capacitor(face, 20, 74);
+    capacitor(face, 162, 74);
+
+    print(face, "SHVC-1A3M", 17, 12, SILK);
 }

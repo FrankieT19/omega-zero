@@ -389,17 +389,65 @@ mod tests {
 
     #[test]
     fn every_cart_outline_stays_within_the_band_its_side_is_drawn_in() {
-        for (name, mask, w, h) in [
-            ("GBA", cart_mask(), CART_W, CART_H),
-            ("GB", gb_cart_mask(GbShell::Notched), GB_CART_W, GB_CART_H),
-            ("GBC", gb_cart_mask(GbShell::Rounded), GB_CART_W, GB_CART_H),
+        let (ntsc, sfc) = (snes::spec(SnesShell::Ntsc), snes::spec(SnesShell::Famicom));
+        let (_, (_, units)) = snes::outline(SnesShell::Ntsc);
+        // the American cart's column stands proud of its shoulders: only the rows above them
+        // come in further, and only by the step
+        let shoulder = (snes::NTSC_SHOULDER / units * ntsc.h as f32).ceil() as u32;
+        for (name, mask, w, h, from) in [
+            ("GBA", cart_mask(), CART_W, CART_H, 0),
+            (
+                "GB",
+                gb_cart_mask(GbShell::Notched),
+                GB_CART_W,
+                GB_CART_H,
+                0,
+            ),
+            (
+                "GBC",
+                gb_cart_mask(GbShell::Rounded),
+                GB_CART_W,
+                GB_CART_H,
+                0,
+            ),
+            ("SNES", ntsc.mask, ntsc.w, ntsc.h, shoulder),
+            ("SFC", sfc.mask, sfc.w, sfc.h, 0),
         ] {
-            let inset = widest_inset(mask, w as usize, h as usize) as f32;
+            let rows = &mask[(from * w) as usize..];
+            let inset = widest_inset(rows, w as usize, (h - from) as usize) as f32;
             assert!(
                 inset <= OUTLINE_INSET * w as f32,
                 "the {name} outline comes {inset} px in, past the {} px its side is drawn in",
                 OUTLINE_INSET * w as f32
             );
+        }
+        let step = widest_inset(ntsc.mask, ntsc.w as usize, shoulder as usize) as f32;
+        assert!(
+            step <= 0.18 * ntsc.w as f32,
+            "the American cart's shoulders come {step} px in, more than its column's step"
+        );
+    }
+
+    /// A side takes its colour from the face just inside its edge, so that has to be the
+    /// cart's plastic, not the clear corner beyond its outline.
+    #[test]
+    fn every_side_takes_its_colour_from_the_plastic_inside_its_edge() {
+        for model in CartModel::ALL {
+            if model == CartModel::Disc {
+                continue;
+            }
+            let s = crate::cart::spec(model);
+            let cover = |u: f32, v: f32| {
+                let (x, y) = ((u * s.w as f32) as u32, (v * s.h as f32) as u32);
+                s.mask[(y.min(s.h - 1) * s.w + x.min(s.w - 1)) as usize]
+            };
+            for v in cart_mesh(model).iter().filter(|v| v.normal[2] == 0.0) {
+                let [u, t] = v.uv;
+                assert!(
+                    cover(u, t) > 192,
+                    "a side of the {model:?} model takes its colour from {u},{t}, outside the cart"
+                );
+            }
         }
     }
 }

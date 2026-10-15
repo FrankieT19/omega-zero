@@ -5,8 +5,9 @@
 use omega_store::{Cart, Platform};
 use omega_ui::kit::palette::palette;
 use omega_ui::{
-    alert_face, cart_box, foot_y, label_colour, label_text, out_h, out_w, shelf_box, shelf_scale,
-    stage_y, CartDive, Draw, MeshId, Pose, Shelf, TexId, ALERT_H, ALERT_W, SPRITE_PX, TOP_BAR_H,
+    alert_face, foot_y, label_colour, label_text, model_box, model_of, model_scale,
+    model_shelf_box, out_h, out_w, shelf_box, shelf_scale, stage_y, CartDive, CartModel, Draw,
+    MeshId, Pose, Shelf, SnesShell, TexId, ALERT_H, ALERT_W, SPRITE_PX, TOP_BAR_H,
 };
 
 /// What the app hands the dive to draw with: the cart's face, its model, and the alert.
@@ -51,8 +52,28 @@ fn pak() -> Cart {
     }
 }
 
-fn both() -> [(&'static str, Cart); 2] {
-    [("the GBA cart", cart()), ("the Game Boy pak", pak())]
+/// A SNES cart named `stem`, its shell told by its tags.
+fn snes(stem: &str) -> Cart {
+    Cart {
+        platform: Platform::Snes,
+        stem: stem.into(),
+        rom: format!("Games/SNES/{stem}.sfc").into(),
+        label: None,
+        code: String::new(),
+        shell: None,
+        title: String::new(),
+    }
+}
+
+/// A cart of every shape that dives: the GBA cart, the Game Boy pak, and the SNES cart in the
+/// American shell and the Super Famicom's.
+fn both() -> [(&'static str, Cart); 4] {
+    [
+        ("the GBA cart", cart()),
+        ("the Game Boy pak", pak()),
+        ("the American SNES cart", snes("Super Metroid (USA)")),
+        ("the Super Famicom cart", snes("Rockman X (Japan)")),
+    ]
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -192,7 +213,7 @@ fn the_cart_rises_a_little_before_it_goes_down() {
             .min_by(|a, b| a.1 .1.total_cmp(&b.1 .1))
             .expect("no way in");
         let rise = start - top;
-        let h = shelf_box(c.platform).1;
+        let h = model_shelf_box(model_of(&c)).1;
         assert!(
             rise > 2.0 && rise < h / 10.0,
             "{name} rises {rise} px off the {start} it started at: not the little lift of a \
@@ -327,9 +348,9 @@ fn coming_out_is_the_way_in_played_backwards() {
 #[test]
 fn a_cart_keeps_its_shelf_size_all_the_way_in() {
     for (name, c) in both() {
-        let (w, h) = cart_box(c.platform);
-        let (sw, sh) = shelf_box(c.platform);
-        let share = shelf_scale(c.platform);
+        let (w, h) = model_box(model_of(&c));
+        let (sw, sh) = model_shelf_box(model_of(&c));
+        let share = model_scale(model_of(&c));
         assert_eq!(
             (sw, sh),
             (w as f32 * share, h as f32 * share),
@@ -349,6 +370,16 @@ fn a_cart_keeps_its_shelf_size_all_the_way_in() {
     }
     assert_eq!(shelf_box(Platform::Gba), (360.0, 212.0), "the GBA cart");
     assert_eq!(shelf_scale(Platform::Gb), 0.8, "the Game Boy pak");
+    assert_eq!(
+        model_shelf_box(CartModel::Snes(SnesShell::Ntsc)),
+        (376.0, 242.0),
+        "the American SNES cart"
+    );
+    assert_eq!(
+        model_shelf_box(CartModel::Snes(SnesShell::Famicom)),
+        (360.0, 238.0),
+        "the Super Famicom cart"
+    );
 }
 
 #[test]
@@ -364,7 +395,7 @@ fn the_cart_comes_to_the_middle_of_the_screen_square_and_level_as_it_settles() {
         };
         let (start, yaw) = at(0.0);
         assert_eq!(yaw, SWAYING.yaw, "{name} left the row turned another way");
-        let sh = shelf_box(c.platform).1;
+        let sh = model_shelf_box(model_of(&c)).1;
         assert!(
             (start.y + start.h - (foot_y(sh) - SWAYING.lift)).abs() < 0.01,
             "{name} left the row at {}, not floating where the row had it",
@@ -411,9 +442,9 @@ fn a_cart_the_row_had_not_finished_moving_slides_across_as_it_goes_in() {
         shelf.update(1.0 / 60.0);
         shelf.update(1.0 / 60.0);
         let (rest, scale) = shelf.selected_at();
-        let (sw, sh) = shelf_box(c.platform);
+        let (sw, sh) = model_shelf_box(model_of(&c));
         assert!(
-            (rest - (mid() - sw / 2.0)).abs() > 100.0 && scale < 0.95 * shelf_scale(c.platform),
+            (rest - (mid() - sw / 2.0)).abs() > 100.0 && scale < 0.95 * model_scale(model_of(&c)),
             "the row settled before the press: this proves nothing at {rest} and {scale}"
         );
         let at = |seat: f32| {
@@ -426,7 +457,7 @@ fn a_cart_the_row_had_not_finished_moving_slides_across_as_it_goes_in() {
             .0
         };
         let start = at(0.0);
-        let own = cart_box(c.platform).0 as f32;
+        let own = model_box(model_of(&c)).0 as f32;
         assert!(
             (start.x - rest).abs() < 0.01 && (start.w - own * scale).abs() < 0.01,
             "{name} starts at {start:?} rather than in the quad the row had it in"
@@ -623,7 +654,7 @@ fn dim_draws_a_black_rect_over_the_whole_screen_at_its_alpha() {
 fn the_alert_fits_on_the_cart_face() {
     let (w, h) = ((ALERT_W * SPRITE_PX) as f32, (ALERT_H * SPRITE_PX) as f32);
     for (name, c) in both() {
-        let (cw, ch) = shelf_box(c.platform);
+        let (cw, ch) = model_shelf_box(model_of(&c));
         assert!(w < cw && h < ch, "a {w}x{h} alert on {name} at {cw}x{ch}");
         assert!(
             h * 6.0 > ch,

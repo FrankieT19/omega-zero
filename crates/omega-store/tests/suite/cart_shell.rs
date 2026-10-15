@@ -3,7 +3,13 @@ use omega_store::{Outline, ShellChoice, ShellFinish};
 
 #[test]
 fn a_choice_reads_back_as_itself() {
-    for outline in [Outline::Auto, Outline::Notched, Outline::Rounded] {
+    for outline in [
+        Outline::Auto,
+        Outline::Notched,
+        Outline::Rounded,
+        Outline::Ntsc,
+        Outline::Sfc,
+    ] {
         for finish in [ShellFinish::Solid, ShellFinish::Clear, ShellFinish::Glitter] {
             for colour in [[0, 0, 0], [0xff, 0xff, 0xff], [0x86, 0xb9, 0xbf]] {
                 let c = ShellChoice {
@@ -21,6 +27,20 @@ fn a_choice_reads_back_as_itself() {
             .to_value(),
         "rounded 86b9bf glitter"
     );
+}
+
+#[test]
+fn the_snes_shapes_read_as_the_american_cart_and_the_super_famicom_one() {
+    let ntsc = ShellChoice::parse("ntsc 8b8a91 solid").unwrap();
+    assert_eq!(ntsc.outline, Outline::Ntsc);
+    assert_eq!(ntsc.colour, [0x8b, 0x8a, 0x91]);
+    let sfc = ShellChoice::parse("sfc b7b6bb clear").unwrap();
+    assert_eq!(sfc.outline, Outline::Sfc);
+    assert_eq!(sfc.finish, ShellFinish::Clear);
+    assert_eq!(sfc.to_value(), "sfc b7b6bb clear");
+    for bad in ["NTSC 8b8a91 solid", "pal 8b8a91 solid", "snes 8b8a91 solid"] {
+        assert_eq!(ShellChoice::parse(bad), None, "{bad:?}");
+    }
 }
 
 #[test]

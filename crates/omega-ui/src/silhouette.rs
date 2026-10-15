@@ -57,7 +57,7 @@ pub(crate) fn gb_cart_depth(shell: GbShell) -> &'static [u8] {
     lock.get_or_init(|| depth_map(gb_cart_mask(shell), GB_CART_W as usize, GB_CART_H as usize))
 }
 
-fn depth_map(mask: &[u8], w: usize, h: usize) -> Vec<u8> {
+pub(crate) fn depth_map(mask: &[u8], w: usize, h: usize) -> Vec<u8> {
     let mut d: Vec<u8> = mask
         .iter()
         .map(|c| if *c > 127 { 255 } else { 0 })
@@ -95,7 +95,7 @@ pub(crate) struct Detail {
 }
 
 impl Detail {
-    fn blank(w: u32, h: u32) -> Detail {
+    pub(crate) fn blank(w: u32, h: u32) -> Detail {
         Detail {
             shadow: vec![0; (w * h) as usize],
             highlight: vec![0; (w * h) as usize],
@@ -200,7 +200,7 @@ fn rasterise(w: u32, h: u32) -> Option<Vec<u8>> {
     rasterise_svg(CART_SVG, w, h)
 }
 
-fn rasterise_detail(svg: &str, w: u32, h: u32) -> Option<Detail> {
+pub(crate) fn rasterise_detail(svg: &str, w: u32, h: u32) -> Option<Detail> {
     let px = render(svg, w, h)?;
     let mut shadow = Vec::with_capacity((w * h) as usize);
     let mut highlight = Vec::with_capacity((w * h) as usize);
@@ -213,7 +213,7 @@ fn rasterise_detail(svg: &str, w: u32, h: u32) -> Option<Detail> {
     Some(Detail { shadow, highlight })
 }
 
-fn rasterise_svg(svg: &str, w: u32, h: u32) -> Option<Vec<u8>> {
+pub(crate) fn rasterise_svg(svg: &str, w: u32, h: u32) -> Option<Vec<u8>> {
     let px = render(svg, w, h)?;
     Some(px.data().iter().skip(3).step_by(4).copied().collect())
 }
