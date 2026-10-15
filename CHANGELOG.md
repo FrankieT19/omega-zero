@@ -15,6 +15,16 @@
   whole memory as it went down in `crash/omega-zero.core.gz`, for a debugger. It starts again once
   the core is written, some seconds later. A crash within ten minutes of the last keeps the first
   core, and none is written when it would leave the card less than 512 MB.
+- Labels take about a quarter of the room on the card. Once a label is cut to its cart, the
+  label itself is shrunk to the smallest size that still covers every face its system draws it
+  on, since no face is drawn bigger than that; until now each one was kept 600 pixels wide. Every
+  cart looks as it did. Labels already on the card, or copied there by hand, are shrunk once in
+  the background after the boot.
+- Labels fetches each label at about two thirds of the width it did, so a sync downloads about
+  half as much.
+- The boot no longer reads any label before the shelf comes up. Every cart starts in its
+  generated label and is drawn in its own on threads that stand back from the shelf and the
+  game, the carts on screen first, a few a frame, while the opening plays.
 
 ## omega-zero 1.1.0
 

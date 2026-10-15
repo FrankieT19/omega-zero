@@ -4,11 +4,12 @@ use std::time::{Duration, SystemTime};
 use omega_store::{scan, Platform};
 use omega_ui::{
     cart_face, clean_label, cut_label, cut_path, foot_y, gb_label_panel, gb_silhouette,
-    label_colour, label_panel, label_text, label_uncut, model_box, model_of, model_scale,
-    model_shadow, model_shelf_box, out_w, rest_y, seated_box, shelf_box, shell_for, silhouette,
-    snes_silhouette, stage_y, sway_reach, CartModel, Finish, GbShell, SnesShell, BAR_H, CART_H,
-    CART_W, GB_CART_H, GB_CART_W, GB_LABEL_H, GB_LABEL_W, GB_LABEL_X, GB_LABEL_Y, GB_SHELF_SCALE,
-    LABEL_H, LABEL_W, LABEL_X, LABEL_Y, MOCKUP_H, SFC_SHELL, SNES_SHELL, TOP_BAR_H,
+    generated_face, label_colour, label_panel, label_text, label_uncut, model_box, model_of,
+    model_scale, model_shadow, model_shelf_box, out_w, rest_y, seated_box, shelf_box, shell_for,
+    silhouette, snes_silhouette, stage_y, sway_reach, wears_label, CartModel, Finish, GbShell,
+    SnesShell, BAR_H, CART_H, CART_W, GB_CART_H, GB_CART_W, GB_LABEL_H, GB_LABEL_W, GB_LABEL_X,
+    GB_LABEL_Y, GB_SHELF_SCALE, LABEL_H, LABEL_W, LABEL_X, LABEL_Y, MOCKUP_H, SFC_SHELL,
+    SNES_SHELL, TOP_BAR_H,
 };
 use tempfile::TempDir;
 
@@ -213,6 +214,25 @@ fn a_cart_without_a_label_scan_has_nothing_to_cut() {
     assert!(!label_uncut(cart));
     assert!(!cut_label(cart));
     assert!(!d.path().join("Labels/GBA/.cut").exists());
+}
+
+/// A boot asks the label workers to draw only the carts that wear a scan: the face of one
+/// without is its generated face, final as it is.
+#[test]
+fn only_a_cart_with_a_label_scan_wears_one() {
+    let d = tmp_root();
+    write_rom(&d, "Bare.gba", "BARE");
+    write_rom(&d, "Labelled.gba", "LABELLED");
+    write_label(&d, "Labelled.png", 64, 64, |_, _| [0xd0, 0x20, 0xa0]);
+    let carts = scan(d.path()).unwrap();
+    let cart = |stem: &str| carts.iter().find(|c| c.stem == stem).unwrap();
+    assert!(!wears_label(cart("Bare")));
+    assert!(
+        cart_face(cart("Bare")).rgba == generated_face(cart("Bare")).rgba,
+        "a cart that wears no scan is not drawn in its generated face"
+    );
+    assert!(wears_label(cart("Labelled")));
+    assert!(cart_face(cart("Labelled")).rgba != generated_face(cart("Labelled")).rgba);
 }
 
 #[test]

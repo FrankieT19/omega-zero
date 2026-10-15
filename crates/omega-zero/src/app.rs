@@ -1397,6 +1397,12 @@ impl App {
             .collect()
     }
 
+    /// The face the cart `stem` of `platform` is drawn on now.
+    pub fn face_of(&self, platform: Platform, stem: &str) -> Option<TexId> {
+        let (_, shelf) = self.shelves.iter().find(|(p, _)| *p == platform)?;
+        shelf.find(stem)?.1
+    }
+
     /// Every cart, the shelf in view first and on each shelf the carts nearest its picked one
     /// first, either way round: the order a boot draws their labels in, so the ones on screen
     /// come first.

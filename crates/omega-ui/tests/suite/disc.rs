@@ -6,9 +6,9 @@ use omega_gfx::{MeshVertex, FOCAL};
 use omega_store::{scan, Cart};
 use omega_ui::{
     cart_face, cart_mesh, cut_label, foot_y, generated_face, label_colour, label_text, label_uncut,
-    model_shelf_box, out_w, rest_y, stage_y, CartDive, CartFace, CartMeshes, CartModel, DiscStack,
-    Draw, MeshId, Pose, Shelf, StackDive, StackMeshes, TexId, BAR_H, DISC_PX, MOCKUP_H, STACK_DIVE,
-    TOP_BAR_H,
+    model_shelf_box, out_w, rest_y, stage_y, wears_label, CartDive, CartFace, CartMeshes,
+    CartModel, DiscStack, Draw, MeshId, Pose, Shelf, StackDive, StackMeshes, TexId, BAR_H, DISC_PX,
+    MOCKUP_H, STACK_DIVE, TOP_BAR_H,
 };
 use tempfile::TempDir;
 
@@ -307,6 +307,23 @@ fn each_discs_label_is_cut_and_the_stack_drawn_from_the_cuts_is_the_one_from_its
         cart_face(cart).rgba == from_scans.rgba,
         "the stack drawn from the cuts is not the one drawn from the scans"
     );
+}
+
+/// A game with no label of its own still wears one when a disc has its own, and a game none of
+/// whose discs has one wears its generated stack.
+#[test]
+fn a_game_wears_a_label_when_any_of_its_discs_has_one() {
+    let d = card(&[("Starfall Saga (USA)", 2), ("Bare Bones (USA)", 2)]);
+    label(&d, "Starfall Saga (USA) (Disc 2)", [0x30, 0xe0, 0x30]);
+    let carts = carts(&d);
+    let cart = |stem: &str| carts.iter().find(|c| c.stem == stem).unwrap();
+    let starfall = cart("Starfall Saga (USA)");
+    assert!(starfall.label.is_none(), "the game has no label of its own");
+    assert!(wears_label(starfall), "its second disc has one");
+    assert!(cart_face(starfall).rgba != generated_face(starfall).rgba);
+    let bare = cart("Bare Bones (USA)");
+    assert!(!wears_label(bare));
+    assert!(cart_face(bare).rgba == generated_face(bare).rgba);
 }
 
 /// A game whose discs sit in a folder of their own, or whose playlist was made for it under

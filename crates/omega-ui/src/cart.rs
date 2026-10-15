@@ -225,6 +225,27 @@ pub(crate) fn label_scans(cart: &Cart) -> Vec<(PathBuf, u32, u32)> {
     cart.label.iter().map(|p| (p.clone(), w, h)).collect()
 }
 
+/// The sizes `platform`'s label scans are drawn at, one for each of its models: a Game Boy cart
+/// can wear either outline and a SNES cart either shell.
+pub fn face_labels(platform: Platform) -> Vec<(u32, u32)> {
+    CartModel::ALL
+        .into_iter()
+        .filter(|model| match model {
+            CartModel::Gba => platform == Platform::Gba,
+            CartModel::Gb(_) => matches!(platform, Platform::Gb | Platform::Gbc),
+            CartModel::Snes(_) => platform == Platform::Snes,
+            CartModel::Disc => platform == Platform::Ps1,
+        })
+        .map(|model| match model {
+            CartModel::Disc => (disc::DISC_PX, disc::DISC_PX),
+            _ => {
+                let (_, _, w, h) = spec(model).label;
+                (w, h)
+            }
+        })
+        .collect()
+}
+
 /// `cart`'s face, its label drawn from the cut kept for its scan, or from the scan itself when
 /// there is no cut of it yet.
 pub fn cart_face(cart: &Cart) -> CartFace {

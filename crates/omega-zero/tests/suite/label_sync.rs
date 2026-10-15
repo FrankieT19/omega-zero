@@ -7,9 +7,9 @@ use omega_store::ps1::disc_label;
 use omega_store::{Cart, Platform};
 use omega_zero::json::Json;
 use omega_zero::label_sync::{
-    crc32, game_url, label_regions, lookups, media_url, pick_label, pick_media, read_reply,
-    regions, sync, title, wants, Account, Found, Http, LabelNews, Lookup, Media, Quota, Reply,
-    Sync, SyncFail, Tally, Want, Who,
+    crc32, fetch_width, game_url, label_regions, lookups, media_url, pick_label, pick_media,
+    read_reply, regions, sync, title, wants, Account, Found, Http, LabelNews, Lookup, Media, Quota,
+    Reply, Sync, SyncFail, Tally, Want, Who,
 };
 
 #[test]
@@ -104,7 +104,26 @@ fn a_lookup_carries_both_credentials_and_the_rom_escaped() {
     ] {
         assert!(url.contains(part), "{part} is missing from {url}");
     }
-    assert!(media_url("https://x/mediaJeu.php?a=1").ends_with("&maxwidth=600&outputformat=png"));
+    assert!(media_url("https://x/mediaJeu.php?a=1", Platform::Gba)
+        .ends_with("&maxwidth=399&outputformat=png"));
+}
+
+#[test]
+fn a_scan_is_fetched_half_as_wide_again_as_its_widest_face() {
+    for (platform, width) in [
+        (Platform::Gba, 399),
+        (Platform::Gb, 330),
+        (Platform::Gbc, 330),
+        (Platform::Snes, 420),
+        (Platform::Ps1, 432),
+    ] {
+        assert_eq!(fetch_width(platform), width, "{platform:?}");
+        let widest = omega_ui::face_labels(platform).iter().map(|f| f.0).max();
+        assert!(
+            widest.is_some_and(|w| w < width),
+            "{platform:?} covers its faces"
+        );
+    }
 }
 
 const GAME: &str = r#"{"header": {"success": "true"}, "response": {
@@ -291,7 +310,7 @@ fn a_found_label_is_saved_where_the_shelf_looks_and_the_rest_are_counted() {
     assert!(server.asked[0].contains("romtaille=20"));
     assert_eq!(
         server.asked[1],
-        "https://ss/tex-us&maxwidth=600&outputformat=png"
+        "https://ss/tex-us&maxwidth=399&outputformat=png"
     );
     assert!(news.contains(&LabelNews::Saved {
         platform: Platform::Gba,
@@ -892,13 +911,13 @@ fn each_disc_saves_its_face_and_the_first_disc_labels_its_game_too() {
     let (news, _) = run(root.path(), &wants, &mut server);
     assert_eq!(
         server.asked[1],
-        "https://ss/tex-us-1&maxwidth=600&outputformat=png"
+        "https://ss/tex-us-1&maxwidth=432&outputformat=png"
     );
     assert!(server.asked[2].contains("crc="));
     assert!(!server.asked[3].contains("crc=") && !server.asked[3].contains("serialnum"));
     assert_eq!(
         server.asked[4],
-        "https://ss/tex-us-2&maxwidth=600&outputformat=png"
+        "https://ss/tex-us-2&maxwidth=432&outputformat=png"
     );
     let labels = root.path().join("Labels/PS1");
     let read = |name: &str| std::fs::read(labels.join(name)).unwrap();
