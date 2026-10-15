@@ -5,9 +5,9 @@ use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_store::Cart;
 use omega_ui::{
-    bezel_mark_face, cart_face, chip_face, chip_face_in, chip_shadow_face, chip_shadow_face_in,
-    generated_face, label_uncut, lid_shadow_face, mark_height, mark_rect, model_shadow, rim,
-    socket_face, wallpaper_face, CartFace, CartMeshes, CartModel, UndoFace, BEZEL_FILL,
+    bezel_mark_face, chip_face, chip_face_in, chip_shadow_face, chip_shadow_face_in,
+    generated_face, lid_shadow_face, mark_height, mark_rect, model_shadow, rim, socket_face,
+    wallpaper_face, wears_label, CartFace, CartMeshes, CartModel, UndoFace, BEZEL_FILL,
     SNES_SOCKETS,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
@@ -66,6 +66,12 @@ use sync_top_bar::{sync_top_bar, TopBarTexes};
 
 const DOZE_TIMEOUT: Duration = Duration::from_secs(180);
 
+/// How many bytes of the faces the label workers hand back are uploaded in one frame, the rest
+/// left for the frames after, so a burst of them does not hold a frame up: four Game Boy Advance
+/// carts, or a stack of four discs. At sixty frames a second that is still 240 carts a second,
+/// well inside the opening a boot plays over the shelf.
+const FACE_BYTES_PER_FRAME: usize = 1 << 20;
+
 pub struct Frontend {
     session: Session,
     start: Instant,
@@ -73,7 +79,8 @@ pub struct Frontend {
     draws: Vec<Draw>,
     polaroid_texes: Vec<TexId>,
     faces: FaceBuilder,
-    /// Cuts the label scans with no cut yet, each cart drawn again once its label is cut.
+    /// Draws each cart's face from its label, the scans with no cut yet cut first, for compose
+    /// to upload as they come back.
     cutter: LabelCutter,
     /// The link screen's art, LINK panel and bar.
     link: LinkTexes,
@@ -116,16 +123,10 @@ pub struct Frontend {
     picture: Option<(omega_store::Platform, (u32, u32))>,
 }
 
-/// Each cart's face for the boot, drawn on as many threads as there are cores, and whether its
-/// label scan is still to be cut: that face wears a generated label for now.
+/// Each cart's generated face for the boot, drawn on as many threads as there are cores, and
+/// whether the cart wears a label scan, which the label workers draw it in after.
 fn boot_faces(carts: &[&Cart]) -> Vec<(CartFace, bool)> {
-    let face = |c: &Cart| {
-        if label_uncut(c) {
-            (generated_face(c), true)
-        } else {
-            (cart_face(c), false)
-        }
-    };
+    let face = |c: &Cart| (generated_face(c), wears_label(c));
     let threads = std::thread::available_parallelism().map_or(1, |n| n.get());
     let chunk = carts.len().div_ceil(threads).max(1);
     std::thread::scope(|s| {
@@ -231,34 +232,26 @@ impl Frontend {
         }
     }
 
-    /// Draws every cart's face. A label with no cut is not decoded here, where it would hold
-    /// the boot logo up: that cart is drawn in a generated label and its scan is cut on the
-    /// cutter's threads, the carts on screen first.
+    /// Draws every cart's face. No label is decoded here, where hundreds of them would hold the
+    /// boot logo up: every cart comes up in its generated face, and each one that wears a label
+    /// scan is drawn in it on the label workers' threads, the carts on screen first, for compose
+    /// to upload as they come back.
     pub fn upload_faces(&mut self, compositor: &mut Compositor) {
         let carts: Vec<&Cart> = self.session.app().carts().collect();
-        let mut uncut = std::collections::HashSet::new();
+        let mut labelled = std::collections::HashSet::new();
         let faces = carts
             .iter()
             .zip(boot_faces(&carts))
-            .map(|(c, (f, cut_due))| {
-                if cut_due {
-                    uncut.insert((c.platform as u8, c.stem.clone()));
+            .map(|(c, (f, label))| {
+                if label {
+                    labelled.insert((c.platform as u8, c.stem.as_str()));
                 }
                 compositor.create_texture(f.w, f.h, &f.rgba)
             })
             .collect();
-        let nearest = self.session.app().carts_nearest_first();
-        let (due, rest): (Vec<&Cart>, Vec<&Cart>) = nearest
-            .into_iter()
-            .partition(|c| uncut.contains(&(c.platform as u8, c.stem.clone())));
-        for cart in due {
-            self.cutter.request(cart.clone());
-        }
-        // then the scans cut already are shrunk, once; a PlayStation game's discs can have
-        // labels when the game has none of its own
-        for cart in rest {
-            if cart.label.is_some() || cart.platform == omega_store::Platform::Ps1 {
-                self.cutter.shrink(cart.clone());
+        for cart in self.session.app().carts_nearest_first() {
+            if labelled.contains(&(cart.platform as u8, cart.stem.as_str())) {
+                self.cutter.request(cart.clone());
             }
         }
         self.session.app_mut().set_faces(faces);
@@ -383,29 +376,29 @@ impl Frontend {
         compositor.draw_list(&self.draws);
     }
 
-    /// Draws again each cart a label arrived for, on the face it already has, once its scan
-    /// is cut, and each cart whose scan the cutter has cut since.
+    /// Uploads the faces the label workers have handed back onto the faces their carts are drawn
+    /// on, up to [`FACE_BYTES_PER_FRAME`] of them a frame, and asks the workers for the face of
+    /// each cart a label arrived for, which comes back in a later frame.
     fn relabel(&mut self, compositor: &mut Compositor) {
-        for (cart, tex) in self.session.app_mut().take_stale_faces() {
-            if label_uncut(&cart) {
-                self.cutter.request(cart);
-            } else {
-                self.redraw(compositor, &cart, tex);
-            }
+        for drawn in self.cutter.take(FACE_BYTES_PER_FRAME) {
+            let Some(tex) = self.session.app().face_of(drawn.platform, &drawn.stem) else {
+                continue;
+            };
+            let face = &drawn.face;
+            compositor.update_texture(tex, face.w, face.h, &face.rgba);
+            self.drop_core_lid(&drawn.stem);
         }
-        for (cart, tex) in self.session.app().faces_of(self.cutter.take()) {
-            self.redraw(compositor, &cart, tex);
+        for (cart, _) in self.session.app_mut().take_stale_faces() {
+            self.cutter.request(cart);
         }
     }
 
-    /// Draws `cart` again on its face `tex`, and drops the core picker's lid when it was made
-    /// for it.
-    fn redraw(&mut self, compositor: &mut Compositor, cart: &Cart, tex: TexId) {
-        let face = cart_face(cart);
-        compositor.update_texture(tex, face.w, face.h, &face.rgba);
+    /// Drops the core picker's lid when it was made for the cart `stem`, whose face has just
+    /// been drawn again, so the picker asks for it anew.
+    fn drop_core_lid(&mut self, stem: &str) {
         if [&self.core_asked, &self.core_built]
             .iter()
-            .any(|s| s.as_deref() == Some(cart.stem.as_str()))
+            .any(|s| s.as_deref() == Some(stem))
         {
             self.core_asked = None;
             self.core_built = None;
@@ -565,9 +558,15 @@ impl Frontend {
     }
 
     /// Whether the worker threads have handed back all they were asked for: the core picker's
-    /// faces for the cart the shelf is on. compose takes them in.
+    /// faces for the cart the shelf is on, and every face asked of the label workers. compose
+    /// takes them in.
     pub fn settled(&self) -> bool {
-        self.core_asked == self.core_built && !self.core_settling()
+        self.core_asked == self.core_built && !self.drawing_labels() && !self.core_settling()
+    }
+
+    /// Whether a face asked of the label workers has yet to come back, or to be uploaded.
+    pub fn drawing_labels(&self) -> bool {
+        !self.cutter.idle()
     }
 
     pub fn advance_at(&mut self, input: &mut dyn InputSource, now: Millis, dt: f32) {

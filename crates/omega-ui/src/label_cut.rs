@@ -42,6 +42,12 @@ pub(crate) fn label_art(scan: &Path, w: u32, h: u32) -> Option<Vec<u8>> {
         .or_else(|| art::cover(scan, w, h))
 }
 
+/// Whether `cart`'s face is drawn with a label scan at all. A cart with no scan, or a PlayStation
+/// game none of whose discs has one, wears its generated face whatever else is on the card.
+pub fn wears_label(cart: &Cart) -> bool {
+    !label_scans(cart).is_empty()
+}
+
 /// Whether `cart` has a label scan with no cut of it for its face, so drawing the face would
 /// decode the whole scan.
 pub fn label_uncut(cart: &Cart) -> bool {

@@ -1,35 +1,47 @@
-//! The threads that cut label scans to their carts' faces, once each: at boot for the scans
-//! with no cut yet, and for each label a sync saves. The shelf comes up without them, those
-//! carts in generated labels, and each one is drawn again as its cut is kept. Each scan is then
-//! shrunk to what its faces need, and a boot hands over the carts already cut as well, for the
-//! scans kept before scans were shrunk.
+//! The threads that draw carts' faces from their labels, so no label is decoded on the main
+//! thread: at boot for every cart that wears a scan, and for each label a sync saves. The shelf
+//! comes up with every cart in its generated face, and each one is drawn again in its label as
+//! its face comes back. A scan with no cut yet is cut first, so its face is drawn from the cut,
+//! and once its face is handed back the scan is shrunk to what its faces need.
 
+use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 use omega_store::{Cart, Platform};
-use omega_ui::{cut_label, shrink_label};
+use omega_ui::{cart_face, cut_label, shrink_label, CartFace};
 
-/// Cutting a scan is mostly decoding it, on one core; the rest are left to the shelf.
+/// Drawing a face from its label is mostly decoding it, on one core; the rest are left to the
+/// shelf.
 const MAX_WORKERS: usize = 3;
 
-enum Job {
-    /// Cut the cart's scans, say so, then shrink them.
-    Cut(Cart),
-    /// Shrink the scans of a cart whose face is drawn from its cuts already.
-    Shrink(Cart),
+/// A cart to draw from its label, with the ticket it was asked under.
+struct Job {
+    cart: Cart,
+    ticket: u64,
+}
+
+/// A cart's face drawn from its label, for the cart's face on the shelf.
+pub struct Drawn {
+    pub platform: Platform,
+    pub stem: String,
+    pub face: CartFace,
 }
 
 pub struct LabelCutter {
     requests: Sender<Job>,
-    cut: Receiver<(Platform, String)>,
+    drawn: Receiver<(u64, Drawn)>,
+    /// The ticket of the last face asked for each cart whose face has not come back yet: a face
+    /// drawn for an ask a newer one has overtaken is not drawn over the newer one.
+    asked: HashMap<(u8, String), u64>,
+    tickets: u64,
 }
 
 impl LabelCutter {
     pub fn spawn() -> Self {
         let (requests, inbox) = mpsc::channel::<Job>();
-        let (outbox, cut) = mpsc::channel();
+        let (outbox, drawn) = mpsc::channel();
         let inbox = Arc::new(Mutex::new(inbox));
         let workers = thread::available_parallelism()
             .map_or(1, |n| n.get().saturating_sub(1))
@@ -41,40 +53,67 @@ impl LabelCutter {
                 .name(format!("omega-cut-{i}"))
                 .spawn(move || loop {
                     let next = inbox.lock().map(|rx| rx.recv());
-                    let Ok(Ok(job)) = next else {
+                    let Ok(Ok(Job { cart, ticket })) = next else {
                         return;
                     };
-                    match job {
-                        Job::Cut(cart) => {
-                            let cut = cut_label(&cart);
-                            if cut && outbox.send((cart.platform, cart.stem.clone())).is_err() {
-                                return;
-                            }
-                            shrink_label(&cart);
-                        }
-                        Job::Shrink(cart) => shrink_label(&cart),
+                    cut_label(&cart);
+                    let face = Drawn {
+                        platform: cart.platform,
+                        stem: cart.stem.clone(),
+                        face: cart_face(&cart),
+                    };
+                    if outbox.send((ticket, face)).is_err() {
+                        return;
                     }
+                    shrink_label(&cart);
                 });
             if let Err(e) = spawned {
                 eprintln!("omega-zero: labels: cutter thread failed to start: {e}");
             }
         }
-        LabelCutter { requests, cut }
+        LabelCutter {
+            requests,
+            drawn,
+            asked: HashMap::new(),
+            tickets: 0,
+        }
     }
 
-    /// Cuts `cart`'s label scan, after the carts asked for before it, and then shrinks it.
-    pub fn request(&self, cart: Cart) {
-        let _ = self.requests.send(Job::Cut(cart));
+    /// Draws `cart`'s face from its label, after the carts asked for before it: its scans are
+    /// cut first where they have no cut, and shrunk once its face is handed back.
+    pub fn request(&mut self, cart: Cart) {
+        self.tickets += 1;
+        let key = (cart.platform as u8, cart.stem.clone());
+        self.asked.insert(key, self.tickets);
+        let _ = self.requests.send(Job {
+            cart,
+            ticket: self.tickets,
+        });
     }
 
-    /// Shrinks `cart`'s label scans, after the carts asked for before it, its face not drawn
-    /// again.
-    pub fn shrink(&self, cart: Cart) {
-        let _ = self.requests.send(Job::Shrink(cart));
+    /// The faces handed back and not taken yet, until `bytes` of them are taken, the rest left
+    /// for the next time: always one at least, when one is waiting. A face drawn for a cart
+    /// asked for again since is passed over.
+    pub fn take(&mut self, bytes: usize) -> Vec<Drawn> {
+        let mut taken = Vec::new();
+        let mut spent = 0;
+        while spent < bytes {
+            let Ok((ticket, drawn)) = self.drawn.try_recv() else {
+                break;
+            };
+            let key = (drawn.platform as u8, drawn.stem.clone());
+            if self.asked.get(&key) != Some(&ticket) {
+                continue;
+            }
+            self.asked.remove(&key);
+            spent += drawn.face.rgba.len();
+            taken.push(drawn);
+        }
+        taken
     }
 
-    /// The carts whose labels were cut since the last time this was asked.
-    pub fn take(&self) -> Vec<(Platform, String)> {
-        self.cut.try_iter().collect()
+    /// Whether every face asked for has come back and been taken.
+    pub fn idle(&self) -> bool {
+        self.asked.is_empty()
     }
 }

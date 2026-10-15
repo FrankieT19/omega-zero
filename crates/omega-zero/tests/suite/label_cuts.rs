@@ -1,8 +1,9 @@
 #![cfg(target_os = "macos")]
 
-//! Label scans are cut to their faces once, off the main thread: a boot that finds scans with no
-//! cut comes up without decoding them and draws those carts again as their cuts are kept, the
-//! next boot draws them from the cuts at once, and a label a sync saves is cut the same way.
+//! Label scans are cut to their faces once, and every face is drawn from its label off the main
+//! thread: a boot comes up with every cart in its generated face, decoding no label, and the
+//! label workers draw each cart that wears one in it after, cutting the scans with no cut first.
+//! The next boot draws them from the cuts, and a label a sync saves is drawn the same way.
 
 use crate::common;
 
@@ -64,6 +65,25 @@ fn magenta_px(frame: &[u8]) -> usize {
         .chunks_exact(4)
         .filter(|p| p[0] > 110 && p[2] > 110 && p[1] < 40 && p[0].abs_diff(p[2]) < 40)
         .count()
+}
+
+/// The shelf drawn with the faces as they are uploaded now, without taking in the faces the
+/// label workers have handed back since, as compose would.
+fn drawn_as_uploaded(f: &Frontend, c: &mut Compositor) -> Vec<u8> {
+    let mut draws = Vec::new();
+    f.app().draw(&mut draws);
+    c.begin_frame();
+    c.draw_list(&draws);
+    c.read_frame()
+}
+
+fn png_width(path: &Path) -> u32 {
+    let file = std::fs::File::open(path).expect("open scan");
+    png::Decoder::new(file)
+        .read_info()
+        .expect("png header")
+        .info()
+        .width
 }
 
 /// Composes frames until `done`, for up to ten seconds; false if it never was.
@@ -178,23 +198,146 @@ fn a_boot_shrinks_the_scans_cut_before_and_leaves_their_cuts_as_they_were() {
     let cut = d.path().join("Labels/GBA/.cut/Emerald.png");
     let modified = |p: &Path| std::fs::metadata(p).and_then(|m| m.modified()).unwrap();
     let (made, scanned) = (modified(&cut), modified(&scan));
-    let width = |p: &Path| {
-        let file = std::fs::File::open(p).expect("open scan");
-        png::Decoder::new(file)
-            .read_info()
-            .expect("png header")
-            .info()
-            .width
-    };
 
     let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
     f.upload_faces(&mut c);
     assert!(
         compose_until(&mut f, &mut c, |_, px| magenta_px(px) > 500
-            && width(&scan) < 600),
+            && png_width(&scan) < 600),
         "the scan was never shrunk, or its cart never drawn from its cut"
     );
     assert_eq!(modified(&cut), made, "the boot cut the scan again");
     assert_eq!(modified(&scan), scanned, "the shrunk scan lost its time");
     assert!(f.app().carts().all(|c| !label_uncut(c)));
+}
+
+/// A card booted before, its scans cut and shrunk: the boot uploads every cart in its generated
+/// face, the cut cart's included, and it is the label workers that draw that cart in its label.
+#[test]
+fn a_boot_decodes_no_label_and_the_workers_draw_the_cut_cart_in_its_label() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    clocked(d.path());
+    write_scan(d.path(), "Emerald");
+    let carts = omega_store::scan(d.path()).expect("scan the card");
+    let emerald = carts.iter().find(|c| c.stem == "Emerald").unwrap();
+    assert!(omega_ui::cut_label(emerald));
+    omega_ui::shrink_label(emerald);
+
+    let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
+    f.upload_faces(&mut c);
+    f.app_mut().finish_slide();
+    assert!(
+        !f.settled(),
+        "settled with the cart's label still to be drawn"
+    );
+    assert_eq!(
+        magenta_px(&drawn_as_uploaded(&f, &mut c)),
+        0,
+        "the boot drew the cart from its cut itself"
+    );
+    assert!(
+        compose_until(&mut f, &mut c, |f, _| f.settled()),
+        "the label workers never handed the cart's face back"
+    );
+    assert!(
+        magenta_px(&drawn_as_uploaded(&f, &mut c)) > 500,
+        "settled without the cart in its label"
+    );
+}
+
+/// A label a sync saves that has a cut already, which the frame it arrives in used to draw on
+/// the main thread, is drawn by the label workers too.
+#[test]
+fn a_label_a_sync_saves_cut_already_is_drawn_by_the_workers() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    clocked(d.path());
+    let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
+    f.upload_faces(&mut c);
+    assert!(
+        compose_until(&mut f, &mut c, |f, px| f.settled() && magenta_px(px) == 0),
+        "the boot never settled"
+    );
+
+    write_scan(d.path(), "Emerald");
+    let carts = omega_store::scan(d.path()).expect("scan the card");
+    assert!(omega_ui::cut_label(
+        carts.iter().find(|c| c.stem == "Emerald").unwrap()
+    ));
+    f.app_mut()
+        .set_label_jobs(Box::new(Saved(VecDeque::from([LabelNews::Saved {
+            platform: Platform::Gba,
+            stem: "Emerald".into(),
+        }]))));
+    let mut asked = None;
+    assert!(
+        compose_until(&mut f, &mut c, |f, px| {
+            asked = Some(magenta_px(px));
+            f.drawing_labels()
+        }),
+        "the saved label was never handed to the label workers"
+    );
+    assert_eq!(
+        asked,
+        Some(0),
+        "the frame the label arrived in drew it on the main thread"
+    );
+    assert!(!f.settled(), "settled with the label still being drawn");
+    assert!(
+        compose_until(&mut f, &mut c, |f, px| f.settled() && magenta_px(px) > 500),
+        "the workers never drew the cart in its saved label"
+    );
+}
+
+/// The faces the label workers hand back in a burst, a dozen at once, are uploaded a few a frame
+/// rather than all in the frame they came back by.
+#[test]
+fn a_burst_of_faces_is_uploaded_over_several_frames() {
+    let Ok(surface) = HeadlessSurface::new() else {
+        return;
+    };
+    let Ok(mut c) = Compositor::new(&surface) else {
+        return;
+    };
+    let stems: Vec<String> = (0..12).map(|i| format!("Cart {i:02}")).collect();
+    let names: Vec<&str> = stems.iter().map(String::as_str).collect();
+    let d = tmp_root_with_carts(&names);
+    clocked(d.path());
+    for stem in &stems {
+        write_scan(d.path(), stem);
+    }
+    let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
+    f.upload_faces(&mut c);
+    // a scan is shrunk once its face is handed back, so every face is waiting once all are
+    let scan = |stem: &str| d.path().join(format!("Labels/GBA/{stem}.png"));
+    let began = Instant::now();
+    while stems.iter().any(|s| png_width(&scan(s)) >= 600) {
+        assert!(
+            began.elapsed() < Duration::from_secs(10),
+            "the workers never drew every face"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    f.compose(&mut c);
+    assert!(
+        f.drawing_labels(),
+        "every face of the burst was uploaded in one frame"
+    );
+    let mut frames = 1;
+    assert!(compose_until(&mut f, &mut c, |f, _| {
+        frames += 1;
+        !f.drawing_labels()
+    }));
+    assert!(frames <= 4, "a dozen faces took {frames} frames to upload");
 }
