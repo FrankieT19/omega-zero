@@ -11,6 +11,7 @@ mod cart;
 mod chrome;
 mod clock;
 mod contrast;
+mod disc;
 mod dive;
 mod font;
 mod hud;

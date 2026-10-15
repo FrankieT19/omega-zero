@@ -483,6 +483,7 @@ fn every_cartridge_is_centred_on_the_row_and_clears_both_bars() {
     for (name, platform) in [
         ("the GBA cart", Platform::Gba),
         ("the Game Boy pak", Platform::Gb),
+        ("the PlayStation disc", Platform::Ps1),
     ] {
         let h = shelf_box(platform).1;
         let (top, foot) = (rest_y(h), foot_y(h));
