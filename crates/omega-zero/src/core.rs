@@ -72,10 +72,20 @@ pub fn open(root: &Path, core: Core, setup: Setup) -> Opened {
         None => {
             report_missing(core, &paths);
             Opened {
-                core: Box::new(MockCore::new()),
+                core: Box::new(stand_in(core)),
                 named: false,
             }
         }
+    }
+}
+
+/// The mock test pattern that stands in for a core that is nowhere, drawing its system's usual
+/// picture, so a SNES or PlayStation game without its core is still laid out as one.
+fn stand_in(core: Core) -> MockCore {
+    match core {
+        Core::Mgba | Core::Gpsp => MockCore::new(),
+        Core::Snes9x | Core::Supafaust => MockCore::sized(256, 224),
+        Core::PcsxRearmed => MockCore::sized(320, 240),
     }
 }
 
@@ -106,7 +116,7 @@ pub fn open_core_for(
     };
     open_named(root, core, setup, paths).unwrap_or_else(|| {
         report_missing(core, paths);
-        Box::new(MockCore::new())
+        Box::new(stand_in(core))
     })
 }
 
@@ -315,6 +325,14 @@ mod tests {
         }
         assert!(core_options(Core::PcsxRearmed, "auto", false, false)
             .contains(&("pcsx_rearmed_memcard1", "libretro".into())));
+    }
+
+    #[test]
+    fn a_missing_console_core_is_stood_in_for_at_its_system_s_size() {
+        assert_eq!(stand_in(Core::Mgba).video_size(), (240, 160));
+        assert_eq!(stand_in(Core::Snes9x).video_size(), (256, 224));
+        assert_eq!(stand_in(Core::Supafaust).video_size(), (256, 224));
+        assert_eq!(stand_in(Core::PcsxRearmed).video_size(), (320, 240));
     }
 
     fn lock() -> std::sync::MutexGuard<'static, ()> {

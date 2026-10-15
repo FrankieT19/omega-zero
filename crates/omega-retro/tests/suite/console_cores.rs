@@ -341,12 +341,18 @@ fn write_disc(name: &str, rgb: [u8; 3]) -> PathBuf {
 /// pcsx_rearmed as omega-zero opens it, its options there before it starts: it picks its BIOS
 /// in retro_init, and has no memory card 1 at all unless it is told to keep it for us.
 fn pcsx() -> Option<LibretroCore> {
+    pcsx_in("auto")
+}
+
+/// pcsx_rearmed made to run every disc as `region`'s.
+fn pcsx_in(region: &str) -> Option<LibretroCore> {
     let dylib = vendored("pcsx_rearmed")?;
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR"));
     let options = [
         ("pcsx_rearmed_bios", "HLE"),
         ("pcsx_rearmed_memcard1", "libretro"),
         ("pcsx_rearmed_memcard2", "none"),
+        ("pcsx_rearmed_region", region),
     ];
     Some(
         LibretroCore::open_with_options(&dylib, dir, dir, &options)
@@ -464,4 +470,20 @@ fn pcsx_rearmed_starts_on_the_disc_it_was_left_on() {
         b > 200 && r < 40
     };
     run_until(&mut core, 300, blue);
+}
+
+#[test]
+fn pcsx_rearmed_runs_a_european_disc_at_50() {
+    let _g = lock();
+    let Some(mut core) = pcsx_in("PAL") else {
+        return;
+    };
+    core.load(&write_disc("pal.iso", [0xff, 0, 0]))
+        .expect("pcsx_rearmed refused our disc");
+    let fps = core.av_info().fps;
+    assert!((fps - 50.0).abs() < 0.5, "a PAL disc runs at {fps}");
+    run_until(&mut core, 300, |c| {
+        let [r, g, _] = middle(c);
+        r > 200 && g < 40
+    });
 }
