@@ -58,6 +58,17 @@ impl Core {
         }
     }
 
+    /// The core's whole name, in its own case, as About credits it.
+    pub fn name(self) -> &'static str {
+        match self {
+            Core::Mgba => "mGBA",
+            Core::Gpsp => "gpSP",
+            Core::Snes9x => "Snes9x",
+            Core::Supafaust => "Supafaust",
+            Core::PcsxRearmed => "PCSX-ReARMed",
+        }
+    }
+
     pub fn parse(s: &str) -> Option<Core> {
         match s.trim().to_ascii_lowercase().as_str() {
             "mgba" => Some(Core::Mgba),

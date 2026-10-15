@@ -386,3 +386,73 @@ fn a_resumed_cart_starts_seated() {
     let a = App::boot(d.path());
     assert_eq!(a.seat(), 1.0, "the resumed cart is still sliding in");
 }
+
+/// A game whose core took omega-zero down as it opened is noted on the card: the next boot
+/// leaves it on the shelf, selected, rather than open it again and go down with it each time.
+#[test]
+fn a_cart_whose_start_took_omega_zero_down_is_left_on_the_shelf() {
+    let d = tmp_root_with_carts(&["Advance Wars", "Emerald", "Fire Emblem"]);
+    write_app_state(d.path(), &seated("Emerald")).unwrap();
+    let note = d.path().join("Config/.starting");
+    std::fs::write(&note, "GBA/Emerald").unwrap();
+
+    let a = App::boot(d.path());
+    assert!(matches!(a.phase(), Phase::Shelf), "{:?}", a.phase());
+    assert_eq!(a.selected_stem(), Some("Emerald"));
+    assert!(!note.exists(), "the note outlived the boot that read it");
+
+    let a = App::boot(d.path());
+    assert!(
+        matches!(a.phase(), Phase::Inserting { .. }),
+        "a boot after that one does not try the game again"
+    );
+}
+
+#[test]
+fn a_core_is_noted_as_opening_until_it_has_run_a_moment() {
+    let d = common::tmp_root_with_real_carts(&["Emerald", "Fusion"]);
+    common::clocked(d.path());
+    let note = d.path().join("Config/.starting");
+    let mut s = omega_zero::session::Session::boot(d.path().to_path_buf());
+    s.feed(
+        [
+            omega_input::RawEvent::Down(Btn::A),
+            omega_input::RawEvent::Up(Btn::A),
+        ],
+        16,
+    );
+    s.update(1.0 / 60.0);
+    assert_eq!(
+        std::fs::read_to_string(&note).ok().as_deref(),
+        Some("GBA/Emerald"),
+        "the card does not say which core is opening"
+    );
+    let began = std::time::Instant::now();
+    while note.exists() {
+        assert!(
+            began.elapsed() < std::time::Duration::from_secs(10),
+            "the note stayed though the game ran"
+        );
+        s.update(1.0 / 60.0);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+#[test]
+fn a_session_put_away_while_its_core_opens_leaves_no_note() {
+    let d = common::tmp_root_with_real_carts(&["Emerald", "Fusion"]);
+    common::clocked(d.path());
+    let note = d.path().join("Config/.starting");
+    let mut s = omega_zero::session::Session::boot(d.path().to_path_buf());
+    s.feed(
+        [
+            omega_input::RawEvent::Down(Btn::A),
+            omega_input::RawEvent::Up(Btn::A),
+        ],
+        16,
+    );
+    s.update(1.0 / 60.0);
+    assert!(note.exists(), "the core opened without a note");
+    drop(s);
+    assert!(!note.exists(), "a clean power-off was taken for a crash");
+}

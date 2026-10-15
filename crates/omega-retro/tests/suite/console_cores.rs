@@ -171,6 +171,28 @@ fn supafaust_draws_a_256x224_picture_in_our_colour() {
     eprintln!("supafaust state: {} bytes", state.len());
 }
 
+/// Supafaust forgets the defaults of its options once a game has loaded and reads every option
+/// again on a frame after the frontend says one changed: one omega-zero sets, as it sets where
+/// Supafaust's threads run, had it read an empty value it could not take and abort the console.
+#[test]
+fn supafaust_runs_with_an_option_set_as_omega_zero_sets_them() {
+    let _g = lock();
+    let Some(dylib) = vendored("mednafen_supafaust") else {
+        return;
+    };
+    let path = scratch("faust-options.sfc");
+    std::fs::write(&path, snes_cart(BLUE, 1, 0, false)).expect("write the cart");
+    let mut core = LibretroCore::open(&dylib).expect("the core would not open");
+    core.set_option("supafaust_thread_affinity_emu", "0x0");
+    core.set_option("supafaust_thread_affinity_ppu", "0x0");
+    core.load(&path).expect("the core refused our cart");
+    run(&mut core, 30);
+    core.set_option("supafaust_h_filter", "512");
+    run(&mut core, 30);
+    let [r, _, b] = middle(&core);
+    assert!(b > 200 && r < 40, "the backdrop lost its colour");
+}
+
 /// MIPS: `reg = value`, as lui and ori.
 fn li(reg: u32, value: u32) -> [u32; 2] {
     [

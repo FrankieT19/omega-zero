@@ -14,6 +14,10 @@ use crate::frames::FrameRef;
 use crate::input::Pad;
 use crate::persist;
 
+/// How many frames a core runs before the card stops noting it as opening: two seconds, well
+/// past the first frame, where a core that cannot take its options gives up.
+const SETTLED_FRAMES: u64 = 120;
+
 pub struct Session {
     root: PathBuf,
     app: App,
@@ -28,6 +32,18 @@ pub struct Session {
     driven: bool,
     /// The system and stem of the game the core was last opened for.
     running: Option<(Platform, String)>,
+    /// The card notes the core as opening, until it has run a moment.
+    starting: bool,
+}
+
+impl Drop for Session {
+    /// A session put away, as at power-off, leaves no game noted as opening: only one that went
+    /// down with its core, and so never got here, does.
+    fn drop(&mut self) {
+        if self.starting {
+            persist::clear_starting(&self.root);
+        }
+    }
 }
 
 impl Session {
@@ -49,6 +65,7 @@ impl Session {
             reloading: false,
             driven: false,
             running: None,
+            starting: false,
         }
     }
 
@@ -251,6 +268,7 @@ impl Session {
             self.play_sfx(sfx);
         }
         self.sync_core();
+        self.settle_start();
         self.sync_reload();
         self.keep_swapped_disc();
         if !self.has_core() {
@@ -424,6 +442,8 @@ impl Session {
             self.app.set_disc_in(stem, index);
         }
         let sav = persist::read_sav(&self.root, platform, stem);
+        persist::mark_starting(&self.root, platform, stem);
+        self.starting = true;
         let ring = self.sink.ring();
         let emu = EmuHandle::spawn_for(platform, game, rom, ring, sav, resume, player);
         emu.set_volume(self.app.output_volume());
@@ -431,6 +451,19 @@ impl Session {
         self.app.set_snapshot(Box::new(emu.snapshot()));
         self.emu = Some(emu);
         self.running = Some((platform, stem.to_string()));
+    }
+
+    /// Takes the note of the core opening off the card once it has run a moment, or once there
+    /// is no core: it opened, or failed to, without taking omega-zero down.
+    fn settle_start(&mut self) {
+        let settled = self
+            .emu
+            .as_ref()
+            .is_none_or(|emu| emu.published_count() >= SETTLED_FRAMES);
+        if self.starting && settled {
+            persist::clear_starting(&self.root);
+            self.starting = false;
+        }
     }
 
     /// Keeps the disc a swap put in, so that the game comes back on it.
