@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use omega_gfx::{out_h, out_w};
-use omega_input::{Action, Btn, MUTE_CHORD_MS};
+use omega_input::{Action, Btn, Keys, MUTE_CHORD_MS};
 use omega_power::{Battery, Charge, LedState, LidPolicy, Power};
 use omega_retro::LinkChannel;
 use omega_store::{
@@ -797,6 +797,17 @@ impl App {
 
     fn frontend_owns_the_shoulders(&self) -> bool {
         matches!(self.phase, Phase::Playing { .. }) && self.platform.owns_shoulders()
+    }
+
+    /// What the buttons the systems disagree about do, for the game in the handheld or the last
+    /// one there: a PlayStation game has L2 and R2 and nothing rewinds it, and only a handheld's
+    /// screen has a colour correction for SELECT+Y to toggle.
+    pub fn keys(&self) -> Keys {
+        Keys {
+            game_l2_r2: self.platform.game_owns_l2_r2(),
+            rewind: self.platform.rewinds(),
+            colour: self.platform.colour_correction(),
+        }
     }
 
     pub fn taken_buttons(&self) -> &'static [Btn] {
