@@ -10,8 +10,8 @@
 //! and the bar, the picked one raised and the others faded back; and the kit's bar, B RETURN and
 //! A SWAP with ◀▶ PICK between them. The game is paused under it.
 //!
-//! A disc is drawn flat, the face the shelf has for it, in `draw_disc_art`: that is the one call
-//! site the shelf's disc stack, drawn in three dimensions, will take over.
+//! Each disc is drawn as the shelf draws it, in three dimensions, out of its stack; a game whose
+//! stack is not ready yet shows the face the shelf has for it, flat.
 
 use std::path::PathBuf;
 
@@ -274,12 +274,27 @@ impl App {
         self.draw_disc_bar(out);
     }
 
-    /// The game's discs side by side between `top` and `bottom`, each its face drawn flat, the
-    /// picked one raised and the rest faded back in the kit's steps. This is the one call site
-    /// the shelf's disc stack, drawn in three dimensions, takes over.
+    /// The game's discs side by side between `top` and `bottom`, each drawn as its stack on the
+    /// shelf draws it, the picked one raised and the rest faded back in the kit's steps.
     fn draw_disc_art(&self, screen: &DiscScreen, top: i32, bottom: i32, out: &mut Vec<Draw>) {
-        let faces = self.disc_faces();
         let places = disc_places(screen.discs.len(), screen.at, top, bottom);
+        let stack = self.seated().and_then(|stem| self.shelf().stack_for(stem));
+        if let Some(stack) = stack.filter(|s| s.discs == screen.discs.len()) {
+            for (i, [x, y, w, h]) in places.into_iter().enumerate() {
+                let k = if i == screen.at { 1.0 } else { stepped(FADED) };
+                omega_ui::push_disc_alone(
+                    out,
+                    (px(x), px(y), px(w), px(h)),
+                    &stack,
+                    i,
+                    [k, k, k, 1.0],
+                    0.0,
+                    0.0,
+                );
+            }
+            return;
+        }
+        let faces = self.disc_faces();
         for (i, (face, [x, y, w, h])) in faces.into_iter().zip(places).enumerate() {
             let Some(tex) = face else {
                 continue;

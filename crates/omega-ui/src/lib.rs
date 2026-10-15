@@ -74,8 +74,8 @@ pub use keyboard::{
 pub use kit::badge::BadgeIcon;
 pub use kit::gauge::GaugeIcon;
 pub use models::disc::{
-    push_disc, push_stack, stack_of, DiscStack, StackDive, StackMeshes, DISC_PX, MAX_STACK,
-    STACK_DIVE,
+    push_disc, push_disc_alone, push_stack, stack_of, DiscStack, StackDive, StackMeshes, DISC_PX,
+    MAX_STACK, STACK_DIVE,
 };
 pub use models::snes::{silhouette as snes_silhouette, SnesShell};
 pub use motion::ease;

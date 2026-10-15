@@ -441,7 +441,12 @@ const SIDE_BACK_SHADE: f32 = 0.72;
 /// one, `up` of its height higher, and taking its face from its own part of the stack's
 /// texture: the rim's walls, then the hole's, then the face over them.
 fn layer(disc: usize, discs: usize, up: f32) -> Vec<MeshVertex> {
-    let z = disc as f32 * PITCH;
+    layer_at(disc, discs, disc as f32 * PITCH, up)
+}
+
+/// Disc `disc` of a stack of `discs`, taking its face from its own part of the stack's texture
+/// as `layer` does, but standing `z` of its width behind where its rect is drawn.
+fn layer_at(disc: usize, discs: usize, z: f32, up: f32) -> Vec<MeshVertex> {
     let shade = 1.0 - STACK_SHADE * disc as f32;
     let cell = |u: f32| (disc as f32 + u) / discs as f32;
     let mut out = Vec::new();
@@ -501,6 +506,7 @@ fn rise(disc: usize, (w, h): (f32, f32)) -> f32 {
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct StackMeshes {
     discs: [[MeshId; MAX_STACK]; MAX_STACK],
+    alone: [[MeshId; MAX_STACK]; MAX_STACK],
     whole: [MeshId; MAX_STACK],
 }
 
@@ -508,10 +514,18 @@ impl StackMeshes {
     /// Every one of them, each handed to `make` to put on the GPU.
     pub fn build(mut make: impl FnMut(&[MeshVertex]) -> MeshId) -> StackMeshes {
         let mut discs = Vec::with_capacity(MAX_STACK);
+        let mut alone = Vec::with_capacity(MAX_STACK);
         let mut whole = Vec::with_capacity(MAX_STACK);
         for n in 1..=MAX_STACK {
             let one: Vec<MeshId> = (0..n).map(|disc| make(&layer(disc, n, 0.0))).collect();
             discs.push(std::array::from_fn(|disc| one[disc.min(n - 1)]));
+            let front: Vec<MeshId> = (0..n)
+                .map(|disc| match disc {
+                    0 => one[0],
+                    _ => make(&layer_at(disc, n, 0.0, 0.0)),
+                })
+                .collect();
+            alone.push(std::array::from_fn(|disc| front[disc.min(n - 1)]));
             whole.push(match n {
                 1 => one[0],
                 _ => make(&stack_mesh(n)),
@@ -519,6 +533,7 @@ impl StackMeshes {
         }
         StackMeshes {
             discs: std::array::from_fn(|i| discs[i]),
+            alone: std::array::from_fn(|i| alone[i]),
             whole: std::array::from_fn(|i| whole[i]),
         }
     }
@@ -527,6 +542,12 @@ impl StackMeshes {
     pub fn disc(&self, disc: usize, discs: usize) -> MeshId {
         let n = discs.clamp(1, MAX_STACK);
         self.discs[n - 1][disc.min(n - 1)]
+    }
+
+    /// Disc `disc` of a stack of `discs` on its own, standing where the front disc would.
+    pub fn alone(&self, disc: usize, discs: usize) -> MeshId {
+        let n = discs.clamp(1, MAX_STACK);
+        self.alone[n - 1][disc.min(n - 1)]
     }
 
     /// A stack of `discs` whole, as one model.
@@ -571,6 +592,28 @@ pub fn push_disc(
     out.push(posed_cart(
         (x, y - rise(disc, (w, h)), w, h),
         stack.mesh(disc),
+        stack.tex,
+        colour,
+        turn,
+        yaw,
+    ));
+}
+
+/// Disc `disc` of `stack` on its own at `rect`, out of the stack, as a screen that lays a game's
+/// discs side by side shows each: tinted `colour`, turned `turn` and spun `yaw` about its own
+/// middle.
+pub fn push_disc_alone(
+    out: &mut Vec<Draw>,
+    rect: (f32, f32, f32, f32),
+    stack: &DiscStack,
+    disc: usize,
+    colour: [f32; 4],
+    turn: f32,
+    yaw: f32,
+) {
+    out.push(posed_cart(
+        rect,
+        stack.meshes.alone(disc, stack.discs),
         stack.tex,
         colour,
         turn,
