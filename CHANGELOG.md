@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## omega-zero 1.0.1
+
+The boot no longer waits on the labels: each one is cut to its cart once, as it is fetched.
 
 - A card with hundreds of labels boots as quickly as one with none. Each label is cut to its
   cart's face once, right after Labels fetches it, and kept in `Labels/<system>/.cut/`; a boot
