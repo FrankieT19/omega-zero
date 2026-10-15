@@ -106,6 +106,9 @@ pub struct Frontend {
     boot_logo: Option<TexId>,
     /// The opening's lines while it plays.
     opening: OpeningTexes,
+    /// The system and size of the last game picture uploaded, which a SNES or PlayStation
+    /// game is laid out by.
+    picture: Option<(omega_store::Platform, (u32, u32))>,
 }
 
 /// A card's own overlay for one system, read once and checked against each layout it is
@@ -166,6 +169,7 @@ impl Frontend {
             hud: HudTexes::default(),
             boot_logo: None,
             opening: OpeningTexes::default(),
+            picture: None,
         }
     }
 
@@ -260,8 +264,16 @@ impl Frontend {
         compositor.set_blue_light(self.session.app().blue_light());
         compositor.set_shake(self.session.app().screen_shake());
         compositor.set_screen_power(self.session.app().screen_power());
-        let screen = self.session.app().screen();
         let platform = self.session.app().platform();
+        let frame = self.session.frame();
+        if let Some(f) = &frame {
+            self.picture = Some((platform, f.size()));
+        }
+        let size = match self.picture {
+            Some((p, size)) if p == platform => size,
+            _ => platform.picture(),
+        };
+        let screen = crate::video_mode::screen_for(platform, self.session.app().video_mode, size);
         compositor.set_game_view(screen.view);
         compositor.set_still_view(screen.still);
         let picture = crate::video_mode::picture_rect(platform, screen.view);
@@ -269,8 +281,8 @@ impl Frontend {
         let bezel = self.bezel(platform, screen.bands, picture, overlay, compositor);
         compositor.set_bezel(bezel);
         compositor.begin_frame();
-        if let Some(frame) = self.session.frame() {
-            compositor.upload_game(&frame);
+        if let Some(frame) = frame {
+            compositor.upload_game_sized(&frame, frame.size());
             crate::latency::taken();
         }
         sync_clock(self.session.app_mut(), compositor, &mut self.clocks);

@@ -13,8 +13,13 @@ use crate::kit::pixel::quad;
 use crate::sprite::SPRITE_PX;
 use crate::status_bar::TOP_BAR_H;
 
+/// A handheld game's screenshot, the GBA's screen; a blank photo is this size too.
 pub const PHOTO_W: u32 = 240;
 pub const PHOTO_H: u32 = 160;
+
+/// The biggest screenshot kept at its own size, the biggest picture a core hands on. A bigger
+/// one is cut down to a handheld's.
+const PHOTO_MAX: (u32, u32) = (1024, 576);
 
 const BLANK: [u8; 3] = [0x3a, 0x3a, 0x3e];
 
@@ -27,7 +32,13 @@ pub struct PhotoFace {
     pub h: u32,
 }
 
+/// The save's screenshot at its own size, a GBA game's 240x160 or a PlayStation game's 640x480,
+/// to be drawn through the game's view as the game itself is.
 pub fn photo_face(entry: &StateEntry) -> PhotoFace {
+    let fits = |w: u32, h: u32| (1..=PHOTO_MAX.0).contains(&w) && (1..=PHOTO_MAX.1).contains(&h);
+    if let Some((rgba, w, h)) = art::decode(&entry.thumb).filter(|(_, w, h)| fits(*w, *h)) {
+        return PhotoFace { rgba, w, h };
+    }
     let rgba = art::cover(&entry.thumb, PHOTO_W, PHOTO_H).unwrap_or_else(|| {
         std::iter::repeat_n(
             [BLANK[0], BLANK[1], BLANK[2], 255],

@@ -8,7 +8,7 @@ use omega_ui::FfState;
 
 use crate::app::{App, Phase};
 use crate::audio::{open_sink, AudioSink, Ring, Sfx, GBA_HZ};
-use crate::core::open_core;
+use crate::core::{open, Setup};
 use crate::emu::{CoreState, EmuHandle, Speed};
 use crate::frames::FrameRef;
 use crate::input::Pad;
@@ -26,6 +26,8 @@ pub struct Session {
     motor: u16,
     reloading: bool,
     driven: bool,
+    /// The system and stem of the game the core was last opened for.
+    running: Option<(Platform, String)>,
 }
 
 impl Session {
@@ -46,6 +48,7 @@ impl Session {
             motor: 0,
             reloading: false,
             driven: false,
+            running: None,
         }
     }
 
@@ -249,6 +252,7 @@ impl Session {
         }
         self.sync_core();
         self.sync_reload();
+        self.keep_swapped_disc();
         if !self.has_core() {
             for action in self.gestures.drop_ff_latch() {
                 self.act(action);
@@ -398,24 +402,47 @@ impl Session {
             .then(|| persist::read_resume(&self.root, platform, core, stem))
             .flatten();
         let player = self.app.link_player();
-        let opened = open_core(
-            &self.root,
-            core,
-            serial,
-            self.app.colour_correction(),
-            player,
-        );
+        let setup = match platform {
+            Platform::Snes | Platform::Ps1 => Setup::Console,
+            Platform::Gba | Platform::Gb | Platform::Gbc => Setup::Handheld {
+                serial,
+                colour: self.app.colour_correction(),
+                link: player,
+            },
+        };
+        let opened = open(&self.root, core, setup);
         self.app.set_named_core(opened.named);
+        let mut game = opened.core;
+        // a game put away on its second disc comes back on it, for its resume state is of that
+        // disc; a game started afresh starts from the first
+        if let Some((index, path)) = resume
+            .is_some()
+            .then(|| persist::read_disc(&self.root, platform, stem))
+            .flatten()
+        {
+            game.set_initial_disc(index, &path);
+            self.app.set_disc_in(stem, index);
+        }
         let sav = persist::read_sav(&self.root, platform, stem);
         let ring = self.sink.ring();
-        let emu = match player.filter(|_| platform == Platform::Gba) {
-            Some(p) => EmuHandle::spawn_linked(opened.core, rom, ring, sav, resume, p),
-            None => EmuHandle::spawn(opened.core, rom, ring, sav, resume),
-        };
+        let emu = EmuHandle::spawn_for(platform, game, rom, ring, sav, resume, player);
         emu.set_volume(self.app.output_volume());
         emu.set_driven(self.driven);
         self.app.set_snapshot(Box::new(emu.snapshot()));
         self.emu = Some(emu);
+        self.running = Some((platform, stem.to_string()));
+    }
+
+    /// Keeps the disc a swap put in, so that the game comes back on it.
+    fn keep_swapped_disc(&mut self) {
+        let (Some(emu), Some((platform, stem))) = (&self.emu, &self.running) else {
+            return;
+        };
+        if let Some((index, path)) = emu.take_swapped_disc() {
+            if let Err(e) = persist::write_disc(&self.root, *platform, stem, index, &path) {
+                eprintln!("omega-zero: disc: could not keep disc {index} of {stem}: {e}");
+            }
+        }
     }
 
     fn reload_for_link(&mut self, stem: &str, serial: &'static str) {

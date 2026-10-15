@@ -94,8 +94,20 @@ impl Compositor {
         }
     }
 
+    /// Uploads a GBA-sized picture, 240x160, as the game.
     pub fn upload_game(&mut self, xrgb8888: &[u8]) {
         self.game.upload(xrgb8888);
+    }
+
+    /// Uploads a picture of any size, `size` pixels wide and high, as the game: the game
+    /// texture takes the picture's size, so its views show all of it.
+    pub fn upload_game_sized(&mut self, xrgb8888: &[u8], size: (u32, u32)) {
+        self.game.upload_sized(xrgb8888, size);
+    }
+
+    /// The size of the picture last uploaded as the game.
+    pub fn game_size(&self) -> (u32, u32) {
+        self.game.size()
     }
 
     pub fn draw_game(&mut self) {
@@ -113,8 +125,10 @@ impl Compositor {
                 }
                 Draw::Shot { tex } => {
                     self.sprites.draw(&items[from..i], &self.quad);
-                    if let Some(tex) = self.sprites.source(tex) {
-                        self.game.draw_still(tex, &self.quad);
+                    if let (Some(gl_tex), Some(size)) =
+                        (self.sprites.source(tex), self.sprites.source_size(tex))
+                    {
+                        self.game.draw_still(gl_tex, size, &self.quad);
                     }
                     self.draw_bezel(false);
                 }

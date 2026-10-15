@@ -181,6 +181,12 @@ impl App {
         }
     }
 
+    /// Says disc `index` of the game `stem` is in the drive, as when a game put away on that disc
+    /// comes back on it.
+    pub(crate) fn set_disc_in(&mut self, stem: &str, index: usize) {
+        self.disc_in = Some((stem.to_string(), index));
+    }
+
     /// The disc the DISC screen swapped in, for the session to hand the core, once.
     pub fn take_disc_swap(&mut self) -> Option<usize> {
         self.disc_swap.take()
