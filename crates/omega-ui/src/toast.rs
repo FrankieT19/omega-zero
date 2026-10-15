@@ -16,10 +16,28 @@ pub enum Toast {
     BiosMismatch,
     ColourOn,
     ColourOff,
+    /// SELECT + MENU on a PlayStation game on one disc: there is no other to swap in.
+    OneDisc,
+    /// The DISC screen swapped disc `n`, counting from 1, into the drive.
+    Disc(u8),
 }
 
+/// What the toast says once disc `n` is in, for every disc a PlayStation game can have.
+const DISC_IN: [&str; 9] = [
+    "Disc 1 inserted",
+    "Disc 2 inserted",
+    "Disc 3 inserted",
+    "Disc 4 inserted",
+    "Disc 5 inserted",
+    "Disc 6 inserted",
+    "Disc 7 inserted",
+    "Disc 8 inserted",
+    "Disc 9 inserted",
+];
+
 impl Toast {
-    pub const ALL: [Toast; 9] = [
+    /// Every toast there is, a disc's once, as disc 1.
+    pub const ALL: [Toast; 11] = [
         Toast::StateSaved,
         Toast::StateLoaded,
         Toast::NeedsGpsp,
@@ -29,10 +47,25 @@ impl Toast {
         Toast::BiosMismatch,
         Toast::ColourOn,
         Toast::ColourOff,
+        Toast::OneDisc,
+        Toast::Disc(1),
     ];
 
+    /// Its place in `ALL`: every disc's toast is the one place.
     pub fn index(self) -> usize {
-        self as usize
+        match self {
+            Toast::StateSaved => 0,
+            Toast::StateLoaded => 1,
+            Toast::NeedsGpsp => 2,
+            Toast::NoLink => 3,
+            Toast::LinkEnded => 4,
+            Toast::PeerEnded => 5,
+            Toast::BiosMismatch => 6,
+            Toast::ColourOn => 7,
+            Toast::ColourOff => 8,
+            Toast::OneDisc => 9,
+            Toast::Disc(_) => 10,
+        }
     }
 
     /// What it is about, in the toast's title tab.
@@ -45,6 +78,7 @@ impl Toast {
             | Toast::PeerEnded
             | Toast::BiosMismatch => "LINK",
             Toast::ColourOn | Toast::ColourOff => "COLOUR",
+            Toast::OneDisc | Toast::Disc(_) => "DISC",
         }
     }
 
@@ -60,6 +94,11 @@ impl Toast {
             Toast::BiosMismatch => "BIOS does not match",
             Toast::ColourOn => "Correction on",
             Toast::ColourOff => "Correction off",
+            Toast::OneDisc => "Only one disc",
+            Toast::Disc(n) => DISC_IN
+                .get(usize::from(n).wrapping_sub(1))
+                .copied()
+                .unwrap_or("Disc inserted"),
         }
     }
 

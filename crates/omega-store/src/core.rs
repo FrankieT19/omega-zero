@@ -46,13 +46,15 @@ impl Core {
         self as usize
     }
 
+    /// The core's name as its chip in the core picker wears it, in its own case: as long as the
+    /// chip has room for, six letters at most, so Supafaust is Faust.
     pub fn text(self) -> &'static str {
         match self {
             Core::Mgba => "mGBA",
             Core::Gpsp => "gpSP",
             Core::Snes9x => "Snes9x",
-            Core::Supafaust => "Supafaust",
-            Core::PcsxRearmed => "ReARMed",
+            Core::Supafaust => "Faust",
+            Core::PcsxRearmed => "PCSX",
         }
     }
 

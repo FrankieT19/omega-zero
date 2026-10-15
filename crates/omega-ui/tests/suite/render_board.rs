@@ -107,6 +107,60 @@ fn render_board() {
     );
     both("board-hop", &hop);
 
+    // the SNES board, its two wider sockets Snes9x's and Supafaust's, the chip seated and in the
+    // air between them
+    let snes = omega_ui::SNES_SOCKETS;
+    let snes_board = board_face(&Cart {
+        platform: Platform::Snes,
+        stem: "Super Metroid".into(),
+        rom: "Games/SNES/Super Metroid.sfc".into(),
+        code: String::new(),
+        title: "SUPER METROID".into(),
+        ..cart.clone()
+    });
+    let snes_socketed = |board: &CartFace| {
+        let mut f = CartFace {
+            rgba: board.rgba.clone(),
+            w: board.w,
+            h: board.h,
+        };
+        for (i, core) in Core::for_platform(Platform::Snes).iter().enumerate() {
+            over(&mut f, &socket_face(*core), snes.u[i] as i32, snes.v as i32);
+        }
+        f
+    };
+    let mut seated = snes_socketed(&snes_board);
+    over(
+        &mut seated,
+        &chip_face(Some(Core::Snes9x)),
+        snes.chip_u(0) as i32,
+        snes.chip_v() as i32,
+    );
+    both("board-snes-seated", &seated);
+    let mut hop = snes_socketed(&snes_board);
+    let u = (snes.chip_u(0) + snes.chip_u(1)) / 2.0;
+    over(
+        &mut hop,
+        &omega_ui::chip_shadow_face_in(snes),
+        (u + SHADOW_AT[0]) as i32,
+        (snes.chip_v() + SHADOW_AT[1]) as i32,
+    );
+    over(
+        &mut hop,
+        &omega_ui::chip_face_in(snes, None),
+        u as i32,
+        (snes.chip_v() - HOP_LIFT) as i32,
+    );
+    both("board-snes-hop", &hop);
+    let mut faust = snes_socketed(&snes_board);
+    over(
+        &mut faust,
+        &chip_face(Some(Core::Supafaust)),
+        snes.chip_u(1) as i32,
+        snes.chip_v() as i32,
+    );
+    both("board-snes-faust", &faust);
+
     for (name, code) in [("board-red", "AXV"), ("board-grey", "")] {
         let red = board_face(&Cart {
             code: code.into(),

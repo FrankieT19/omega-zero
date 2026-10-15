@@ -1,6 +1,6 @@
 use omega_input::RawEvent::{Down, Up};
 use omega_input::{
-    Action::*, Btn, Btn::*, Gestures, RawEvent, MENU_HOLD_MS, POWER_HOLD_MS, SELECT_CHORD_MS,
+    Action::*, Btn, Btn::*, Gestures, Keys, RawEvent, MENU_HOLD_MS, POWER_HOLD_MS, SELECT_CHORD_MS,
     SELECT_TAP_MS, VOLUME_REPEAT_DELAY_MS, VOLUME_REPEAT_MS,
 };
 
@@ -507,4 +507,184 @@ fn y_on_its_own_is_untouched_by_the_colour_chord() {
     let mut g = Gestures::new();
     assert_eq!(g.feed(Down(Y), 0), vec![GbaDown(Y)]);
     assert_eq!(g.feed(Up(Y), 40), vec![GbaUp(Y)]);
+}
+
+/// The PlayStation's keys: its games have L2 and R2, nothing rewinds them, and a television's
+/// picture has no colour correction.
+const PS1: Keys = Keys {
+    game_l2_r2: true,
+    rewind: false,
+    colour: false,
+};
+
+/// The SNES's keys: L2 rewinds and R2 fast-forwards as on the handhelds, and a television's
+/// picture has no colour correction.
+const SNES: Keys = Keys {
+    game_l2_r2: false,
+    rewind: true,
+    colour: false,
+};
+
+fn with_keys(keys: Keys) -> Gestures {
+    let mut g = Gestures::new();
+    assert!(
+        g.set_keys(keys).is_empty(),
+        "a pad nobody touched had something to let go"
+    );
+    g
+}
+
+#[test]
+fn the_handhelds_keys_are_the_default() {
+    assert_eq!(Gestures::new().keys(), Keys::HANDHELD);
+    assert_eq!(Keys::default(), Keys::HANDHELD);
+    let mut g = Gestures::new();
+    assert!(g.set_keys(Keys::HANDHELD).is_empty());
+    assert_eq!(g.feed(Down(L2), 0), vec![RewindStart]);
+    assert_eq!(g.feed(Up(L2), 100), vec![RewindStop]);
+    assert_eq!(g.feed(Down(R2), 200), vec![FfStart]);
+    assert_eq!(g.feed(Up(R2), 300), vec![FfStop]);
+}
+
+#[test]
+fn a_playstation_game_has_l2_and_r2_of_its_own() {
+    let mut g = with_keys(PS1);
+    assert_eq!(g.feed(Down(L2), 0), vec![GbaDown(L2)]);
+    assert_eq!(g.feed(Down(R2), 10), vec![GbaDown(R2)]);
+    assert_eq!(g.feed(Up(R2), 900), vec![GbaUp(R2)]);
+    assert_eq!(g.feed(Up(L2), 950), vec![GbaUp(L2)]);
+    assert!(g.tick(5_000).is_empty());
+}
+
+#[test]
+fn nothing_rewinds_a_playstation_game() {
+    let mut g = with_keys(PS1);
+    let mut log = g.feed(Down(L2), 0);
+    log.extend(g.feed(Up(L2), 200));
+    log.extend(g.feed(Down(Select), 1_000));
+    log.extend(g.feed(Down(L2), 1_050));
+    log.extend(g.feed(Up(L2), 1_200));
+    log.extend(g.feed(Up(Select), 1_300));
+    log.extend(g.tick(5_000));
+    assert!(
+        !log.iter().any(|a| matches!(a, RewindStart | RewindStop)),
+        "L2 rewound a PlayStation game: {log:?}"
+    );
+    assert_eq!(
+        log,
+        vec![
+            GbaDown(L2),
+            GbaUp(L2),
+            GbaDown(Select),
+            GbaDown(L2),
+            GbaUp(L2),
+            GbaUp(Select)
+        ],
+        "SELECT+L2 did not reach the game"
+    );
+}
+
+#[test]
+fn select_and_r2_fast_forward_a_playstation_game_while_r2_is_held() {
+    let mut g = with_keys(PS1);
+    assert!(g.feed(Down(Select), 0).is_empty());
+    assert_eq!(g.feed(Down(R2), 60), vec![FfStart]);
+    assert!(
+        g.feed(Up(Select), 200).is_empty(),
+        "the chord's SELECT reached the game"
+    );
+    assert!(g.tick(2_000).is_empty(), "letting SELECT go stopped it");
+    assert_eq!(g.feed(Up(R2), 2_100), vec![FfStop]);
+    assert!(!g.ff_latched());
+    assert!(g.tick(5_000).is_empty());
+}
+
+#[test]
+fn select_and_r2_twice_keeps_a_playstation_game_fast_and_once_more_stops_it() {
+    let mut g = with_keys(PS1);
+    g.feed(Down(Select), 0);
+    assert_eq!(g.feed(Down(R2), 50), vec![FfStart]);
+    assert_eq!(g.feed(Up(R2), 100), vec![FfStop]);
+    assert_eq!(g.feed(Down(R2), 200), vec![FfStart]);
+    assert!(
+        g.feed(Up(R2), 250).is_empty(),
+        "the second press did not latch"
+    );
+    assert!(g.ff_latched());
+    assert!(g.feed(Up(Select), 300).is_empty());
+
+    // R2 on its own is the game's, and leaves the latch be
+    assert_eq!(g.feed(Down(R2), 2_000), vec![GbaDown(R2)]);
+    assert_eq!(g.feed(Up(R2), 2_100), vec![GbaUp(R2)]);
+    assert!(g.ff_latched(), "the game's R2 dropped the latch");
+
+    g.feed(Down(Select), 5_000);
+    assert!(g.feed(Down(R2), 5_050).is_empty());
+    assert_eq!(g.feed(Up(R2), 5_100), vec![FfStop]);
+    assert!(!g.ff_latched());
+}
+
+#[test]
+fn a_select_tap_still_reaches_a_playstation_game() {
+    let mut g = with_keys(PS1);
+    let mut log = g.feed(Down(Select), 0);
+    log.extend(g.feed(Up(Select), 80));
+    for t in 80..1_000 {
+        log.extend(g.tick(t));
+    }
+    assert_eq!(log, vec![GbaDown(Select), SelectTap, GbaUp(Select)]);
+
+    let mut g = with_keys(PS1);
+    assert!(g.feed(Down(Select), 0).is_empty());
+    assert_eq!(g.tick(SELECT_CHORD_MS), vec![GbaDown(Select)]);
+    assert_eq!(
+        g.feed(Down(R2), SELECT_CHORD_MS + 10),
+        vec![GbaDown(R2)],
+        "SELECT held for the game, then R2, is the game's SELECT+R2"
+    );
+}
+
+#[test]
+fn select_and_y_is_the_games_where_there_is_no_colour_correction() {
+    for keys in [PS1, SNES] {
+        let mut g = with_keys(keys);
+        assert!(g.feed(Down(Select), 0).is_empty());
+        assert_eq!(g.feed(Down(Y), 10), vec![GbaDown(Select), GbaDown(Y)]);
+        assert_eq!(g.feed(Up(Y), 40), vec![GbaUp(Y)]);
+    }
+}
+
+#[test]
+fn a_snes_game_rewinds_and_fast_forwards_as_a_handheld_game_does() {
+    let mut g = with_keys(SNES);
+    assert_eq!(g.feed(Down(L2), 0), vec![RewindStart]);
+    assert_eq!(g.feed(Up(L2), 100), vec![RewindStop]);
+    g.feed(Down(R2), 1_000);
+    g.feed(Up(R2), 1_050);
+    g.feed(Down(R2), 1_100);
+    assert!(g.feed(Up(R2), 1_150).is_empty());
+    assert!(g.ff_latched());
+    assert!(g.feed(Down(Select), 2_000).is_empty());
+    assert_eq!(g.feed(Down(R1), 2_050), vec![SaveState]);
+    assert_eq!(g.feed(Down(L1), 2_100), vec![LoadState]);
+}
+
+#[test]
+fn new_keys_let_go_of_a_rewind_and_a_fast_forward_under_way() {
+    let mut g = Gestures::new();
+    assert_eq!(g.feed(Down(L2), 0), vec![RewindStart]);
+    assert_eq!(g.set_keys(PS1), vec![RewindStop]);
+    assert_eq!(g.feed(Up(L2), 100), vec![GbaUp(L2)]);
+    assert_eq!(g.feed(Down(L2), 200), vec![GbaDown(L2)]);
+
+    let mut g = with_keys(PS1);
+    g.feed(Down(Select), 0);
+    assert_eq!(g.feed(Down(R2), 10), vec![FfStart]);
+    assert_eq!(g.set_keys(Keys::HANDHELD), vec![FfStop]);
+    assert!(g.set_keys(Keys::HANDHELD).is_empty());
+    assert_eq!(
+        g.feed(Down(R2), 2_000),
+        vec![FfStart],
+        "R2 stayed held as the chord it was"
+    );
 }

@@ -238,12 +238,12 @@ fn labels_is_flows() {
     }
 }
 
-/// The Controls panel's lines are its own, trimmed to fit flow.html's grid, and it has three
-/// more than flow.html's; its title, its headings and the lines both say are flow.html's pixel
-/// for pixel.
+/// The Controls panel's lines are its own, trimmed to fit flow.html's grid, and the GBA's has
+/// two more than flow.html's; its title, its headings and the lines both say are flow.html's
+/// pixel for pixel.
 #[test]
 fn the_controls_panel_is_flows_where_it_says_what_flow_says() {
-    let view = ControlsView::new();
+    let view = ControlsView::new(omega_store::Platform::Gba);
     for (colour, name) in colours() {
         let face = controls_face(&view, palette(colour));
         let flow_h = panel_height(13 + 11 * 11);
@@ -259,40 +259,46 @@ fn the_controls_panel_is_flows_where_it_says_what_flow_says() {
     }
 }
 
-/// At 640x480 the page is 320 by 225 art pixels: the panel fits it, and every line fits its
-/// column, its buttons in their room and what they do in theirs.
+/// At 640x480 the page is 320 by 225 art pixels: every system's panel fits it, and every line
+/// fits its column, its buttons in their room and what they do in theirs.
 #[test]
 fn the_controls_panel_fits_at_640() {
-    let view = ControlsView::new();
-    let face = controls_face(&view, palette(0));
-    assert_eq!(face.w, WIDTH);
-    assert!(face.w <= PAGE[0], "{} wide", face.w);
-    assert!(face.h <= PAGE[1], "{} tall, more than the page", face.h);
-    assert_eq!(face.h, panel_height(content_height(&view)));
-    let well_w = WIDTH - 12;
-    let [_, second] = column_xs();
-    assert_eq!(
-        second + COLUMNS[1].width(),
-        well_w,
-        "the columns fill the well"
-    );
-    for (group, column) in view.groups.iter().zip(COLUMNS) {
-        assert_eq!(group.name, group.name.to_uppercase());
-        for (keys, does) in &group.lines {
-            assert!(
-                text_width(keys) <= 6 * column.keys,
-                "{} {keys} is wider than its {} letters",
-                group.name,
-                column.keys
-            );
-            assert!(
-                text_width(does) <= 6 * column.does,
-                "{} {does} is wider than its {} letters",
-                group.name,
-                column.does
-            );
-            assert_eq!(*keys, keys.to_uppercase(), "drawn as written");
-            assert_eq!(*does, does.to_uppercase(), "drawn as written");
+    for platform in omega_store::Platform::ALL {
+        let view = ControlsView::new(platform);
+        let face = controls_face(&view, palette(0));
+        assert_eq!(face.w, WIDTH);
+        assert!(face.w <= PAGE[0], "{} wide", face.w);
+        assert!(
+            face.h <= PAGE[1],
+            "{platform:?}'s is {} tall, more than the page",
+            face.h
+        );
+        assert_eq!(face.h, panel_height(content_height(&view)));
+        let well_w = WIDTH - 12;
+        let [_, second] = column_xs();
+        assert_eq!(
+            second + COLUMNS[1].width(),
+            well_w,
+            "the columns fill the well"
+        );
+        for (group, column) in view.groups.iter().zip(COLUMNS) {
+            assert_eq!(group.name, group.name.to_uppercase());
+            for (keys, does) in &group.lines {
+                assert!(
+                    text_width(keys) <= 6 * column.keys,
+                    "{platform:?} {} {keys} is wider than its {} letters",
+                    group.name,
+                    column.keys
+                );
+                assert!(
+                    text_width(does) <= 6 * column.does,
+                    "{platform:?} {} {does} is wider than its {} letters",
+                    group.name,
+                    column.does
+                );
+                assert_eq!(*keys, keys.to_uppercase(), "drawn as written");
+                assert_eq!(*does, does.to_uppercase(), "drawn as written");
+            }
         }
     }
 }

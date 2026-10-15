@@ -141,7 +141,9 @@ impl Session {
     }
 
     pub fn feed(&mut self, events: impl IntoIterator<Item = RawEvent>, now: Millis) {
-        let mut actions = Vec::new();
+        let keys = self.app.keys();
+        self.pad.set_keys(keys);
+        let mut actions = self.gestures.set_keys(keys);
         for ev in events {
             actions.extend(self.gestures.feed(ev, now));
         }
@@ -223,6 +225,11 @@ impl Session {
                 if let Some(emu) = &self.emu {
                     emu.set_option(key, value);
                 }
+            }
+        }
+        if let Some(disc) = self.app.take_disc_swap() {
+            if let Some(emu) = &self.emu {
+                emu.set_disc(disc);
             }
         }
         if let Some((stem, serial)) = self.app.take_link_reload() {

@@ -50,6 +50,36 @@ pub enum Action {
     LidOpen,
 }
 
+/// What the buttons the systems disagree about do for the game being played. The handhelds'
+/// layout is the default: L2 rewinds, R2 fast-forwards (pressed twice quickly, it keeps going),
+/// and SELECT+Y toggles the colour correction. A game with L2 and R2 of its own, as the
+/// PlayStation's have, is handed them, and fast forward moves to SELECT+R2: the same hold, and
+/// the same double press, with SELECT held.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct Keys {
+    /// L2 and R2 are the game's, and fast forward is SELECT+R2.
+    pub game_l2_r2: bool,
+    /// Holding L2 rewinds, or SELECT+L2 where L2 is the game's. Off, nothing rewinds.
+    pub rewind: bool,
+    /// SELECT+Y toggles the colour correction. Off, a Y under SELECT is the game's.
+    pub colour: bool,
+}
+
+impl Keys {
+    /// The handhelds': L2 rewinds, R2 fast-forwards and SELECT+Y is the colour correction.
+    pub const HANDHELD: Keys = Keys {
+        game_l2_r2: false,
+        rewind: true,
+        colour: true,
+    };
+}
+
+impl Default for Keys {
+    fn default() -> Self {
+        Keys::HANDHELD
+    }
+}
+
 #[derive(Copy, Clone, Default)]
 enum Select {
     #[default]
@@ -64,8 +94,9 @@ enum Select {
 
 #[derive(Default)]
 pub struct Gestures {
+    keys: Keys,
     select: Select,
-    chord_held: u8,
+    chord_held: u16,
     menu_down_at: Option<Millis>,
     menu_last_tap: Option<Millis>,
     menu_eject_fired: bool,
@@ -101,6 +132,26 @@ impl Gestures {
 
     pub fn ff_latched(&self) -> bool {
         self.ff_latched
+    }
+
+    /// What the buttons do from now on, for the game being played. A change lets go of a rewind
+    /// or a fast forward under way, and of a shoulder's chord still held, so nothing is left
+    /// running under buttons that now mean something else.
+    pub fn set_keys(&mut self, keys: Keys) -> Vec<Action> {
+        if self.keys == keys {
+            return Vec::new();
+        }
+        self.keys = keys;
+        let mut out = self.rewind_stop();
+        out.extend(self.ff_clear());
+        self.r2_refused = false;
+        self.r2_last_release = None;
+        self.chord_held &= !(L2_CHORD | R2_CHORD);
+        out
+    }
+
+    pub fn keys(&self) -> Keys {
+        self.keys
     }
 
     pub fn drop_ff_latch(&mut self) -> Vec<Action> {
@@ -171,13 +222,20 @@ impl Gestures {
             }
             Btn::Lid => vec![Action::LidClose],
             Btn::VolUp | Btn::VolDown => self.volume_press(b, now),
-            Btn::L2 => self.rewind_start(),
-            Btn::R2 => self.ff_down(now),
+            Btn::L2 if !self.keys.game_l2_r2 => match self.keys.rewind {
+                true => self.rewind_start(),
+                false => Vec::new(),
+            },
+            Btn::R2 if !self.keys.game_l2_r2 => self.ff_down(now),
             _ => {
-                if let (true, Some((bit, action))) = (self.chording(now), chord(b)) {
+                if let (true, Some((bit, action))) = (self.chording(now), self.chord(b)) {
                     self.mark_chorded();
                     self.chord_held |= bit;
-                    return vec![action];
+                    return match action {
+                        Action::RewindStart => self.rewind_start(),
+                        Action::FfStart => self.ff_down(now),
+                        action => vec![action],
+                    };
                 }
                 let mut out = self.hand_over_select(now);
                 out.push(Action::GbaDown(b));
@@ -193,18 +251,40 @@ impl Gestures {
             Btn::Power => self.power_up(),
             Btn::Lid => vec![Action::LidOpen],
             Btn::VolUp | Btn::VolDown => self.volume_release(b),
-            Btn::L2 => self.rewind_stop(),
-            Btn::R2 => self.ff_up(now),
+            Btn::L2 if !self.keys.game_l2_r2 => self.rewind_stop(),
+            Btn::R2 if !self.keys.game_l2_r2 => self.ff_up(now),
             _ => {
-                if let Some((bit, _)) = chord(b) {
+                if let Some((bit, action)) = self.chord(b) {
                     if self.chord_held & bit != 0 {
                         self.chord_held &= !bit;
-                        return Vec::new();
+                        return match action {
+                            Action::RewindStart => self.rewind_stop(),
+                            Action::FfStart => self.ff_up(now),
+                            _ => Vec::new(),
+                        };
                     }
                 }
                 vec![Action::GbaUp(b)]
             }
         }
+    }
+
+    /// What `b` does under SELECT, and the bit its chord holds while it is down: most are a
+    /// press, and L2 and R2, where they are the game's, a hold that rewinds or fast-forwards
+    /// until the shoulder is let go.
+    fn chord(&self, b: Btn) -> Option<(u16, Action)> {
+        Some(match b {
+            Btn::Up => (1, Action::BrightnessUp),
+            Btn::Down => (2, Action::BrightnessDown),
+            Btn::Left => (4, Action::BlueLightDown),
+            Btn::Right => (8, Action::BlueLightUp),
+            Btn::L1 => (16, Action::LoadState),
+            Btn::R1 => (32, Action::SaveState),
+            Btn::Y if self.keys.colour => (64, Action::ColourCorrectionToggle),
+            Btn::L2 if self.keys.game_l2_r2 && self.keys.rewind => (L2_CHORD, Action::RewindStart),
+            Btn::R2 if self.keys.game_l2_r2 => (R2_CHORD, Action::FfStart),
+            _ => return None,
+        })
     }
 
     fn chording(&self, now: Millis) -> bool {
@@ -408,15 +488,6 @@ impl Gestures {
     }
 }
 
-fn chord(b: Btn) -> Option<(u8, Action)> {
-    Some(match b {
-        Btn::Up => (1, Action::BrightnessUp),
-        Btn::Down => (2, Action::BrightnessDown),
-        Btn::Left => (4, Action::BlueLightDown),
-        Btn::Right => (8, Action::BlueLightUp),
-        Btn::L1 => (16, Action::LoadState),
-        Btn::R1 => (32, Action::SaveState),
-        Btn::Y => (64, Action::ColourCorrectionToggle),
-        _ => return None,
-    })
-}
+/// The chord bits of SELECT+L2 and SELECT+R2, held for as long as the shoulder is.
+const L2_CHORD: u16 = 128;
+const R2_CHORD: u16 = 256;

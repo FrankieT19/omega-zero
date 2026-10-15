@@ -88,12 +88,33 @@ fn the_banner_says_what_happened_and_never_what_is_on_screen() {
             Toast::BiosMismatch,
             Toast::ColourOn,
             Toast::ColourOff,
+            Toast::OneDisc,
+            Toast::Disc(1),
         ],
         "a banner was added or dropped"
     );
     for (i, t) in Toast::ALL.iter().enumerate() {
         assert_eq!(t.index(), i, "{t:?} does not answer to its own place");
     }
+    assert_eq!(Toast::Disc(3).index(), Toast::Disc(1).index());
+}
+
+#[test]
+fn a_disc_toast_says_which_disc_went_in_under_disc() {
+    assert_eq!(Toast::Disc(1).text(), "Disc 1 inserted");
+    assert_eq!(Toast::Disc(2).text(), "Disc 2 inserted");
+    assert_eq!(Toast::Disc(9).text(), "Disc 9 inserted");
+    assert_eq!(Toast::Disc(0).text(), "Disc inserted");
+    assert_eq!(Toast::Disc(12).text(), "Disc inserted");
+    assert_eq!(Toast::OneDisc.text(), "Only one disc");
+    for t in [Toast::OneDisc, Toast::Disc(2)] {
+        assert_eq!(t.label(), "DISC", "{t:?}");
+    }
+    assert_ne!(
+        Toast::Disc(2).face(palette(0)).rgba,
+        Toast::Disc(3).face(palette(0)).rgba,
+        "two discs' toasts look the same"
+    );
 }
 
 #[test]

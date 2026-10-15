@@ -4,9 +4,9 @@ use omega_gfx::{out_h, out_w, Bezel, Compositor, Draw, TexId};
 use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_ui::{
-    bezel_mark_face, cart_face, cart_mesh, chip_face, chip_shadow_face, lid_shadow_face,
-    mark_height, mark_rect, model_shadow, rim, socket_face, wallpaper_face, CartFace, CartMeshes,
-    CartModel, UndoFace, BEZEL_FILL,
+    bezel_mark_face, cart_face, cart_mesh, chip_face, chip_face_in, chip_shadow_face,
+    chip_shadow_face_in, lid_shadow_face, mark_height, mark_rect, model_shadow, rim, socket_face,
+    wallpaper_face, CartFace, CartMeshes, CartModel, UndoFace, BEZEL_FILL, SNES_SOCKETS,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
@@ -27,6 +27,7 @@ mod sync_bluetooth;
 mod sync_clock;
 mod sync_controls;
 mod sync_core_picker;
+mod sync_disc;
 mod sync_hud;
 mod sync_info;
 mod sync_keyboard;
@@ -47,6 +48,7 @@ use sync_bluetooth::{sync_bluetooth, BluetoothTexes};
 use sync_clock::{sync_clock, Clocks};
 use sync_controls::sync_controls;
 use sync_core_picker::sync_core_picker;
+use sync_disc::{sync_disc, DiscTexes};
 use sync_hud::{sync_hud, HudTexes};
 use sync_info::{sync_info, InfoTexes};
 use sync_keyboard::{sync_keyboard, KeyboardTexes};
@@ -70,6 +72,8 @@ pub struct Frontend {
     faces: FaceBuilder,
     /// The link screen's art, LINK panel and bar.
     link: LinkTexes,
+    /// The DISC screen's panel and bar.
+    disc: DiscTexes,
     core_asked: Option<String>,
     core_board_tex: Option<TexId>,
     core_lid_tex: Option<TexId>,
@@ -90,7 +94,7 @@ pub struct Frontend {
     keyboard: KeyboardTexes,
     info: InfoTexes,
     labels: Baked<(ListView, u8)>,
-    controls: Baked<u8>,
+    controls: Baked<(crate::screens::controls::ControlsView, u8)>,
     background: Baked<(ListView, u8)>,
     /// The POWER menu's panel and the one shown after its choice.
     power: PowerPanels,
@@ -137,6 +141,7 @@ impl Frontend {
             polaroid_texes: Vec::new(),
             faces: FaceBuilder::spawn(),
             link: LinkTexes::default(),
+            disc: DiscTexes::default(),
             core_asked: None,
             core_board_tex: None,
             core_lid_tex: None,
@@ -205,7 +210,7 @@ impl Frontend {
         self.session.app_mut().set_faces(faces);
         // the core picker's parts are pixel art, a texel to an art pixel, kept sharp at 2x
         let mut sprite = |f: CartFace| compositor.create_texture_nearest(f.w, f.h, &f.rgba);
-        let sockets = omega_store::Core::for_platform(omega_store::Platform::Gba)
+        let sockets = omega_store::Core::ALL
             .iter()
             .map(|c| sprite(socket_face(*c)))
             .collect();
@@ -215,9 +220,13 @@ impl Frontend {
             .collect();
         let blank = sprite(chip_face(None));
         let shadows = [sprite(chip_shadow_face()), sprite(lid_shadow_face())];
-        self.session
-            .app_mut()
-            .set_core_part_faces(sockets, chips, blank, shadows);
+        let wide = (
+            sprite(chip_face_in(SNES_SOCKETS, None)),
+            sprite(chip_shadow_face_in(SNES_SOCKETS)),
+        );
+        let app = self.session.app_mut();
+        app.set_core_part_faces(sockets, chips, blank, shadows);
+        app.set_chip_faces_for(SNES_SOCKETS, wide.0, wide.1);
         for model in CartModel::ALL {
             let shadow = model_shadow(model);
             let id = compositor.create_texture(shadow.w, shadow.h, &shadow.rgba);
@@ -299,6 +308,7 @@ impl Frontend {
             &mut self.core_built,
         );
         sync_link(self.session.app_mut(), compositor, &mut self.link);
+        sync_disc(self.session.app_mut(), compositor, &mut self.disc);
         sync_switcher(
             self.session.app_mut(),
             compositor,

@@ -12,13 +12,14 @@ use crate::stage::{stage_x, stage_y};
 use omega_gfx::out_w;
 use omega_store::{Cart, Core, Platform};
 
-use crate::cart::{clean_label, CartFace, CART_H, CART_W};
+use crate::cart::{clean_label, model_box, CartFace, CART_H, CART_W};
 use crate::kit::pixel::{blank, fill, ink, letters, ACCENT, ADVANCE, CAP, LINE};
 use crate::models::snes::{self, SnesShell};
 use crate::motion::ease;
 use crate::plate::UndoFace;
-use crate::shelf::foot_y;
+use crate::shelf::{foot_y, model_scale};
 use crate::shell::shell_for;
+use crate::spin::CartModel;
 use crate::sprite::SPRITE_PX;
 
 /// The board's face, the back of the shell and the board in it.
@@ -518,9 +519,15 @@ pub const LID_TURN: f32 = -5.0 * std::f32::consts::PI / 180.0;
 pub const HOP_LIFT: f32 = 8.0;
 
 pub const SLIDE_SHARE: f32 = 160.0 / 420.0;
-/// How far the cart slides up off the board before its lid lifts away: short of where the lid
+/// How far a GBA cart slides up off the board before its lid lifts away: short of where the lid
 /// comes to rest, so the lift still carries it up. A quarter would take it past the lid's rest.
 pub const SLIDE_UP: f32 = CART_H as f32 / 5.0;
+
+/// How far a cart of `model` slides up off the board before its lid lifts away: a fifth of its
+/// height, as a GBA cart's `SLIDE_UP` is.
+pub fn slide_up(model: CartModel) -> f32 {
+    model_box(model).1 as f32 / 5.0
+}
 
 pub fn slide_of(progress: f32) -> f32 {
     ease((progress / SLIDE_SHARE).clamp(0.0, 1.0))
@@ -530,21 +537,22 @@ pub fn lift_of(progress: f32) -> f32 {
     ease(((progress - SLIDE_SHARE) / (1.0 - SLIDE_SHARE)).clamp(0.0, 1.0))
 }
 
-/// The sockets' top left corners on the board, mGBA's then gpSP's.
+/// The GBA board's sockets' top left corners, mGBA's then gpSP's.
 pub const SOCKET_U: [f32; 2] = [84.0, 136.0];
 pub const SOCKET_V: f32 = 42.0;
 pub const SOCKET_W: u32 = 32;
 pub const SOCKET_H: u32 = 24;
 
-/// The chip's top left corner seated in each socket: a pixel in from the socket's.
+/// The chip's top left corner seated in each of the GBA board's sockets: a pixel in from the
+/// socket's.
 pub const CHIP_U: [f32; 2] = [SOCKET_U[0] + 1.0, SOCKET_U[1] + 1.0];
 pub const CHIP_V: f32 = SOCKET_V + 1.0;
 pub const CHIP_W: u32 = 30;
 pub const CHIP_H: u32 = 22;
 
 /// The shadow under a chip in the air, and where its top left is from the chip's at rest: on
-/// the board round the chip's foot.
-pub const SHADOW_W: u32 = 34;
+/// the board round the chip's foot, two pixels wider than the chip either side.
+pub const SHADOW_W: u32 = CHIP_W + 4;
 pub const SHADOW_H: u32 = 6;
 pub const SHADOW_AT: [f32; 2] = [-2.0, 18.0];
 
@@ -552,20 +560,108 @@ pub const SHADOW_AT: [f32; 2] = [-2.0, 18.0];
 pub const LID_SHADOW_W: u32 = 84;
 pub const LID_SHADOW_H: u32 = 10;
 
-/// Where the chip's name is printed on it, and so where the socket prints it: its capitals'
-/// top left, under the accent rows of its line.
-const NAME_AT: [i32; 2] = [4, 7];
+/// Where a board's two sockets are and how big they and the chip are, in art pixels: the GBA's,
+/// whose cores' names are four letters, or the SNES's, wider for six.
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub struct Sockets {
+    /// The sockets' top left corners across the board, in the order the platform lists its
+    /// cores, the default first.
+    pub u: [f32; 2],
+    pub v: f32,
+    pub w: u32,
+    pub h: u32,
+    pub chip_w: u32,
+    pub chip_h: u32,
+}
+
+impl Sockets {
+    /// The chip's top left corner seated in socket `slot`: a pixel in from the socket's.
+    pub fn chip_u(&self, slot: usize) -> f32 {
+        self.u[slot] + 1.0
+    }
+
+    pub fn chip_v(&self) -> f32 {
+        self.v + 1.0
+    }
+
+    /// The shadow under the chip in the air: two pixels wider than the chip either side.
+    pub fn shadow_w(&self) -> u32 {
+        self.chip_w + 4
+    }
+}
+
+/// The GBA board's sockets, mGBA's then gpSP's.
+pub const GBA_SOCKETS: Sockets = Sockets {
+    u: SOCKET_U,
+    v: SOCKET_V,
+    w: SOCKET_W,
+    h: SOCKET_H,
+    chip_w: CHIP_W,
+    chip_h: CHIP_H,
+};
+
+/// The SNES board's sockets, Snes9x's then Supafaust's: as tall as the GBA's and a dozen pixels
+/// wider, so a six-letter name has the room on its chip a four-letter one has on the GBA's,
+/// four pixels before it and three after.
+pub const SNES_SOCKETS: Sockets = Sockets {
+    u: [78.0, 126.0],
+    v: SOCKET_V,
+    w: SOCKET_W + 12,
+    h: SOCKET_H,
+    chip_w: CHIP_W + 12,
+    chip_h: CHIP_H,
+};
+
+/// The sockets on the board of a `platform` cart.
+pub fn sockets_for(platform: Platform) -> Sockets {
+    match platform {
+        Platform::Snes => SNES_SOCKETS,
+        Platform::Gba | Platform::Gb | Platform::Gbc | Platform::Ps1 => GBA_SOCKETS,
+    }
+}
+
+/// The sockets `core` is seated among: those of the first system it runs.
+pub fn sockets_of(core: Core) -> Sockets {
+    match core {
+        Core::Snes9x | Core::Supafaust => SNES_SOCKETS,
+        Core::Mgba | Core::Gpsp | Core::PcsxRearmed => GBA_SOCKETS,
+    }
+}
+
+/// How far down a chip its name's capitals start, under the accent rows of its line.
+const NAME_Y: i32 = 7;
 const CHIP_INK: Rgb = [0xf2, 0xf2, 0xf2];
 /// The socket's name, printed in the silkscreen at half strength over the board: half of each,
 /// flattened.
 const SOCKET_INK: Rgb = [0x94, 0xc7, 0x91];
 
-fn lid_rest() -> Placed {
+/// Where `name` starts across a chip `w` wide: in the middle, its odd pixel on the left.
+fn name_x(name: &str, w: u32) -> i32 {
+    (w as i32 - ink_width(name) + 1) / 2
+}
+
+/// Where the GBA cart's lid rests over the board: across the board's middle, its foot a little
+/// above the board's top. A cart of another shape keeps the foot and the middle.
+const LID_REST: Placed = Placed {
+    x: 288.0,
+    y: 44.0,
+    w: 144.0,
+    h: 81.0,
+};
+
+/// Where the lid of a cart of `model` rests: the GBA cart's lid scaled as the cart is to a GBA
+/// cart, and shrunk to the GBA lid's height where it would stand taller.
+fn lid_rest_of(model: CartModel) -> Placed {
+    let (mw, mh) = model_box(model);
+    let w = LID_REST.w * mw as f32 / CART_W as f32;
+    let h = LID_REST.h * mh as f32 / CART_H as f32;
+    let fit = (LID_REST.h / h).min(1.0);
+    let (w, h) = (w * fit, h * fit);
     Placed {
-        x: 288.0 + stage_x(),
-        y: 44.0 + stage_y(),
-        w: 144.0,
-        h: 81.0,
+        x: LID_REST.x + (LID_REST.w - w) / 2.0 + stage_x(),
+        y: LID_REST.y + LID_REST.h - h + stage_y(),
+        w,
+        h,
     }
 }
 
@@ -582,10 +678,17 @@ pub fn shelf_cart() -> Placed {
 }
 
 pub fn shelf_cart_at(x: f32, scale: f32) -> Placed {
-    let (w, h) = (CART_W as f32 * scale, CART_H as f32 * scale);
+    model_cart_at(CartModel::Gba, x, scale)
+}
+
+/// Where a cart of `model` stands on the shelf with its left edge at `x`, drawn `scale` of its
+/// own size (as `Shelf::selected_at` says): on the floor the shelf stands it on.
+pub fn model_cart_at(model: CartModel, x: f32, scale: f32) -> Placed {
+    let (mw, mh) = model_box(model);
+    let (w, h) = (mw as f32 * scale, mh as f32 * scale);
     Placed {
         x,
-        y: foot_y(CART_H as f32) - h,
+        y: foot_y(mh as f32 * model_scale(model)) - h,
         w,
         h,
     }
@@ -612,12 +715,18 @@ pub fn lid_at(progress: f32) -> (Placed, f32) {
 }
 
 pub fn lid_from(shelf: Placed, progress: f32) -> (Placed, f32) {
+    lid_of(CartModel::Gba, shelf, progress)
+}
+
+/// Where the lid of a cart of `model` standing at `shelf` is, and how far it is turned, `progress`
+/// of the way open: slid up off the board, then lifted to its rest.
+pub fn lid_of(model: CartModel, shelf: Placed, progress: f32) -> (Placed, f32) {
     let slid = Placed {
-        y: shelf.y - SLIDE_UP * slide_of(progress),
+        y: shelf.y - slide_up(model) * slide_of(progress),
         ..shelf
     };
     let lift = lift_of(progress);
-    (lerp(slid, lid_rest(), lift), LID_TURN * lift)
+    (lerp(slid, lid_rest_of(model), lift), LID_TURN * lift)
 }
 
 /// Where the art pixel `u, v` of the board lands on the screen with the board at `board`.
@@ -665,10 +774,12 @@ pub fn padded(face: &CartFace, pad: u32) -> CartFace {
 
 /// A socket on the board, clear where the board shows through: its printed outline with the
 /// notch for the chip's first pin, the gold pads above and below it, and the core's name
-/// printed in it, where the chip seated in it wears its own.
+/// printed in it, where the chip seated in it wears its own. It is the size of the sockets
+/// `core` is seated among.
 pub fn socket_face(core: Core) -> CartFace {
-    let mut face = blank(SOCKET_W, SOCKET_H);
-    let (w, h) = (SOCKET_W as i32, SOCKET_H as i32);
+    let sockets = sockets_of(core);
+    let mut face = blank(sockets.w, sockets.h);
+    let (w, h) = (sockets.w as i32, sockets.h as i32);
     for x in (3..w - 2).step_by(2) {
         fill(&mut face, [x, 0, 1, 2], GOLD);
         fill(&mut face, [x, h - 2, 1, 2], GOLD);
@@ -684,16 +795,24 @@ pub fn socket_face(core: Core) -> CartFace {
     fill(&mut face, [0, h - 3, w, 1], SILK);
     fill(&mut face, [0, 2, 1, h - 4], SILK);
     fill(&mut face, [w - 1, 2, 1, h - 4], SILK);
-    let [nx, ny] = NAME_AT;
-    print(&mut face, core.text(), nx + 1, ny + 1, SOCKET_INK);
+    let name = core.text();
+    let x = name_x(name, sockets.chip_w);
+    print(&mut face, name, x + 1, NAME_Y + 1, SOCKET_INK);
     cart_face(face)
 }
 
-/// The chip, its black body between rows of pins, with the core's name printed on it, or none
-/// in the air between the sockets.
+/// The chip of the GBA board, its black body between rows of pins, with the core's name printed
+/// on it, or none in the air between the sockets. A named chip is the size of the sockets its
+/// core is seated among.
 pub fn chip_face(core: Option<Core>) -> CartFace {
-    let mut face = blank(CHIP_W, CHIP_H);
-    let (w, h) = (CHIP_W as i32, CHIP_H as i32);
+    let sockets = core.map_or(GBA_SOCKETS, sockets_of);
+    chip_face_in(sockets, core)
+}
+
+/// The chip that fits `sockets`, with `core`'s name on it or none.
+pub fn chip_face_in(sockets: Sockets, core: Option<Core>) -> CartFace {
+    let mut face = blank(sockets.chip_w, sockets.chip_h);
+    let (w, h) = (sockets.chip_w as i32, sockets.chip_h as i32);
     for x in (2..w - 1).step_by(2) {
         fill(&mut face, [x, 0, 1, 2], PIN);
         fill(&mut face, [x, h - 2, 1, 2], PIN);
@@ -702,8 +821,14 @@ pub fn chip_face(core: Option<Core>) -> CartFace {
     body(&mut face, [0, 2, w, h - 4]);
     fill(&mut face, [2, h - 7, 2, 2], BODY_HI);
     if let Some(core) = core {
-        let [nx, ny] = NAME_AT;
-        print(&mut face, core.text(), nx, ny, CHIP_INK);
+        let name = core.text();
+        print(
+            &mut face,
+            name,
+            name_x(name, sockets.chip_w),
+            NAME_Y,
+            CHIP_INK,
+        );
     }
     cart_face(face)
 }
@@ -730,7 +855,12 @@ fn shadow(w: u32, h: u32) -> CartFace {
 }
 
 pub fn chip_shadow_face() -> CartFace {
-    shadow(SHADOW_W, SHADOW_H)
+    chip_shadow_face_in(GBA_SOCKETS)
+}
+
+/// The shadow under the chip that fits `sockets`, in the air.
+pub fn chip_shadow_face_in(sockets: Sockets) -> CartFace {
+    shadow(sockets.shadow_w(), SHADOW_H)
 }
 
 pub fn lid_shadow_face() -> CartFace {

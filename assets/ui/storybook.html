@@ -182,6 +182,23 @@
   /* the link screen's art, its pieces placed in art pixels as the screen places them */
   .link-scene { position: relative; max-width: 100%; }
   .link-scene > omega-link { position: absolute; }
+  /* the DISC screen on a 640×480 screen, placed in art pixels as disc_screen.rs places it: the
+     panel where the LINK panel goes, three discs 96 by 56 between it and the bar, 8 apart, the
+     picked one 6 higher and the others faded back a step */
+  .disc-screen { position: relative; flex: none; width: calc(320 * var(--u)); height: calc(240 * var(--u)); outline: 1px solid var(--rule); }
+  .disc-screen .disc-panel { position: absolute; left: calc(60 * var(--u)); top: calc(8 * var(--u)); width: calc(200 * var(--u)); }
+  .disc-panel .disc-note {
+    margin: calc(4 * var(--u)) 0 0; padding: 0 calc(3 * var(--u)) calc(2 * var(--u));
+    font: 400 calc(9 * var(--u)) / calc(10 * var(--u)) var(--oz-font); color: var(--oz-dim);
+    white-space: nowrap; text-rendering: geometricPrecision;
+  }
+  .disc-screen .discs {
+    position: absolute; left: calc(8 * var(--u)); top: calc(124 * var(--u));
+    display: flex; gap: calc(8 * var(--u)); align-items: flex-start;
+  }
+  .discs i { display: block; width: calc(96 * var(--u)); height: calc(56 * var(--u)); background: var(--oz-cream); opacity: 0.5; }
+  .discs i.picked { opacity: 1; margin-top: calc(-6 * var(--u)); }
+  .disc-screen .disc-bar { position: absolute; left: 0; bottom: 0; width: 100%; }
   .card-grid {
     display: grid; gap: calc(2 * var(--u));
     grid-template-columns: repeat(auto-fill, min(100%, calc(150 * var(--u))));
@@ -926,6 +943,61 @@
 <pre><code>&lt;omega-link piece="plug" role="host"&gt;&lt;/omega-link&gt;
 &lt;omega-link piece="port" width="320" height="36"&gt;&lt;/omega-link&gt;
 &lt;omega-link piece="arc" ring="2" side="left"&gt;&lt;/omega-link&gt;</code></pre>
+      </article>
+
+      <article class="card wide">
+        <header><h3>The DISC screen</h3><code>omega-panel, omega-row, omega-bar</code></header>
+        <p class="dim">What SELECT + MENU opens over a PlayStation game on several discs, where the
+          link screen opens on a GBA or a Game Boy; the game is held under it. It is put together
+          from the kit, over the backdrop: a lone DISC panel where the LINK panel goes, 200 art
+          pixels wide and 8 down, with DISC lit and its carets (the disc picked, of how many), IN
+          DRIVE (the disc in it) and the game's title as a note; the game's discs side by side
+          between the panel and the bar, 8 art pixels apart, as big as they all fit, the one picked
+          raised 6 art pixels and the rest faded back a step; and the bar, B RETURN and A SWAP with
+          ◀▶ PICK between them. Left and Right pick a disc and stop at either end; A swaps the one
+          picked into the drive, closes the screen and says so in a DISC toast ("Disc 2
+          inserted"); B, SELECT or SELECT + MENU again close it with the disc left in. A game on one
+          disc opens nothing: its toast says "Only one disc".</p>
+        <div class="preview omega-backdrop">
+          <span class="tag">disc 2 of 3 picked, disc 1 in the drive, on a 640×480 screen</span>
+          <div class="disc-screen">
+            <omega-panel label="DISC" active class="disc-panel">
+              <omega-row label="DISC" value="2 OF 3" lit carets></omega-row>
+              <omega-row label="IN DRIVE" value="DISC 1"></omega-row>
+              <p class="disc-note">Final Fantasy VII</p>
+            </omega-panel>
+            <div class="discs" aria-label="the game's three discs, the second picked">
+              <i></i><i class="picked"></i><i></i>
+            </div>
+            <omega-bar class="disc-bar" hint="◀▶ PICK">
+              <action-left slot="left" label="RETURN" hint="B"></action-left>
+              <action-right slot="right" label="SWAP" hint="A"></action-right>
+            </omega-bar>
+          </div>
+          <span class="tag">the toasts it says</span>
+          <div style="display: grid; gap: calc(6 * var(--u)); justify-items: start">
+            <omega-toast label="DISC" text="Disc 2 inserted"></omega-toast>
+            <omega-toast label="DISC" text="Only one disc"></omega-toast>
+          </div>
+        </div>
+        <div class="table">
+          <table>
+            <tr><th>Key</th><th>What it does</th></tr>
+            <tr><td>◀ ▶</td><td>Picks the disc before or after, the panel's DISC row following; no further than the first or the last.</td></tr>
+            <tr><td>A</td><td>Swaps the disc picked into the drive and closes the screen, with a DISC toast; on the disc already in, just closes it.</td></tr>
+            <tr><td>B, SELECT, SELECT + MENU</td><td>Close the screen, the disc in the drive left there.</td></tr>
+            <tr><td>discs</td><td>Each the shelf's face for it, drawn flat (a placeholder box here, as flow.html draws what Rust draws); the shelf's disc stack takes their place in <code>draw_disc_art</code>.</td></tr>
+          </table>
+        </div>
+<pre><code>&lt;omega-panel label="DISC" active&gt;
+  &lt;omega-row label="DISC" value="2 OF 3" lit carets&gt;&lt;/omega-row&gt;
+  &lt;omega-row label="IN DRIVE" value="DISC 1"&gt;&lt;/omega-row&gt;
+  &lt;p class="disc-note"&gt;Final Fantasy VII&lt;/p&gt;
+&lt;/omega-panel&gt;
+&lt;omega-bar hint="◀▶ PICK"&gt;
+  &lt;action-left slot="left" label="RETURN" hint="B"&gt;&lt;/action-left&gt;
+  &lt;action-right slot="right" label="SWAP" hint="A"&gt;&lt;/action-right&gt;
+&lt;/omega-bar&gt;</code></pre>
       </article>
 
       <article class="card">
