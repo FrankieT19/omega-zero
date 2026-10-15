@@ -891,15 +891,20 @@ const BAND_DARK: Rgb = [0x3a, 0x2a, 0x22];
 const CAN: Rgb = [0x2c, 0x3e, 0x8c];
 const CAN_STRIPE: Rgb = [0x9a, 0xa8, 0xd8];
 
+/// How far in from each side the Super Famicom shell's top rows are, at the board's size: the
+/// cart's own top, a gentle arc into big round corners.
+const SFC_TOP: [i32; 12] = [54, 26, 11, 8, 6, 5, 4, 3, 2, 2, 1, 1];
+
 /// The back of a SNES shell: the plastic outlined in its deepest shade, the Super Famicom's top
-/// corners round and the American cart's square; the floor inside, its top and left walls in
-/// shade as the light falls from the top right; and the two screw posts.
+/// arched and its corners round as the cart's are, the American cart's square; the floor
+/// inside, its top following the shell's, its top and left walls in shade as the light falls
+/// from the top right; and the two screw posts.
 fn snes_shell(face: &mut UndoFace, p: &Plastic, shell: SnesShell) {
     const RIM: i32 = 3;
     let (w, h) = (BOARD_W as i32, BOARD_H as i32);
-    let (top, foot): (&[i32], &[i32]) = match shell {
-        SnesShell::Famicom => (&[6, 4, 2, 1, 1], &[2, 1]),
-        SnesShell::Ntsc => (&[2, 1], &[2, 1]),
+    let (top, floor_top, foot): (&[i32], &[i32], &[i32]) = match shell {
+        SnesShell::Famicom => (&SFC_TOP, &SFC_TOP, &[2, 1]),
+        SnesShell::Ntsc => (&[2, 1], &[], &[2, 1]),
     };
     let side = |y: i32| rounded(y, h, top, foot);
     let inside = |x: i32, y: i32| (0..h).contains(&y) && x >= side(y) && x < w - side(y);
@@ -911,7 +916,7 @@ fn snes_shell(face: &mut UndoFace, p: &Plastic, shell: SnesShell) {
             dot(face, x, y, if edge { p.deep } else { p.face });
         }
     }
-    let inner = |y: i32| RIM + rounded(y - RIM, h - 2 * RIM, &top[top.len().min(2)..], &[1]);
+    let inner = |y: i32| RIM + rounded(y - RIM, h - 2 * RIM, floor_top, &[1]);
     for y in RIM..h - RIM {
         let side = inner(y);
         let shade = match y - RIM {
