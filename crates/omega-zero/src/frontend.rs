@@ -4,9 +4,9 @@ use omega_gfx::{out_h, out_w, Bezel, Compositor, Draw, TexId};
 use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_ui::{
-    bezel_mark_face, cart_face, cart_mesh, chip_face, chip_shadow_face, lid_shadow_face,
-    mark_height, mark_rect, model_shadow, rim, socket_face, wallpaper_face, CartFace, CartMeshes,
-    CartModel, UndoFace, BEZEL_FILL,
+    bezel_mark_face, cart_face, cart_mesh, chip_face, chip_face_in, chip_shadow_face,
+    chip_shadow_face_in, lid_shadow_face, mark_height, mark_rect, model_shadow, rim, socket_face,
+    wallpaper_face, CartFace, CartMeshes, CartModel, UndoFace, BEZEL_FILL, SNES_SOCKETS,
 };
 use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
@@ -205,7 +205,7 @@ impl Frontend {
         self.session.app_mut().set_faces(faces);
         // the core picker's parts are pixel art, a texel to an art pixel, kept sharp at 2x
         let mut sprite = |f: CartFace| compositor.create_texture_nearest(f.w, f.h, &f.rgba);
-        let sockets = omega_store::Core::for_platform(omega_store::Platform::Gba)
+        let sockets = omega_store::Core::ALL
             .iter()
             .map(|c| sprite(socket_face(*c)))
             .collect();
@@ -215,9 +215,13 @@ impl Frontend {
             .collect();
         let blank = sprite(chip_face(None));
         let shadows = [sprite(chip_shadow_face()), sprite(lid_shadow_face())];
-        self.session
-            .app_mut()
-            .set_core_part_faces(sockets, chips, blank, shadows);
+        let wide = (
+            sprite(chip_face_in(SNES_SOCKETS, None)),
+            sprite(chip_shadow_face_in(SNES_SOCKETS)),
+        );
+        let app = self.session.app_mut();
+        app.set_core_part_faces(sockets, chips, blank, shadows);
+        app.set_chip_faces_for(SNES_SOCKETS, wide.0, wide.1);
         for model in CartModel::ALL {
             let shadow = model_shadow(model);
             let id = compositor.create_texture(shadow.w, shadow.h, &shadow.rgba);

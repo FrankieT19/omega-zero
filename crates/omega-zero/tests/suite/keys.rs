@@ -16,11 +16,19 @@ use tempfile::TempDir;
 
 /// A card with one game of `platform` on it, `stem`, its file as the shelf finds it.
 pub fn root_with(platform: Platform, stem: &str) -> TempDir {
+    root_with_games(platform, &[stem])
+}
+
+/// A card with the games `stems` of `platform` on it. With two or more the handheld boots onto
+/// the shelf; a card with one game puts it straight in.
+pub fn root_with_games(platform: Platform, stems: &[&str]) -> TempDir {
     let d = common::tmp_root_with_carts(&[]);
     let dir = d.path().join("Games").join(platform.dir_name());
     std::fs::create_dir_all(&dir).expect("the system's folder");
-    let rom = dir.join(format!("{stem}.{}", platform.extensions()[0]));
-    std::fs::write(rom, vec![0u8; 0x8000]).expect("write the game");
+    for stem in stems {
+        let rom = dir.join(format!("{stem}.{}", platform.extensions()[0]));
+        std::fs::write(rom, vec![0u8; 0x8000]).expect("write the game");
+    }
     d
 }
 

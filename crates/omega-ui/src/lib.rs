@@ -42,12 +42,13 @@ pub use bezel::{
     BEZEL_FILL, BEZEL_INK, RIM_W,
 };
 pub use board::{
-    board_at, board_face, board_from, board_x, board_y, board_zoom, chip_face, chip_shadow_face,
-    grown, lid_at, lid_from, lid_shadow_face, lift_of, on_board, padded, rom_marking,
-    rom_marking_face, shelf_cart, shelf_cart_at, slide_of, socket_face, Placed, BOARD_H, BOARD_W,
-    CHIP_H, CHIP_U, CHIP_V, CHIP_W, HOP_LIFT, LID_SHADOW_H, LID_SHADOW_W, LID_TURN, ROM_H, ROM_W,
-    ROM_X, ROM_Y, SHADOW_AT, SHADOW_H, SHADOW_W, SLIDE_SHARE, SLIDE_UP, SOCKET_H, SOCKET_U,
-    SOCKET_V, SOCKET_W, TURN_PAD,
+    board_at, board_face, board_from, board_x, board_y, board_zoom, chip_face, chip_face_in,
+    chip_shadow_face, chip_shadow_face_in, grown, lid_at, lid_from, lid_of, lid_shadow_face,
+    lift_of, model_cart_at, on_board, padded, rom_marking, rom_marking_face, shelf_cart,
+    shelf_cart_at, slide_of, slide_up, socket_face, sockets_for, sockets_of, Placed, Sockets,
+    BOARD_H, BOARD_W, CHIP_H, CHIP_U, CHIP_V, CHIP_W, GBA_SOCKETS, HOP_LIFT, LID_SHADOW_H,
+    LID_SHADOW_W, LID_TURN, ROM_H, ROM_W, ROM_X, ROM_Y, SHADOW_AT, SHADOW_H, SHADOW_W, SLIDE_SHARE,
+    SLIDE_UP, SNES_SOCKETS, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W, TURN_PAD,
 };
 pub use cart::{
     cart_box, cart_face, cart_shadow, clean_label, gb_cart_shadow, gb_label_panel, gb_shell_of,

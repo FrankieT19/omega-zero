@@ -51,6 +51,7 @@ mod mgba_gb_link;
 mod mgba_link;
 mod nav;
 mod opening;
+mod picker_systems;
 mod platform;
 mod play;
 mod polaroids;

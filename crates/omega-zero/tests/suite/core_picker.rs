@@ -1,13 +1,64 @@
-use omega_store::Core;
+use omega_store::{Core, Platform};
 use omega_ui::Millis;
 use omega_zero::core_picker::{
     CorePicker, Outcome, Press, CLOSE_MS, HOP_MS, LIFT_MS, OPEN_MS, SLIDE_MS,
 };
 
+/// The GBA's cores, a socket each: mGBA, then gpSP.
+const GBA: &[Core] = &[Core::Mgba, Core::Gpsp];
+
 fn opened(seat: Core, at: Millis) -> CorePicker {
-    let mut p = CorePicker::open(seat, at);
+    opened_over(GBA, seat, at)
+}
+
+fn opened_over(cores: &'static [Core], seat: Core, at: Millis) -> CorePicker {
+    let mut p = CorePicker::open(cores, seat, at);
     p.start(at);
     p
+}
+
+#[test]
+fn the_gba_and_the_snes_each_have_two_sockets_and_the_rest_one() {
+    assert_eq!(Core::for_platform(Platform::Gba), GBA);
+    assert_eq!(
+        Core::for_platform(Platform::Snes),
+        [Core::Snes9x, Core::Supafaust]
+    );
+    for p in [Platform::Gb, Platform::Gbc, Platform::Ps1] {
+        assert_eq!(Core::for_platform(p).len(), 1, "{p:?} has a core to pick");
+    }
+}
+
+#[test]
+fn on_a_snes_board_right_hops_from_snes9x_to_supafaust_and_left_back() {
+    let snes = Core::for_platform(Platform::Snes);
+    let mut p = opened_over(snes, Core::Snes9x, 0);
+    assert_eq!(p.cores(), snes);
+    assert_eq!(p.chip(0).seated, Some(Core::Snes9x));
+    assert_eq!(p.chip(0).across, 0.0, "Snes9x is not in the first socket");
+    assert_eq!(p.press(Press::Left, 100), Outcome::Refused);
+
+    assert_eq!(p.press(Press::Right, 400), Outcome::Nothing);
+    assert_eq!(p.seat(), Core::Supafaust);
+    let mid = p.chip(400 + HOP_MS / 2);
+    assert_eq!(mid.seated, None, "the chip wears a name in flight");
+    assert!((mid.across - 0.5).abs() < 0.01, "across {}", mid.across);
+    let landed = p.chip(400 + HOP_MS);
+    assert_eq!(landed.seated, Some(Core::Supafaust));
+    assert_eq!(landed.across, 1.0);
+    assert_eq!(p.press(Press::Right, 400 + HOP_MS), Outcome::Refused);
+
+    assert_eq!(p.press(Press::Left, 1_000), Outcome::Nothing);
+    assert_eq!(p.press(Press::Keep, 1_000), Outcome::Write(Core::Snes9x));
+}
+
+#[test]
+fn a_seat_the_board_has_no_socket_for_starts_in_the_first() {
+    let snes = Core::for_platform(Platform::Snes);
+    let p = opened_over(snes, Core::Mgba, 0);
+    assert_eq!(p.seat(), Core::Snes9x);
+    let p = opened_over(snes, Core::Supafaust, 0);
+    assert_eq!(p.chip(0).across, 1.0);
 }
 
 #[test]
@@ -137,7 +188,7 @@ fn the_open_is_a_slide_then_a_lift_and_the_board_agrees() {
 
 #[test]
 fn a_picker_waits_until_it_is_started() {
-    let mut p = CorePicker::open(Core::Mgba, 100);
+    let mut p = CorePicker::open(GBA, Core::Mgba, 100);
     assert!(p.waiting());
     assert_eq!(p.openness(5_000), 0.0);
     assert_eq!(p.waited(350), 250);
@@ -149,7 +200,7 @@ fn a_picker_waits_until_it_is_started() {
 
 #[test]
 fn a_second_start_keeps_the_first() {
-    let mut p = CorePicker::open(Core::Mgba, 0);
+    let mut p = CorePicker::open(GBA, Core::Mgba, 0);
     p.start(300);
     p.start(500);
     assert_eq!(p.openness(300 + OPEN_MS), 1.0);
@@ -157,7 +208,7 @@ fn a_second_start_keeps_the_first() {
 
 #[test]
 fn backing_out_while_waiting_finishes_at_once() {
-    let mut p = CorePicker::open(Core::Mgba, 0);
+    let mut p = CorePicker::open(GBA, Core::Mgba, 0);
     p.press(Press::Back, 50);
     assert!(p.finished(50));
 }
@@ -172,7 +223,7 @@ fn a_close_from_rest_takes_the_close_time() {
 
 #[test]
 fn the_arrows_do_nothing_while_the_picker_waits() {
-    let mut p = CorePicker::open(Core::Mgba, 0);
+    let mut p = CorePicker::open(GBA, Core::Mgba, 0);
     assert_eq!(p.press(Press::Right, 100), Outcome::Nothing);
     assert_eq!(p.seat(), Core::Mgba, "a hop started while the cart waited");
     let chip = p.chip(100);

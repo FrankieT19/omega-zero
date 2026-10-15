@@ -1,3 +1,8 @@
+//! The core picker: the cart's lid lifted off its board, and the chip hopping between the
+//! board's sockets, one for each core that runs the cart's system, in the order the system lists
+//! them (`Core::for_platform`). Left and Right move the chip a socket that way; A keeps the core
+//! it is in, or heading for, and B leaves the cart as it was.
+
 use omega_store::Core;
 use omega_ui::{ease, Millis, Refusal};
 
@@ -24,6 +29,8 @@ pub enum Outcome {
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Chip {
+    /// How far across the sockets the chip is, in sockets from the first: a whole number when it
+    /// is seated in one.
     pub across: f32,
     pub lift: f32,
     pub seated: Option<Core>,
@@ -32,7 +39,7 @@ pub struct Chip {
 
 #[derive(Copy, Clone)]
 struct Hop {
-    from: Core,
+    from: usize,
     started: Millis,
 }
 
@@ -44,7 +51,10 @@ struct Close {
 
 #[derive(Copy, Clone)]
 pub struct CorePicker {
-    seat: Core,
+    /// The cores the board has a socket for, in socket order.
+    cores: &'static [Core],
+    /// The socket the chip is in, or heading for.
+    slot: usize,
     opened: Millis,
     started: Option<Millis>,
     hop: Option<Hop>,
@@ -53,9 +63,12 @@ pub struct CorePicker {
 }
 
 impl CorePicker {
-    pub fn open(seat: Core, now: Millis) -> Self {
+    /// A picker over a socket for each of `cores`, the chip in `seat`'s; a seat that is none of
+    /// them puts it in the first.
+    pub fn open(cores: &'static [Core], seat: Core, now: Millis) -> Self {
         CorePicker {
-            seat,
+            cores,
+            slot: cores.iter().position(|c| *c == seat).unwrap_or(0),
             opened: now,
             started: None,
             hop: None,
@@ -76,8 +89,14 @@ impl CorePicker {
         now.saturating_sub(self.opened)
     }
 
+    /// The core whose socket the chip is in, or heading for.
     pub fn seat(&self) -> Core {
-        self.seat
+        self.cores[self.slot]
+    }
+
+    /// The cores the board has a socket for, in socket order.
+    pub fn cores(&self) -> &'static [Core] {
+        self.cores
     }
 
     pub fn closing(&self) -> bool {
@@ -102,43 +121,44 @@ impl CorePicker {
         if self.close.is_some() {
             return Outcome::Nothing;
         }
+        let last = self.cores.len().saturating_sub(1);
         let target = match press {
             Press::Keep => {
                 self.begin_close(now);
-                return Outcome::Write(self.seat);
+                return Outcome::Write(self.seat());
             }
             Press::Back => {
                 self.begin_close(now);
                 return Outcome::Nothing;
             }
-            Press::Left => Core::Mgba,
-            Press::Right => Core::Gpsp,
+            Press::Left => self.slot.saturating_sub(1),
+            Press::Right => (self.slot + 1).min(last),
         };
         if self.waiting() {
             return Outcome::Nothing;
         }
         if let Some(progress) = self.hop_progress(now) {
-            if target == self.seat {
+            if target == self.slot {
                 return Outcome::Nothing;
             }
             let done = ((1.0 - progress) * HOP_MS as f32) as Millis;
             self.hop = Some(Hop {
-                from: self.seat,
+                from: self.slot,
                 started: now.saturating_sub(done),
             });
-            self.seat = target;
+            self.slot = target;
             self.refusal = None;
             return Outcome::Nothing;
         }
-        if target == self.seat {
+        if target == self.slot {
             self.refusal = Some(Refusal::started(now));
             return Outcome::Refused;
         }
         self.hop = Some(Hop {
-            from: self.seat,
+            from: self.slot,
             started: now,
         });
-        self.seat = target;
+        self.slot = target;
         self.refusal = None;
         Outcome::Nothing
     }
@@ -147,19 +167,19 @@ impl CorePicker {
         let shake = self.refusal.map_or(0.0, |r| r.offset(now));
         match (self.hop, self.hop_progress(now)) {
             (Some(hop), Some(q)) => {
-                let rightward = hop.from == Core::Mgba;
+                let (from, to) = (hop.from as f32, self.slot as f32);
                 let arc = (std::f32::consts::PI * q).sin();
                 Chip {
-                    across: if rightward { ease(q) } else { 1.0 - ease(q) },
+                    across: from + (to - from) * ease(q),
                     lift: arc,
                     seated: None,
                     shake,
                 }
             }
             _ => Chip {
-                across: self.seat.index() as f32,
+                across: self.slot as f32,
                 lift: 0.0,
-                seated: Some(self.seat),
+                seated: Some(self.seat()),
                 shake,
             },
         }

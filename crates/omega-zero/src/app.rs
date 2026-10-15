@@ -13,12 +13,12 @@ use omega_ui::kit::action::Font;
 use omega_ui::kit::fade::stepped;
 use omega_ui::{
     backdrop_shift, board_from, board_zoom, draw_backdrop, draw_pattern, draw_solid, ease, grown,
-    lid_from, lift_of, on_board, posed_cart, posed_face, push_cart_side, shelf_cart_at, CartDive,
-    CartMeshes, CartModel, ChromeColours, ClockPicker, CornerBadge, Draw, FfState, GaugeIcon,
-    GbShell, Hud, HudKind, KeyboardFaces, LinkBadge, LinkFaces, Links, Millis, Placed, Polaroids,
-    PowerChoice, Refusal, SettingsFaces, SettingsRow, Shelf, TexId, Toast, CART_W, CHIP_H, CHIP_U,
-    CHIP_V, CHIP_W, HOP_LIFT, LID_SHADOW_H, LID_SHADOW_W, SHADOW_AT, SHADOW_H, SHADOW_W, SOCKET_H,
-    SOCKET_U, SOCKET_V, SOCKET_W, SPRITE_PX, TOP_BAR_H, TURN_PAD,
+    lid_of, lift_of, model_box, model_cart_at, on_board, posed_cart, posed_face, push_cart_side,
+    sockets_of, CartDive, CartMeshes, CartModel, ChromeColours, ClockPicker, CornerBadge, Draw,
+    FfState, GaugeIcon, GbShell, Hud, HudKind, KeyboardFaces, LinkBadge, LinkFaces, Links, Millis,
+    Placed, Polaroids, PowerChoice, Refusal, SettingsFaces, SettingsRow, Shelf, Sockets, TexId,
+    Toast, GBA_SOCKETS, HOP_LIFT, LID_SHADOW_H, LID_SHADOW_W, SHADOW_AT, SHADOW_H, SPRITE_PX,
+    TOP_BAR_H, TURN_PAD,
 };
 
 use crate::audio::Sfx;
@@ -290,6 +290,8 @@ pub struct App {
     pub(crate) core_chip_faces: Vec<TexId>,
     pub(crate) core_blank_chip_face: Option<TexId>,
     pub(crate) core_chip_shadow_face: Option<TexId>,
+    /// The blank chip and its shadow for each board whose sockets are not the GBA's.
+    pub(crate) core_chip_faces_for: Vec<(Sockets, TexId, TexId)>,
     pub(crate) core_lid_shadow_face: Option<TexId>,
     pub(crate) game_menu: Option<GameMenu>,
     pub(crate) link_sprites: Option<LinkSprites>,
@@ -439,6 +441,7 @@ impl App {
             core_chip_faces: Vec::new(),
             core_blank_chip_face: None,
             core_chip_shadow_face: None,
+            core_chip_faces_for: Vec::new(),
             core_lid_shadow_face: None,
             game_menu: None,
             link_sprites: None,
@@ -2045,6 +2048,9 @@ impl App {
         self.core_faces_stem = self.selected_stem().map(str::to_string);
     }
 
+    /// The core picker's parts: each core's socket and named chip, indexed by `Core::index`; the
+    /// blank chip in the air and its shadow, both sized for the GBA board's sockets; and the
+    /// lid's shadow.
     pub fn set_core_part_faces(
         &mut self,
         sockets: Vec<TexId>,
@@ -2059,8 +2065,36 @@ impl App {
         self.core_lid_shadow_face = Some(lid_shadow);
     }
 
+    /// The blank chip in the air and its shadow for a board whose sockets are not the GBA's,
+    /// such as the SNES's, each sized for them.
+    pub fn set_chip_faces_for(&mut self, sockets: Sockets, blank: TexId, shadow: TexId) {
+        self.core_chip_faces_for
+            .retain(|(fits, _, _)| *fits != sockets);
+        self.core_chip_faces_for.push((sockets, blank, shadow));
+    }
+
+    /// The blank chip and its shadow that fit `sockets`.
+    fn chip_faces_for(&self, sockets: Sockets) -> (Option<TexId>, Option<TexId>) {
+        if sockets == GBA_SOCKETS {
+            return (self.core_blank_chip_face, self.core_chip_shadow_face);
+        }
+        self.core_chip_faces_for
+            .iter()
+            .find(|(fits, _, _)| *fits == sockets)
+            .map_or((None, None), |(_, blank, shadow)| {
+                (Some(*blank), Some(*shadow))
+            })
+    }
+
     pub(crate) fn core_picker_shown(&self) -> Option<CorePicker> {
         self.core_picker.filter(|p| !p.waiting())
+    }
+
+    /// The model the cart the shelf is on stands as.
+    fn selected_model(&self) -> CartModel {
+        self.shelf()
+            .model_at(self.shelf().index)
+            .unwrap_or(CartModel::Gba)
     }
 
     fn draw_core_picker(&self, picker: &CorePicker, out: &mut Vec<Draw>) {
@@ -2071,7 +2105,8 @@ impl App {
         // The cart leaves the shelf held the way it was swaying there, and squares up as it
         // opens.
         let pose = self.shelf().pose().toward_rest(lift);
-        let shelf = shelf_cart_at(rest, scale);
+        let model = self.selected_model();
+        let shelf = model_cart_at(model, rest, scale);
         let shelf = Placed {
             y: shelf.y - pose.lift,
             ..shelf
@@ -2079,6 +2114,8 @@ impl App {
         let board = board_from(shelf, progress);
         let zoom = board_zoom(board);
         let ready = self.core_faces_ready();
+        let cores = picker.cores();
+        let sockets = sockets_of(cores[0]);
 
         if ready {
             if let Some(tex) = self.core_board_face {
@@ -2093,13 +2130,16 @@ impl App {
             // the parts are pixel art like the board, a texel to `px` screen pixels as it is
             // drawn, each put down on whole art pixels
             let px = SPRITE_PX as f32 * zoom;
-            for (tex, u) in self.core_socket_faces.iter().copied().zip(SOCKET_U) {
-                let (x, y) = on_board(board, u, SOCKET_V);
+            for (core, u) in cores.iter().zip(sockets.u) {
+                let Some(tex) = self.core_socket_faces.get(core.index()).copied() else {
+                    continue;
+                };
+                let (x, y) = on_board(board, u, sockets.v);
                 out.push(Draw::Tex {
                     x: even(x),
                     y: even(y),
-                    w: SOCKET_W as f32 * px,
-                    h: SOCKET_H as f32 * px,
+                    w: sockets.w as f32 * px,
+                    h: sockets.h as f32 * px,
                     tex,
                     alpha: 1.0,
                 });
@@ -2108,15 +2148,17 @@ impl App {
             // the chip crosses and hops a whole art pixel at a time, level: a turned face
             // would leave the grid
             let chip = picker.chip(now);
-            let u = (CHIP_U[0] + (CHIP_U[1] - CHIP_U[0]) * chip.across).round();
+            let (first, second) = (sockets.chip_u(0), sockets.chip_u(1));
+            let u = (first + (second - first) * chip.across).round();
             let hop = (HOP_LIFT * chip.lift).round();
+            let (blank, shadow) = self.chip_faces_for(sockets);
             if hop > 0.0 {
-                if let Some(tex) = self.core_chip_shadow_face {
-                    let (x, y) = on_board(board, u + SHADOW_AT[0], CHIP_V + SHADOW_AT[1]);
+                if let Some(tex) = shadow {
+                    let (x, y) = on_board(board, u + SHADOW_AT[0], sockets.chip_v() + SHADOW_AT[1]);
                     out.push(Draw::Tex {
                         x: even(x),
                         y: even(y),
-                        w: SHADOW_W as f32 * px,
+                        w: sockets.shadow_w() as f32 * px,
                         h: SHADOW_H as f32 * px,
                         tex,
                         alpha: stepped(chip.lift * lift),
@@ -2125,15 +2167,15 @@ impl App {
             }
             let face = match chip.seated {
                 Some(core) => self.core_chip_faces.get(core.index()).copied(),
-                None => self.core_blank_chip_face,
+                None => blank,
             };
             if let Some(tex) = face {
-                let (x, y) = on_board(board, u, CHIP_V - hop);
+                let (x, y) = on_board(board, u, sockets.chip_v() - hop);
                 out.push(Draw::Tex {
                     x: even(x + chip.shake),
                     y: even(y),
-                    w: CHIP_W as f32 * px,
-                    h: CHIP_H as f32 * px,
+                    w: sockets.chip_w as f32 * px,
+                    h: sockets.chip_h as f32 * px,
                     tex,
                     alpha: 1.0,
                 });
@@ -2142,7 +2184,7 @@ impl App {
 
         // the lid's shadow, a dithered block at the size it rests at, fading in steps as it lifts
         if let Some(tex) = self.core_lid_shadow_face {
-            let (lid, _) = lid_from(shelf, progress);
+            let (lid, _) = lid_of(model, shelf, progress);
             let (w, h) = (
                 (LID_SHADOW_W * SPRITE_PX) as f32,
                 (LID_SHADOW_H * SPRITE_PX) as f32,
@@ -2157,13 +2199,13 @@ impl App {
             });
         }
 
-        let model = self.selected_stem().and_then(|stem| {
+        let meshed = self.selected_stem().and_then(|stem| {
             let (_, face) = self.shelf().find(stem)?;
             face.zip(self.shelf().mesh_for(stem))
         });
-        if let Some((tex, mesh)) = model {
+        let (lid, turn) = lid_of(model, shelf, progress);
+        if let Some((tex, mesh)) = meshed {
             // the lid is the cart itself, sides and all, in the model the shelf drew it with
-            let (lid, turn) = lid_from(shelf, progress);
             out.push(posed_cart(
                 (lid.x, lid.y, lid.w, lid.h),
                 mesh,
@@ -2174,15 +2216,15 @@ impl App {
             ));
         } else if ready {
             if let Some(tex) = self.core_lid_face {
-                let (lid, turn) = lid_from(shelf, progress);
-                let at = grown(lid, TURN_PAD as f32 * lid.w / CART_W as f32);
+                // the lid's face is padded `TURN_PAD` texels each side, so it can turn unclipped
+                let face_w = model_box(model).0 as f32;
+                let at = grown(lid, TURN_PAD as f32 * lid.w / face_w);
                 push_lid(out, (at.x, at.y, at.w, at.h), tex, turn, pose.yaw);
             }
         } else if let Some((_, Some(tex))) = self
             .selected_stem()
             .and_then(|stem| self.shelf().find(stem))
         {
-            let (lid, turn) = lid_from(shelf, progress);
             push_lid(out, (lid.x, lid.y, lid.w, lid.h), tex, turn, pose.yaw);
         }
     }
@@ -2350,6 +2392,8 @@ impl App {
         }
     }
 
+    /// Opens the core picker over the cart the shelf is on, with a socket for each core that runs
+    /// its system; a system with one core has nothing to pick, and X does nothing.
     fn open_core_picker(&mut self) {
         let Some(root) = self.root.clone() else {
             return;
@@ -2357,12 +2401,13 @@ impl App {
         let Some(cart) = self.shelf().carts.get(self.shelf().index) else {
             return;
         };
-        if cart.platform != Platform::Gba {
+        let cores = Core::for_platform(cart.platform);
+        if cores.len() < 2 {
             return;
         }
-        let seat = omega_store::core_for(&root, &cart.stem);
+        let seat = omega_store::core_for_platform(&root, &cart.stem, cart.platform);
         let now = self.now();
-        let mut picker = CorePicker::open(seat, now);
+        let mut picker = CorePicker::open(cores, seat, now);
         if self.core_faces_ready() {
             picker.start(now);
         }
