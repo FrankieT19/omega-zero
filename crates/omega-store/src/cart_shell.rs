@@ -5,11 +5,17 @@ use unicode_normalization::UnicodeNormalization;
 pub const CART_SHELL_FILE: &str = "Config/cart_shell.ini";
 pub const LABELS_SHELL_FILE: &str = "Labels/cart_shell.ini";
 
+/// The shape a cart is drawn in, where its system has more than one: `auto` leaves it to the
+/// ROM. The Game Boy pak comes notched (the grey and black paks) or rounded (the Game Boy
+/// Color's); the SNES cart comes as the American cart (`ntsc`) or the Super Famicom's (`sfc`),
+/// which Europe's carts share. A shape of another system's is no choice and draws as `auto`.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Outline {
     Auto,
     Notched,
     Rounded,
+    Ntsc,
+    Sfc,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -33,6 +39,8 @@ impl ShellChoice {
             "auto" => Outline::Auto,
             "notched" => Outline::Notched,
             "rounded" => Outline::Rounded,
+            "ntsc" => Outline::Ntsc,
+            "sfc" => Outline::Sfc,
             _ => return None,
         };
         let hex = words.next()?;
@@ -58,6 +66,8 @@ impl ShellChoice {
             Outline::Auto => "auto",
             Outline::Notched => "notched",
             Outline::Rounded => "rounded",
+            Outline::Ntsc => "ntsc",
+            Outline::Sfc => "sfc",
         };
         let finish = match self.finish {
             ShellFinish::Solid => "solid",

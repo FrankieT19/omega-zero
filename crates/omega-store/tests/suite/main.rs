@@ -17,6 +17,7 @@ mod ps1;
 mod region;
 mod ring;
 mod scan;
+mod snes;
 mod stamp;
 mod theme;
 mod volume;
