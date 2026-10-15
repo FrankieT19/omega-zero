@@ -16,6 +16,31 @@ use omega_ui::{cart_face, cut_label, shrink_label, CartFace};
 /// shelf.
 const MAX_WORKERS: usize = 3;
 
+/// How many drawn faces can wait for compose to take them. A worker with one more waits for
+/// room, so a boot's hundreds of faces are never all held at once on a handheld with 1 GB.
+const READY_FACES: usize = 8;
+
+/// How far the workers stand back from the shelf, the game and its sound, as a nice value: a
+/// boot that resumes a game draws its labels while the game runs, and the labels can wait.
+#[cfg(feature = "device")]
+const NICE: i32 = 10;
+
+#[cfg(feature = "device")]
+extern "C" {
+    fn setpriority(which: i32, who: u32, prio: i32) -> i32;
+}
+
+/// Lets the calling thread run only on what the rest of omega-zero leaves of the cores. Linux
+/// keeps a nice value for each thread, and `setpriority` for process 0 sets the caller's.
+fn stand_back() {
+    #[cfg(feature = "device")]
+    // SAFETY: setpriority only sets the calling thread's nice value; a refusal answers -1, and
+    // the worker then runs as it would have
+    unsafe {
+        setpriority(0, 0, NICE);
+    }
+}
+
 /// A cart to draw from its label, with the ticket it was asked under.
 struct Job {
     cart: Cart,
@@ -41,7 +66,7 @@ pub struct LabelCutter {
 impl LabelCutter {
     pub fn spawn() -> Self {
         let (requests, inbox) = mpsc::channel::<Job>();
-        let (outbox, drawn) = mpsc::channel();
+        let (outbox, drawn) = mpsc::sync_channel(READY_FACES);
         let inbox = Arc::new(Mutex::new(inbox));
         let workers = thread::available_parallelism()
             .map_or(1, |n| n.get().saturating_sub(1))
@@ -51,21 +76,24 @@ impl LabelCutter {
             let outbox = outbox.clone();
             let spawned = thread::Builder::new()
                 .name(format!("omega-cut-{i}"))
-                .spawn(move || loop {
-                    let next = inbox.lock().map(|rx| rx.recv());
-                    let Ok(Ok(Job { cart, ticket })) = next else {
-                        return;
-                    };
-                    cut_label(&cart);
-                    let face = Drawn {
-                        platform: cart.platform,
-                        stem: cart.stem.clone(),
-                        face: cart_face(&cart),
-                    };
-                    if outbox.send((ticket, face)).is_err() {
-                        return;
+                .spawn(move || {
+                    stand_back();
+                    loop {
+                        let next = inbox.lock().map(|rx| rx.recv());
+                        let Ok(Ok(Job { cart, ticket })) = next else {
+                            return;
+                        };
+                        cut_label(&cart);
+                        let face = Drawn {
+                            platform: cart.platform,
+                            stem: cart.stem.clone(),
+                            face: cart_face(&cart),
+                        };
+                        if outbox.send((ticket, face)).is_err() {
+                            return;
+                        }
+                        shrink_label(&cart);
                     }
-                    shrink_label(&cart);
                 });
             if let Err(e) = spawned {
                 eprintln!("omega-zero: labels: cutter thread failed to start: {e}");

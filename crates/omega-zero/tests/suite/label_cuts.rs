@@ -300,8 +300,8 @@ fn a_label_a_sync_saves_cut_already_is_drawn_by_the_workers() {
     );
 }
 
-/// The faces the label workers hand back in a burst, a dozen at once, are uploaded a few a frame
-/// rather than all in the frame they came back by.
+/// The faces the label workers hand back in a burst are uploaded a few a frame rather than all in
+/// the frame they came back by, and the workers hold no more of them than can wait.
 #[test]
 fn a_burst_of_faces_is_uploaded_over_several_frames() {
     let Ok(surface) = HeadlessSurface::new() else {
@@ -319,25 +319,28 @@ fn a_burst_of_faces_is_uploaded_over_several_frames() {
     }
     let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
     f.upload_faces(&mut c);
-    // a scan is shrunk once its face is handed back, so every face is waiting once all are
+    // a scan is shrunk once its face is handed back; eight faces can wait to be taken, and the
+    // workers with one more wait for room
     let scan = |stem: &str| d.path().join(format!("Labels/GBA/{stem}.png"));
+    let shrunk = || stems.iter().filter(|s| png_width(&scan(s)) < 600).count();
     let began = Instant::now();
-    while stems.iter().any(|s| png_width(&scan(s)) >= 600) {
+    while shrunk() < 8 {
         assert!(
             began.elapsed() < Duration::from_secs(10),
-            "the workers never drew every face"
+            "the workers never drew the faces that can wait"
         );
         std::thread::sleep(Duration::from_millis(5));
     }
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(
+        shrunk(),
+        8,
+        "the workers drew on with no room for their faces"
+    );
     f.compose(&mut c);
     assert!(
         f.drawing_labels(),
-        "every face of the burst was uploaded in one frame"
+        "every face waiting was uploaded in one frame"
     );
-    let mut frames = 1;
-    assert!(compose_until(&mut f, &mut c, |f, _| {
-        frames += 1;
-        !f.drawing_labels()
-    }));
-    assert!(frames <= 4, "a dozen faces took {frames} frames to upload");
+    assert!(compose_until(&mut f, &mut c, |f, _| !f.drawing_labels()));
 }

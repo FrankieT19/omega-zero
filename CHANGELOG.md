@@ -9,6 +9,9 @@
   the background after the boot.
 - Labels fetches each label at about two thirds of the width it did, so a sync downloads about
   half as much.
+- The boot no longer reads any label before the shelf comes up. Every cart starts in its
+  generated label and is drawn in its own on threads that stand back from the shelf and the
+  game, the carts on screen first, a few a frame, while the opening plays.
 
 ## omega-zero 1.1.0
 
