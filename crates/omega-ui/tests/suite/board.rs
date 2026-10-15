@@ -6,7 +6,7 @@ use omega_ui::{
     LID_SHADOW_H, LID_SHADOW_W, LID_TURN, ROM_H, ROM_W, ROM_X, ROM_Y, SHADOW_H, SHADOW_W,
     SLIDE_SHARE, SLIDE_UP, SOCKET_H, SOCKET_U, SOCKET_V, SOCKET_W,
 };
-use omega_ui::{out_h, stage_x, stage_y, BAR_H, TOP_BAR_H};
+use omega_ui::{out_h, stage_x, stage_y, BAR_H, SFC_SHELL, SNES_SHELL, TOP_BAR_H};
 
 fn cart(stem: &str, code: &str) -> Cart {
     Cart {
@@ -408,5 +408,84 @@ fn the_seated_chips_name_is_printed_in_whole_pixels() {
         inks.sort_unstable();
         inks.dedup();
         assert_eq!(inks.len(), 1, "{core:?}'s name has soft edges: {inks:?}");
+    }
+}
+
+fn snes_cart(stem: &str) -> Cart {
+    Cart {
+        platform: Platform::Snes,
+        stem: stem.into(),
+        rom: format!("Games/SNES/{stem}.sfc").into(),
+        label: None,
+        code: String::new(),
+        shell: None,
+        title: String::new(),
+    }
+}
+
+/// How many runs of gold cross row `y` of `face`: the contacts along the board's edge.
+fn contacts(face: &CartFace, y: u32) -> usize {
+    let gold = |x: u32| near(rgb(face, x, y), [0xd4, 0xa9, 0x3c]);
+    (0..face.w)
+        .filter(|&x| gold(x) && (x == 0 || !gold(x - 1)))
+        .count()
+}
+
+#[test]
+fn a_snes_cart_opens_on_a_snes_board_in_its_own_plastic() {
+    let gba = board_face(&cart(EMERALD, "BPEE"));
+    let ntsc = board_face(&snes_cart("Super Metroid (USA)"));
+    let sfc = board_face(&snes_cart("Rockman X (Japan)"));
+    for (name, face) in [("American", &ntsc), ("Super Famicom", &sfc)] {
+        assert_eq!((face.w, face.h), (BOARD_W, BOARD_H), "the {name} board");
+        assert_flat(face, "the SNES board");
+        assert_eq!(
+            (0..face.h).map(|y| contacts(face, y)).max(),
+            Some(23),
+            "the {name} board has not the SNES cart's 23 contacts along its edge"
+        );
+    }
+    assert_eq!((0..gba.h).map(|y| contacts(&gba, y)).max(), Some(30));
+    assert!(
+        near(rgb(&ntsc, 1, 50), SNES_SHELL.colour),
+        "the American cart's shell is not its grey"
+    );
+    assert!(
+        near(rgb(&sfc, 1, 50), SFC_SHELL.colour),
+        "the Super Famicom cart's shell is not its grey"
+    );
+    // the Super Famicom's top corners are round, the American cart's square
+    assert_eq!(alpha(&sfc, 1, 1), 0);
+    assert_eq!(alpha(&ntsc, 1, 1), 255);
+}
+
+#[test]
+fn the_snes_rom_chip_carries_its_marking_where_the_gba_s_does() {
+    let face = board_face(&snes_cart("Super Metroid (USA)"));
+    let ink = [0xbd, 0xbd, 0xbd];
+    let inked = (ROM_Y..ROM_Y + ROM_H)
+        .flat_map(|y| (ROM_X..ROM_X + ROM_W).map(move |x| (x, y)))
+        .filter(|&(x, y)| rgb(&face, x, y) == ink)
+        .count();
+    assert!(
+        inked > 100,
+        "the ROM chip carries {inked} pixels of marking"
+    );
+}
+
+#[test]
+fn the_snes_board_leaves_the_sockets_places_bare() {
+    let face = board_face(&snes_cart("Super Metroid (USA)"));
+    let bare = [[0x3a, 0x9a, 0x3c], [0x58, 0xb3, 0x53]];
+    for u in SOCKET_U {
+        for y in SOCKET_V as u32..SOCKET_V as u32 + SOCKET_H {
+            for x in u as u32..u as u32 + SOCKET_W {
+                let c = rgb(&face, x, y);
+                assert!(
+                    bare.iter().any(|b| near(c, *b)),
+                    "something {c:?} is in a socket's place at {x},{y}"
+                );
+            }
+        }
     }
 }

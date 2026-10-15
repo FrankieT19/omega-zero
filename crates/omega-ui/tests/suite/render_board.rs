@@ -1,6 +1,7 @@
 //! With SCRATCH_DIR set, writes the core picker's faces there as PNGs to look at: each at the
 //! size it is shown (2x its art) and at four times that, and the board put together with its
-//! sockets and chip, seated, mid-hop, and in a red and a grey shell.
+//! sockets and chip, seated, mid-hop, and in a red and a grey shell; and the SNES board in the
+//! American cart's shell and the Super Famicom's.
 
 use omega_store::{Cart, Core, Platform};
 use omega_ui::{
@@ -117,6 +118,41 @@ fn render_board() {
             &mut f,
             &chip_face(Some(Core::Gpsp)),
             CHIP_U[1] as i32,
+            CHIP_V as i32,
+        );
+        both(name, &f);
+    }
+
+    // a SNES cart opens on a SNES board in its own shell, its two cores socketed
+    for (name, stem) in [
+        ("board-snes-ntsc", "Super Metroid (USA)"),
+        ("board-snes-sfc", "Seiken Densetsu 3 (Japan)"),
+    ] {
+        let snes = board_face(&Cart {
+            platform: Platform::Snes,
+            stem: stem.into(),
+            rom: format!("Games/SNES/{stem}.sfc").into(),
+            code: String::new(),
+            ..cart.clone()
+        });
+        both(&format!("{name}-bare"), &snes);
+        let mut f = CartFace {
+            rgba: snes.rgba.clone(),
+            w: snes.w,
+            h: snes.h,
+        };
+        for (i, core) in Core::for_platform(Platform::Snes).iter().enumerate() {
+            over(
+                &mut f,
+                &socket_face(*core),
+                SOCKET_U[i] as i32,
+                SOCKET_V as i32,
+            );
+        }
+        over(
+            &mut f,
+            &chip_face(Some(Core::Snes9x)),
+            CHIP_U[0] as i32,
             CHIP_V as i32,
         );
         both(name, &f);

@@ -86,7 +86,7 @@ impl Labels {
         self.state = SyncState::Working {
             done: 0,
             total: wants.len(),
-            title: crate::label_sync::title(&wants[0].stem),
+            title: wants[0].title(),
         };
         self.jobs.ask(LabelJob::Sync { account, wants });
     }

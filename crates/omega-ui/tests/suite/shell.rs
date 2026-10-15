@@ -2,7 +2,7 @@ use omega_store::scan;
 use omega_ui::{
     cart_face, gb_shell_of, gba_shell_for, lookup_order_is_exact_then_family_then_default,
     shell_for, shell_presets, table_keys, Finish, GbShell, DEFAULT_SHELL, DMG_SHELL,
-    DUAL_MODE_SHELL,
+    DUAL_MODE_SHELL, SFC_SHELL, SNES_SHELL,
 };
 use tempfile::TempDir;
 
@@ -325,7 +325,7 @@ fn the_presets_are_the_tables_plastics_each_once() {
     let presets = shell_presets();
     assert_eq!(
         presets.len(),
-        25,
+        27,
         "a table row the presets name has gone missing"
     );
     let mut names: Vec<_> = presets.iter().map(|(n, _)| *n).collect();
@@ -334,6 +334,8 @@ fn the_presets_are_the_tables_plastics_each_once() {
     assert_eq!(names.len(), presets.len(), "two presets share a name");
     let find = |n: &str| presets.iter().find(|(name, _)| *name == n).unwrap().1;
     assert_eq!(find("Game Boy grey"), DMG_SHELL);
+    assert_eq!(find("Super Nintendo grey"), SNES_SHELL);
+    assert_eq!(find("Super Famicom grey"), SFC_SHELL);
     assert_eq!(find("Pokémon Emerald"), gba_shell_for("BPEE"));
 }
 

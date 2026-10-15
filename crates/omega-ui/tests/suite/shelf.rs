@@ -1,7 +1,8 @@
 use omega_store::{Cart, Platform};
 use omega_ui::{
-    label_colour, out_h, out_w, rest_y, shelf_box, Draw, GbShell, Shelf, TexId, BAR_H, CART_W,
-    GB_CART_H, GB_CART_W, GB_SHELF_SCALE,
+    foot_y, label_colour, model_shelf_box, out_h, out_w, rest_y, shelf_box, CartMeshes, CartModel,
+    Draw, GbShell, MeshId, Shelf, SnesShell, TexId, BAR_H, CART_W, GB_CART_H, GB_CART_W,
+    GB_SHELF_SCALE,
 };
 
 fn shelf_with(n: usize) -> Shelf {
@@ -808,5 +809,109 @@ fn a_cart_pushed_onto_the_row_draws_rather_than_stopping_the_device() {
         backed(&s),
         2,
         "the row holding a cart the shells never heard of did not draw both its neighbours"
+    );
+}
+
+/// A row of SNES carts, their shells told by their tags: the American cart, the Super
+/// Famicom's, and the American cart again.
+fn snes_shelf() -> Shelf {
+    Shelf::new(
+        [
+            "Chrono Trigger (USA)",
+            "F-Zero (Europe)",
+            "Super Metroid (USA)",
+        ]
+        .iter()
+        .map(|stem| Cart {
+            platform: Platform::Snes,
+            stem: (*stem).into(),
+            rom: format!("Games/SNES/{stem}.sfc").into(),
+            label: None,
+            code: String::new(),
+            shell: None,
+            title: String::new(),
+        })
+        .collect(),
+    )
+}
+
+#[test]
+fn a_snes_row_stands_each_cart_as_its_own_shell_at_its_own_size() {
+    let mut s = snes_shelf();
+    settle(&mut s);
+    s.set_faces((0..3).map(|i| TexId::from_raw(20 + i)).collect());
+    s.set_meshes(CartMeshes::build(|model| {
+        MeshId::from_raw(model.index() + 1)
+    }));
+    let mut out = Vec::new();
+    s.draw_row(None, 0.0, 0.0, 1.0, &mut out);
+    let models: Vec<_> = out
+        .iter()
+        .filter_map(|d| match *d {
+            Draw::Model {
+                x, y, w, h, mesh, ..
+            } => Some((x + w / 2.0, y + h, w, h, mesh)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(models.len(), 3, "three carts, not three models: {models:?}");
+    let mid = out_w() as f32 / 2.0;
+    for (offset, i) in [(-1.0, 2), (0.0, 0), (1.0, 1)] {
+        let model = s.model_at(i).expect("a model for every cart");
+        let (sw, sh) = model_shelf_box(model);
+        let want = mid + offset * sw;
+        let &(centre, foot, w, h, mesh) = models
+            .iter()
+            .find(|m| (m.0 - want).abs() < 0.01)
+            .unwrap_or_else(|| panic!("no cart stands at {want}: {models:?}"));
+        assert_eq!(
+            mesh,
+            MeshId::from_raw(model.index() + 1),
+            "{} is not drawn as its {model:?}",
+            s.carts[i].stem
+        );
+        let lift = if offset == 0.0 { s.pose().lift } else { 0.0 };
+        assert!(
+            (foot + lift - foot_y(sh)).abs() < 0.01 && (h / w - sh / sw).abs() < 1e-4,
+            "{} stands at {centre} with its foot at {foot}, {w}x{h}, not on the floor its \
+             own {sw}x{sh} stands on",
+            s.carts[i].stem
+        );
+    }
+    assert_eq!(
+        [0, 1, 2].map(|i| s.model_at(i)),
+        [
+            Some(CartModel::Snes(SnesShell::Ntsc)),
+            Some(CartModel::Snes(SnesShell::Famicom)),
+            Some(CartModel::Snes(SnesShell::Ntsc)),
+        ]
+    );
+}
+
+#[test]
+fn each_snes_shell_is_backed_by_its_own_shadow() {
+    let mut s = snes_shelf();
+    settle(&mut s);
+    s.set_faces((0..3).map(|i| TexId::from_raw(20 + i)).collect());
+    let (ntsc, sfc) = (TexId::from_raw(90), TexId::from_raw(91));
+    s.set_model_shadow(CartModel::Snes(SnesShell::Ntsc), ntsc);
+    s.set_model_shadow(CartModel::Snes(SnesShell::Famicom), sfc);
+    let mut out = Vec::new();
+    s.draw_row(None, 0.0, 0.0, 1.0, &mut out);
+    let mut backings: Vec<TexId> = out
+        .iter()
+        .filter_map(|d| match *d {
+            Draw::Tex { tex, .. } | Draw::Spun { tex, .. } if tex == ntsc || tex == sfc => {
+                Some(tex)
+            }
+            _ => None,
+        })
+        .collect();
+    backings.sort_by_key(|t| *t == sfc);
+    assert_eq!(
+        backings,
+        [ntsc, sfc],
+        "the American cart beside the selected one and the Super Famicom one are not each \
+         backed by their own shell"
     );
 }

@@ -1,7 +1,7 @@
 use omega_gfx::BACKDROP;
 use omega_ui::{
     edge, gb_table_shells, gba_shell_for, housing, shell_presets, table_keys, DEFAULT_SHELL,
-    DMG_SHELL, DUAL_MODE_SHELL, GB_CLEAR_SHELL,
+    DMG_SHELL, DUAL_MODE_SHELL, GB_CLEAR_SHELL, SFC_SHELL, SNES_SHELL,
 };
 
 fn distance(a: [u8; 3], b: [f32; 4]) -> u32 {
@@ -27,6 +27,8 @@ fn every_shell_is_visible_against_the_backdrop() {
         ("the grey pak", DMG_SHELL),
         ("the black pak", DUAL_MODE_SHELL),
         ("the clear pak", GB_CLEAR_SHELL),
+        ("the American SNES cart", SNES_SHELL),
+        ("the Super Famicom cart", SFC_SHELL),
     ];
     let rows = gb_table_shells()
         .into_iter()

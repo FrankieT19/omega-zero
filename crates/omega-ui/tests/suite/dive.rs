@@ -5,8 +5,9 @@
 use omega_store::{Cart, Platform};
 use omega_ui::kit::palette::palette;
 use omega_ui::{
-    alert_face, cart_box, foot_y, label_colour, label_text, out_h, out_w, shelf_box, shelf_scale,
-    stage_y, CartDive, Draw, MeshId, Pose, Shelf, TexId, ALERT_H, ALERT_W, SPRITE_PX, TOP_BAR_H,
+    alert_face, foot_y, label_colour, label_text, model_box, model_of, model_scale,
+    model_shelf_box, out_h, out_w, shelf_box, shelf_scale, stage_y, CartDive, CartModel, Draw,
+    MeshId, Pose, Shelf, SnesShell, TexId, ALERT_H, ALERT_W, SPRITE_PX, TOP_BAR_H,
 };
 
 /// What the app hands the dive to draw with: the cart's face, its model, and the alert.
@@ -51,6 +52,19 @@ fn pak() -> Cart {
     }
 }
 
+/// A SNES cart named `stem`, its shell told by its tags.
+fn snes(stem: &str) -> Cart {
+    Cart {
+        platform: Platform::Snes,
+        stem: stem.into(),
+        rom: format!("Games/SNES/{stem}.sfc").into(),
+        label: None,
+        code: String::new(),
+        shell: None,
+        title: String::new(),
+    }
+}
+
 fn disc() -> Cart {
     Cart {
         platform: Platform::Ps1,
@@ -63,12 +77,15 @@ fn disc() -> Cart {
     }
 }
 
-/// A cart of each shape the shelf stands games as.
-fn every() -> [(&'static str, Cart); 3] {
+/// A cart of every shape that dives: the GBA cart, the Game Boy pak, the SNES cart in the
+/// American shell and the Super Famicom's, and the PlayStation disc.
+fn both() -> [(&'static str, Cart); 5] {
     [
         ("the GBA cart", cart()),
         ("the Game Boy pak", pak()),
-        ("the disc", disc()),
+        ("the American SNES cart", snes("Super Metroid (USA)")),
+        ("the Super Famicom cart", snes("Rockman X (Japan)")),
+        ("the PlayStation disc", disc()),
     ]
 }
 
@@ -185,7 +202,7 @@ fn dark(alpha: f32) -> Draw {
 
 #[test]
 fn an_unseated_cart_stands_where_the_shelf_left_it() {
-    for (name, c) in every() {
+    for (name, c) in both() {
         let mut shelf = Shelf::new(vec![c.clone()]);
         shelf.set_faces(vec![FACE]);
         let mut row = Vec::new();
@@ -201,7 +218,7 @@ fn an_unseated_cart_stands_where_the_shelf_left_it() {
 
 #[test]
 fn the_cart_rises_a_little_before_it_goes_down() {
-    for (name, c) in every() {
+    for (name, c) in both() {
         let ys = tops(&c, 200);
         let start = ys[0].1;
         let (peak, &(at, top)) = ys
@@ -210,7 +227,7 @@ fn the_cart_rises_a_little_before_it_goes_down() {
             .min_by(|a, b| a.1 .1.total_cmp(&b.1 .1))
             .expect("no way in");
         let rise = start - top;
-        let h = shelf_box(c.platform).1;
+        let h = model_shelf_box(model_of(&c)).1;
         assert!(
             rise > 2.0 && rise < h / 10.0,
             "{name} rises {rise} px off the {start} it started at: not the little lift of a \
@@ -241,7 +258,7 @@ fn the_cart_rises_a_little_before_it_goes_down() {
 
 #[test]
 fn the_cart_is_pulled_down_faster_and_faster() {
-    for (name, c) in every() {
+    for (name, c) in both() {
         let ys: Vec<(f32, f32)> = (5..=19)
             .map(|i| i as f32 * 0.05)
             .map(|seat| (seat, cart_at(&c, seat).y))
@@ -266,7 +283,7 @@ fn the_cart_is_pulled_down_faster_and_faster() {
 
 #[test]
 fn all_the_way_in_the_cart_is_out_of_the_bottom_of_the_screen() {
-    for (name, c) in every() {
+    for (name, c) in both() {
         let last = cart_at(&c, LAST);
         assert!(
             last.y >= out_h() as f32 - 1.0,
@@ -296,7 +313,7 @@ fn all_the_way_in_the_cart_is_out_of_the_bottom_of_the_screen() {
 /// screen fast, slows to a stop a little over its place, and comes down onto it.
 #[test]
 fn coming_out_is_the_way_in_played_backwards() {
-    for (name, c) in every() {
+    for (name, c) in both() {
         let steps = 200;
         let ys: Vec<Option<f32>> = (0..=steps)
             .map(|i| 1.0 - i as f32 / steps as f32)
@@ -344,10 +361,10 @@ fn coming_out_is_the_way_in_played_backwards() {
 
 #[test]
 fn a_cart_keeps_its_shelf_size_all_the_way_in() {
-    for (name, c) in every() {
-        let (w, h) = cart_box(c.platform);
-        let (sw, sh) = shelf_box(c.platform);
-        let share = shelf_scale(c.platform);
+    for (name, c) in both() {
+        let (w, h) = model_box(model_of(&c));
+        let (sw, sh) = model_shelf_box(model_of(&c));
+        let share = model_scale(model_of(&c));
         assert_eq!(
             (sw, sh),
             (w as f32 * share, h as f32 * share),
@@ -367,15 +384,24 @@ fn a_cart_keeps_its_shelf_size_all_the_way_in() {
     }
     assert_eq!(shelf_box(Platform::Gba), (360.0, 212.0), "the GBA cart");
     assert_eq!(shelf_scale(Platform::Gb), 0.8, "the Game Boy pak");
+    assert_eq!(
+        model_shelf_box(CartModel::Snes(SnesShell::Ntsc)),
+        (376.0, 242.0),
+        "the American SNES cart"
+    );
+    assert_eq!(
+        model_shelf_box(CartModel::Snes(SnesShell::Famicom)),
+        (360.0, 238.0),
+        "the Super Famicom cart"
+    );
 }
 
 #[test]
 fn the_cart_comes_to_the_middle_of_the_screen_square_and_level_as_it_settles() {
-    for (name, c) in every() {
+    for (name, c) in both() {
         let at = |seat: f32| {
             face_in(&drawn(&CartDive {
                 mesh: Some(MESH),
-                stack: None,
                 pose: SWAYING,
                 ..going_in(&c, seat)
             }))
@@ -383,7 +409,7 @@ fn the_cart_comes_to_the_middle_of_the_screen_square_and_level_as_it_settles() {
         };
         let (start, yaw) = at(0.0);
         assert_eq!(yaw, SWAYING.yaw, "{name} left the row turned another way");
-        let sh = shelf_box(c.platform).1;
+        let sh = model_shelf_box(model_of(&c)).1;
         assert!(
             (start.y + start.h - (foot_y(sh) - SWAYING.lift)).abs() < 0.01,
             "{name} left the row at {}, not floating where the row had it",
@@ -424,15 +450,15 @@ fn the_cart_comes_to_the_middle_of_the_screen_square_and_level_as_it_settles() {
 
 #[test]
 fn a_cart_the_row_had_not_finished_moving_slides_across_as_it_goes_in() {
-    for (name, c) in every() {
+    for (name, c) in both() {
         let mut shelf = Shelf::new(vec![c.clone(), c.clone(), c.clone()]);
         shelf.right();
         shelf.update(1.0 / 60.0);
         shelf.update(1.0 / 60.0);
         let (rest, scale) = shelf.selected_at();
-        let (sw, sh) = shelf_box(c.platform);
+        let (sw, sh) = model_shelf_box(model_of(&c));
         assert!(
-            (rest - (mid() - sw / 2.0)).abs() > 100.0 && scale < 0.95 * shelf_scale(c.platform),
+            (rest - (mid() - sw / 2.0)).abs() > 100.0 && scale < 0.95 * model_scale(model_of(&c)),
             "the row settled before the press: this proves nothing at {rest} and {scale}"
         );
         let at = |seat: f32| {
@@ -445,7 +471,7 @@ fn a_cart_the_row_had_not_finished_moving_slides_across_as_it_goes_in() {
             .0
         };
         let start = at(0.0);
-        let own = cart_box(c.platform).0 as f32;
+        let own = model_box(model_of(&c)).0 as f32;
         assert!(
             (start.x - rest).abs() < 0.01 && (start.w - own * scale).abs() < 0.01,
             "{name} starts at {start:?} rather than in the quad the row had it in"
@@ -484,7 +510,7 @@ fn a_cart_the_row_had_not_finished_moving_slides_across_as_it_goes_in() {
 #[test]
 fn the_rise_never_takes_a_cart_into_the_bar_at_the_top() {
     let ceiling = stage_y() + TOP_BAR_H;
-    for (name, c) in every() {
+    for (name, c) in both() {
         for (seat, top) in tops(&c, 200) {
             assert!(
                 top >= ceiling,
@@ -498,14 +524,13 @@ fn the_rise_never_takes_a_cart_into_the_bar_at_the_top() {
 /// face is still on its way, it goes in the same way.
 #[test]
 fn a_cart_dives_the_same_way_however_it_is_drawn() {
-    for (name, c) in every() {
+    for (name, c) in both() {
         let [r, g, b] = label_colour(&label_text(&c)).map(|v| v as f32 / 255.0);
         for step in 0..=20 {
             let seat = (step as f32 / 20.0).min(LAST);
             let flat = cart_at(&c, seat);
             let model = face_in(&drawn(&CartDive {
                 mesh: Some(MESH),
-                stack: None,
                 ..going_in(&c, seat)
             }))
             .map(|(q, _)| q);
@@ -545,12 +570,11 @@ fn nothing_but_the_dark_the_game_the_cart_and_its_alert_is_drawn() {
         Cart,
         Alert,
     }
-    for (name, c) in every() {
+    for (name, c) in both() {
         for step in 0..=20 {
             let seat = step as f32 / 20.0;
             let out = drawn(&CartDive {
                 mesh: Some(MESH),
-                stack: None,
                 pose: SWAYING,
                 alert: Some((ALERT, 0.8)),
                 dim: 0.6,
@@ -643,8 +667,8 @@ fn dim_draws_a_black_rect_over_the_whole_screen_at_its_alpha() {
 #[test]
 fn the_alert_fits_on_the_cart_face() {
     let (w, h) = ((ALERT_W * SPRITE_PX) as f32, (ALERT_H * SPRITE_PX) as f32);
-    for (name, c) in every() {
-        let (cw, ch) = shelf_box(c.platform);
+    for (name, c) in both() {
+        let (cw, ch) = model_shelf_box(model_of(&c));
         assert!(w < cw && h < ch, "a {w}x{h} alert on {name} at {cw}x{ch}");
         assert!(
             h * 6.0 > ch,
@@ -683,7 +707,7 @@ fn the_alert_is_a_sprite_in_the_palettes_bright_frame_colour() {
 #[test]
 fn the_alert_is_drawn_on_the_art_grid_in_the_middle_of_the_cart_as_it_comes_out() {
     let (w, h) = ((ALERT_W * SPRITE_PX) as f32, (ALERT_H * SPRITE_PX) as f32);
-    for (name, c) in every() {
+    for (name, c) in both() {
         for step in 1..=20 {
             let seat = 1.0 - step as f32 / 20.0;
             let out = drawn(&CartDive {

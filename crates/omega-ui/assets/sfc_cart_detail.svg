@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 344">
+  <!-- the sides roll back into the cart: the left and top edges catch the light, the right and bottom turn away from it -->
+  <rect x="0" y="14" width="5" height="326" fill="#fff" fill-opacity="0.45"/>
+  <rect x="14" y="0" width="492" height="4" fill="#fff" fill-opacity="0.35"/>
+  <rect x="515" y="14" width="5" height="326" fill="#000" fill-opacity="0.45"/>
+  <rect x="4" y="340" width="512" height="4" fill="#000" fill-opacity="0.3"/>
+  <!-- the grip slots, round onto the cart's sides -->
+  <rect x="-3" y="23.5" width="15" height="5" rx="2.5" fill="#000"/>
+  <rect x="0" y="28.5" width="11" height="1.6" fill="#fff"/>
+  <rect x="508" y="23.5" width="15" height="5" rx="2.5" fill="#000"/>
+  <rect x="509" y="28.5" width="11" height="1.6" fill="#fff"/>
+  <rect x="-3" y="38.9" width="15" height="5" rx="2.5" fill="#000"/>
+  <rect x="0" y="43.9" width="11" height="1.6" fill="#fff"/>
+  <rect x="508" y="38.9" width="15" height="5" rx="2.5" fill="#000"/>
+  <rect x="509" y="43.9" width="11" height="1.6" fill="#fff"/>
+  <rect x="-3" y="54.3" width="15" height="5" rx="2.5" fill="#000"/>
+  <rect x="0" y="59.3" width="11" height="1.6" fill="#fff"/>
+  <rect x="508" y="54.3" width="15" height="5" rx="2.5" fill="#000"/>
+  <rect x="509" y="59.3" width="11" height="1.6" fill="#fff"/>
+  <rect x="-3" y="69.7" width="15" height="5" rx="2.5" fill="#000"/>
+  <rect x="0" y="74.7" width="11" height="1.6" fill="#fff"/>
+  <rect x="508" y="69.7" width="15" height="5" rx="2.5" fill="#000"/>
+  <rect x="509" y="74.7" width="11" height="1.6" fill="#fff"/>
+  <rect x="-3" y="85.1" width="15" height="5" rx="2.5" fill="#000"/>
+  <rect x="0" y="90.1" width="11" height="1.6" fill="#fff"/>
+  <rect x="508" y="85.1" width="15" height="5" rx="2.5" fill="#000"/>
+  <rect x="509" y="90.1" width="11" height="1.6" fill="#fff"/>
+  <!-- the seams either side of the cover, and where the top meets the strips -->
+  <rect x="69" y="166" width="2" height="178" fill="#000"/>
+  <rect x="71" y="166" width="1.5" height="178" fill="#fff"/>
+  <rect x="69" y="0" width="2" height="9" fill="#000"/>
+  <rect x="71" y="0" width="1.5" height="9" fill="#fff"/>
+  <rect x="449" y="166" width="2" height="178" fill="#000"/>
+  <rect x="451" y="166" width="1.5" height="178" fill="#fff"/>
+  <rect x="449" y="0" width="2" height="9" fill="#000"/>
+  <rect x="451" y="0" width="1.5" height="9" fill="#fff"/>
+  <!-- the slot across the cover: its floor in shade and ribbed across, its top and left walls in shadow, its bottom and right lips lit, and the middle third a piece of its own -->
+  <path d="M 121 208 L 399 208 A 16 16 0 0 1 399 240 L 121 240 A 16 16 0 0 1 121 208 Z" fill="#000" fill-opacity="0.3"/>
+  <rect x="119" y="217" width="282" height="1.2" fill="#000" fill-opacity="0.55"/>
+  <rect x="119" y="218.2" width="282" height="1" fill="#fff" fill-opacity="0.35"/>
+  <rect x="119" y="220.8" width="282" height="1.2" fill="#000" fill-opacity="0.55"/>
+  <rect x="119" y="222" width="282" height="1" fill="#fff" fill-opacity="0.35"/>
+  <rect x="119" y="224.6" width="282" height="1.2" fill="#000" fill-opacity="0.55"/>
+  <rect x="119" y="225.8" width="282" height="1" fill="#fff" fill-opacity="0.35"/>
+  <rect x="119" y="228.4" width="282" height="1.2" fill="#000" fill-opacity="0.55"/>
+  <rect x="119" y="229.6" width="282" height="1" fill="#fff" fill-opacity="0.35"/>
+  <rect x="119" y="232.2" width="282" height="1.2" fill="#000" fill-opacity="0.55"/>
+  <rect x="119" y="233.4" width="282" height="1" fill="#fff" fill-opacity="0.35"/>
+  <rect x="119" y="236" width="282" height="1.2" fill="#000" fill-opacity="0.55"/>
+  <rect x="119" y="237.2" width="282" height="1" fill="#fff" fill-opacity="0.35"/>
+  <path fill-rule="evenodd" d="M 121 208 L 399 208 A 16 16 0 0 1 399 240 L 121 240 A 16 16 0 0 1 121 208 Z M 121.5 213 L 401.5 213 A 13.5 13.5 0 0 1 401.5 240 L 121.5 240 A 13.5 13.5 0 0 1 121.5 213 Z" fill="#000"/>
+  <path fill-rule="evenodd" d="M 121 208 L 399 208 A 16 16 0 0 1 399 240 L 121 240 A 16 16 0 0 1 121 208 Z M 119.5 208 L 398.5 208 A 14.5 14.5 0 0 1 398.5 237 L 119.5 237 A 14.5 14.5 0 0 1 119.5 208 Z" fill="#fff"/>
+  <rect x="203.5" y="213" width="1.5" height="24" fill="#000"/>
+  <rect x="205" y="213" width="1.5" height="24" fill="#fff"/>
+  <rect x="313.5" y="213" width="1.5" height="24" fill="#000"/>
+  <rect x="315" y="213" width="1.5" height="24" fill="#fff"/>
+  <!-- the screws low in the side strips -->
+  <circle cx="21" cy="322" r="9" fill="#000"/>
+  <circle cx="20.4" cy="321.4" r="5.6" fill="#fff"/>
+  <rect x="17.8" y="321.1" width="6.4" height="1.8" fill="#000"/>
+  <rect x="20.1" y="318.8" width="1.8" height="6.4" fill="#000"/>
+  <circle cx="499" cy="322" r="9" fill="#000"/>
+  <circle cx="498.4" cy="321.4" r="5.6" fill="#fff"/>
+  <rect x="495.8" y="321.1" width="6.4" height="1.8" fill="#000"/>
+  <rect x="498.1" y="318.8" width="1.8" height="6.4" fill="#000"/>
+</svg>

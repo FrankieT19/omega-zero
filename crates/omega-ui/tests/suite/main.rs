@@ -33,6 +33,7 @@ mod render_board;
 mod render_gb_cart;
 mod render_row_edges;
 mod render_shelf_wrap;
+mod render_snes_cart;
 mod saves;
 mod shelf;
 mod shell;

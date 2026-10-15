@@ -46,7 +46,7 @@ pub const GB_LABEL_Y: u32 = gb_label_panel(GB_CART_W, GB_CART_H).1;
 pub const GB_LABEL_W: u32 = gb_label_panel(GB_CART_W, GB_CART_H).2 - GB_LABEL_X;
 pub const GB_LABEL_H: u32 = gb_label_panel(GB_CART_W, GB_CART_H).3 - GB_LABEL_Y;
 
-const PAD: u32 = 10;
+pub(crate) const PAD: u32 = 10;
 const MAX_LINES: usize = 3;
 /// A generated label's title is set in Pixel Code at one art pixel (two of the face's pixels) to
 /// one of the face's, the size every word in the UI is set at, on up to three lines.
@@ -122,11 +122,7 @@ pub fn model_shadow(model: CartModel) -> CartFace {
     shadow(s.w, s.h, s.mask)
 }
 
-pub(crate) fn gba_spec() -> Spec {
-    spec(CartModel::Gba)
-}
-
-fn spec(model: CartModel) -> Spec {
+pub(crate) fn spec(model: CartModel) -> Spec {
     match model {
         CartModel::Snes(shell) => snes::spec(shell),
         CartModel::Disc => disc::spec(),
