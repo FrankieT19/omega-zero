@@ -338,7 +338,7 @@ fn vertices(made: &[(MeshId, Vec<MeshVertex>)], id: MeshId) -> &[MeshVertex] {
 }
 
 #[test]
-fn each_disc_of_a_stack_stands_behind_the_last_with_a_gap_a_little_wider_than_a_disc() {
+fn each_disc_of_a_stack_stands_behind_the_last_with_a_gap_about_twice_a_disc() {
     let (stacks, made) = built();
     for discs in 2..=4 {
         let mut last: Option<(f32, f32)> = None;
@@ -360,7 +360,7 @@ fn each_disc_of_a_stack_stands_behind_the_last_with_a_gap_a_little_wider_than_a_
             if let Some((was_front, was_back)) = last {
                 let (thick, gap) = (was_back - was_front, front - was_back);
                 assert!(
-                    gap > thick && gap < 2.0 * thick,
+                    gap > 1.5 * thick && gap < 2.5 * thick,
                     "disc {disc} of {discs} stands {gap} behind the last, a disc being {thick}"
                 );
             }

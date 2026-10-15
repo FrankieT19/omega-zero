@@ -37,8 +37,9 @@ pub const DISC_PX: u32 = ACROSS * SPRITE_PX;
 pub const THICK: f32 = 0.045;
 
 /// The air between one disc of a stack and the next, from the back of one to the face of the
-/// one behind, as a share of a disc's width: a little more than a disc is thick.
-pub const GAP: f32 = 0.055;
+/// one behind, as a share of a disc's width: twice as much as a disc is thick, so the discs of
+/// a stack stand clearly apart.
+pub const GAP: f32 = 0.09;
 
 /// From the face of one disc of a stack to the face of the one behind it.
 pub const PITCH: f32 = THICK + GAP;
