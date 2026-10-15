@@ -5,12 +5,12 @@
 //! Famicom's 130 by 86, both 20 mm thick (Wikipedia's Game Pak infobox); the rest is measured off
 //! straight-on photos of real carts. The American cart is boxy: a raised column down its middle,
 //! its top standing a little proud of the ribbed panels either side, the label well open at the
-//! top of the column and a deep well across its bottom. The Super Famicom's is a rounded oblong
-//! under a low roof, its top rising 10 degrees from each corner to its middle, its sides rolled
-//! back into the cart, five grip slots high on each, the label wide across its top with its
-//! corners round, and a ribbed slot across the cover under it. The ribs and slots are relief in
-//! the face, not geometry: the sides take their colour from the face just inside the outline, so
-//! a rib that reaches that far runs on round the side, as it does on the real carts.
+//! top of the column and a deep well across its bottom. The Super Famicom's is a rounded oblong,
+//! its sides rolled back into the cart, five grip slots high on each, the label wide across its
+//! top with its corners round, and a ribbed slot across the cover under it. The ribs and slots
+//! are relief in the face, not geometry: the sides take their colour from the face just inside
+//! the outline, so a rib that reaches that far runs on round the side, as it does on the real
+//! carts.
 
 use std::sync::OnceLock;
 
@@ -64,20 +64,13 @@ const NTSC_HALF: &[(f32, f32)] = &[
 ];
 const NTSC_UNITS: (f32, f32) = (544.0, 352.0);
 
-/// The Super Famicom cart's outline, right half, in drawing units (520 by 344), clockwise from
-/// the end of the flat at its peak: down the roof in one straight run, round the 3.5 mm corner
-/// in three cuts, down the side, and the foot's corner in two. Its top is a low roof, two
-/// straight runs rising 10 degrees from each corner to the middle, where a flat 3 mm across
-/// softens the peak. The peak is the cart's full 86 mm; its shoulders come down under it, the
-/// side straightening 14 mm down. The rows of the roof come in further than `OUTLINE_INSET`, so
-/// a face spun flat, with no model, leaves their sides undrawn; the model draws them as walls
-/// like any other.
+/// The Super Famicom cart's, right half, in drawing units (520 by 344): its round top corner in
+/// three cuts and its foot in two.
 const SFC_HALF: &[(f32, f32)] = &[
-    (266.0, 0.0),
-    (508.43, 42.75),
-    (514.36, 45.3),
-    (518.51, 50.25),
-    (520.0, 56.53),
+    (506.0, 0.0),
+    (513.0, 1.88),
+    (518.12, 7.0),
+    (520.0, 14.0),
     (520.0, 340.0),
     (518.83, 342.83),
     (516.0, 344.0),
@@ -95,9 +88,10 @@ pub const SFC_H: u32 = 238;
 
 /// The label on each face, in its pixels: the American cart's well runs from just under the top
 /// of the column to two fifths of the way down, 83 mm by 36; the Super Famicom's is wider and
-/// all but as tall, 113 mm by 36, across the top of the cart under its roof.
+/// a little shorter, 101 mm by 33, across the top of the cart, 5 mm under its top edge as on a
+/// scanned real cart.
 const NTSC_LABEL: (u32, u32, u32, u32) = (74, 6, 228, 96);
-const SFC_LABEL: (u32, u32, u32, u32) = (24, 36, 312, 100);
+const SFC_LABEL: (u32, u32, u32, u32) = (40, 14, 280, 92);
 
 /// How round the Super Famicom label's corners are, in pixels: 2.4 mm, as a scanned real cart's
 /// are. The American cart's label is square.
