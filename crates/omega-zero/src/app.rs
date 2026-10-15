@@ -339,6 +339,8 @@ pub struct App {
     pub(crate) top_readouts: Readouts,
     pub(crate) shelf_platform: omega_ui::Printed,
     pub(crate) name_pending: bool,
+    /// The seated cart's start took omega-zero down last time: the boot leaves it on the shelf.
+    hold_resume: bool,
     /// The letter jumped to with Up or Down, shown in the pill for a while in place of the
     /// system.
     pub(crate) pill_letter: Option<char>,
@@ -492,6 +494,7 @@ impl App {
             top_readouts: Readouts::default(),
             shelf_platform: omega_ui::Printed::default(),
             name_pending: false,
+            hold_resume: false,
             pill_letter: None,
             shelf_named: None,
             hud: Hud::new(),
@@ -524,6 +527,10 @@ impl App {
         app.ssh.start(app.state.ssh, Some(root));
         app.bluetooth.start(app.state.bluetooth);
         app.labels = Labels::new(label_jobs(root), Account::load(root));
+        if let Some(fell) = persist::take_starting(root) {
+            eprintln!("omega-zero: {fell} took omega-zero down as it started; it is not resumed");
+            app.hold_resume = true;
+        }
         if app.state.clock_set {
             app.start();
         } else {
@@ -541,7 +548,15 @@ impl App {
             stem.and_then(|stem| self.seat_of(&stem, platform))
         };
         self.phase = Phase::Shelf;
+        let held = std::mem::take(&mut self.hold_resume);
         match seated {
+            Some((at, i)) if held => {
+                self.shelf_at = at;
+                self.shelf_mut().select(i);
+                self.state.cart = None;
+                self.state.cart_platform = None;
+                self.name_pending = true;
+            }
             Some((at, i)) => {
                 self.shelf_at = at;
                 self.shelf_mut().select(i);

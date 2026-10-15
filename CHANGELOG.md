@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- SNES games run on Supafaust. Chosen with X, Supafaust took omega-zero down on a game's first
+  frame and left the console on its boot screen: it forgets the defaults of its own options once
+  a game has loaded, and read an empty one back. omega-zero now answers every option a core
+  declares, with the core's own default where omega-zero sets none, as any libretro frontend does.
+- A game whose core takes omega-zero down as it starts is no longer opened again at every boot.
+  The next boot leaves it on the shelf, selected, rather than resume it, so the console can no
+  longer get stuck on its boot screen over one game.
+- When omega-zero goes down, the card keeps what it last said in `crash/omega-zero.log`.
+
 ## omega-zero 1.1.0
 
 The SNES and the PlayStation join the Game Boys: their games run, and they stand on shelves of
