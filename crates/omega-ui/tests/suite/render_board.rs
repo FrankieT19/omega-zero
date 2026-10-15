@@ -182,32 +182,20 @@ fn render_board() {
         ("board-snes-ntsc", "Super Metroid (USA)"),
         ("board-snes-sfc", "Seiken Densetsu 3 (Japan)"),
     ] {
-        let snes = board_face(&Cart {
+        let board = board_face(&Cart {
             platform: Platform::Snes,
             stem: stem.into(),
             rom: format!("Games/SNES/{stem}.sfc").into(),
             code: String::new(),
             ..cart.clone()
         });
-        both(&format!("{name}-bare"), &snes);
-        let mut f = CartFace {
-            rgba: snes.rgba.clone(),
-            w: snes.w,
-            h: snes.h,
-        };
-        for (i, core) in Core::for_platform(Platform::Snes).iter().enumerate() {
-            over(
-                &mut f,
-                &socket_face(*core),
-                SOCKET_U[i] as i32,
-                SOCKET_V as i32,
-            );
-        }
+        both(&format!("{name}-bare"), &board);
+        let mut f = snes_socketed(&board);
         over(
             &mut f,
             &chip_face(Some(Core::Snes9x)),
-            CHIP_U[0] as i32,
-            CHIP_V as i32,
+            snes.chip_u(0) as i32,
+            snes.chip_v() as i32,
         );
         both(name, &f);
     }
