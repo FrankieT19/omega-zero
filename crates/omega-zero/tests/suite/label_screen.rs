@@ -87,7 +87,15 @@ struct Rig {
 
 impl Rig {
     fn with(account: Option<Account>, labelled: &[&str]) -> Rig {
-        let d = tmp_root_with_carts(&["Emerald", "Fusion", "Zero"]);
+        Rig::on(
+            tmp_root_with_carts(&["Emerald", "Fusion", "Zero"]),
+            account,
+            labelled,
+        )
+    }
+
+    /// The rig on a card the test has filled itself, its GBA carts `labelled` already.
+    fn on(d: TempDir, account: Option<Account>, labelled: &[&str]) -> Rig {
         write_app_state(
             d.path(),
             &AppState {
@@ -390,4 +398,58 @@ fn a_build_without_screenscrapers_key_says_so() {
     r.scraper.0.lock().unwrap().absent = true;
     r.open_labels();
     assert_eq!(r.status()[0], "This build has no ScreenScraper key.");
+}
+
+#[test]
+fn a_playstation_game_is_looked_up_disc_by_disc() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion", "Zero"]);
+    let ps1 = d.path().join("Games/PS1");
+    std::fs::create_dir_all(&ps1).unwrap();
+    for n in 1..=2 {
+        std::fs::write(
+            ps1.join(format!("Parasite Eve (USA) (Disc {n}).cue")),
+            b"FILE \"x.bin\" BINARY\n",
+        )
+        .unwrap();
+    }
+    let mut r = Rig::on(d, Some(account()), &["Emerald", "Fusion", "Zero"]);
+    r.join_wifi();
+    r.open_labels();
+    r.go(Sel::Sync);
+    r.press(Btn::A);
+    let game = "Parasite Eve (USA)".to_string();
+    assert_eq!(
+        r.scraper.syncs(),
+        [(account(), vec![game.clone(), game.clone()])],
+        "each disc is not looked up on its own"
+    );
+    assert_eq!(
+        r.a.labels().state(),
+        &SyncState::Working {
+            done: 0,
+            total: 2,
+            title: "Parasite Eve, disc 1".into()
+        }
+    );
+
+    // the second disc's label arrives first: the game has none of its own yet
+    let labels = r.d.path().join("Labels/PS1");
+    std::fs::create_dir_all(&labels).unwrap();
+    std::fs::write(labels.join("Parasite Eve (USA) (Disc 2).png"), b"png").unwrap();
+    r.scraper.say(LabelNews::Saved {
+        platform: Platform::Ps1,
+        stem: game.clone(),
+    });
+    r.tick(16);
+    let label = |r: &Rig| r.a.carts().find(|c| c.stem == game).unwrap().label.clone();
+    assert_eq!(label(&r), None, "the game took a label that is not there");
+
+    std::fs::write(labels.join("Parasite Eve (USA) (Disc 1).png"), b"png").unwrap();
+    std::fs::write(labels.join("Parasite Eve (USA).png"), b"png").unwrap();
+    r.scraper.say(LabelNews::Saved {
+        platform: Platform::Ps1,
+        stem: game.clone(),
+    });
+    r.tick(16);
+    assert_eq!(label(&r), Some(labels.join("Parasite Eve (USA).png")));
 }
