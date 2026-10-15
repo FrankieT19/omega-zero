@@ -37,8 +37,11 @@ build() {
 		exit 1
 	fi
 
+	# git is kept out of any repository: left to look, it finds the checkout this runs in, and
+	# a worktree's checkout names its repository by a path the build container does not have.
+	ceiling="$(cd "$work" && pwd)"
 	for p in "$here"/*.patch; do
-		git -C "$src" apply -p1 "$p"
+		GIT_CEILING_DIRECTORIES="$ceiling" git -C "$src" apply -p1 "$p"
 	done
 
 	CFLAGS="$device_cflags" make -C "$src" platform=arm64 \

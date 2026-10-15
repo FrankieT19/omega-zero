@@ -3,8 +3,19 @@ version: '3'
 vars:
   CORE: vendor/mgba_libretro.dylib
   GPSP_HOST: vendor/gpsp_libretro.dylib
+  SNES9X_HOST: vendor/snes9x_libretro.dylib
+  SUPAFAUST_HOST: vendor/mednafen_supafaust_libretro.dylib
+  PCSX_HOST: vendor/pcsx_rearmed_libretro.dylib
   MGBA_COMMIT: e31759b24e7a4e3899285ff720d7b573ac328ae7
   GPSP_COMMIT: 7b2dd37394e2822110cacef321e9bb291a305b77
+  SNES9X_COMMIT: fae2fea08f74180759ef540ee94259213f503480
+  SUPAFAUST_COMMIT: 642d1d1b6684aa7e306a02a89885f3f5456a5157
+  PCSX_COMMIT: c8816799b50388e61cfe237fe2cdbb7d8175f20a
+  # The libretro names of the cores the device bundle ships, <name>_libretro.so in System/
+  DEVICE_CORES: mgba gpsp snes9x mednafen_supafaust pcsx_rearmed
+  # The cores built by cores/<name>/build.sh whose source archive ships in System/licenses/
+  # beside them, as <name>:<libretro name>. gpSP's ships too, the way it always has
+  SOURCE_CORES: snes9x:snes9x supafaust:mednafen_supafaust pcsx_rearmed:pcsx_rearmed
 
 tasks:
   default:
@@ -109,11 +120,14 @@ tasks:
 
   core:
     desc: >-
-      Build mGBA and fetch gpSP for this host. A missing core silently runs the mock (a test
-      pattern and a sine tone) instead
+      Build mGBA and Supafaust and fetch gpSP, Snes9x and pcsx_rearmed for this host. A missing
+      core silently runs the mock (a test pattern and a sine tone) instead
     cmds:
       - task: core:mgba:host
       - task: core:gpsp:host
+      - task: core:snes9x:host
+      - task: core:supafaust:host
+      - task: core:pcsx:host
 
   core:mgba:host:
     desc: Build mgba_libretro for this host from the pinned libretro/mgba commit and cores/mgba's patches
@@ -127,8 +141,46 @@ tasks:
 
   core:gpsp:host:
     desc: Fetch the host gpSP core from the libretro buildbot
+    cmds:
+      - task: core:buildbot
+        vars: {LIB: gpsp}
+
+  core:snes9x:host:
+    desc: Fetch the host Snes9x core from the libretro buildbot
+    cmds:
+      - task: core:buildbot
+        vars: {LIB: snes9x}
+
+  core:pcsx:host:
+    desc: Fetch the host pcsx_rearmed core from the libretro buildbot
+    cmds:
+      - task: core:buildbot
+        vars: {LIB: pcsx_rearmed}
+
+  core:supafaust:host:
+    desc: >-
+      Build Supafaust for this host from its pinned source archive and cores/supafaust's patches.
+      The libretro buildbot builds none for macOS
     status:
-      - test -f {{.GPSP_HOST}}
+      - test -f {{.SUPAFAUST_HOST}}
+      - test "$(cat vendor/supafaust-src.sha 2>/dev/null)" = "{{.SUPAFAUST_COMMIT}}"
+      - test "$(cat {{.SUPAFAUST_HOST}}.meta 2>/dev/null)" = "$(sh cores/supafaust/build.sh stamp {{.SUPAFAUST_COMMIT}})"
+    cmds:
+      - task: core:src
+        vars: {NAME: supafaust, COMMIT: '{{.SUPAFAUST_COMMIT}}', FILE: Makefile}
+      - >-
+        sh cores/supafaust/build.sh build {{.SUPAFAUST_COMMIT}} vendor/supafaust-src.tar.gz
+        target/supafaust {{.SUPAFAUST_HOST}}
+      - file {{.SUPAFAUST_HOST}} | grep -q Mach-O
+      - 'echo "built {{.SUPAFAUST_HOST}}"'
+
+  core:buildbot:
+    desc: Fetch LIB's core for this Mac from the libretro buildbot's nightlies
+    internal: true
+    requires:
+      vars: [LIB]
+    status:
+      - test -f vendor/{{.LIB}}_libretro.dylib
     cmds:
       - |
         set -euo pipefail
@@ -138,17 +190,42 @@ tasks:
           *) echo "unsupported arch $(uname -m)" >&2; exit 1 ;;
         esac
         mkdir -p vendor
-        curl -fsSL -o vendor/gpsp-host.zip \
-          "https://buildbot.libretro.com/nightly/apple/osx/${arch}/latest/gpsp_libretro.dylib.zip"
-        unzip -o -q vendor/gpsp-host.zip -d vendor
-        rm -f vendor/gpsp-host.zip
-        file {{.GPSP_HOST}} | grep -q Mach-O
-        echo "fetched {{.GPSP_HOST}}"
+        curl -fsSL -o vendor/{{.LIB}}-host.zip \
+          "https://buildbot.libretro.com/nightly/apple/osx/${arch}/latest/{{.LIB}}_libretro.dylib.zip"
+        unzip -o -q vendor/{{.LIB}}-host.zip -d vendor
+        rm -f vendor/{{.LIB}}-host.zip
+        file vendor/{{.LIB}}_libretro.dylib | grep -q Mach-O
+        echo "fetched vendor/{{.LIB}}_libretro.dylib"
+
+  core:src:
+    desc: >-
+      Fetch libretro/NAME's source archive at COMMIT into vendor/NAME-src.tar.gz, checking it
+      holds FILE, and note the commit beside it in vendor/NAME-src.sha
+    internal: true
+    run: when_changed
+    requires:
+      vars: [NAME, COMMIT, FILE]
+    status:
+      - test -f vendor/{{.NAME}}-src.tar.gz
+      - test "$(cat vendor/{{.NAME}}-src.sha 2>/dev/null)" = "{{.COMMIT}}"
+    cmds:
+      - |
+        set -euo pipefail
+        mkdir -p vendor
+        rm -f vendor/{{.NAME}}-src.tar.gz vendor/{{.NAME}}-src.sha
+        curl -fsSL -o vendor/{{.NAME}}-src.tar.gz \
+          "https://github.com/libretro/{{.NAME}}/archive/{{.COMMIT}}.tar.gz"
+        tar -tzf vendor/{{.NAME}}-src.tar.gz | grep "^{{.NAME}}-{{.COMMIT}}/{{.FILE}}$" > /dev/null
+        echo "{{.COMMIT}}" > vendor/{{.NAME}}-src.sha
 
   core:update:
-    desc: Rebuild mGBA and re-fetch gpSP for this host even if they are already vendored
+    desc: >-
+      Rebuild mGBA and Supafaust and re-fetch gpSP, Snes9x and pcsx_rearmed for this host even
+      if they are already vendored
     cmds:
-      - rm -f {{.CORE}} {{.CORE}}.meta {{.GPSP_HOST}}
+      - >-
+        rm -f {{.CORE}} {{.CORE}}.meta {{.GPSP_HOST}} {{.SNES9X_HOST}} {{.SUPAFAUST_HOST}}
+        {{.SUPAFAUST_HOST}}.meta {{.PCSX_HOST}}
       - task: core
 
   icons:
@@ -239,7 +316,9 @@ tasks:
       - rm -rf {{.OUT}}
       - ./target/release/omega-zero --init-root {{.OUT}}
       - cp target/release/omega-zero {{.OUT}}/System/omega-zero
-      - cp {{.CORE}} {{.GPSP_HOST}} {{.OUT}}/System/
+      - >-
+        cp {{.CORE}} {{.GPSP_HOST}} {{.SNES9X_HOST}} {{.SUPAFAUST_HOST}} {{.PCSX_HOST}}
+        {{.OUT}}/System/
       - 'echo "dist ready at {{.OUT}}, copy its contents to SD2"'
 
   core:device:
@@ -297,6 +376,94 @@ tasks:
     cmds:
       - sh cores/gpsp/test/run.sh vendor/gpsp-src.tar.gz
 
+  core:snes9x:
+    desc: >-
+      Build the aarch64 linux Snes9x core from its pinned source archive. Its licence allows
+      non-commercial use only; the archive ships beside it for the LGPL-2.1 NTSC filter inside
+    status:
+      - test -f vendor/snes9x_libretro.so
+      - test "$(cat vendor/snes9x-src.sha 2>/dev/null)" = "{{.SNES9X_COMMIT}}"
+      - test "$(cat vendor/snes9x_libretro.so.meta 2>/dev/null)" = "$(sh cores/snes9x/build.sh stamp {{.SNES9X_COMMIT}})"
+    cmds:
+      - task: core:src
+        vars: {NAME: snes9x, COMMIT: '{{.SNES9X_COMMIT}}', FILE: libretro/Makefile}
+      - task: device:sh
+        vars:
+          CMD: >-
+            sh cores/snes9x/build.sh build {{.SNES9X_COMMIT}} vendor/snes9x-src.tar.gz
+            target-device/snes9x vendor/snes9x_libretro.so
+      - file vendor/snes9x_libretro.so | grep -q aarch64
+      - 'echo "built vendor/snes9x_libretro.so from vendor/snes9x-src.tar.gz @ {{.SNES9X_COMMIT}}"'
+
+  core:snes9x:update:
+    desc: Refetch Snes9x's source archive and rebuild the device core from it, even if the set is current
+    cmds:
+      - rm -f vendor/snes9x_libretro.so vendor/snes9x_libretro.so.meta vendor/snes9x-src.tar.gz vendor/snes9x-src.sha
+      - task: core:snes9x
+
+  core:supafaust:
+    desc: >-
+      Build the aarch64 linux Supafaust core from its pinned source archive, which ships beside
+      it as its GPL-2.0 section 3(a) corresponding source
+    status:
+      - test -f vendor/mednafen_supafaust_libretro.so
+      - test "$(cat vendor/supafaust-src.sha 2>/dev/null)" = "{{.SUPAFAUST_COMMIT}}"
+      - test "$(cat vendor/mednafen_supafaust_libretro.so.meta 2>/dev/null)" = "$(sh cores/supafaust/build.sh stamp {{.SUPAFAUST_COMMIT}})"
+    cmds:
+      - task: core:src
+        vars: {NAME: supafaust, COMMIT: '{{.SUPAFAUST_COMMIT}}', FILE: Makefile}
+      - task: device:sh
+        vars:
+          CMD: >-
+            sh cores/supafaust/build.sh build {{.SUPAFAUST_COMMIT}} vendor/supafaust-src.tar.gz
+            target-device/supafaust vendor/mednafen_supafaust_libretro.so
+      - file vendor/mednafen_supafaust_libretro.so | grep -q aarch64
+      - >-
+        echo "built vendor/mednafen_supafaust_libretro.so from vendor/supafaust-src.tar.gz @
+        {{.SUPAFAUST_COMMIT}}"
+
+  core:supafaust:update:
+    desc: Refetch Supafaust's source archive and rebuild the device core from it, even if the set is current
+    cmds:
+      - >-
+        rm -f vendor/mednafen_supafaust_libretro.so vendor/mednafen_supafaust_libretro.so.meta
+        vendor/supafaust-src.tar.gz vendor/supafaust-src.sha
+      - task: core:supafaust
+
+  core:pcsx:
+    desc: >-
+      Build the aarch64 linux pcsx_rearmed core, with its ARM64 dynarec and NEON GPU, from its
+      pinned source archive, which ships beside it as its GPL-2.0 section 3(a) corresponding
+      source
+    status:
+      - test -f vendor/pcsx_rearmed_libretro.so
+      - test "$(cat vendor/pcsx_rearmed-src.sha 2>/dev/null)" = "{{.PCSX_COMMIT}}"
+      - test "$(cat vendor/pcsx_rearmed_libretro.so.meta 2>/dev/null)" = "$(sh cores/pcsx_rearmed/build.sh stamp {{.PCSX_COMMIT}})"
+    cmds:
+      - task: core:src
+        vars: {NAME: pcsx_rearmed, COMMIT: '{{.PCSX_COMMIT}}', FILE: Makefile.libretro}
+      - task: device:sh
+        vars:
+          CMD: >-
+            sh cores/pcsx_rearmed/build.sh build {{.PCSX_COMMIT}} vendor/pcsx_rearmed-src.tar.gz
+            target-device/pcsx_rearmed vendor/pcsx_rearmed_libretro.so
+      - file vendor/pcsx_rearmed_libretro.so | grep -q aarch64
+      - >-
+        echo "built vendor/pcsx_rearmed_libretro.so from vendor/pcsx_rearmed-src.tar.gz @
+        {{.PCSX_COMMIT}}"
+
+  core:pcsx:update:
+    desc: Refetch pcsx_rearmed's source archive and rebuild the device core from it, even if the set is current
+    cmds:
+      - >-
+        rm -f vendor/pcsx_rearmed_libretro.so vendor/pcsx_rearmed_libretro.so.meta
+        vendor/pcsx_rearmed-src.tar.gz vendor/pcsx_rearmed-src.sha
+      - task: core:pcsx
+
+  cores:device:
+    desc: Build every core the device bundle ships, mGBA, gpSP, Snes9x, Supafaust and pcsx_rearmed
+    deps: [core:device, core:gpsp, core:snes9x, core:supafaust, core:pcsx]
+
   device:sh:
     desc: >-
       Run CMD on the box the device build wants, fetching one if this is not it. The container
@@ -345,7 +512,7 @@ tasks:
 
   dist:device:
     desc: Build the SD2 tree for an H700 device, OUT defaults to ./dist-device
-    deps: [core:device, core:gpsp, build:device]
+    deps: [cores:device, build:device]
     vars:
       OUT: '{{.OUT | default "dist-device"}}'
     cmds:
@@ -355,10 +522,12 @@ tasks:
           CMD: ./target-device/device/omega-zero --init-root {{.OUT}}
       - cp target-device/device/omega-zero {{.OUT}}/System/omega-zero
       - cp card/System/* {{.OUT}}/System/
-      - file vendor/mgba_libretro.so | grep -q aarch64
-      - file vendor/gpsp_libretro.so | grep -q aarch64
-      - cp vendor/mgba_libretro.so {{.OUT}}/System/
-      - cp vendor/gpsp_libretro.so {{.OUT}}/System/
+      - |
+        set -eu
+        for lib in {{.DEVICE_CORES}}; do
+          file "vendor/${lib}_libretro.so" | grep -q aarch64
+          cp "vendor/${lib}_libretro.so" {{.OUT}}/System/
+        done
       - cp -r licenses {{.OUT}}/System/licenses
       - |
         set -euo pipefail
@@ -375,21 +544,41 @@ tasks:
         for p in cores/mgba/*.patch; do
           cp "$p" "{{.OUT}}/System/licenses/mgba-$(basename "$p")"
         done
+      - |
+        set -euo pipefail
+        # Supafaust and pcsx_rearmed are GPL-2.0 as gpSP is, and Snes9x holds the LGPL-2.1
+        # snes_ntsc filter: each ships its source archive, build stamp and patches beside it
+        for core in {{.SOURCE_CORES}}; do
+          name="${core%%:*}" lib="${core#*:}"
+          sha="$(cat "vendor/$name-src.sha")"
+          cp "vendor/$name-src.tar.gz" "{{.OUT}}/System/licenses/$name-${sha}.tar.gz"
+          cp "vendor/${lib}_libretro.so.meta" "{{.OUT}}/System/licenses/$name-${sha}.meta"
+          for p in cores/$name/*.patch; do
+            [ -f "$p" ] || continue
+            cp "$p" "{{.OUT}}/System/licenses/$name-$(basename "$p")"
+          done
+        done
       - 'echo "device tree ready at {{.OUT}}, copy its contents to SD2"'
 
   deploy:device:
     desc: Build and push onto a device over adb, then restart it. SD defaults to /mnt/sdcard
-    deps: [core:device, core:gpsp, build:device]
+    deps: [cores:device, build:device]
     vars:
       SD: '{{.SD | default "/mnt/sdcard"}}'
     cmds:
       - adb wait-for-device
-      - file vendor/mgba_libretro.so | grep -q aarch64
-      - file vendor/gpsp_libretro.so | grep -q aarch64
+      - |
+        set -eu
+        for lib in {{.DEVICE_CORES}}; do
+          file "vendor/${lib}_libretro.so" | grep -q aarch64
+        done
       - adb push target-device/device/omega-zero '{{.SD}}/System/omega-zero'
       - for f in card/System/*; do adb push "$f" '{{.SD}}/System/'; done
-      - adb push vendor/mgba_libretro.so '{{.SD}}/System/mgba_libretro.so'
-      - adb push vendor/gpsp_libretro.so '{{.SD}}/System/gpsp_libretro.so'
+      - |
+        set -euo pipefail
+        for lib in {{.DEVICE_CORES}}; do
+          adb push "vendor/${lib}_libretro.so" "{{.SD}}/System/${lib}_libretro.so"
+        done
       - adb push licenses '{{.SD}}/System/'
       - |
         set -euo pipefail
@@ -405,6 +594,18 @@ tasks:
         adb push vendor/mgba_libretro.so.meta "{{.SD}}/System/licenses/mgba-${commit}.meta"
         for p in cores/mgba/*.patch; do
           adb push "$p" "{{.SD}}/System/licenses/mgba-$(basename "$p")"
+        done
+      - |
+        set -euo pipefail
+        for core in {{.SOURCE_CORES}}; do
+          name="${core%%:*}" lib="${core#*:}"
+          sha="$(cat "vendor/$name-src.sha")"
+          adb push "vendor/$name-src.tar.gz" "{{.SD}}/System/licenses/$name-${sha}.tar.gz"
+          adb push "vendor/${lib}_libretro.so.meta" "{{.SD}}/System/licenses/$name-${sha}.meta"
+          for p in cores/$name/*.patch; do
+            [ -f "$p" ] || continue
+            adb push "$p" "{{.SD}}/System/licenses/$name-$(basename "$p")"
+          done
         done
       - adb shell 'chmod +x {{.SD}}/System/omega-zero && sync'
       - adb reboot
@@ -425,15 +626,20 @@ tasks:
       /mnt/sdcard. CONSOLE_PASSWORD defaults to the first line of .console-password at the
       repo's root (git ignores it), else root; the console shows its password under Settings >
       Network, Y on SSH. PROFILE defaults to device-dev, quick to build; PROFILE=device
-      copies the shipping build. SCRIPTS=1 copies card/System's scripts too. A game still
-      running loses whatever it has not saved
+      copies the shipping build. SCRIPTS=1 copies card/System's scripts too. CORES=1 builds
+      the five cores the bundle ships and copies them into System/ too. A game still running
+      loses whatever it has not saved
     vars:
       PROFILE: '{{.PROFILE | default "device-dev"}}'
     env:
       CONSOLE: '{{.CONSOLE}}'
       SD: '{{.SD}}'
       CONSOLE_PASSWORD: '{{.CONSOLE_PASSWORD}}'
+      CORES: '{{.CORES}}'
+      DEVICE_CORES: '{{.DEVICE_CORES}}'
     cmds:
+      - task: cores:device
+        if: '[ -n "{{.CORES}}" ]'
       - task: build:device
         vars:
           PROFILE: '{{.PROFILE}}'

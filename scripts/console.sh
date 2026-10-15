@@ -10,8 +10,14 @@
 # .console-password at the root of the repo, which git ignores, and failing that it is root,
 # BaseOS's own. omega-zero gives root six random digits the first time it runs on a card whose
 # baseos.conf sets no ssh_password; the console shows them under Settings > Network, Y on SSH.
+#
+# CORES set (task deploy:wifi CORES=1) has deploy copy the device cores into System/ as well:
+# vendor/<name>_libretro.so for each name in DEVICE_CORES, by default the five the bundle
+# ships. task cores:device builds them.
 set -eu
 
+repo="$(cd "$(dirname "$0")/.." && pwd)"
+cores="${DEVICE_CORES:-mgba gpsp snes9x mednafen_supafaust pcsx_rearmed}"
 console="${CONSOLE:-rg35xxsp.local}"
 port=22
 case "$console" in
@@ -22,7 +28,7 @@ case "$console" in
 esac
 host="root@$console"
 sd="${SD:-/mnt/sdcard}"
-password_file="$(cd "$(dirname "$0")/.." && pwd)/.console-password"
+password_file="$repo/.console-password"
 if [ -n "${CONSOLE_PASSWORD:-}" ]; then
 	password="$CONSOLE_PASSWORD"
 elif [ -f "$password_file" ]; then
@@ -96,6 +102,17 @@ case "${1:-}" in
 deploy)
 	binary="$2"
 	shift 2
+	# Every core is checked before anything is copied, so a missing one leaves the console as
+	# it was.
+	if [ -n "${CORES:-}" ]; then
+		for lib in $cores; do
+			so="$repo/vendor/${lib}_libretro.so"
+			if ! file "$so" 2> /dev/null | grep -q aarch64; then
+				echo "console.sh: $so is missing or not built for the console; task cores:device builds it" >&2
+				exit 1
+			fi
+		done
+	fi
 	status=0
 	on "test -d '$sd/System'" || status=$?
 	case "$status" in
@@ -113,6 +130,13 @@ deploy)
 	for f in "$@"; do
 		put "$f" "$sd/System/$(basename "$f")"
 	done
+	# A core omega-zero has open keeps running from the copy it opened: the new one is renamed
+	# over it, not written into it.
+	if [ -n "${CORES:-}" ]; then
+		for lib in $cores; do
+			put "$repo/vendor/${lib}_libretro.so" "$sd/System/${lib}_libretro.so"
+		done
+	fi
 	on sync
 	echo "copied, rebooting $host"
 	# Wi-Fi let go of first, as omega-zero's own restart does: the RTL8821CS's driver hangs the
