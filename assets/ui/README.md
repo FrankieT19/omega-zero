@@ -273,6 +273,18 @@ time: the plug drops into the port and lifts out of it, a failed link shakes it 
 way, and the arcs pulse in the four steps of a fade. The plug and the adapter keep their own
 colours, the plug the purple of the real GBA link cable; everything else follows the palette.
 
+## The DISC screen
+
+On a PlayStation game, SELECT + MENU opens the DISC screen instead of the link screen, a card of
+its own in the storybook: the backdrop, a lone DISC panel where the LINK panel goes with DISC (the
+disc picked, of how many, lit with its carets), IN DRIVE (the disc in the drive) and the game's
+title as a note; the game's discs side by side between it and the bar, the picked one 6 art pixels
+higher and the others faded back a step; and the bar, B RETURN and A SWAP with ◀▶ PICK between
+them. Left and Right pick, A swaps the picked disc in and a DISC toast says which ("Disc 2
+inserted"), B, SELECT or SELECT + MENU close it. A game on one disc opens nothing and says "Only
+one disc". Each disc is the shelf's face for it, drawn flat until the shelf's disc stack takes
+its place.
+
 ## The rules
 
 These are what make it look like one thing. Keep to them when changing or adding to the kit.
