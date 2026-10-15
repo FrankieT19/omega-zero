@@ -7,6 +7,7 @@ use std::sync::Mutex;
 /// A process holds one live libretro core at a time, so a test takes this before it loads one.
 pub static CORE_LOCK: Mutex<()> = Mutex::new(());
 
+mod console_cores;
 mod libretro;
 mod mock;
 mod netpacket;

@@ -15,7 +15,7 @@ use omega_store::{write_app_state, AppState, Platform};
 use omega_ui::BEZEL_FILL;
 use omega_zero::frontend::Frontend;
 use omega_zero::label_sync::{LabelJob, LabelJobs, LabelNews, Quota};
-use omega_zero::video_mode::{screen, VideoMode};
+use omega_zero::video_mode::{screen, screen_for, VideoMode};
 use omega_zero::wifi::{SimWifi, WifiJob, WifiJobs, WifiNews};
 
 const FPS: f64 = 60.0;
@@ -651,7 +651,11 @@ fn card(dir: &Path) {
 /// The mock core's pattern moves with however many frames its thread ran, so every shot shows
 /// this fixed picture in the game texture instead.
 fn still_frame() -> Vec<u8> {
-    let (w, h) = (omega_retro::GBA_W, omega_retro::GBA_H);
+    sized_frame(omega_retro::GBA_W, omega_retro::GBA_H)
+}
+
+/// The same fixed picture at any size, for a SNES or PlayStation game's frame.
+fn sized_frame(w: u32, h: u32) -> Vec<u8> {
     let mut xrgb = Vec::with_capacity((w * h * 4) as usize);
     for y in 0..h {
         for x in 0..w {
@@ -817,6 +821,38 @@ fn main() {
                     if let Err(e) = compare(&name, &rgba, baseline) {
                         failures.push(e);
                     }
+                }
+            }
+        }
+    }
+    // the consoles at the sizes they draw; a baseline from before they were drawn has none
+    for (platform, (w, h)) in [
+        (Platform::Snes, (256, 224)),
+        (Platform::Snes, (512, 448)),
+        (Platform::Ps1, (320, 240)),
+        (Platform::Ps1, (640, 480)),
+    ] {
+        for mode in [VideoMode::Actual, VideoMode::Stretch] {
+            let name = format!("view-{}-{}-{w}x{h}", platform.dir_name(), mode.as_str());
+            let screen = screen_for(platform, mode, (w, h));
+            compositor.upload_game_sized(&sized_frame(w, h), (w, h));
+            compositor.set_game_view(screen.view);
+            compositor.set_bezel((!screen.bands.is_empty()).then(|| Bezel {
+                bands: screen.bands,
+                fill: BEZEL_FILL,
+                ..Bezel::default()
+            }));
+            compositor.set_screen_power(1.0);
+            compositor.begin_frame();
+            compositor.draw_list(&[Draw::Game]);
+            let rgba = panel_frame(&compositor);
+            write_png(&out.join(format!("{name}.png")), &rgba);
+            if let Some(baseline) = baseline
+                .as_ref()
+                .filter(|b| b.join(format!("{name}.png")).exists())
+            {
+                if let Err(e) = compare(&name, &rgba, baseline) {
+                    failures.push(e);
                 }
             }
         }

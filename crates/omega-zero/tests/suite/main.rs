@@ -65,6 +65,7 @@ mod render_bar;
 mod render_bluetooth;
 mod render_boot_logo;
 mod render_colour_correction;
+mod render_consoles;
 mod render_gb_palette;
 mod render_hud;
 mod render_keyboard;
