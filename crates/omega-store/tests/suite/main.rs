@@ -13,6 +13,8 @@ mod gb;
 mod gba;
 mod ini;
 mod platform;
+mod ps1;
+mod region;
 mod ring;
 mod scan;
 mod stamp;

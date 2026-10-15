@@ -80,6 +80,7 @@ enum Cmd {
     EndLink,
     BeginCable(u8, Box<dyn LinkChannel>),
     SetOption(String, String),
+    SetDisc(usize),
 }
 
 struct Shared {
@@ -245,6 +246,11 @@ impl EmuHandle {
             &self.shared,
             Cmd::SetOption(key.to_owned(), value.to_owned()),
         );
+    }
+
+    /// Swaps the disc in the drive for disc `index` of the game, counting from 0.
+    pub fn set_disc(&self, index: usize) {
+        request(&self.cmds, &self.shared, Cmd::SetDisc(index));
     }
 
     pub fn set_driven(&self, driven: bool) {
@@ -881,6 +887,11 @@ impl Worker {
             }
             Cmd::SetOption(key, value) => {
                 core.set_option(&key, &value);
+            }
+            Cmd::SetDisc(index) => {
+                if !core.set_disc(index) {
+                    eprintln!("omega-zero: emu: no disc {index} to swap in");
+                }
             }
             Cmd::EndLink => {
                 self.shared.link_lost.store(false, Ordering::Relaxed);

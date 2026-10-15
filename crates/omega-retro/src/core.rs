@@ -95,6 +95,19 @@ pub trait RetroCore: Send {
     fn start_link(&mut self, _client_id: u16) {}
     fn pump_link(&mut self) {}
     fn stop_link(&mut self) {}
+    /// How many discs the game in the core is on, through libretro's disk control.
+    fn disc_count(&self) -> usize {
+        1
+    }
+    /// Which of them is in the drive, counting from 0.
+    fn disc_index(&self) -> usize {
+        0
+    }
+    /// Opens the drive, puts disc `index` in and closes it, as a player swapping discs would;
+    /// false if the core has no such disc or no disk control.
+    fn set_disc(&mut self, _index: usize) -> bool {
+        false
+    }
 }
 
 #[cfg(test)]
