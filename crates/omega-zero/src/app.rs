@@ -815,9 +815,7 @@ impl App {
     }
 
     pub fn shelf_platform_name(&self) -> Option<&'static str> {
-        if self.carts().next().is_none() {
-            return None;
-        }
+        self.carts().next()?;
         Some(if self.state.all_systems {
             "ALL SYSTEMS"
         } else {
