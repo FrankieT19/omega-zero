@@ -28,7 +28,8 @@ void main() { FRAG_COLOR=vec4(mix(texture2D(u_game,v_uv).rgb*u_bright,vec3(1.0),
 "#;
 
 pub(crate) struct Presets {
-    programs: Vec<u32>,
+    programs: [Option<u32>; 5],
+    failed: [bool; 5],
     copy: u32,
     targets: [(u32, u32); 2],
     size: (u32, u32),
@@ -39,18 +40,9 @@ fn loc(p: u32, n: &str) -> i32 {
 }
 impl Presets {
     pub fn new() -> Result<Self, GfxError> {
-        let mut programs = Vec::new();
-        for source in [
-            include_str!("../shaders/lcd1x.frag"),
-            include_str!("../shaders/lcd3x.frag"),
-            include_str!("../shaders/lcd-grid-v2.frag"),
-            include_str!("../shaders/pixel_transparency.frag"),
-            include_str!("../shaders/lcd-grid-combo.frag"),
-        ] {
-            programs.push(crate::shaders::program(VERT, source)?);
-        }
         Ok(Self {
-            programs,
+            programs: [None; 5],
+            failed: [false; 5],
             copy: crate::shaders::program(crate::shaders::RECT_VERT, COPY)?,
             targets: [(0, 0); 2],
             size: (0, 0),
@@ -93,7 +85,40 @@ impl Presets {
         view: GameView,
         power: f32,
         quad: &Quad,
-    ) {
+    ) -> bool {
+        let chain: &[usize] = match mode {
+            1 => &[0],
+            2 => &[1],
+            3 => &[2],
+            4 => &[3],
+            5 => &[0, 3],
+            6 => &[1, 3],
+            _ => &[4, 3],
+        };
+        // Compile only the programs in the selected preset, once per GL context.
+        // The selector and Clean mode do not pay for unused grid or shadow programs.
+        let sources = [
+            include_str!("../shaders/lcd1x.frag"),
+            include_str!("../shaders/lcd3x.frag"),
+            include_str!("../shaders/lcd-grid-v2.frag"),
+            include_str!("../shaders/pixel_transparency.frag"),
+            include_str!("../shaders/lcd-grid-combo.frag"),
+        ];
+        for &index in chain {
+            if self.failed[index] {
+                return false;
+            }
+            if self.programs[index].is_none() {
+                match crate::shaders::program(VERT, sources[index]) {
+                    Ok(p) => self.programs[index] = Some(p),
+                    Err(e) => {
+                        eprintln!("omega-zero: shader: {e}");
+                        self.failed[index] = true;
+                        return false;
+                    }
+                }
+            }
+        }
         let size = (
             view.rect[2].round().max(1.0) as u32,
             view.rect[3].round().max(1.0) as u32,
@@ -106,19 +131,10 @@ impl Presets {
             let blend = gl::IsEnabled(gl::BLEND) != 0;
             gl::Disable(gl::BLEND);
             self.resize(size);
-            let chain: &[usize] = match mode {
-                1 => &[0],
-                2 => &[1],
-                3 => &[2],
-                4 => &[3],
-                5 => &[0, 3],
-                6 => &[1, 3],
-                _ => &[4, 3],
-            };
             let orig = (source.0 as f32 * view.uv[2], source.1 as f32 * view.uv[3]);
             let mut input = original;
             for (pass, &index) in chain.iter().enumerate() {
-                let p = self.programs[index];
+                let p = self.programs[index].expect("selected shader compiled");
                 gl::UseProgram(p);
                 gl::BindFramebuffer(gl::FRAMEBUFFER, self.targets[pass].0);
                 gl::Viewport(0, 0, size.0 as i32, size.1 as i32);
@@ -180,6 +196,7 @@ impl Presets {
             gl::BindTexture(gl::TEXTURE_2D, input);
             quad.draw();
         }
+        true
     }
     fn clear(&mut self) {
         unsafe {
@@ -196,7 +213,7 @@ impl Drop for Presets {
     fn drop(&mut self) {
         self.clear();
         unsafe {
-            for p in &self.programs {
+            for p in self.programs.iter().flatten() {
                 gl::DeleteProgram(*p);
             }
             gl::DeleteProgram(self.copy);

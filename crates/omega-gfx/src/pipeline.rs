@@ -226,10 +226,14 @@ impl GamePass {
 
     fn draw_source(&self, tex: gl::types::GLuint, src: (u32, u32), quad: &Quad, view: GameView) {
         if let Some((mode @ 1..=7, _, _)) = self.effect {
-            self.presets
-                .borrow_mut()
-                .draw(mode, tex, src, view, self.power, quad);
-            return;
+            if self.power <= 0.0
+                || self
+                    .presets
+                    .borrow_mut()
+                    .draw(mode, tex, src, view, self.power, quad)
+            {
+                return;
+            }
         }
         let mut view = view;
         if self.effect.is_some_and(|(mode, strength, _)| {

@@ -100,7 +100,7 @@ impl SettingsRow {
             SettingsRow::Bluetooth => "Bluetooth",
             SettingsRow::Background => "Theme",
             SettingsRow::About => "About",
-            SettingsRow::Display => "Display & Startup",
+            SettingsRow::Display => "Display",
         }
     }
 
