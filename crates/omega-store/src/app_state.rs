@@ -26,6 +26,9 @@ pub struct AppState {
     pub all_systems: bool,
     pub low_poly_labels: bool,
     pub shaders: [u8; 5],
+    /// Pixel Transparency shadow offsets, in half-pixel steps.
+    pub shadow_x: [i8; 5],
+    pub shadow_y: [i8; 5],
     pub mask_strength: [u8; 5],
     pub pixel_blend: [u8; 5],
     pub cart: Option<String>,
@@ -71,6 +74,8 @@ impl Default for AppState {
             all_systems: false,
             low_poly_labels: false,
             shaders: [2, 2, 2, 0, 0],
+            shadow_x: [2; 5],
+            shadow_y: [2; 5],
             mask_strength: [10; 5],
             pixel_blend: [5; 5],
             cart: None,
@@ -147,8 +152,8 @@ pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
     text.push_str(&format!("dim={}\n", s.dim));
     for i in 0..5 {
         text.push_str(&format!(
-            "shader_{i}={}\nmask_{i}={}\nblend_{i}={}\n",
-            s.shaders[i], s.mask_strength[i], s.pixel_blend[i]
+            "shader_{i}={}\nmask_{i}={}\nblend_{i}={}\nshadow_x_{i}={}\nshadow_y_{i}={}\n",
+            s.shaders[i], s.mask_strength[i], s.pixel_blend[i], s.shadow_x[i], s.shadow_y[i]
         ));
     }
     atomic_write(&state_path(root), text.as_bytes())
@@ -211,6 +216,20 @@ fn parse(text: &str) -> Option<AppState> {
             "font" => font = Font::from_key(value),
             _ => {
                 for i in 0..5 {
+                    if key == format!("shadow_x_{i}") {
+                        extra.shadow_x[i] = value
+                            .parse::<i8>()
+                            .ok()
+                            .filter(|n| (-60..=60).contains(n))
+                            .unwrap_or(2);
+                    }
+                    if key == format!("shadow_y_{i}") {
+                        extra.shadow_y[i] = value
+                            .parse::<i8>()
+                            .ok()
+                            .filter(|n| (-60..=60).contains(n))
+                            .unwrap_or(2);
+                    }
                     if key == format!("shader_{i}") {
                         extra.shaders[i] = level(value, 7).unwrap_or(extra.shaders[i]);
                     }

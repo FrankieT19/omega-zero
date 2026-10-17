@@ -716,7 +716,7 @@ fn blue_light_hotkey_wraps_and_low_poly_labels_setting_survives_boot() {
         app.apply(Action::BlueLightDown);
     }
     assert_eq!(app.blue_light(), 0);
-    display_at(&mut app, 2);
+    display_at(&mut app, 4);
     press(&mut app, Btn::Right);
     assert!(App::boot(d.path()).low_poly_labels());
 }
@@ -754,4 +754,29 @@ fn software_dimming_extends_hardware_minimum_and_is_saved() {
     }
     app.apply(Action::BrightnessUp);
     assert_eq!(app.brightness(), 2);
+}
+
+#[test]
+fn pixel_transparency_shadow_offsets_are_independent_and_saved_per_system() {
+    let (d, mut app, _) = on_carousel();
+    assert_eq!(app.shader_shadow(), (1.0, 1.0));
+    display_at(&mut app, 2);
+    press(&mut app, Btn::Right);
+    assert_eq!(app.shader_shadow(), (1.5, 1.0));
+    press(&mut app, Btn::Down);
+    press(&mut app, Btn::Left);
+    assert_eq!(app.shader_shadow(), (1.5, 0.5));
+    assert_eq!(App::boot(d.path()).shader_shadow(), (1.5, 0.5));
+    app.set_platform(omega_store::Platform::Gb);
+    assert_eq!(app.shader_shadow(), (1.0, 1.0));
+    app.set_platform(omega_store::Platform::Gba);
+    display_at(&mut app, 2);
+    for _ in 0..150 {
+        press(&mut app, Btn::Left);
+    }
+    assert_eq!(app.shader_shadow().0, -30.0);
+    for _ in 0..150 {
+        press(&mut app, Btn::Right);
+    }
+    assert_eq!(app.shader_shadow().0, 30.0);
 }

@@ -94,6 +94,14 @@ impl App {
         self.state.low_poly_labels
     }
 
+    pub fn shader_shadow(&self) -> (f32, f32) {
+        let i = self.platform() as usize;
+        (
+            self.state.shadow_x[i] as f32 / 2.0,
+            self.state.shadow_y[i] as f32 / 2.0,
+        )
+    }
+
     pub fn shader_settings(&self) -> (u8, f32, f32) {
         let i = self.platform() as usize;
         (self.state.shaders[i], 1.0, 1.0)
@@ -123,11 +131,11 @@ impl App {
                 return;
             }
             Action::GbaDown(Btn::Up) => {
-                screen.display_row = (screen.display_row + 2) % 3;
+                screen.display_row = (screen.display_row + 4) % 5;
                 return;
             }
             Action::GbaDown(Btn::Down) => {
-                screen.display_row = (screen.display_row + 1) % 3;
+                screen.display_row = (screen.display_row + 1) % 5;
                 return;
             }
             Action::GbaDown(Btn::Left) => false,
@@ -146,6 +154,14 @@ impl App {
             0 => screen.display_system = step(i as u8, 5) as usize,
             1 => self.state.shaders[i] = step(self.state.shaders[i], 8),
             2 => {
+                self.state.shadow_x[i] =
+                    (self.state.shadow_x[i] + if forward { 1 } else { -1 }).clamp(-60, 60)
+            }
+            3 => {
+                self.state.shadow_y[i] =
+                    (self.state.shadow_y[i] + if forward { 1 } else { -1 }).clamp(-60, 60)
+            }
+            4 => {
                 self.state.low_poly_labels = !self.state.low_poly_labels;
                 self.stale_faces = self.carts().map(|c| (c.platform, c.stem.clone())).collect();
             }
@@ -171,6 +187,14 @@ impl App {
                 row(
                     "Shader",
                     RowValue::Choice(omega_store::SHADER_NAMES[self.state.shaders[i] as usize]),
+                ),
+                row(
+                    "Shadow X",
+                    RowValue::Name(format!("{:.1}", self.state.shadow_x[i] as f32 / 2.0)),
+                ),
+                row(
+                    "Shadow Y",
+                    RowValue::Name(format!("{:.1}", self.state.shadow_y[i] as f32 / 2.0)),
                 ),
                 row(
                     "Low poly labels",

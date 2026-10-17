@@ -133,6 +133,10 @@ impl GamePass {
         })
     }
 
+    pub fn set_shadow(&mut self, x: f32, y: f32) {
+        self.presets.borrow_mut().shadow = (x.clamp(-30.0, 30.0), y.clamp(-30.0, 30.0));
+    }
+
     pub fn set_effect(&mut self, mode: u8, strength: f32, blend: f32) {
         self.effect = Some((mode.min(7), strength.clamp(0.0, 1.0), blend.clamp(0.0, 1.0)));
     }

@@ -1126,3 +1126,38 @@ fn reference_presets_keep_cropped_frames_upright_including_two_passes() {
         );
     }
 }
+
+#[test]
+fn shadow_offset_controls_reach_every_pixel_transparency_preset() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    c.set_game_view(GameView {
+        rect: [0.0, 0.0, out_w() as f32, out_h() as f32],
+        uv: WHOLE,
+        filter: Filter::Sharp,
+    });
+    let mut src = flat_shot([255; 3]);
+    for y in 40..100 {
+        for x in 60..120 {
+            let at = (y * SRC_W as usize + x) * 4;
+            src[at..at + 3].fill(0);
+        }
+    }
+    c.upload_game(&src);
+    for mode in 4..=7 {
+        c.set_game_effect(mode, 1.0, 1.0);
+        c.set_game_shadow(0.0, 0.0);
+        c.begin_frame();
+        c.draw_game();
+        let zero = c.read_frame();
+        c.set_game_shadow(6.0, -4.0);
+        c.begin_frame();
+        c.draw_game();
+        assert_ne!(
+            c.read_frame(),
+            zero,
+            "preset {mode} ignored shadow controls"
+        );
+    }
+}

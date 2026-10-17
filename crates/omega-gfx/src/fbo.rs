@@ -173,6 +173,10 @@ impl Compositor {
         self.game.set_source_rect(rect);
     }
 
+    pub fn set_game_shadow(&mut self, x: f32, y: f32) {
+        self.game.set_shadow(x, y);
+    }
+
     pub fn set_game_effect(&mut self, mode: u8, strength: f32, blend: f32) {
         self.game.set_effect(mode, strength, blend);
     }

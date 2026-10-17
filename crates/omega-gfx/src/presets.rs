@@ -32,6 +32,7 @@ pub(crate) struct Presets {
     copy: u32,
     targets: [(u32, u32); 2],
     size: (u32, u32),
+    pub shadow: (f32, f32),
 }
 fn loc(p: u32, n: &str) -> i32 {
     crate::gl::uniform_location(p, n)
@@ -53,6 +54,7 @@ impl Presets {
             copy: crate::shaders::program(crate::shaders::RECT_VERT, COPY)?,
             targets: [(0, 0); 2],
             size: (0, 0),
+            shadow: (1.0, 1.0),
         })
     }
     fn resize(&mut self, size: (u32, u32)) {
@@ -148,6 +150,8 @@ impl Presets {
                 gl::Uniform1i(loc(p, "Texture"), 0);
                 gl::Uniform1i(loc(p, "OrigTexture"), 1);
                 gl::Uniform1i(loc(p, "FrameDirection"), 1);
+                gl::Uniform1f(loc(p, "PT_SHADOW_OFFSET_X"), self.shadow.0);
+                gl::Uniform1f(loc(p, "PT_SHADOW_OFFSET_Y"), self.shadow.1);
                 gl::ActiveTexture(gl::TEXTURE0);
                 gl::BindTexture(gl::TEXTURE_2D, input);
                 gl::ActiveTexture(gl::TEXTURE1);
