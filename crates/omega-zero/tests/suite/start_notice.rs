@@ -112,7 +112,7 @@ fn press(a: &mut App, b: Btn) {
 }
 
 #[test]
-fn the_notice_comes_up_on_the_openings_black_in_place_of_the_shelf() {
+fn the_notice_fades_in_directly_without_an_opening() {
     let d = fallen();
     let mut a = booted(&d);
     assert!(a.start_notice_due());
@@ -120,7 +120,9 @@ fn the_notice_comes_up_on_the_openings_black_in_place_of_the_shelf() {
     let mut ms = 0.0;
     while !a.start_notice_prompted() {
         a.update(FRAME);
-        assert!(black(&a), "the shelf showed {ms:.0} ms in");
+        if ms > BLACK_MS + 2.0 * FRAME_MS {
+            assert!(black(&a), "the shelf showed {ms:.0} ms in");
+        }
         ms += FRAME_MS;
         assert!(ms < 30_000.0, "the prompt never came up");
     }

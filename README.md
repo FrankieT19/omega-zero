@@ -1,5 +1,11 @@
 <h1 align="center"><img src="assets/logo/omega-zero-logo@2x.png" width="420" alt="omega-zero"></h1>
 
+**FrankieT19 fork:** Slot Studio shell files, immediate boot with last-game resume,
+an optional combined carousel, low-poly label styling and per-system display filters.
+See [the fork guide](FORK.md) for settings and hotkeys. Custom card builds are available
+as artifacts in [the build workflow](https://github.com/FrankieT19/omega-zero/actions/workflows/release.yml).
+The upstream release link below does not contain these fork changes.
+
 <p align="center">A Game Boy-centric frontend for Anbernic H700 handhelds running
 <a href="https://github.com/pvaibhav/BaseOS">BaseOS</a>. It plays GBA, GBC and GB games, and SNES
 and PlayStation games too, on a shelf of cartridges and discs that go down into the handheld when
@@ -40,9 +46,8 @@ is the most useful thing you can send.
   label scans: Game Boy carts in their own plastics, SNES carts in the American shape for a game
   from the USA and the Super Famicom's for the rest, and PlayStation discs, a game on several
   discs standing as a stack of them. The one you are on floats and sways; A pulls it down out of
-  the screen into the handheld, and the game comes on like a tube TV. At power-on, an opening in the
-  style of Mega Man X5's boot terminal tells you the handheld's memory, chip and battery, then
-  fades into the shelf.
+  the screen into the handheld, and the game comes on like a tube TV. This fork skips the frontend
+  intro and resumes the last launched game, or opens the selector when that option is disabled.
 - Five cores: mGBA and gpSP for the GBA and Snes9x and Supafaust for the SNES, chosen per cart;
   mGBA for the Game Boys; PCSX ReARMed for the PlayStation, with a BIOS of its own built in. GBA
   fills a 640x480 screen and the PlayStation fills it at 4:3; the SNES is drawn at twice its size,

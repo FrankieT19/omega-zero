@@ -102,7 +102,7 @@ fn inked(px: &[[u8; 3]]) -> usize {
 }
 
 #[test]
-fn the_notice_is_the_openings_terminal_and_then_the_shelf() {
+fn the_crash_notice_renders_without_an_intro_then_returns_to_the_shelf() {
     let Some((_s, mut c)) = compositor() else {
         eprintln!("no GL on this host, skipping");
         return;
@@ -111,15 +111,10 @@ fn the_notice_is_the_openings_terminal_and_then_the_shelf() {
     let mut input = Presses::default();
     let all = (out_w() * out_h()) as usize;
     let mut n = 1;
-    let mut opening = Vec::new();
     // the opening with all its lines up, then its fade out and the notice in, with no shelf
     let notice = loop {
         let lit = frame(&mut f, &mut c, &mut input, n);
-        if n == 600 {
-            assert_eq!(f.app().opening_levels(), Some((1.0, 1.0)));
-            opening = lit.clone();
-        }
-        if n > 600 {
+        if n > 60 {
             let black = lit.chunks_exact(4).filter(|p| p[..3] == [0, 0, 0]).count();
             assert!(black > all * 3 / 4, "frame {n}: the shelf showed through");
         }
@@ -144,11 +139,7 @@ fn the_notice_is_the_openings_terminal_and_then_the_shelf() {
         rgb(&notice, x + 1, y + 6)
     );
     assert_eq!(rgb(&notice, x + 6, y + 6), [0, 0, 0], "the O is not hollow");
-    assert_eq!(
-        band(&notice, 0..2),
-        band(&opening, 0..2),
-        "the header is not the opening's, letter for letter"
-    );
+    assert!(inked(&band(&notice, 0..2)) > 0, "no crash notice header");
     assert!(inked(&band(&notice, 3..4)) > 0, "no warning");
     assert_eq!(inked(&band(&notice, 2..3)), 0, "the blank line is inked");
     assert!(inked(&band(&notice, 16..17)) > 0, "no prompt");
