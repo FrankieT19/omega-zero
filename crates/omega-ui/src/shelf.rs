@@ -147,6 +147,34 @@ impl Shelf {
         }
     }
 
+    /// A view onto the library, sharing uploaded textures and models.
+    pub fn projection(library: &[(Platform, Shelf)], keys: &[String]) -> Shelf {
+        let lookup: std::collections::HashMap<_, _> = library
+            .iter()
+            .take(5)
+            .flat_map(|(_, s)| {
+                s.carts
+                    .iter()
+                    .enumerate()
+                    .map(move |(i, c)| (format!("{}/{}", c.platform.dir_name(), c.stem), (s, i, c)))
+            })
+            .collect();
+        let entries: Vec<_> = keys
+            .iter()
+            .filter_map(|key| lookup.get(key).copied())
+            .collect();
+        let mut shelf = Shelf::new(entries.iter().map(|(_, _, c)| (*c).clone()).collect());
+        shelf.faces = entries
+            .iter()
+            .filter_map(|(s, i, _)| s.faces.get(*i).copied())
+            .collect();
+        if let Some((_, source)) = library.first() {
+            shelf.shadows = source.shadows;
+            shelf.meshes = source.meshes;
+        }
+        shelf
+    }
+
     pub fn regroup(shelves: &mut Vec<(Platform, Shelf)>, together: bool) {
         let template = shelves.first().map(|(_, s)| (s.shadows, s.meshes));
         let mut cards = Vec::new();

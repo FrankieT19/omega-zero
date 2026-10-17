@@ -292,6 +292,12 @@ fn the_shoulders_ring_over_a_shelf_for_each_system() {
 
     tap(&mut f, &mut input, Btn::R1);
     let_the_name_in(&mut f, &mut c, &mut input);
+    let all = composed(&mut f, &mut c, "all-systems");
+    assert_eq!(pill_misses(&all, "ALL SYSTEMS", pal), 0);
+    for _ in 0..3 {
+        tap(&mut f, &mut input, Btn::R1);
+    }
+    let_the_name_in(&mut f, &mut c, &mut input);
     let back = composed(&mut f, &mut c, "gba-again");
     assert!(
         apart(patch(&back, side_left().0, side_left().1), left) < 30,
@@ -416,8 +422,8 @@ fn a_card_on_one_shelf_still_names_its_system_in_the_pill() {
     let_the_name_in(&mut f, &mut c, &mut input);
     let pressed = composed(&mut f, &mut c, "one-shelf-after-r1");
     assert!(
-        pill_shows(&pressed, "GBA", pal),
-        "R1 changed the pill on a card that has one shelf"
+        pill_shows(&pressed, "ALL SYSTEMS", pal),
+        "R1 did not reach All Systems"
     );
 
     tap(&mut f, &mut input, Btn::Down);

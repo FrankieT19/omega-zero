@@ -174,6 +174,7 @@ fn the_game_does_not_draw_during_the_insert() {
 #[test]
 fn the_reveal_waits_for_the_power_on_to_finish() {
     let d = common::tmp_root_with_carts(&["Emerald"]);
+    common::clocked(d.path());
     let mut a = App::boot(d.path());
     a.apply(Action::Insert);
     a.on_core_ready();
@@ -372,25 +373,14 @@ fn tap(a: &mut App, btn: Btn) {
 #[test]
 fn the_shoulders_ring_over_the_shelves() {
     let mut a = app_with_platforms(&[(Platform::Gba, "Emerald"), (Platform::Gb, "Tetris")]);
-    assert_eq!(a.selected_stem(), Some("Emerald"));
-    tap(&mut a, Btn::R1);
-    assert_eq!(
-        a.selected_stem(),
-        Some("Tetris"),
-        "R1 did not reach the Game Boy shelf"
-    );
-    tap(&mut a, Btn::R1);
-    assert_eq!(
-        a.selected_stem(),
-        Some("Emerald"),
-        "the ring did not come back round"
-    );
-    tap(&mut a, Btn::L1);
-    assert_eq!(
-        a.selected_stem(),
-        Some("Tetris"),
-        "L1 did not reach the Game Boy shelf"
-    );
+    for name in ["GB", "ALL SYSTEMS", "RECENT", "FAVOURITES", "GBA"] {
+        tap(&mut a, Btn::R1);
+        assert_eq!(a.pill_text().as_deref(), Some(name));
+    }
+    for name in ["FAVOURITES", "RECENT", "ALL SYSTEMS", "GB"] {
+        tap(&mut a, Btn::L1);
+        assert_eq!(a.pill_text().as_deref(), Some(name));
+    }
 }
 
 #[test]
@@ -408,13 +398,13 @@ fn a_colour_cart_stands_on_a_shelf_of_its_own() {
         Some("Chromatic"),
         "the Colour cart shares the Game Boy shelf"
     );
-    tap(&mut a, Btn::R1);
-    assert_eq!(
-        a.selected_stem(),
-        Some("Emerald"),
-        "three shelves did not ring back round to the first"
-    );
-    tap(&mut a, Btn::L1);
+    for name in ["ALL SYSTEMS", "RECENT", "FAVOURITES", "GBA"] {
+        tap(&mut a, Btn::R1);
+        assert_eq!(a.pill_text().as_deref(), Some(name));
+    }
+    for _ in 0..4 {
+        tap(&mut a, Btn::L1);
+    }
     assert_eq!(a.selected_stem(), Some("Chromatic"));
 }
 
@@ -522,7 +512,7 @@ fn the_switch_changes_the_shelfs_system_and_says_nothing() {
     for (btn, want) in [
         (Btn::R1, "Game Boy"),
         (Btn::R1, "Game Boy Color"),
-        (Btn::R1, "Game Boy Advance"),
+        (Btn::R1, "ALL SYSTEMS"),
         (Btn::L1, "Game Boy Color"),
     ] {
         a.apply_at(Action::GbaDown(btn), 1_000);
@@ -554,7 +544,7 @@ fn the_pill_names_the_shelfs_system_and_follows_the_shoulders() {
     for (btn, want) in [
         (Btn::R1, "GB"),
         (Btn::R1, "GBC"),
-        (Btn::R1, "GBA"),
+        (Btn::R1, "ALL SYSTEMS"),
         (Btn::L1, "GBC"),
     ] {
         a.apply_at(Action::GbaDown(btn), 1_000);
@@ -575,40 +565,13 @@ fn the_pill_names_the_shelfs_system_and_follows_the_shoulders() {
 /// There is nowhere to switch to from a card's one shelf, but its pill still says which system
 /// it holds.
 #[test]
-fn a_card_on_one_shelf_has_nowhere_to_switch_to_and_its_pill_still_names_the_system() {
-    let mut alone = app_with_platforms(&[(Platform::Gba, "Emerald"), (Platform::Gba, "Fusion")]);
-    assert_eq!(
-        alone.shelf_platform_name(),
-        None,
-        "a card with only Game Boy Advance carts has somewhere to switch to"
-    );
-    assert_eq!(
-        alone.pill_text().as_deref(),
-        Some("GBA"),
-        "a card on one shelf has nothing in its pill"
-    );
-    for btn in [Btn::L1, Btn::R1] {
-        alone.apply_at(Action::GbaDown(btn), 1_000);
-        assert_eq!(
-            alone.shelf_platform_name(),
-            None,
-            "{btn:?} switched to a shelf on a card that has one"
-        );
-        assert_eq!(
-            alone.pill_text().as_deref(),
-            Some("GBA"),
-            "{btn:?} changed the pill on a card with one shelf"
-        );
+fn a_card_on_one_shelf_can_still_visit_the_library_carousels() {
+    let mut a = app_with_platforms(&[(Platform::Gba, "Emerald"), (Platform::Gba, "Fusion")]);
+    assert_eq!(a.shelf_platform_name(), Some("Game Boy Advance"));
+    for name in ["ALL SYSTEMS", "RECENT", "FAVOURITES", "GBA"] {
+        tap(&mut a, Btn::R1);
+        assert_eq!(a.pill_text().as_deref(), Some(name));
     }
-    let gb = app_with_platforms(&[(Platform::Gb, "Tetris"), (Platform::Gb, "Kirby")]);
-    assert_eq!(gb.pill_text().as_deref(), Some("GB"));
-
-    let two = app_with_platforms(&[(Platform::Gba, "Emerald"), (Platform::Gb, "Tetris")]);
-    assert_eq!(
-        two.shelf_platform_name(),
-        Some("Game Boy Advance"),
-        "a card with two shelves did not say which one it was on"
-    );
 }
 
 #[test]
@@ -2008,8 +1971,8 @@ fn l_and_r_change_the_mode_on_a_game_boy_cart_and_not_on_a_gba_one() {
     let mut s = session_playing(d.path());
     assert_eq!(
         s.app().source_rect(),
-        WHOLE_TEXTURE,
-        "it did not open actual size"
+        GB_WINDOW,
+        "it did not open at integer scale"
     );
 
     s.feed([RawEvent::Down(Btn::L1)], 100);
@@ -2022,11 +1985,7 @@ fn l_and_r_change_the_mode_on_a_game_boy_cart_and_not_on_a_gba_one() {
     s.feed([RawEvent::Up(Btn::L1)], 120);
 
     s.feed([RawEvent::Down(Btn::R1)], 200);
-    assert_eq!(
-        s.app().source_rect(),
-        WHOLE_TEXTURE,
-        "R did not give it back"
-    );
+    assert_eq!(s.app().source_rect(), GB_WINDOW, "R did not give it back");
     assert_eq!(pad(&s) & ButtonMask::R, 0, "R reached the game as well");
     s.feed([RawEvent::Up(Btn::R1)], 220);
 
@@ -2048,6 +2007,7 @@ fn a_shoulder_held_across_the_insert_does_not_stick_on_the_pad() {
     let d = common::tmp_root_with_gb_carts(&["Tetris", "Zzz"]);
     common::clocked(d.path());
     let mut s = Session::boot(d.path().to_path_buf());
+    s.app_mut().apply(Action::GbaDown(Btn::R1));
     s.feed([RawEvent::Down(Btn::L1)], 16);
     s.feed([RawEvent::Down(Btn::A)], 32);
     s.feed([RawEvent::Up(Btn::A)], 48);
@@ -2081,6 +2041,7 @@ fn a_shoulder_still_held_when_the_cart_seats_never_reaches_a_game_boy_core() {
     ] {
         common::clocked(root.path());
         let mut s = Session::boot(root.path().to_path_buf());
+        s.app_mut().apply(Action::GbaDown(Btn::R1));
         s.feed([RawEvent::Down(Btn::L1)], 16);
         s.feed([RawEvent::Down(Btn::A)], 32);
         s.feed([RawEvent::Up(Btn::A)], 48);
@@ -2127,8 +2088,8 @@ fn the_picture_mode_is_remembered_per_cart() {
         "the cart did not come back stretched"
     );
     s.feed([RawEvent::Down(Btn::R1)], 100);
-    assert_eq!(video_mode_for(d.path(), "Tetris"), VideoMode::Actual);
-    assert_eq!(s.app().source_rect(), WHOLE_TEXTURE);
+    assert_eq!(video_mode_for(d.path(), "Tetris"), VideoMode::Integer);
+    assert_eq!(s.app().source_rect(), GB_WINDOW);
 }
 
 #[test]
@@ -2143,8 +2104,8 @@ fn a_cart_with_no_line_reads_as_actual_size() {
     let s = session_playing(d.path());
     assert_eq!(
         s.app().source_rect(),
-        WHOLE_TEXTURE,
-        "a cart with no line did not open at actual size"
+        GB_WINDOW,
+        "a cart with no line did not open at integer scale"
     );
 }
 

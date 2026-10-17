@@ -15,6 +15,8 @@ pub enum VideoMode {
     #[default]
     Actual,
     Stretch,
+    Fit,
+    Integer,
 }
 
 impl VideoMode {
@@ -22,6 +24,8 @@ impl VideoMode {
         match self {
             VideoMode::Actual => "actual",
             VideoMode::Stretch => "stretch",
+            VideoMode::Fit => "fit",
+            VideoMode::Integer => "integer",
         }
     }
 
@@ -29,6 +33,8 @@ impl VideoMode {
         match s.trim().to_ascii_lowercase().as_str() {
             "actual" => Some(VideoMode::Actual),
             "stretch" => Some(VideoMode::Stretch),
+            "fit" => Some(VideoMode::Fit),
+            "integer" => Some(VideoMode::Integer),
             _ => None,
         }
     }
@@ -112,6 +118,56 @@ pub fn screen_on_frame(
     mode: VideoMode,
     frame: (u32, u32),
 ) -> Screen {
+    if matches!(mode, VideoMode::Fit | VideoMode::Integer)
+        || (mode == VideoMode::Stretch && platform != Platform::Gba)
+    {
+        let (cw, ch) = (c.w as f32, c.h as f32);
+        let (w, h) = if is_console(platform) {
+            (frame.0.max(1) as f32, frame.1.max(1) as f32)
+        } else {
+            let p = platform.picture();
+            (p.0 as f32, p.1 as f32)
+        };
+        let (dw, dh) = match mode {
+            VideoMode::Stretch => (cw, ch),
+            VideoMode::Fit if is_console(platform) => four_three(cw, ch),
+            VideoMode::Fit => {
+                let scale = (cw / w).min(ch / h);
+                ((w * scale).round(), (h * scale).round())
+            }
+            _ => {
+                let scale = (cw / w).min(ch / h).floor();
+                if scale >= 1.0 {
+                    (w * scale, h * scale)
+                } else {
+                    let scale = (cw / w).min(ch / h);
+                    ((w * scale).round(), (h * scale).round())
+                }
+            }
+        };
+        let rect = [((cw - dw) / 2.0).round(), ((ch - dh) / 2.0).round(), dw, dh];
+        let uv = source_rect(platform, VideoMode::Stretch);
+        let view = GameView {
+            rect,
+            uv,
+            filter: Filter::Sharp,
+        };
+        // Handheld state shots include the original 240x160 padding; console shots do not.
+        let still = GameView {
+            rect,
+            uv: if is_console(platform) {
+                WHOLE_TEXTURE
+            } else {
+                uv
+            },
+            filter: Filter::Sharp,
+        };
+        return Screen {
+            view,
+            still,
+            bands: around(c, rect),
+        };
+    }
     if is_console(platform) {
         return console_screen(c, platform, mode, frame);
     }
@@ -151,6 +207,7 @@ pub fn screen_on_frame(
             let view = match mode {
                 VideoMode::Actual => lcd(whole, actual),
                 VideoMode::Stretch => lcd([0.0, 0.0, cw, ch], uv),
+                VideoMode::Fit | VideoMode::Integer => unreachable!("handled above"),
             };
             Screen {
                 view,

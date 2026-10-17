@@ -131,11 +131,11 @@ impl App {
                 return;
             }
             Action::GbaDown(Btn::Up) => {
-                screen.display_row = (screen.display_row + 4) % 5;
+                screen.display_row = (screen.display_row + 5) % 6;
                 return;
             }
             Action::GbaDown(Btn::Down) => {
-                screen.display_row = (screen.display_row + 1) % 5;
+                screen.display_row = (screen.display_row + 1) % 6;
                 return;
             }
             Action::GbaDown(Btn::Left) => false,
@@ -153,15 +153,16 @@ impl App {
         match screen.display_row {
             0 => screen.display_system = step(i as u8, 5) as usize,
             1 => self.state.shaders[i] = step(self.state.shaders[i], 8),
-            2 => {
+            2 if i > 0 => self.state.scales[i] = step(self.state.scales[i], 3),
+            3 => {
                 self.state.shadow_x[i] =
                     (self.state.shadow_x[i] + if forward { 1 } else { -1 }).clamp(-60, 60)
             }
-            3 => {
+            4 => {
                 self.state.shadow_y[i] =
                     (self.state.shadow_y[i] + if forward { 1 } else { -1 }).clamp(-60, 60)
             }
-            4 => {
+            5 => {
                 self.state.low_poly_labels = !self.state.low_poly_labels;
                 self.stale_faces = self.carts().map(|c| (c.platform, c.stem.clone())).collect();
             }
@@ -188,6 +189,17 @@ impl App {
                     "Shader",
                     RowValue::Choice(omega_store::SHADER_NAMES[self.state.shaders[i] as usize]),
                 ),
+                ViewRow {
+                    label: RowLabel::Setting("Scaling"),
+                    value: Some(RowValue::Choice(
+                        ["Integer", "Fit", "Stretch"][if i == 0 {
+                            0
+                        } else {
+                            self.state.scales[i] as usize
+                        }],
+                    )),
+                    dim: i == 0,
+                },
                 row(
                     "Shadow X",
                     RowValue::Name(format!("{:.1}", self.state.shadow_x[i] as f32 / 2.0)),
