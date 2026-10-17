@@ -415,7 +415,8 @@ impl App {
                 self.opening = None;
                 self.bring_up_notice(0.0);
             } else if self.opening.is_none()
-                && self.boot_fades()
+                && matches!(self.phase, crate::app::Phase::Shelf)
+                && self.slide.is_none()
                 && !self.power_shown()
                 && self.core_picker.is_none()
             {

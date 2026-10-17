@@ -18,6 +18,14 @@ pub const FF_SPEED_DEFAULT: u8 = 6;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct AppState {
+    pub last_cart: Option<String>,
+    pub last_platform: Option<Platform>,
+    pub resume_last: bool,
+    pub all_systems: bool,
+    pub low_poly_labels: bool,
+    pub shaders: [u8; 5],
+    pub mask_strength: [u8; 5],
+    pub pixel_blend: [u8; 5],
     pub cart: Option<String>,
     pub cart_platform: Option<Platform>,
     pub brightness: u8,
@@ -54,6 +62,14 @@ pub struct AppState {
 impl Default for AppState {
     fn default() -> Self {
         AppState {
+            last_cart: None,
+            last_platform: None,
+            resume_last: true,
+            all_systems: false,
+            low_poly_labels: false,
+            shaders: [2, 2, 2, 0, 0],
+            mask_strength: [10; 5],
+            pixel_blend: [5; 5],
             cart: None,
             cart_platform: None,
             brightness: 5,
@@ -92,7 +108,7 @@ pub fn read_app_state(root: &Path) -> AppState {
 }
 
 pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
-    let text = format!(
+    let mut text = format!(
         "cart={}\ncart_platform={}\nbrightness={}\nblue_light={}\nvolume={}\nvolume_hp={}\nmuted={}\nmuted_hp={}\nclock_set={}\nutc_offset_min={}\nrumble={}\nff_speed={}\nff_sound={}\ncolour_correction={}\nwifi={}\nssh={}\nbluetooth={}\nbackdrop={}\nbackdrop_moving={}\nbackdrop_colour={}\nfont={}\n",
         s.cart.as_deref().unwrap_or(""),
         s.cart_platform.map_or(String::new(), platform_key),
@@ -116,10 +132,25 @@ pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
         BACKDROP_COLOURS[(s.backdrop_colour as usize).min(BACKDROP_COLOURS.len() - 1)],
         s.font.key()
     );
+    text.push_str(&format!(
+        "last_cart={}\nlast_platform={}\nresume_last={}\nall_systems={}\nlow_poly_labels={}\n",
+        s.last_cart.as_deref().unwrap_or(""),
+        s.last_platform.map_or(String::new(), platform_key),
+        s.resume_last as u8,
+        s.all_systems as u8,
+        s.low_poly_labels as u8
+    ));
+    for i in 0..5 {
+        text.push_str(&format!(
+            "shader_{i}={}\nmask_{i}={}\nblend_{i}={}\n",
+            s.shaders[i], s.mask_strength[i], s.pixel_blend[i]
+        ));
+    }
     atomic_write(&state_path(root), text.as_bytes())
 }
 
 fn parse(text: &str) -> Option<AppState> {
+    let mut extra = AppState::default();
     let mut cart = None;
     let mut cart_platform = None;
     let mut brightness = None;
@@ -146,6 +177,11 @@ fn parse(text: &str) -> Option<AppState> {
             continue;
         };
         match key {
+            "last_cart" => extra.last_cart = (!value.is_empty()).then(|| value.to_string()),
+            "last_platform" => extra.last_platform = platform_value(value),
+            "resume_last" => extra.resume_last = flag(value).unwrap_or(true),
+            "all_systems" => extra.all_systems = flag(value).unwrap_or(false),
+            "low_poly_labels" => extra.low_poly_labels = flag(value).unwrap_or(false),
             "cart" => cart = Some(value.to_string()),
             "cart_platform" => cart_platform = platform_value(value),
             "brightness" => brightness = Some(level(value, BRIGHTNESS_MAX)?),
@@ -167,7 +203,19 @@ fn parse(text: &str) -> Option<AppState> {
             "backdrop_moving" => backdrop_moving = flag(value),
             "backdrop_colour" => backdrop_colour = colour_index(value),
             "font" => font = Font::from_key(value),
-            _ => {}
+            _ => {
+                for i in 0..5 {
+                    if key == format!("shader_{i}") {
+                        extra.shaders[i] = level(value, 7).unwrap_or(extra.shaders[i]);
+                    }
+                    if key == format!("mask_{i}") {
+                        extra.mask_strength[i] = level(value, 10).unwrap_or(5);
+                    }
+                    if key == format!("blend_{i}") {
+                        extra.pixel_blend[i] = level(value, 10).unwrap_or(5);
+                    }
+                }
+            }
         }
     }
     let cart = cart?;
@@ -194,6 +242,7 @@ fn parse(text: &str) -> Option<AppState> {
         backdrop_moving: backdrop_moving.unwrap_or(fallback.backdrop_moving),
         backdrop_colour: backdrop_colour.unwrap_or(fallback.backdrop_colour),
         font: font.unwrap_or(fallback.font),
+        ..extra
     })
 }
 

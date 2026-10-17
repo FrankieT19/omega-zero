@@ -45,6 +45,7 @@ fn stand_back() {
 struct Job {
     cart: Cart,
     ticket: u64,
+    low_poly: bool,
 }
 
 /// A cart's face drawn from its label, for the cart's face on the shelf.
@@ -80,9 +81,15 @@ impl LabelCutter {
                     stand_back();
                     loop {
                         let next = inbox.lock().map(|rx| rx.recv());
-                        let Ok(Ok(Job { cart, ticket })) = next else {
+                        let Ok(Ok(Job {
+                            cart,
+                            ticket,
+                            low_poly,
+                        })) = next
+                        else {
                             return;
                         };
+                        omega_ui::set_low_poly_labels(low_poly);
                         cut_label(&cart);
                         let face = Drawn {
                             platform: cart.platform,
@@ -109,13 +116,14 @@ impl LabelCutter {
 
     /// Draws `cart`'s face from its label, after the carts asked for before it: its scans are
     /// cut first where they have no cut, and shrunk once its face is handed back.
-    pub fn request(&mut self, cart: Cart) {
+    pub fn request(&mut self, cart: Cart, low_poly: bool) {
         self.tickets += 1;
         let key = (cart.platform as u8, cart.stem.clone());
         self.asked.insert(key, self.tickets);
         let _ = self.requests.send(Job {
             cart,
             ticket: self.tickets,
+            low_poly,
         });
     }
 

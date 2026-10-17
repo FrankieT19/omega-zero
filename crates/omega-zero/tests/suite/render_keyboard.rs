@@ -286,6 +286,7 @@ fn a_new_background_colour_tints_the_keyboard_again() {
     a.go(
         Phase::Background(BackgroundScreen {
             sel: BackgroundSel::Colour,
+            ..BackgroundScreen::default()
         }),
         Dir::Back,
     );

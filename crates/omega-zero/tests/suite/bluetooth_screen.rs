@@ -314,6 +314,7 @@ fn bluetooth_is_listed_under_network_and_opens_its_screen() {
             SettingsRow::Bluetooth,
             SettingsRow::Background,
             SettingsRow::About,
+            SettingsRow::Display,
         ]
     );
     assert_eq!(SettingsRow::Bluetooth.label(), "Bluetooth");

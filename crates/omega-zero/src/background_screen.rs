@@ -54,11 +54,19 @@ impl Sel {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BackgroundScreen {
     pub sel: Sel,
+    pub display: bool,
+    pub display_row: usize,
+    pub display_system: usize,
 }
 
 impl Default for BackgroundScreen {
     fn default() -> Self {
-        BackgroundScreen { sel: Sel::Style }
+        BackgroundScreen {
+            sel: Sel::Style,
+            display: false,
+            display_row: 0,
+            display_system: 0,
+        }
     }
 }
 

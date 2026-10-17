@@ -403,8 +403,8 @@ fn a_cart_whose_start_took_omega_zero_down_is_left_on_the_shelf() {
 
     let a = App::boot(d.path());
     assert!(
-        matches!(a.phase(), Phase::Inserting { .. }),
-        "a boot after that one does not try the game again"
+        matches!(a.phase(), Phase::Shelf),
+        "a later boot must not automatically retry a game whose startup crashed"
     );
 }
 
@@ -455,4 +455,45 @@ fn a_session_put_away_while_its_core_opens_leaves_no_note() {
     assert!(note.exists(), "the core opened without a note");
     drop(s);
     assert!(!note.exists(), "a clean power-off was taken for a crash");
+}
+
+#[test]
+fn last_launched_game_resumes_after_returning_to_the_selector() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    write_app_state(
+        d.path(),
+        &AppState {
+            clock_set: true,
+            last_cart: Some("Fusion".into()),
+            last_platform: Some(Platform::Gba),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let app = App::boot(d.path());
+    assert!(matches!(app.phase(), Phase::Inserting { cart, .. } if cart == "Fusion"));
+    let mut state = read_app_state(d.path());
+    state.resume_last = false;
+    write_app_state(d.path(), &state).unwrap();
+    assert!(matches!(App::boot(d.path()).phase(), Phase::Shelf));
+}
+
+#[test]
+fn startup_crash_does_not_resurrect_the_failed_last_game_on_a_later_boot() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    write_app_state(
+        d.path(),
+        &AppState {
+            clock_set: true,
+            last_cart: Some("Fusion".into()),
+            last_platform: Some(Platform::Gba),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    std::fs::write(d.path().join("Config/.starting"), "GBA/Fusion").unwrap();
+    let failed = App::boot(d.path());
+    assert!(matches!(failed.phase(), Phase::Shelf));
+    assert_eq!(read_app_state(d.path()).last_cart, None);
+    assert!(matches!(App::boot(d.path()).phase(), Phase::Shelf));
 }

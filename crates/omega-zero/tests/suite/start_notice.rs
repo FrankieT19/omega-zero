@@ -112,7 +112,7 @@ fn press(a: &mut App, b: Btn) {
 }
 
 #[test]
-fn the_notice_comes_up_on_the_openings_black_in_place_of_the_shelf() {
+fn the_notice_fades_in_directly_without_an_opening() {
     let d = fallen();
     let mut a = booted(&d);
     assert!(a.start_notice_due());
@@ -120,13 +120,15 @@ fn the_notice_comes_up_on_the_openings_black_in_place_of_the_shelf() {
     let mut ms = 0.0;
     while !a.start_notice_prompted() {
         a.update(FRAME);
-        assert!(black(&a), "the shelf showed {ms:.0} ms in");
+        if ms > BLACK_MS + 2.0 * FRAME_MS {
+            assert!(black(&a), "the shelf showed {ms:.0} ms in");
+        }
         ms += FRAME_MS;
         assert!(ms < 30_000.0, "the prompt never came up");
     }
     assert!(!a.opening_shown());
     // a frame each to start the opening and the notice, from their first frames
-    let handover = LEAD_MS + SCRIPT_MS + OPENING_OUT_MS;
+    let handover = BLACK_MS;
     assert!(
         (ms - (handover + PROMPT_MS)).abs() <= 3.0 * FRAME_MS,
         "the prompt came up {ms:.0} ms in"
@@ -218,16 +220,12 @@ fn it_is_heard_at_its_warning_and_its_prompt() {
 }
 
 #[test]
-fn a_press_that_cuts_the_opening_short_still_leaves_the_notice() {
+fn crash_notice_is_available_without_the_opening() {
     let d = fallen();
     let mut a = booted(&d);
-    run_for(&mut a, LEAD_MS + 3_000.0);
-    press(&mut a, Btn::A);
-    assert!(a.opening_shown(), "the press did not cut the opening short");
-    run_for(&mut a, CUT_OUT_MS + 2.0 * FRAME_MS);
     assert!(!a.opening_shown());
-    assert!(a.start_notice_shown(), "the cut let the shelf in");
-    assert!(black(&a));
+    run_to_prompt(&mut a);
+    assert!(a.start_notice_shown());
     assert_eq!(a.selected_stem(), Some(MMX));
 }
 

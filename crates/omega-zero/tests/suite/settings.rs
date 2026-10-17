@@ -131,7 +131,7 @@ fn up_and_down_move_the_bar_and_wrap_at_the_ends() {
     press(&mut a, Btn::Up);
     assert_eq!(
         a.settings_row(),
-        Some(SettingsRow::About),
+        Some(SettingsRow::Display),
         "up from the top did not wrap to the bottom"
     );
     for want in [
@@ -145,6 +145,7 @@ fn up_and_down_move_the_bar_and_wrap_at_the_ends() {
         SettingsRow::Bluetooth,
         SettingsRow::Background,
         SettingsRow::About,
+        SettingsRow::Display,
         SettingsRow::FastForward,
     ] {
         press(&mut a, Btn::Down);
@@ -539,6 +540,7 @@ fn the_rows_say_what_is_set_in_flows_capitals() {
             text("OFF"),
             None,
             None,
+            None,
         ]
     );
     // the clock's row follows the clock
@@ -648,4 +650,74 @@ fn nothing_is_drawn_before_its_faces_are_made() {
         !out.iter().any(|d| matches!(d, Draw::Tex { .. })),
         "Settings drew faces it was never given"
     );
+}
+
+fn display_at(app: &mut App, row: usize) {
+    app.go(
+        Phase::Background(omega_zero::background_screen::BackgroundScreen {
+            display: true,
+            display_row: row,
+            ..Default::default()
+        }),
+        omega_zero::nav::Dir::Deeper,
+    );
+    app.finish_slide();
+}
+
+#[test]
+fn mixed_carousel_preserves_system_identity_and_uploaded_faces() {
+    let (d, _, _) = on_carousel();
+    common::write_gb_cart(&d, "Emerald", "EMERALD");
+    let mut app = App::boot(d.path());
+    let ids: Vec<_> = app
+        .carts()
+        .enumerate()
+        .map(|(i, _)| TexId::from_raw(i + 500))
+        .collect();
+    app.set_faces(ids);
+    let gba = app.face_of(omega_store::Platform::Gba, "Emerald");
+    let gb = app.face_of(omega_store::Platform::Gb, "Emerald");
+    assert_ne!(gba, gb);
+    display_at(&mut app, 5);
+    press(&mut app, Btn::Right);
+    assert_eq!(app.pill_text().as_deref(), Some("ALL SYSTEMS"));
+    assert_eq!(app.face_of(omega_store::Platform::Gba, "Emerald"), gba);
+    assert_eq!(app.face_of(omega_store::Platform::Gb, "Emerald"), gb);
+    assert_eq!(app.carts().count(), 3);
+    assert!(read_app_state(d.path()).all_systems);
+    press(&mut app, Btn::Right);
+    assert_eq!(app.face_of(omega_store::Platform::Gb, "Emerald"), gb);
+    assert!(!read_app_state(d.path()).all_systems);
+}
+
+#[test]
+fn shader_hotkey_is_per_system_persisted_and_uses_the_existing_toast_timeout() {
+    let (d, mut app, _) = on_carousel();
+    let before = app.shader_settings();
+    app.apply_at(Action::ShaderNext, 1000);
+    assert_eq!(app.shader_settings().0, (before.0 + 1) % 8);
+    assert_eq!(
+        app.toast(),
+        Some(omega_ui::Toast::Shader((before.0 + 1) % 8))
+    );
+    app.set_platform(omega_store::Platform::Snes);
+    assert_eq!(app.shader_settings().0, 0);
+    app.apply_at(Action::ShaderNext, 1100);
+    assert_eq!(read_app_state(d.path()).shaders[3], 1);
+    app.tick_ms(1100 + omega_ui::HUD_MS + 300);
+    assert_eq!(app.toast(), None);
+    app.set_platform(omega_store::Platform::Gba);
+    assert_eq!(app.shader_settings().0, (before.0 + 1) % 8);
+}
+
+#[test]
+fn blue_light_hotkey_wraps_and_low_poly_labels_setting_survives_boot() {
+    let (d, mut app, _) = on_carousel();
+    for _ in 0..10 {
+        app.apply(Action::BlueLightDown);
+    }
+    assert_eq!(app.blue_light(), 0);
+    display_at(&mut app, 6);
+    press(&mut app, Btn::Right);
+    assert!(App::boot(d.path()).low_poly_labels());
 }

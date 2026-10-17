@@ -24,13 +24,25 @@ pub const TITLE: &str = "THEME";
 /// The THEME panel holding `view`'s rows, in `pal`.
 pub fn background_face(view: &ListView, pal: &Palette) -> UndoFace {
     let content = rows_height(view.rows.len());
-    let mut panel = panel_face(WIDTH, panel_height(content), TITLE, true, pal);
+    let title = if view
+        .rows
+        .first()
+        .is_some_and(|r| r.label == crate::list_view::RowLabel::Setting("System"))
+    {
+        "DISPLAY & STARTUP"
+    } else {
+        TITLE
+    };
+    let mut panel = panel_face(WIDTH, panel_height(content), title, true, pal);
     hold(&mut panel, &view.rows, view.lit, pal);
     panel.face
 }
 
 impl App {
     pub(crate) fn background_input(&mut self, action: Action) {
+        if matches!(&self.phase, Phase::Background(s) if s.display) {
+            return self.display_input(action);
+        }
         let (look, font, wallpaper) = (self.backdrop(), self.state.font, self.wallpaper.is_some());
         let Phase::Background(screen) = &mut self.phase else {
             return;
@@ -59,6 +71,7 @@ impl App {
     /// The THEME screen's list, while it is open.
     pub fn background_view(&self) -> Option<ListView> {
         match &self.phase {
+            Phase::Background(screen) if screen.display => Some(self.display_view(screen)),
             Phase::Background(screen) => Some(screen.view(self.backdrop(), self.state.font)),
             _ => None,
         }
@@ -72,6 +85,122 @@ impl App {
     pub(crate) fn draw_background_screen(&self, out: &mut Vec<Draw>) {
         if let Some(panel) = &self.background_panel {
             panel.draw(out);
+        }
+    }
+}
+
+impl App {
+    pub fn low_poly_labels(&self) -> bool {
+        self.state.low_poly_labels
+    }
+
+    pub fn shader_settings(&self) -> (u8, f32, f32) {
+        let i = self.platform() as usize;
+        (
+            self.state.shaders[i],
+            self.state.mask_strength[i] as f32 / 10.0,
+            self.state.pixel_blend[i] as f32 / 10.0,
+        )
+    }
+
+    pub(crate) fn cycle_shader(&mut self) {
+        let i = self.platform() as usize;
+        self.state.shaders[i] = (self.state.shaders[i] + 1) % 8;
+        self.hud
+            .toast(omega_ui::Toast::Shader(self.state.shaders[i]), self.now());
+        self.persist();
+    }
+
+    fn display_input(&mut self, action: Action) {
+        use omega_input::Btn;
+        let Phase::Background(screen) = &mut self.phase else {
+            return;
+        };
+        let forward = match action {
+            Action::GbaDown(Btn::B | Btn::Start) | Action::QuickMenu => {
+                self.go(
+                    Phase::Settings {
+                        row: SettingsRow::Display,
+                    },
+                    Dir::Back,
+                );
+                return;
+            }
+            Action::GbaDown(Btn::Up) => {
+                screen.display_row = (screen.display_row + 6) % 7;
+                return;
+            }
+            Action::GbaDown(Btn::Down) => {
+                screen.display_row = (screen.display_row + 1) % 7;
+                return;
+            }
+            Action::GbaDown(Btn::Left) => false,
+            Action::GbaDown(Btn::Right | Btn::A) => true,
+            _ => return,
+        };
+        let i = screen.display_system;
+        let step = |value: u8, count: u8| {
+            if forward {
+                (value + 1) % count
+            } else {
+                (value + count - 1) % count
+            }
+        };
+        match screen.display_row {
+            0 => screen.display_system = step(i as u8, 5) as usize,
+            1 => self.state.shaders[i] = step(self.state.shaders[i], 8),
+            2 => self.state.mask_strength[i] = step(self.state.mask_strength[i], 11),
+            3 => self.state.pixel_blend[i] = step(self.state.pixel_blend[i], 11),
+            4 => self.state.resume_last = !self.state.resume_last,
+            5 => {
+                self.state.all_systems = !self.state.all_systems;
+                self.regroup_shelves();
+            }
+            6 => {
+                self.state.low_poly_labels = !self.state.low_poly_labels;
+                self.stale_faces = self.carts().map(|c| (c.platform, c.stem.clone())).collect();
+            }
+            _ => {}
+        }
+        self.persist();
+    }
+
+    fn display_view(&self, screen: &crate::background_screen::BackgroundScreen) -> ListView {
+        use crate::list_view::{LegendHint, RowLabel, RowValue, ViewRow};
+        let i = screen.display_system;
+        let row = |label, value| ViewRow {
+            label: RowLabel::Setting(label),
+            value: Some(value),
+            dim: false,
+        };
+        ListView {
+            rows: vec![
+                row(
+                    "System",
+                    RowValue::Choice(omega_store::Platform::ALL[i].dir_name()),
+                ),
+                row(
+                    "Shader",
+                    RowValue::Choice(omega_store::SHADER_NAMES[self.state.shaders[i] as usize]),
+                ),
+                row(
+                    "Mask",
+                    RowValue::Name(format!("{}%", self.state.mask_strength[i] * 10)),
+                ),
+                row(
+                    "Pixel blend",
+                    RowValue::Name(format!("{}%", self.state.pixel_blend[i] * 10)),
+                ),
+                row("Boot last game", RowValue::Setting(self.state.resume_last)),
+                row("All systems", RowValue::Setting(self.state.all_systems)),
+                row(
+                    "Low poly labels",
+                    RowValue::Setting(self.state.low_poly_labels),
+                ),
+            ],
+            lit: Some(screen.display_row),
+            status: Vec::new(),
+            legend: vec![LegendHint::Back, LegendHint::Change],
         }
     }
 }

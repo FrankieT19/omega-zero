@@ -2,6 +2,17 @@ mod app_state;
 mod atomic;
 mod backdrop;
 pub mod cart_shell;
+
+pub const SHADER_NAMES: [&str; 8] = [
+    "Clean",
+    "LCD1x",
+    "LCD3x",
+    "Grid",
+    "Pixel transparency",
+    "LCD1x + PT",
+    "LCD3x + PT",
+    "Grid + PT",
+];
 mod config;
 mod core;
 mod font;

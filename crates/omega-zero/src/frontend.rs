@@ -256,7 +256,8 @@ impl Frontend {
             .collect();
         for cart in self.session.app().carts_nearest_first() {
             if labelled.contains(&(cart.platform as u8, cart.stem.as_str())) {
-                self.cutter.request(cart.clone());
+                self.cutter
+                    .request(cart.clone(), self.session.app().low_poly_labels());
             }
         }
         self.session.app_mut().set_faces(faces);
@@ -322,6 +323,8 @@ impl Frontend {
             _ => platform.picture(),
         };
         let screen = crate::video_mode::screen_for(platform, self.session.app().video_mode, size);
+        let (mode, strength, blend) = self.session.app().shader_settings();
+        compositor.set_game_effect(mode, strength, blend);
         compositor.set_game_view(screen.view);
         compositor.set_still_view(screen.still);
         let picture = crate::video_mode::picture_rect(platform, screen.view);
@@ -395,7 +398,8 @@ impl Frontend {
             self.drop_core_lid(&drawn.stem);
         }
         for (cart, _) in self.session.app_mut().take_stale_faces() {
-            self.cutter.request(cart);
+            self.cutter
+                .request(cart, self.session.app().low_poly_labels());
         }
     }
 

@@ -70,7 +70,7 @@ fn select_chords_map_to_all_four_axes() {
     for (btn, want) in [
         (Btn::Up, BrightnessUp),
         (Btn::Down, BrightnessDown),
-        (Right, BlueLightUp),
+        (Right, ShaderNext),
         (Left, BlueLightDown),
     ] {
         let mut g = Gestures::new();

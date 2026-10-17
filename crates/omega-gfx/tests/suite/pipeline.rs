@@ -26,6 +26,48 @@ fn flat_shot(rgb: [u8; 3]) -> Vec<u8> {
         .collect()
 }
 
+#[test]
+fn selectable_masks_and_pixel_transparency_change_the_rendered_picture() {
+    let Some((_guard, _surface, mut c)) = compositor() else {
+        return;
+    };
+    c.set_game_view(at_3x(WHOLE));
+    c.upload_game(&flat_shot([192; 3]));
+    c.set_game_effect(0, 1.0, 0.5);
+    c.begin_frame();
+    c.draw_game();
+    let clean = c.read_frame();
+    for mode in 1..=3 {
+        c.set_game_effect(mode, 1.0, 0.5);
+        c.begin_frame();
+        c.draw_game();
+        assert_ne!(c.read_frame(), clean, "mask {mode} did not render");
+    }
+    c.set_game_effect(1, 0.0, 0.5);
+    c.begin_frame();
+    c.draw_game();
+    assert_eq!(c.read_frame(), clean, "zero mask strength should be clean");
+    let mut dither = flat_shot([255; 3]);
+    for (i, pixel) in dither.chunks_exact_mut(4).enumerate() {
+        if i % 2 == 0 {
+            pixel[..3].fill(0);
+        }
+    }
+    c.upload_game(&dither);
+    c.set_game_effect(0, 1.0, 0.0);
+    c.begin_frame();
+    c.draw_game();
+    let unblended = c.read_frame();
+    c.set_game_effect(4, 1.0, 1.0);
+    c.begin_frame();
+    c.draw_game();
+    assert_ne!(
+        c.read_frame(),
+        unblended,
+        "dither transparency did not blend"
+    );
+}
+
 const GB_X: usize = 40;
 const GB_Y: usize = 8;
 const GB_W: usize = 160;

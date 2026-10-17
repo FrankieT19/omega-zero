@@ -332,7 +332,13 @@ const FLOW_REFS: [(&str, u8, SettingsRow); 5] = [
 fn settings_is_flows_pixel_for_pixel() {
     let canvas = format!("{}x{}", out_w(), out_h());
     for (name, colour, lit) in FLOW_REFS.into_iter().filter(|r| r.0.starts_with(&canvas)) {
-        let ours = composed(&flow_rows(lit), palette(colour));
+        // These upstream references predate the fork's additional Display & Startup row.
+        // Keep checking the original kit layout against them; the new row uses the same kit.
+        let rows: Vec<_> = flow_rows(lit)
+            .into_iter()
+            .filter(|shown| shown.row != SettingsRow::Display)
+            .collect();
+        let ours = composed(&rows, palette(colour));
         if let Ok(dir) = std::env::var("SETTINGS_OUT") {
             write(&format!("{dir}/settings-{name}.png"), &ours);
         }
@@ -467,7 +473,8 @@ fn the_rows_run_in_the_order_the_user_chose() {
             "Network",
             "Bluetooth",
             "Theme",
-            "About"
+            "About",
+            "Display & Startup"
         ]
     );
     let opens: Vec<SettingsRow> = SettingsRow::ALL.into_iter().filter(|r| r.opens()).collect();
@@ -479,7 +486,8 @@ fn the_rows_run_in_the_order_the_user_chose() {
             SettingsRow::Network,
             SettingsRow::Bluetooth,
             SettingsRow::Background,
-            SettingsRow::About
+            SettingsRow::About,
+            SettingsRow::Display
         ]
     );
 }
@@ -517,7 +525,10 @@ fn a_hidden_row_is_stepped_over_both_ways() {
         .collect();
     assert_eq!(SettingsRow::DateTime.down_in(&rows), SettingsRow::Bluetooth);
     assert_eq!(SettingsRow::Bluetooth.up_in(&rows), SettingsRow::DateTime);
-    assert_eq!(SettingsRow::About.down_in(&rows), SettingsRow::FastForward);
+    assert_eq!(
+        SettingsRow::Display.down_in(&rows),
+        SettingsRow::FastForward
+    );
     assert_eq!(SettingsRow::DateTime.down(), SettingsRow::Network);
 }
 
