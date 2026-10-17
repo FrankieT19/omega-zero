@@ -204,6 +204,7 @@ fn a_card_from_before_the_settings_keeps_all_its_values() {
             backdrop_moving: true,
             backdrop_colour: 0,
             font: Font::Bold,
+            ..Default::default()
         }
     );
 }

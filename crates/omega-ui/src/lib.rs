@@ -74,6 +74,7 @@ pub use keyboard::{
 };
 pub use kit::badge::BadgeIcon;
 pub use kit::gauge::GaugeIcon;
+pub use label_cut::set_low_poly_labels;
 pub use label_cut::{
     cut_label, cut_path, keep_size, label_uncut, shrink_label, wears_label, CUT_DIR,
 };

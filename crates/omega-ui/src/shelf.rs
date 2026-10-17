@@ -147,6 +147,57 @@ impl Shelf {
         }
     }
 
+    pub fn regroup(shelves: &mut Vec<(Platform, Shelf)>, together: bool) {
+        let template = shelves.first().map(|(_, s)| (s.shadows, s.meshes));
+        let mut cards = Vec::new();
+        for (_, shelf) in shelves.drain(..) {
+            for (i, cart) in shelf.carts.into_iter().enumerate() {
+                cards.push((cart, shelf.faces.get(i).copied()));
+            }
+        }
+        cards.sort_by_key(|(c, _)| {
+            (
+                if together { 0 } else { c.platform as u8 },
+                omega_store::sort_key(&c.stem),
+                c.platform as u8,
+            )
+        });
+        let groups = if together {
+            vec![Platform::Gba]
+        } else {
+            Platform::ALL.to_vec()
+        };
+        for platform in groups {
+            let entries: Vec<_> = cards
+                .iter()
+                .filter(|(c, _)| together || c.platform == platform)
+                .collect();
+            let mut shelf = Shelf::new(entries.iter().map(|(c, _)| c.clone()).collect());
+            shelf.faces = entries.iter().filter_map(|(_, face)| *face).collect();
+            if let Some((shadows, meshes)) = template {
+                shelf.shadows = shadows;
+                shelf.meshes = meshes;
+            }
+            shelves.push((platform, shelf));
+        }
+    }
+
+    pub fn find_for(&self, platform: Platform, stem: &str) -> Option<(&Cart, Option<TexId>)> {
+        let i = self
+            .carts
+            .iter()
+            .position(|c| c.platform == platform && c.stem == stem)?;
+        Some((&self.carts[i], self.faces.get(i).copied()))
+    }
+
+    fn position(&self, stem: &str) -> Option<usize> {
+        if self.carts.get(self.index).is_some_and(|c| c.stem == stem) {
+            Some(self.index)
+        } else {
+            self.carts.iter().position(|c| c.stem == stem)
+        }
+    }
+
     pub fn select(&mut self, i: usize) {
         self.index = i;
         self.scroll = i as f32;
@@ -179,7 +230,7 @@ impl Shelf {
     /// The model the cart `stem` is drawn with, once models are set: a game on several discs
     /// all its discs in one model.
     pub fn mesh_for(&self, stem: &str) -> Option<MeshId> {
-        let i = self.carts.iter().position(|c| c.stem == stem)?;
+        let i = self.position(stem)?;
         let meshes = self.meshes?;
         let model = *self.models.get(i)?;
         match (model, meshes.stacks()) {
@@ -191,7 +242,7 @@ impl Shelf {
     /// The discs the game `stem` stands as, once its face and the models are set; `None` for
     /// a cart.
     pub fn stack_for(&self, stem: &str) -> Option<DiscStack> {
-        let i = self.carts.iter().position(|c| c.stem == stem)?;
+        let i = self.position(stem)?;
         self.stack_at(i)
     }
 
@@ -222,7 +273,7 @@ impl Shelf {
     }
 
     pub fn find(&self, stem: &str) -> Option<(&Cart, Option<TexId>)> {
-        let i = self.carts.iter().position(|c| c.stem == stem)?;
+        let i = self.position(stem)?;
         Some((&self.carts[i], self.faces.get(i).copied()))
     }
 

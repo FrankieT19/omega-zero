@@ -167,6 +167,10 @@ impl Compositor {
         self.game.set_source_rect(rect);
     }
 
+    pub fn set_game_effect(&mut self, mode: u8, strength: f32, blend: f32) {
+        self.game.set_effect(mode, strength, blend);
+    }
+
     pub fn set_game_view(&mut self, view: GameView) {
         self.game.set_view(view);
     }

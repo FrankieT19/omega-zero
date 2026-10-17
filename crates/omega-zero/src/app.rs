@@ -529,6 +529,7 @@ impl App {
         app.root = Some(root.to_path_buf());
         app.theme = Theme::read_override(root);
         app.state = read_app_state(root);
+        app.regroup_shelves();
         app.wifi.start(app.state.wifi);
         app.ssh.start(app.state.ssh, Some(root));
         app.bluetooth.start(app.state.bluetooth);
@@ -557,11 +558,18 @@ impl App {
         }
         let seated = if fell.is_some() {
             fell
+        } else if !self.state.resume_last {
+            None
         } else if self.single_cart() {
             Some((self.shelf_at, 0))
         } else {
-            let stem = self.state.cart.clone();
-            let platform = self.state.cart_platform;
+            let stem = self.state.cart.clone().or_else(|| {
+                self.state
+                    .resume_last
+                    .then(|| self.state.last_cart.clone())
+                    .flatten()
+            });
+            let platform = self.state.cart_platform.or(self.state.last_platform);
             stem.and_then(|stem| self.seat_of(&stem, platform))
         };
         self.phase = Phase::Shelf;
@@ -589,6 +597,25 @@ impl App {
                 self.name_pending = true;
             }
         }
+    }
+
+    pub(crate) fn regroup_shelves(&mut self) {
+        let selected = self
+            .shelf()
+            .carts
+            .get(self.shelf().index)
+            .map(|c| (c.platform, c.stem.clone()));
+        Shelf::regroup(&mut self.shelves, self.state.all_systems);
+        self.shelf_at = 0;
+        if let Some((p, stem)) = selected {
+            if let Some((at, i)) = self.seat_of(&stem, Some(p)) {
+                self.shelf_at = at;
+                self.shelf_mut().select(i);
+            }
+        }
+        self.shelf_platform = omega_ui::Printed::default();
+        self.shelf_named = None;
+        self.name_pending = true;
     }
 
     pub(crate) fn shelf(&self) -> &Shelf {
@@ -643,12 +670,11 @@ impl App {
         self.shelves
             .iter()
             .enumerate()
-            .filter(|(_, (p, _))| platform.is_none_or(|want| *p == want))
             .find_map(|(at, (_, shelf))| {
                 shelf
                     .carts
                     .iter()
-                    .position(|c| c.stem == stem)
+                    .position(|c| c.stem == stem && platform.is_none_or(|p| c.platform == p))
                     .map(|i| (at, i))
             })
     }
@@ -728,6 +754,7 @@ impl App {
     pub fn pill_text(&self) -> Option<String> {
         match self.pill_letter {
             Some(letter) => Some(letter.to_string()),
+            None if self.state.all_systems => Some("ALL SYSTEMS".to_string()),
             None => self
                 .shelves
                 .get(self.shelf_at)
@@ -797,7 +824,7 @@ impl App {
             Phase::Doze { cart: Some(cart) } => cart,
             _ => return None,
         };
-        self.shelf().carts.iter().find(|c| c.stem == *stem)
+        self.shelf().find(stem).map(|(cart, _)| cart)
     }
 
     pub fn single_cart(&self) -> bool {
@@ -1366,8 +1393,11 @@ impl App {
         };
         for (platform, stem) in self.labels.take_fresh() {
             let path = crate::label_sync::label_path(&root, platform, &stem);
-            let shelf = self.shelves.iter_mut().find(|(p, _)| *p == platform);
-            let Some(cart) = shelf.and_then(|(_, s)| s.carts.iter_mut().find(|c| c.stem == stem))
+            let Some(cart) = self
+                .shelves
+                .iter_mut()
+                .flat_map(|(_, s)| s.carts.iter_mut())
+                .find(|c| c.platform == platform && c.stem == stem)
             else {
                 continue;
             };
@@ -1390,8 +1420,10 @@ impl App {
         carts
             .into_iter()
             .filter_map(|(platform, stem)| {
-                let (_, shelf) = self.shelves.iter().find(|(p, _)| *p == platform)?;
-                let (cart, face) = shelf.find(&stem)?;
+                let (cart, face) = self
+                    .shelves
+                    .iter()
+                    .find_map(|(_, s)| s.find_for(platform, &stem))?;
                 Some((cart.clone(), face?))
             })
             .collect()
@@ -1399,8 +1431,10 @@ impl App {
 
     /// The face the cart `stem` of `platform` is drawn on now.
     pub fn face_of(&self, platform: Platform, stem: &str) -> Option<TexId> {
-        let (_, shelf) = self.shelves.iter().find(|(p, _)| *p == platform)?;
-        shelf.find(stem)?.1
+        self.shelves
+            .iter()
+            .find_map(|(_, s)| s.find_for(platform, stem))?
+            .1
     }
 
     /// Every cart, the shelf in view first and on each shelf the carts nearest its picked one
@@ -1449,6 +1483,10 @@ impl App {
     }
 
     fn adjust(&mut self, action: Action) -> bool {
+        if action == Action::ShaderNext {
+            self.cycle_shader();
+            return true;
+        }
         if action == Action::MuteToggle {
             self.mute_toggle();
             return true;
@@ -1467,7 +1505,10 @@ impl App {
             Action::BrightnessUp => (HudKind::Brightness, up(s.brightness, 1, BRIGHTNESS_MAX)),
             Action::BrightnessDown => (HudKind::Brightness, s.brightness.saturating_sub(1)),
             Action::BlueLightUp => (HudKind::BlueLight, up(s.blue_light, 1, BLUE_LIGHT_MAX)),
-            Action::BlueLightDown => (HudKind::BlueLight, s.blue_light.saturating_sub(1)),
+            Action::BlueLightDown => (
+                HudKind::BlueLight,
+                (s.blue_light + 1) % (BLUE_LIGHT_MAX + 1),
+            ),
             Action::VolumeUp => (HudKind::Volume, up(self.level(), VOLUME_STEP, VOLUME_MAX)),
             Action::VolumeDown => (HudKind::Volume, self.level().saturating_sub(VOLUME_STEP)),
             _ => return false,
@@ -1833,6 +1874,10 @@ impl App {
         let platform = self.seated_cart().map(|c| c.platform);
         if self.state.cart == cart && self.state.cart_platform == platform {
             return;
+        }
+        if cart.is_some() {
+            self.state.last_cart = cart.clone();
+            self.state.last_platform = platform;
         }
         self.state.cart = cart;
         self.state.cart_platform = platform;
@@ -2316,7 +2361,7 @@ impl App {
     }
 
     fn auto_link(&self, stem: &str) -> Option<(&Cart, LinkKind)> {
-        let cart = self.shelf().carts.iter().find(|c| c.stem == stem)?;
+        let cart = self.shelf().find(stem)?.0;
         let auto = link_kind(
             &cart.code,
             &cart.title,

@@ -66,10 +66,11 @@ pub enum SettingsRow {
     /// bar's font.
     Background,
     About,
+    Display,
 }
 
 impl SettingsRow {
-    pub const ALL: [SettingsRow; 10] = [
+    pub const ALL: [SettingsRow; 11] = [
         SettingsRow::FastForward,
         SettingsRow::FastForwardSound,
         SettingsRow::ColourCorrection,
@@ -80,6 +81,7 @@ impl SettingsRow {
         SettingsRow::Bluetooth,
         SettingsRow::Background,
         SettingsRow::About,
+        SettingsRow::Display,
     ];
 
     pub fn index(self) -> usize {
@@ -98,6 +100,7 @@ impl SettingsRow {
             SettingsRow::Bluetooth => "Bluetooth",
             SettingsRow::Background => "Theme",
             SettingsRow::About => "About",
+            SettingsRow::Display => "Display & Startup",
         }
     }
 
@@ -112,7 +115,8 @@ impl SettingsRow {
             | SettingsRow::Network
             | SettingsRow::Bluetooth
             | SettingsRow::Background
-            | SettingsRow::About => SettingsGroup::General,
+            | SettingsRow::About
+            | SettingsRow::Display => SettingsGroup::General,
         }
     }
 
@@ -127,6 +131,7 @@ impl SettingsRow {
                 | SettingsRow::Bluetooth
                 | SettingsRow::Background
                 | SettingsRow::About
+                | SettingsRow::Display
         )
     }
 

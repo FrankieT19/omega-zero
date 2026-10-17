@@ -456,3 +456,24 @@ fn a_session_put_away_while_its_core_opens_leaves_no_note() {
     drop(s);
     assert!(!note.exists(), "a clean power-off was taken for a crash");
 }
+
+#[test]
+fn last_launched_game_resumes_after_returning_to_the_selector() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    write_app_state(
+        d.path(),
+        &AppState {
+            clock_set: true,
+            last_cart: Some("Fusion".into()),
+            last_platform: Some(Platform::Gba),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let app = App::boot(d.path());
+    assert!(matches!(app.phase(), Phase::Inserting { cart, .. } if cart == "Fusion"));
+    let mut state = read_app_state(d.path());
+    state.resume_last = false;
+    write_app_state(d.path(), &state).unwrap();
+    assert!(matches!(App::boot(d.path()).phase(), Phase::Shelf));
+}

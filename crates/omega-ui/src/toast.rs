@@ -7,6 +7,7 @@ use crate::plate::UndoFace;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Toast {
+    Shader(u8),
     StateSaved,
     StateLoaded,
     NeedsGpsp,
@@ -37,7 +38,7 @@ const DISC_IN: [&str; 9] = [
 
 impl Toast {
     /// Every toast there is, a disc's once, as disc 1.
-    pub const ALL: [Toast; 11] = [
+    pub const ALL: [Toast; 12] = [
         Toast::StateSaved,
         Toast::StateLoaded,
         Toast::NeedsGpsp,
@@ -49,11 +50,13 @@ impl Toast {
         Toast::ColourOff,
         Toast::OneDisc,
         Toast::Disc(1),
+        Toast::Shader(0),
     ];
 
     /// Its place in `ALL`: every disc's toast is the one place.
     pub fn index(self) -> usize {
         match self {
+            Toast::Shader(_) => 11,
             Toast::StateSaved => 0,
             Toast::StateLoaded => 1,
             Toast::NeedsGpsp => 2,
@@ -71,6 +74,7 @@ impl Toast {
     /// What it is about, in the toast's title tab.
     pub fn label(self) -> &'static str {
         match self {
+            Toast::Shader(_) => "SHADER",
             Toast::StateSaved | Toast::StateLoaded => "SAVE STATE",
             Toast::NeedsGpsp
             | Toast::NoLink
@@ -85,6 +89,10 @@ impl Toast {
     /// The line in the toast's well, in its own case.
     pub fn text(self) -> &'static str {
         match self {
+            Toast::Shader(n) => omega_store::SHADER_NAMES
+                .get(n as usize)
+                .copied()
+                .unwrap_or("Clean"),
             Toast::StateSaved => "State saved",
             Toast::StateLoaded => "State loaded",
             Toast::NeedsGpsp => "Please switch to gpSP",

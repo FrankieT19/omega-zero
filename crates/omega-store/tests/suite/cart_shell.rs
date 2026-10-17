@@ -175,3 +175,34 @@ fn a_line_matches_its_cart_whichever_way_the_accent_is_spelled() {
         );
     }
 }
+
+#[test]
+fn slot_studio_txt_overrides_legacy_ini_without_changing_it() {
+    let d = tempfile::tempdir().unwrap();
+    for dir in ["Games/GBA", "Labels", "Config"] {
+        std::fs::create_dir_all(d.path().join(dir)).unwrap();
+    }
+    for stem in ["Emerald", "Reset"] {
+        std::fs::write(d.path().join(format!("Games/GBA/{stem}.gba")), [0; 0x150]).unwrap();
+    }
+    let legacy = "Emerald = auto ff0000 solid\nReset = auto ff0000 solid\n";
+    std::fs::write(d.path().join("Labels/cart_shell.ini"), legacy).unwrap();
+    std::fs::write(
+        d.path().join("Labels/cart_shell.txt"),
+        "\u{feff}Emerald = auto 00ff00 clear\r\nReset = auto\r\n",
+    )
+    .unwrap();
+    let carts = omega_store::scan(d.path()).unwrap();
+    assert_eq!(
+        carts.iter().find(|c| c.stem == "Emerald").unwrap().shell,
+        ShellChoice::parse("auto 00ff00 clear")
+    );
+    assert_eq!(
+        carts.iter().find(|c| c.stem == "Reset").unwrap().shell,
+        None
+    );
+    assert_eq!(
+        std::fs::read_to_string(d.path().join("Labels/cart_shell.ini")).unwrap(),
+        legacy
+    );
+}

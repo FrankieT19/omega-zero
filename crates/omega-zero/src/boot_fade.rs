@@ -59,7 +59,7 @@ impl App {
     /// Whether the boot logo would fade now: on the shelf with nothing moving off it, as a boot
     /// that has not gone into a game or to the clock is.
     pub fn boot_fades(&self) -> bool {
-        matches!(self.phase, Phase::Shelf) && self.slide.is_none()
+        false
     }
 
     /// How opaque the boot logo is drawn, while it fades.

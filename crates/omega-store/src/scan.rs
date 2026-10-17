@@ -37,10 +37,23 @@ impl From<std::io::Error> for StoreError {
 }
 
 pub fn scan(root: &Path) -> Result<Vec<Cart>, StoreError> {
-    let read = |file: &str| std::fs::read_to_string(root.join(file)).unwrap_or_default();
+    let read = |file: &str| {
+        std::fs::read_to_string(root.join(file))
+            .unwrap_or_default()
+            .trim_start_matches('\u{feff}')
+            .to_string()
+    };
     let shells = crate::cart_shell::layered(
-        &read(crate::CART_SHELL_FILE),
-        &read(crate::LABELS_SHELL_FILE),
+        &format!(
+            "{}\n{}",
+            read(crate::CART_SHELL_FILE),
+            read("Config/cart_shell.txt")
+        ),
+        &format!(
+            "{}\n{}",
+            read(crate::LABELS_SHELL_FILE),
+            read("Labels/cart_shell.txt")
+        ),
     );
     let mut carts = Vec::new();
     for platform in Platform::ALL {

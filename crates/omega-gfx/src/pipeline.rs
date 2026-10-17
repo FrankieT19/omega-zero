@@ -60,6 +60,7 @@ struct Sharp {
     u_glow: gl::types::GLint,
     u_uv: gl::types::GLint,
     u_scale: gl::types::GLint,
+    u_effect: gl::types::GLint,
     /// The size of the texture drawn, in texels.
     u_src: gl::types::GLint,
 }
@@ -72,6 +73,7 @@ pub struct GamePass {
     size: (u32, u32),
     mask: gl::types::GLuint,
     power: f32,
+    effect: Option<(u8, f32, f32)>,
     view: Option<GameView>,
     still: Option<GameView>,
 }
@@ -118,15 +120,21 @@ impl GamePass {
                 u_glow: uniform(sharp, "u_glow"),
                 u_uv: uniform(sharp, "u_uv"),
                 u_scale: uniform(sharp, "u_scale"),
+                u_effect: uniform(sharp, "u_effect"),
                 u_src: uniform(sharp, "u_src"),
             },
             game,
             size: (SRC_W, SRC_H),
             mask,
             power: 1.0,
+            effect: None,
             view: None,
             still: None,
         })
+    }
+
+    pub fn set_effect(&mut self, mode: u8, strength: f32, blend: f32) {
+        self.effect = Some((mode.min(7), strength.clamp(0.0, 1.0), blend.clamp(0.0, 1.0)));
     }
 
     pub fn set_power(&mut self, t: f32) {
@@ -213,6 +221,10 @@ impl GamePass {
     }
 
     fn draw_source(&self, tex: gl::types::GLuint, src: (u32, u32), quad: &Quad, view: GameView) {
+        let mut view = view;
+        if self.effect.is_some() {
+            view.filter = Filter::Sharp;
+        }
         let (src_w, src_h) = (src.0 as f32, src.1 as f32);
         let (x, y, w, h) = screen_rect_in(self.power, view.rect);
         let uv = view.uv;
@@ -236,6 +248,8 @@ impl GamePass {
             },
             Filter::Sharp => unsafe {
                 gl::UseProgram(self.sharp.prog);
+                let (mode, strength, blend) = self.effect.unwrap_or((0, 0.0, 0.0));
+                gl::Uniform3f(self.sharp.u_effect, mode as f32, strength, blend);
                 gl::Uniform4f(self.sharp.u_rect, x, y, w, h);
                 gl::Uniform4f(self.sharp.u_uv, uv[0], uv[1], uv[2], uv[3]);
                 gl::Uniform2f(self.sharp.u_src, src_w, src_h);

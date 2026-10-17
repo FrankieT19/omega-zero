@@ -71,7 +71,8 @@ impl ControlsView {
         }
         game.extend([
             ("SELECT+▲▼", "BRIGHTNESS"),
-            ("SELECT+◀▶", "BLUE LIGHT"),
+            ("SELECT+◀", "BLUE LIGHT"),
+            ("SELECT+▶", "SHADER"),
             ("SELECT+L1", "LOAD STATE"),
             ("SELECT+R1", "SAVE STATE"),
         ]);

@@ -467,7 +467,8 @@ fn the_rows_run_in_the_order_the_user_chose() {
             "Network",
             "Bluetooth",
             "Theme",
-            "About"
+            "About",
+            "Display & Startup"
         ]
     );
     let opens: Vec<SettingsRow> = SettingsRow::ALL.into_iter().filter(|r| r.opens()).collect();
@@ -479,7 +480,8 @@ fn the_rows_run_in_the_order_the_user_chose() {
             SettingsRow::Network,
             SettingsRow::Bluetooth,
             SettingsRow::Background,
-            SettingsRow::About
+            SettingsRow::About,
+            SettingsRow::Display
         ]
     );
 }
@@ -517,7 +519,10 @@ fn a_hidden_row_is_stepped_over_both_ways() {
         .collect();
     assert_eq!(SettingsRow::DateTime.down_in(&rows), SettingsRow::Bluetooth);
     assert_eq!(SettingsRow::Bluetooth.up_in(&rows), SettingsRow::DateTime);
-    assert_eq!(SettingsRow::About.down_in(&rows), SettingsRow::FastForward);
+    assert_eq!(
+        SettingsRow::Display.down_in(&rows),
+        SettingsRow::FastForward
+    );
     assert_eq!(SettingsRow::DateTime.down(), SettingsRow::Network);
 }
 

@@ -109,7 +109,7 @@ fn the_whole_pass_from_boot_to_resume() {
     p.expect_running();
 
     p.chord(Btn::Up);
-    p.chord(Btn::Right);
+    p.chord(Btn::Left);
     p.tap(Btn::VolUp);
     let levels = read_app_state(root);
     assert_eq!(levels.brightness, 6);

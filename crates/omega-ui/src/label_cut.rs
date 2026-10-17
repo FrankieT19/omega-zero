@@ -17,6 +17,13 @@ use crate::cart::{face_labels, label_scans};
 /// The folder beside a system's label scans that their cuts are kept in.
 pub const CUT_DIR: &str = ".cut";
 
+thread_local! { static LOW_POLY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+
+/// Scoped to the worker drawing this face, including disc labels.
+pub fn set_low_poly_labels(on: bool) {
+    LOW_POLY.with(|v| v.set(on));
+}
+
 /// Where the cut of the label scan at `scan` is kept.
 pub fn cut_path(scan: &Path) -> Option<PathBuf> {
     Some(scan.parent()?.join(CUT_DIR).join(scan.file_name()?))
@@ -37,9 +44,23 @@ fn kept(scan: &Path, w: u32, h: u32) -> Option<PathBuf> {
 /// The scan at `scan` as drawn at `w` by `h`: from its cut when one is kept, from the scan itself
 /// when not.
 pub(crate) fn label_art(scan: &Path, w: u32, h: u32) -> Option<Vec<u8>> {
-    kept(scan, w, h)
+    let mut rgba = kept(scan, w, h)
         .and_then(|cut| art::exact(&cut, w, h))
-        .or_else(|| art::cover(scan, w, h))
+        .or_else(|| art::cover(scan, w, h))?;
+    if LOW_POLY.with(|v| v.get()) {
+        let original = rgba.clone();
+        for y in 0..h {
+            for x in 0..w {
+                let src = (((y / 4 * 4).min(h - 1) * w + (x / 4 * 4).min(w - 1)) * 4) as usize;
+                let dst = ((y * w + x) * 4) as usize;
+                for c in 0..3 {
+                    rgba[dst + c] =
+                        ((u16::from(original[src + c]) * 31 + 127) / 255 * 255 / 31) as u8;
+                }
+            }
+        }
+    }
+    Some(rgba)
 }
 
 /// Whether `cart`'s face is drawn with a label scan at all. A cart with no scan, or a PlayStation
