@@ -403,8 +403,8 @@ fn a_cart_whose_start_took_omega_zero_down_is_left_on_the_shelf() {
 
     let a = App::boot(d.path());
     assert!(
-        matches!(a.phase(), Phase::Inserting { .. }),
-        "a boot after that one does not try the game again"
+        matches!(a.phase(), Phase::Shelf),
+        "a later boot must not automatically retry a game whose startup crashed"
     );
 }
 
