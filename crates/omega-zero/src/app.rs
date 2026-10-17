@@ -1409,10 +1409,10 @@ impl App {
             Phase::Inserting { .. } if action == Action::Eject => self.eject(),
             Phase::Playing { .. } => match action {
                 Action::GbaDown(Btn::L1) if self.frontend_owns_the_shoulders() => {
-                    self.cycle_picture(1)
+                    self.cycle_picture(-1)
                 }
                 Action::GbaDown(Btn::R1) if self.frontend_owns_the_shoulders() => {
-                    self.cycle_picture(-1)
+                    self.cycle_picture(1)
                 }
                 Action::Eject => self.eject(),
                 Action::GameMenu => self.game_menu_shortcut(),

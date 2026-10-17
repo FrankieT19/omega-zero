@@ -22,8 +22,15 @@ fn on_720x480_every_picture_is_the_whole_canvas_as_it_always_was() {
                 "{platform:?} {mode:?}"
             );
             assert_eq!(s.view.uv, source_rect(platform, mode));
-            assert_eq!(s.view.filter, Filter::Lcd3x);
-            assert_eq!(s.still.uv, WHOLE_TEXTURE);
+            assert_eq!(
+                s.view.filter,
+                if platform == Platform::Gba || mode == VideoMode::Actual {
+                    Filter::Lcd3x
+                } else {
+                    Filter::Sharp
+                }
+            );
+            assert_eq!(s.still.uv, source_rect(platform, mode));
             assert!(
                 s.bands.is_empty(),
                 "{platform:?} {mode:?} left {:?}",
@@ -68,8 +75,8 @@ fn on_640x480_a_game_boy_game_stays_at_3x_through_the_mask() {
         assert_eq!(stretched.view.rect, [0.0, 0.0, 640.0, 480.0]);
         assert_eq!(stretched.view.uv, source_rect(platform, VideoMode::Stretch));
         assert_eq!(
-            stretched.still, s.view,
-            "a screenshot is shown at its own size"
+            stretched.still, stretched.view,
+            "a screenshot uses the selected scaling"
         );
     }
 }
