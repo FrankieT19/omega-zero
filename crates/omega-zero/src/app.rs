@@ -1270,8 +1270,18 @@ impl App {
             return self.clock_input(action);
         }
         match action {
-            Action::GbaUp(Btn::Left) => self.shelf_mut().release_left(),
-            Action::GbaUp(Btn::Right) => self.shelf_mut().release_right(),
+            Action::GbaUp(Btn::Left) => {
+                self.shelf_mut().release_left();
+                if self.on_shelf() {
+                    self.persist();
+                }
+            }
+            Action::GbaUp(Btn::Right) => {
+                self.shelf_mut().release_right();
+                if self.on_shelf() {
+                    self.persist();
+                }
+            }
             _ => {}
         }
         if self.game_menu.is_some() {
@@ -1775,14 +1785,10 @@ impl App {
         // the shelf keeps swaying while it slides away or back
         if self.shelf_shown() {
             let picking = self.core_picker.is_some();
-            let before = self.shelf().index;
             let shelf = self.shelf_mut();
             shelf.tick(now);
             shelf.hold_still(picking);
             shelf.update(dt);
-            if self.shelf().index != before {
-                self.persist();
-            }
         }
         if self.slide.as_ref().is_some_and(|s| s.over(now)) {
             self.slide = None;
@@ -3073,6 +3079,7 @@ impl App {
     }
 
     pub fn flush_resume(&mut self) {
+        self.persist();
         self.settle_saves();
         self.autosave_at = self.now() + AUTOSAVE_MS;
         let (Some(root), Some(snapshot), Some(cart)) = (&self.root, &self.snapshot, self.seated())
