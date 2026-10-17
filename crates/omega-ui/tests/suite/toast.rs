@@ -75,7 +75,7 @@ fn every_link_toast_is_said_under_link() {
 }
 
 #[test]
-fn the_banner_says_what_happened_and_never_what_is_on_screen() {
+fn the_banner_covers_events_and_the_selected_shader() {
     assert_eq!(
         Toast::ALL,
         [
@@ -90,6 +90,7 @@ fn the_banner_says_what_happened_and_never_what_is_on_screen() {
             Toast::ColourOff,
             Toast::OneDisc,
             Toast::Disc(1),
+            Toast::Shader(0),
         ],
         "a banner was added or dropped"
     );

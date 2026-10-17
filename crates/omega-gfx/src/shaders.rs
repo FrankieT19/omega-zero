@@ -184,6 +184,7 @@ uniform vec2 u_src;
 uniform vec4 u_uv;
 uniform vec2 u_scale;
 uniform vec3 u_effect;
+uniform sampler2D u_mask;
 uniform float u_bright;
 uniform float u_glow;
 varying vec2 v_uv;
@@ -208,9 +209,7 @@ void main() {
     if (base > 0.5 && base < 1.5) {
         mask = vec3(0.75 + 0.25 * step(0.33, cell.x), 1.0, 1.0 - 0.25 * step(0.67, cell.x));
     } else if (base > 1.5 && base < 2.5) {
-        float stripe = floor(cell.x * 3.0);
-        mask = vec3(stripe < 0.5 ? 1.0 : 0.65, abs(stripe - 1.0) < 0.5 ? 1.0 : 0.65, stripe > 1.5 ? 1.0 : 0.65);
-        mask *= 0.8 + 0.2 * step(0.22, cell.y);
+        mask = texture2D(u_mask, texel).rgb;
     } else if (base > 2.5) {
         vec2 width = min(vec2(0.22), 0.65 / u_scale);
         mask *= 0.7 + 0.3 * smoothstep(0.0, width.x, cell.x) * smoothstep(0.0, width.y, cell.y);

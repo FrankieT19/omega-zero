@@ -68,7 +68,7 @@ impl Default for AppState {
             all_systems: false,
             low_poly_labels: false,
             shaders: [2, 2, 2, 0, 0],
-            mask_strength: [5; 5],
+            mask_strength: [10; 5],
             pixel_blend: [5; 5],
             cart: None,
             cart_platform: None,

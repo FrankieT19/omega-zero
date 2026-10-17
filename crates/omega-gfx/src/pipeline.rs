@@ -102,6 +102,7 @@ impl GamePass {
             gl::Uniform2f(uniform(lcd, "u_target"), out_w() as f32, out_h() as f32);
             gl::UseProgram(sharp);
             gl::Uniform1i(uniform(sharp, "u_game"), 0);
+            gl::Uniform1i(uniform(sharp, "u_mask"), 1);
             gl::Uniform2f(uniform(sharp, "u_target"), out_w() as f32, out_h() as f32);
         }
         Ok(GamePass {
@@ -222,7 +223,9 @@ impl GamePass {
 
     fn draw_source(&self, tex: gl::types::GLuint, src: (u32, u32), quad: &Quad, view: GameView) {
         let mut view = view;
-        if self.effect.is_some() {
+        if self.effect.is_some_and(|(mode, strength, _)| {
+            mode != 2 || strength < 1.0 || view.filter != Filter::Lcd3x
+        }) {
             view.filter = Filter::Sharp;
         }
         let (src_w, src_h) = (src.0 as f32, src.1 as f32);
@@ -263,6 +266,9 @@ impl GamePass {
                 gl::ActiveTexture(gl::TEXTURE0);
                 gl::BindTexture(gl::TEXTURE_2D, tex);
                 filter(gl::LINEAR);
+                gl::ActiveTexture(gl::TEXTURE1);
+                gl::BindTexture(gl::TEXTURE_2D, self.mask);
+                gl::ActiveTexture(gl::TEXTURE0);
             },
         }
         quad.draw();

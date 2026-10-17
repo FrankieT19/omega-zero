@@ -580,6 +580,14 @@ impl App {
                 self.shelf_mut().select(i);
                 self.state.cart = None;
                 self.state.cart_platform = None;
+                let failed = &self.shelf().carts[i];
+                if self.state.last_cart.as_deref() == Some(failed.stem.as_str())
+                    && self.state.last_platform == Some(failed.platform)
+                {
+                    self.state.last_cart = None;
+                    self.state.last_platform = None;
+                }
+                self.persist();
                 self.name_pending = true;
             }
             Some((at, i)) => {
@@ -1872,7 +1880,11 @@ impl App {
 
     fn record_cart(&mut self, cart: Option<String>) {
         let platform = self.seated_cart().map(|c| c.platform);
-        if self.state.cart == cart && self.state.cart_platform == platform {
+        if self.state.cart == cart
+            && self.state.cart_platform == platform
+            && (cart.is_none()
+                || (self.state.last_cart == cart && self.state.last_platform == platform))
+        {
             return;
         }
         if cart.is_some() {

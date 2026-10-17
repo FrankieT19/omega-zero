@@ -477,3 +477,23 @@ fn last_launched_game_resumes_after_returning_to_the_selector() {
     write_app_state(d.path(), &state).unwrap();
     assert!(matches!(App::boot(d.path()).phase(), Phase::Shelf));
 }
+
+#[test]
+fn startup_crash_does_not_resurrect_the_failed_last_game_on_a_later_boot() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    write_app_state(
+        d.path(),
+        &AppState {
+            clock_set: true,
+            last_cart: Some("Fusion".into()),
+            last_platform: Some(Platform::Gba),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    std::fs::write(d.path().join("Config/.starting"), "GBA/Fusion").unwrap();
+    let failed = App::boot(d.path());
+    assert!(matches!(failed.phase(), Phase::Shelf));
+    assert_eq!(read_app_state(d.path()).last_cart, None);
+    assert!(matches!(App::boot(d.path()).phase(), Phase::Shelf));
+}
