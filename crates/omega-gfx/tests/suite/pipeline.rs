@@ -1056,3 +1056,73 @@ fn a_console_still_is_drawn_whole_through_its_view() {
     c.draw_list(&[Draw::Shot { tex }]);
     assert_at_2x(&c.read_frame(), w, h, &at);
 }
+
+#[test]
+fn reference_lcd1x_matches_its_default_formula_at_viewport_scale() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    c.set_game_view(GameView {
+        rect: [0.0, 0.0, out_w() as f32, out_h() as f32],
+        uv: WHOLE,
+        filter: Filter::Sharp,
+    });
+    c.upload_game(&flat_shot([200; 3]));
+    c.set_game_effect(1, 1.0, 1.0);
+    c.begin_frame();
+    c.draw_game();
+    let frame = c.read_frame();
+    for (x, y) in [(5, 8), (122, 101), (321, 250)] {
+        let angle_x =
+            2.0 * std::f32::consts::PI * ((x as f32 + 0.5) / out_w() as f32 * SRC_W as f32 - 0.25);
+        let angle_y =
+            2.0 * std::f32::consts::PI * ((y as f32 + 0.5) / out_h() as f32 * SRC_H as f32 - 0.25);
+        let expected =
+            (200.0 * (4.0 + angle_x.sin()) / 5.0 * (16.0 + angle_y.sin()) / 17.0).round() as i32;
+        for value in px(&frame, x, y) {
+            assert!(
+                (value as i32 - expected).abs() <= 2,
+                "LCD1x default was attenuated or mis-scaled"
+            );
+        }
+    }
+}
+
+#[test]
+fn reference_presets_keep_cropped_frames_upright_including_two_passes() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let src = gb_shaped(
+        |_, y| {
+            if y < GB_H / 2 {
+                [240, 0, 0]
+            } else {
+                [0, 0, 240]
+            }
+        },
+        [0, 255, 0],
+    );
+    c.upload_game(&src);
+    c.set_game_view(GameView {
+        rect: [0.0, 0.0, out_w() as f32, out_h() as f32],
+        uv: GB_RECT,
+        filter: Filter::Sharp,
+    });
+    for mode in 1..=7 {
+        c.set_game_effect(mode, 1.0, 1.0);
+        c.begin_frame();
+        c.draw_game();
+        let frame = c.read_frame();
+        let top = px(&frame, out_w() as usize / 2, out_h() as usize / 4);
+        let bottom = px(&frame, out_w() as usize / 2, out_h() as usize * 3 / 4);
+        assert!(
+            top[0] > top[2] + 30,
+            "preset {mode} flipped the top: {top:?}"
+        );
+        assert!(
+            bottom[2] > bottom[0] + 30,
+            "preset {mode} flipped the bottom: {bottom:?}"
+        );
+    }
+}
