@@ -475,26 +475,15 @@ fn a_shelf_comes_back_settled_where_it_was_left() {
 }
 
 #[test]
-fn the_shoulders_do_nothing_when_there_is_one_shelf_to_be_on() {
+fn a_single_platform_still_reaches_empty_library_views_without_a_refusal() {
     let mut a = app_with_platforms(&[(Platform::Gba, "Emerald"), (Platform::Gba, "Fusion")]);
-    for btn in [Btn::L1, Btn::R1] {
-        tap(&mut a, btn);
-        assert_eq!(
-            a.selected_stem(),
-            Some("Emerald"),
-            "{btn:?} moved a shelf with no neighbour"
-        );
-        assert_eq!(
-            a.toast(),
-            None,
-            "{btn:?} said something about doing nothing"
-        );
-        assert_eq!(
-            a.shelf_shake(),
-            0.0,
-            "{btn:?} refused where it should have done nothing"
-        );
+    for name in ["FAVOURITES", "RECENT", "ALL SYSTEMS", "GBA"] {
+        tap(&mut a, Btn::L1);
+        assert_eq!(a.pill_text().as_deref(), Some(name));
+        assert_eq!(a.toast(), None);
+        assert_eq!(a.shelf_shake(), 0.0);
     }
+    assert_eq!(a.selected_stem(), Some("Emerald"));
 }
 
 #[test]
