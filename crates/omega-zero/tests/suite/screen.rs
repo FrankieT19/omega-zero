@@ -22,8 +22,15 @@ fn on_720x480_every_picture_is_the_whole_canvas_as_it_always_was() {
                 "{platform:?} {mode:?}"
             );
             assert_eq!(s.view.uv, source_rect(platform, mode));
-            assert_eq!(s.view.filter, Filter::Lcd3x);
-            assert_eq!(s.still.uv, WHOLE_TEXTURE);
+            assert_eq!(
+                s.view.filter,
+                if platform == Platform::Gba || mode == VideoMode::Actual {
+                    Filter::Lcd3x
+                } else {
+                    Filter::Sharp
+                }
+            );
+            assert_eq!(s.still.uv, source_rect(platform, mode));
             assert!(
                 s.bands.is_empty(),
                 "{platform:?} {mode:?} left {:?}",
@@ -68,8 +75,8 @@ fn on_640x480_a_game_boy_game_stays_at_3x_through_the_mask() {
         assert_eq!(stretched.view.rect, [0.0, 0.0, 640.0, 480.0]);
         assert_eq!(stretched.view.uv, source_rect(platform, VideoMode::Stretch));
         assert_eq!(
-            stretched.still, s.view,
-            "a screenshot is shown at its own size"
+            stretched.still, stretched.view,
+            "a screenshot uses the selected scaling"
         );
     }
 }
@@ -192,13 +199,13 @@ fn a_snes_game_showing_its_overscan_is_still_twice_its_size() {
 }
 
 #[test]
-fn a_stretched_snes_game_takes_a_television_s_shape() {
+fn a_fit_snes_game_takes_a_television_s_shape() {
     for (c, rect) in [
         (Canvas::FOUR_THREE, [0.0, 0.0, 640.0, 480.0]),
         (Canvas::WIDE, [40.0, 0.0, 640.0, 480.0]),
         (Canvas::SQUARE, [0.0, 90.0, 720.0, 540.0]),
     ] {
-        let s = screen_on_frame(c, Platform::Snes, VideoMode::Stretch, (256, 224));
+        let s = screen_on_frame(c, Platform::Snes, VideoMode::Fit, (256, 224));
         assert_eq!(s.view.rect, rect, "{c:?}");
         assert_eq!(s.view.filter, Filter::Sharp);
     }
@@ -295,6 +302,41 @@ fn before_its_first_frame_a_console_game_is_laid_out_for_its_usual_picture() {
             assert_eq!(
                 screen_on(c, platform, VideoMode::Actual),
                 screen_on_frame(c, platform, VideoMode::Actual, platform.picture())
+            );
+        }
+    }
+}
+
+#[test]
+fn all_non_gba_systems_support_stretch_aspect_fit_and_integer_scaling() {
+    for platform in [Platform::Gb, Platform::Gbc, Platform::Snes, Platform::Ps1] {
+        for canvas in [Canvas::WIDE, Canvas::FOUR_THREE] {
+            let frame = if matches!(platform, Platform::Gb | Platform::Gbc) {
+                (240, 160)
+            } else {
+                platform.picture()
+            };
+            let stretched = screen_on_frame(canvas, platform, VideoMode::Stretch, frame);
+            assert_eq!(
+                stretched.view.rect,
+                [0.0, 0.0, canvas.w as f32, canvas.h as f32]
+            );
+            let fit = screen_on_frame(canvas, platform, VideoMode::Fit, frame);
+            assert_eq!(fit.view.rect[3], canvas.h as f32);
+            let aspect = if matches!(platform, Platform::Gb | Platform::Gbc) {
+                160.0 / 144.0
+            } else {
+                4.0 / 3.0
+            };
+            assert!((fit.view.rect[2] / fit.view.rect[3] - aspect).abs() < 0.002);
+            let integer = screen_on_frame(canvas, platform, VideoMode::Integer, frame);
+            let source = platform.picture();
+            let sx = integer.view.rect[2] / source.0 as f32;
+            let sy = integer.view.rect[3] / source.1 as f32;
+            assert_eq!(sx, sx.floor());
+            assert_eq!(sx, sy);
+            assert!(
+                integer.view.rect[2] <= canvas.w as f32 && integer.view.rect[3] <= canvas.h as f32
             );
         }
     }

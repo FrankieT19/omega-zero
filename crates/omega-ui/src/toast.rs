@@ -8,6 +8,8 @@ use crate::plate::UndoFace;
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Toast {
     Shader(u8),
+    FavouriteAdded,
+    FavouriteRemoved,
     StateSaved,
     StateLoaded,
     NeedsGpsp,
@@ -38,7 +40,7 @@ const DISC_IN: [&str; 9] = [
 
 impl Toast {
     /// Every toast there is, a disc's once, as disc 1.
-    pub const ALL: [Toast; 12] = [
+    pub const ALL: [Toast; 14] = [
         Toast::StateSaved,
         Toast::StateLoaded,
         Toast::NeedsGpsp,
@@ -51,12 +53,16 @@ impl Toast {
         Toast::OneDisc,
         Toast::Disc(1),
         Toast::Shader(0),
+        Toast::FavouriteAdded,
+        Toast::FavouriteRemoved,
     ];
 
     /// Its place in `ALL`: every disc's toast is the one place.
     pub fn index(self) -> usize {
         match self {
             Toast::Shader(_) => 11,
+            Toast::FavouriteAdded => 12,
+            Toast::FavouriteRemoved => 13,
             Toast::StateSaved => 0,
             Toast::StateLoaded => 1,
             Toast::NeedsGpsp => 2,
@@ -75,6 +81,7 @@ impl Toast {
     pub fn label(self) -> &'static str {
         match self {
             Toast::Shader(_) => "SHADER",
+            Toast::FavouriteAdded | Toast::FavouriteRemoved => "FAVOURITES",
             Toast::StateSaved | Toast::StateLoaded => "SAVE STATE",
             Toast::NeedsGpsp
             | Toast::NoLink
@@ -93,6 +100,8 @@ impl Toast {
                 .get(n as usize)
                 .copied()
                 .unwrap_or("Clean"),
+            Toast::FavouriteAdded => "Added to favourites",
+            Toast::FavouriteRemoved => "Removed from favourites",
             Toast::StateSaved => "State saved",
             Toast::StateLoaded => "State loaded",
             Toast::NeedsGpsp => "Please switch to gpSP",

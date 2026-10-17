@@ -678,14 +678,17 @@ fn mixed_carousel_preserves_system_identity_and_uploaded_faces() {
     let gba = app.face_of(omega_store::Platform::Gba, "Emerald");
     let gb = app.face_of(omega_store::Platform::Gb, "Emerald");
     assert_ne!(gba, gb);
-    display_at(&mut app, 5);
-    press(&mut app, Btn::Right);
+    for _ in 0..3 {
+        press(&mut app, Btn::L1);
+    }
     assert_eq!(app.pill_text().as_deref(), Some("ALL SYSTEMS"));
     assert_eq!(app.face_of(omega_store::Platform::Gba, "Emerald"), gba);
     assert_eq!(app.face_of(omega_store::Platform::Gb, "Emerald"), gb);
     assert_eq!(app.carts().count(), 3);
     assert!(read_app_state(d.path()).all_systems);
-    press(&mut app, Btn::Right);
+    for _ in 0..3 {
+        press(&mut app, Btn::R1);
+    }
     assert_eq!(app.face_of(omega_store::Platform::Gb, "Emerald"), gb);
     assert!(!read_app_state(d.path()).all_systems);
 }
@@ -717,7 +720,155 @@ fn blue_light_hotkey_wraps_and_low_poly_labels_setting_survives_boot() {
         app.apply(Action::BlueLightDown);
     }
     assert_eq!(app.blue_light(), 0);
-    display_at(&mut app, 6);
+    display_at(&mut app, 5);
     press(&mut app, Btn::Right);
     assert!(App::boot(d.path()).low_poly_labels());
+}
+
+#[test]
+fn mixed_carousel_and_hover_survive_menu_poweroff() {
+    let (d, mut app, _) = on_carousel();
+    for _ in 0..3 {
+        press(&mut app, Btn::L1);
+    }
+    press(&mut app, Btn::Right);
+    let selected = app.selected_stem().unwrap().to_string();
+    let app = App::boot(d.path());
+    assert!(matches!(app.phase(), Phase::Shelf));
+    assert_eq!(app.pill_text().as_deref(), Some("ALL SYSTEMS"));
+    assert_eq!(app.selected_stem(), Some(selected.as_str()));
+}
+
+#[test]
+fn software_dimming_extends_hardware_minimum_and_is_saved() {
+    let (d, mut app, _) = on_carousel();
+    for _ in 0..4 {
+        app.apply(Action::BrightnessDown);
+    }
+    assert_eq!(app.brightness(), 1);
+    for gain in [0.75, 0.5, 0.25, 0.125] {
+        app.apply(Action::BrightnessDown);
+        assert_eq!(app.dim_gain(), gain);
+        assert_eq!(app.brightness(), 1);
+        assert_eq!(App::boot(d.path()).dim_gain(), gain);
+    }
+    app.apply(Action::BrightnessDown);
+    assert_eq!(app.dim_gain(), 0.125);
+    for gain in [0.25, 0.5, 0.75, 1.0] {
+        app.apply(Action::BrightnessUp);
+        assert_eq!(app.dim_gain(), gain);
+    }
+    app.apply(Action::BrightnessUp);
+    assert_eq!(app.brightness(), 2);
+}
+
+#[test]
+fn pixel_transparency_shadow_offsets_are_independent_and_saved_per_system() {
+    let (d, mut app, _) = on_carousel();
+    assert_eq!(app.shader_shadow(), (1.0, 1.0));
+    display_at(&mut app, 3);
+    press(&mut app, Btn::Right);
+    assert_eq!(app.shader_shadow(), (1.5, 1.0));
+    press(&mut app, Btn::Down);
+    press(&mut app, Btn::Left);
+    assert_eq!(app.shader_shadow(), (1.5, 0.5));
+    assert_eq!(App::boot(d.path()).shader_shadow(), (1.5, 0.5));
+    app.set_platform(omega_store::Platform::Gb);
+    assert_eq!(app.shader_shadow(), (1.0, 1.0));
+    app.set_platform(omega_store::Platform::Gba);
+    display_at(&mut app, 3);
+    for _ in 0..150 {
+        press(&mut app, Btn::Left);
+    }
+    assert_eq!(app.shader_shadow().0, -30.0);
+    for _ in 0..150 {
+        press(&mut app, Btn::Right);
+    }
+    assert_eq!(app.shader_shadow().0, 30.0);
+}
+
+#[test]
+fn favourites_toggle_on_y_including_removal_from_the_favourites_view() {
+    let (d, mut app, _) = on_carousel();
+    let stem = app.selected_stem().unwrap().to_string();
+    press(&mut app, Btn::Y);
+    assert!(app.selected_is_favourite());
+    assert_eq!(app.toast(), Some(omega_ui::Toast::FavouriteAdded));
+    assert_eq!(
+        read_app_state(d.path()).favourites,
+        vec![format!("GBA/{stem}")]
+    );
+    press(&mut app, Btn::L1);
+    assert_eq!(app.pill_text().as_deref(), Some("FAVOURITES"));
+    assert_eq!(app.selected_stem(), Some(stem.as_str()));
+    press(&mut app, Btn::Y);
+    assert_eq!(app.selected_stem(), None);
+    assert_eq!(app.toast(), Some(omega_ui::Toast::FavouriteRemoved));
+    let boot = App::boot(d.path());
+    assert_eq!(boot.pill_text().as_deref(), Some("FAVOURITES"));
+    assert_eq!(boot.selected_stem(), None);
+    assert_eq!(
+        boot.carts().count(),
+        2,
+        "filtered views must not lose games"
+    );
+}
+
+#[test]
+fn recent_tracks_successful_starts_once_and_keeps_the_last_ten() {
+    let names: Vec<_> = (0..12).map(|i| format!("Game{i:02}")).collect();
+    let refs: Vec<_> = names.iter().map(String::as_str).collect();
+    let d = tmp_root_with_carts(&refs);
+    common::clocked(d.path());
+    let mut app = App::boot(d.path());
+    for _ in 0..12 {
+        app.apply(Action::Insert);
+        app.on_core_ready();
+        app.on_core_failed();
+        for _ in 0..120 {
+            app.update(1.0 / 60.0);
+        }
+        press(&mut app, Btn::Right);
+    }
+    let saved = read_app_state(d.path());
+    assert_eq!(saved.recent.len(), 10);
+    assert_eq!(saved.recent[0], "GBA/Game11");
+    assert_eq!(saved.recent[9], "GBA/Game02");
+    // Hovering alone never adds an entry.
+    press(&mut app, Btn::Right);
+    assert_eq!(read_app_state(d.path()).recent, saved.recent);
+    for _ in 0..2 {
+        press(&mut app, Btn::L1);
+    }
+    assert_eq!(app.pill_text().as_deref(), Some("RECENT"));
+    assert_eq!(app.selected_stem(), Some("Game11"));
+    assert_eq!(app.carts().count(), 12);
+    let boot = App::boot(d.path());
+    assert_eq!(boot.pill_text().as_deref(), Some("RECENT"));
+    assert_eq!(boot.selected_stem(), Some("Game11"));
+}
+
+#[test]
+fn scaling_choices_are_saved_independently_for_each_non_gba_system() {
+    let (d, mut app, _) = on_carousel();
+    for platform in [
+        omega_store::Platform::Gb,
+        omega_store::Platform::Gbc,
+        omega_store::Platform::Snes,
+        omega_store::Platform::Ps1,
+    ] {
+        display_at(&mut app, 0);
+        for _ in 0..platform as usize {
+            press(&mut app, Btn::Right);
+        }
+        press(&mut app, Btn::Down);
+        press(&mut app, Btn::Down);
+        press(&mut app, Btn::Right);
+        app.set_platform(platform);
+        assert_eq!(
+            app.preferred_video_mode(),
+            omega_zero::video_mode::VideoMode::Fit
+        );
+    }
+    assert_eq!(read_app_state(d.path()).scales, [0, 1, 1, 1, 1]);
 }

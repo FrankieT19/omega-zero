@@ -413,8 +413,7 @@ impl Session {
         let core = omega_store::core_for_platform(&self.root, stem, platform);
         self.app.set_core(core);
         self.app.set_platform(platform);
-        self.app
-            .set_video_mode(crate::video_mode::video_mode_for(&self.root, stem));
+        self.app.set_video_mode(self.app.preferred_video_mode());
         self.app.set_link_loaded(serial);
         let resume = (!self.app.starting_clean())
             .then(|| persist::read_resume(&self.root, platform, core, stem))

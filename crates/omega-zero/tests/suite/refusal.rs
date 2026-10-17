@@ -94,6 +94,8 @@ fn a_refused_cart_shows_an_alert_and_does_not_jitter() {
 fn the_alert_is_gone_before_the_cart_is() {
     let d = tmp_root_with_carts(&["Broken"]);
     let mut a = boot(d.path());
+    a.apply(Action::Insert);
+    a.update(omega_zero::app::SEATED_AT);
     a.on_core_failed();
     assert!(a.alert_visible(), "the alert never appeared");
     let mut last = 1.0;
@@ -108,6 +110,8 @@ fn the_alert_is_gone_before_the_cart_is() {
 fn the_alert_fades_in_the_kits_four_steps() {
     let d = tmp_root_with_carts(&["Broken"]);
     let mut a = boot(d.path());
+    a.apply(Action::Insert);
+    a.update(omega_zero::app::SEATED_AT);
     a.on_core_failed();
     let mut seen = Vec::new();
     while matches!(a.phase(), Phase::Ejecting { .. }) {

@@ -11,7 +11,7 @@ static GL: Mutex<()> = Mutex::new(());
 fn compositor() -> Option<(MutexGuard<'static, ()>, HeadlessSurface, Compositor)> {
     let guard = GL.lock().unwrap_or_else(PoisonError::into_inner);
     let surface = HeadlessSurface::new().ok()?;
-    let compositor = Compositor::new(&surface).ok()?;
+    let compositor = Compositor::new(&surface).expect("shader programs must compile");
     Some((guard, surface, compositor))
 }
 
@@ -37,16 +37,12 @@ fn selectable_masks_and_pixel_transparency_change_the_rendered_picture() {
     c.begin_frame();
     c.draw_game();
     let clean = c.read_frame();
-    for mode in 1..=3 {
+    for mode in 1..=7 {
         c.set_game_effect(mode, 1.0, 0.5);
         c.begin_frame();
         c.draw_game();
         assert_ne!(c.read_frame(), clean, "mask {mode} did not render");
     }
-    c.set_game_effect(1, 0.0, 0.5);
-    c.begin_frame();
-    c.draw_game();
-    assert_eq!(c.read_frame(), clean, "zero mask strength should be clean");
     let mut dither = flat_shot([255; 3]);
     for (i, pixel) in dither.chunks_exact_mut(4).enumerate() {
         if i % 2 == 0 {
@@ -1059,4 +1055,109 @@ fn a_console_still_is_drawn_whole_through_its_view() {
     c.begin_frame();
     c.draw_list(&[Draw::Shot { tex }]);
     assert_at_2x(&c.read_frame(), w, h, &at);
+}
+
+#[test]
+fn reference_lcd1x_matches_its_default_formula_at_viewport_scale() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    c.set_game_view(GameView {
+        rect: [0.0, 0.0, out_w() as f32, out_h() as f32],
+        uv: WHOLE,
+        filter: Filter::Sharp,
+    });
+    c.upload_game(&flat_shot([200; 3]));
+    c.set_game_effect(1, 1.0, 1.0);
+    c.begin_frame();
+    c.draw_game();
+    let frame = c.read_frame();
+    for (x, y) in [(5, 8), (122, 101), (321, 250)] {
+        let angle_x =
+            2.0 * std::f32::consts::PI * ((x as f32 + 0.5) / out_w() as f32 * SRC_W as f32 - 0.25);
+        let angle_y =
+            2.0 * std::f32::consts::PI * ((y as f32 + 0.5) / out_h() as f32 * SRC_H as f32 - 0.25);
+        let expected =
+            (200.0 * (4.0 + angle_x.sin()) / 5.0 * (16.0 + angle_y.sin()) / 17.0).round() as i32;
+        for value in px(&frame, x, y) {
+            assert!(
+                (value as i32 - expected).abs() <= 2,
+                "LCD1x default was attenuated or mis-scaled"
+            );
+        }
+    }
+}
+
+#[test]
+fn reference_presets_keep_cropped_frames_upright_including_two_passes() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let src = gb_shaped(
+        |_, y| {
+            if y < GB_H / 2 {
+                [240, 0, 0]
+            } else {
+                [0, 0, 240]
+            }
+        },
+        [0, 255, 0],
+    );
+    c.upload_game(&src);
+    c.set_game_view(GameView {
+        rect: [0.0, 0.0, out_w() as f32, out_h() as f32],
+        uv: GB_RECT,
+        filter: Filter::Sharp,
+    });
+    for mode in 1..=7 {
+        c.set_game_effect(mode, 1.0, 1.0);
+        c.begin_frame();
+        c.draw_game();
+        let frame = c.read_frame();
+        let top = px(&frame, out_w() as usize / 2, out_h() as usize / 4);
+        let bottom = px(&frame, out_w() as usize / 2, out_h() as usize * 3 / 4);
+        assert!(
+            top[0] > top[2] + 30,
+            "preset {mode} flipped the top: {top:?}"
+        );
+        assert!(
+            bottom[2] > bottom[0] + 30,
+            "preset {mode} flipped the bottom: {bottom:?}"
+        );
+    }
+}
+
+#[test]
+fn shadow_offset_controls_reach_every_pixel_transparency_preset() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    c.set_game_view(GameView {
+        rect: [0.0, 0.0, out_w() as f32, out_h() as f32],
+        uv: WHOLE,
+        filter: Filter::Sharp,
+    });
+    let mut src = flat_shot([255; 3]);
+    for y in 40..100 {
+        for x in 60..120 {
+            let at = (y * SRC_W as usize + x) * 4;
+            src[at..at + 3].fill(0);
+        }
+    }
+    c.upload_game(&src);
+    for mode in 4..=7 {
+        c.set_game_effect(mode, 1.0, 1.0);
+        c.set_game_shadow(0.0, 0.0);
+        c.begin_frame();
+        c.draw_game();
+        let zero = c.read_frame();
+        c.set_game_shadow(6.0, -4.0);
+        c.begin_frame();
+        c.draw_game();
+        assert_ne!(
+            c.read_frame(),
+            zero,
+            "preset {mode} ignored shadow controls"
+        );
+    }
 }

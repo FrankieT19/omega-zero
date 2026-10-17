@@ -26,6 +26,7 @@ pub struct Compositor {
     blit: gl::types::GLuint,
     u_gain: gl::types::GLint,
     gain: [f32; 3],
+    dim: f32,
     shake: f32,
     quad: Quad,
     game: GamePass,
@@ -83,6 +84,7 @@ impl Compositor {
                 blit,
                 u_gain,
                 gain: blue_light_gain(0),
+                dim: 1.0,
                 shake: 0.0,
                 quad: Quad::new(),
                 game: GamePass::new()?,
@@ -155,6 +157,10 @@ impl Compositor {
         self.sprites.update_texture(id, w, h, rgba);
     }
 
+    pub fn set_dim(&mut self, gain: f32) {
+        self.dim = gain.clamp(0.0, 1.0);
+    }
+
     pub fn set_blue_light(&mut self, step: u8) {
         self.gain = blue_light_gain(step);
     }
@@ -165,6 +171,10 @@ impl Compositor {
 
     pub fn set_game_source_rect(&mut self, rect: [f32; 4]) {
         self.game.set_source_rect(rect);
+    }
+
+    pub fn set_game_shadow(&mut self, x: f32, y: f32) {
+        self.game.set_shadow(x, y);
     }
 
     pub fn set_game_effect(&mut self, mode: u8, strength: f32, blend: f32) {
@@ -295,7 +305,12 @@ impl Compositor {
                 gl::UseProgram(t.prog);
                 gl::ActiveTexture(gl::TEXTURE0);
                 gl::BindTexture(gl::TEXTURE_2D, self.tex);
-                gl::Uniform3f(t.u_gain, self.gain[0], self.gain[1], self.gain[2]);
+                gl::Uniform3f(
+                    t.u_gain,
+                    self.gain[0] * self.dim,
+                    self.gain[1] * self.dim,
+                    self.gain[2] * self.dim,
+                );
                 gl::UniformMatrix2fv(t.u_turn, 1, gl::FALSE, turn.as_ptr());
             }
             self.quad.draw();
@@ -311,7 +326,12 @@ impl Compositor {
             gl::UseProgram(self.blit);
             gl::ActiveTexture(gl::TEXTURE0);
             gl::BindTexture(gl::TEXTURE_2D, self.tex);
-            gl::Uniform3f(self.u_gain, self.gain[0], self.gain[1], self.gain[2]);
+            gl::Uniform3f(
+                self.u_gain,
+                self.gain[0] * self.dim,
+                self.gain[1] * self.dim,
+                self.gain[2] * self.dim,
+            );
         }
         self.quad.draw();
     }

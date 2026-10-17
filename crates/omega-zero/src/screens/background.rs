@@ -29,7 +29,7 @@ pub fn background_face(view: &ListView, pal: &Palette) -> UndoFace {
         .first()
         .is_some_and(|r| r.label == crate::list_view::RowLabel::Setting("System"))
     {
-        "DISPLAY & STARTUP"
+        "DISPLAY"
     } else {
         TITLE
     };
@@ -94,13 +94,17 @@ impl App {
         self.state.low_poly_labels
     }
 
-    pub fn shader_settings(&self) -> (u8, f32, f32) {
+    pub fn shader_shadow(&self) -> (f32, f32) {
         let i = self.platform() as usize;
         (
-            self.state.shaders[i],
-            self.state.mask_strength[i] as f32 / 10.0,
-            self.state.pixel_blend[i] as f32 / 10.0,
+            self.state.shadow_x[i] as f32 / 2.0,
+            self.state.shadow_y[i] as f32 / 2.0,
         )
+    }
+
+    pub fn shader_settings(&self) -> (u8, f32, f32) {
+        let i = self.platform() as usize;
+        (self.state.shaders[i], 1.0, 1.0)
     }
 
     pub(crate) fn cycle_shader(&mut self) {
@@ -127,11 +131,11 @@ impl App {
                 return;
             }
             Action::GbaDown(Btn::Up) => {
-                screen.display_row = (screen.display_row + 6) % 7;
+                screen.display_row = (screen.display_row + 5) % 6;
                 return;
             }
             Action::GbaDown(Btn::Down) => {
-                screen.display_row = (screen.display_row + 1) % 7;
+                screen.display_row = (screen.display_row + 1) % 6;
                 return;
             }
             Action::GbaDown(Btn::Left) => false,
@@ -149,14 +153,16 @@ impl App {
         match screen.display_row {
             0 => screen.display_system = step(i as u8, 5) as usize,
             1 => self.state.shaders[i] = step(self.state.shaders[i], 8),
-            2 => self.state.mask_strength[i] = step(self.state.mask_strength[i], 11),
-            3 => self.state.pixel_blend[i] = step(self.state.pixel_blend[i], 11),
-            4 => self.state.resume_last = !self.state.resume_last,
-            5 => {
-                self.state.all_systems = !self.state.all_systems;
-                self.regroup_shelves();
+            2 if i > 0 => self.state.scales[i] = step(self.state.scales[i], 3),
+            3 => {
+                self.state.shadow_x[i] =
+                    (self.state.shadow_x[i] + if forward { 1 } else { -1 }).clamp(-60, 60)
             }
-            6 => {
+            4 => {
+                self.state.shadow_y[i] =
+                    (self.state.shadow_y[i] + if forward { 1 } else { -1 }).clamp(-60, 60)
+            }
+            5 => {
                 self.state.low_poly_labels = !self.state.low_poly_labels;
                 self.stale_faces = self.carts().map(|c| (c.platform, c.stem.clone())).collect();
             }
@@ -183,16 +189,25 @@ impl App {
                     "Shader",
                     RowValue::Choice(omega_store::SHADER_NAMES[self.state.shaders[i] as usize]),
                 ),
+                ViewRow {
+                    label: RowLabel::Setting("Scaling"),
+                    value: Some(RowValue::Choice(
+                        ["Integer", "Fit", "Stretch"][if i == 0 {
+                            0
+                        } else {
+                            self.state.scales[i] as usize
+                        }],
+                    )),
+                    dim: i == 0,
+                },
                 row(
-                    "Mask",
-                    RowValue::Name(format!("{}%", self.state.mask_strength[i] * 10)),
+                    "Shadow X",
+                    RowValue::Name(format!("{:.1}", self.state.shadow_x[i] as f32 / 2.0)),
                 ),
                 row(
-                    "Pixel blend",
-                    RowValue::Name(format!("{}%", self.state.pixel_blend[i] * 10)),
+                    "Shadow Y",
+                    RowValue::Name(format!("{:.1}", self.state.shadow_y[i] as f32 / 2.0)),
                 ),
-                row("Boot last game", RowValue::Setting(self.state.resume_last)),
-                row("All systems", RowValue::Setting(self.state.all_systems)),
                 row(
                     "Low poly labels",
                     RowValue::Setting(self.state.low_poly_labels),

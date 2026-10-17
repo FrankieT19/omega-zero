@@ -64,8 +64,69 @@ pub fn face(bmp: &[u8]) -> Option<UndoFace> {
 /// The logo the bootloader draws on a panel of `size`, read from the card's System folder: the
 /// one `refresh` keeps on the boot partition for that panel.
 pub fn shown(system: &Path, size: (u32, u32)) -> Option<UndoFace> {
-    let logo = face(&fs::read(choose(system, size)?).ok()?)?;
+    let logo = face(&logo_bytes(system, size)?)?;
     ((logo.w, logo.h) == size).then_some(logo)
+}
+
+/// Converts the replaceable PNG to the bootloader's native BMP in memory.
+/// Letterboxing keeps arbitrary replacement images in proportion on each panel.
+pub fn logo_bytes(system: &Path, size: (u32, u32)) -> Option<Vec<u8>> {
+    if let Some(bmp) = png_bmp(&system.join("bootlogo.png"), size) {
+        return Some(bmp);
+    }
+    fs::read(choose(system, size)?).ok()
+}
+
+fn png_bmp(path: &Path, (w, h): (u32, u32)) -> Option<Vec<u8>> {
+    let mut decoder = png::Decoder::new(std::io::Cursor::new(fs::read(path).ok()?));
+    decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
+    let mut reader = decoder.read_info().ok()?;
+    let mut pixels = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut pixels).ok()?;
+    let (sw, sh) = (info.width, info.height);
+    if sw == 0 || sh == 0 || w == 0 || h == 0 {
+        return None;
+    }
+    let channels = info.color_type.samples();
+    let scale = (w as f64 / sw as f64).min(h as f64 / sh as f64);
+    let (dw, dh) = (
+        (sw as f64 * scale).round() as u32,
+        (sh as f64 * scale).round() as u32,
+    );
+    if dw == 0 || dh == 0 {
+        return None;
+    }
+    let stride = (w as usize * 3).next_multiple_of(4);
+    let mut bmp = vec![0; HEADER + stride * h as usize];
+    bmp[..2].copy_from_slice(b"BM");
+    let len = bmp.len() as u32;
+    for (at, value) in [(2, len), (10, HEADER as u32), (14, 40), (18, w), (22, h)] {
+        bmp[at..at + 4].copy_from_slice(&value.to_le_bytes());
+    }
+    bmp[26..28].copy_from_slice(&1u16.to_le_bytes());
+    bmp[28..30].copy_from_slice(&24u16.to_le_bytes());
+    for y in 0..dh {
+        for x in 0..dw {
+            let at = ((y as u64 * sh as u64 / dh as u64) * sw as u64
+                + x as u64 * sw as u64 / dw as u64) as usize
+                * channels;
+            let c = &pixels[at..at + channels];
+            let (rgb, alpha) = match info.color_type {
+                png::ColorType::Rgb => ([c[0], c[1], c[2]], 255),
+                png::ColorType::Rgba => ([c[0], c[1], c[2]], c[3]),
+                png::ColorType::Grayscale => ([c[0]; 3], 255),
+                png::ColorType::GrayscaleAlpha => ([c[0]; 3], c[1]),
+                _ => return None,
+            };
+            let dest = HEADER
+                + (h - 1 - y - (h - dh) / 2) as usize * stride
+                + (x + (w - dw) / 2) as usize * 3;
+            for i in 0..3 {
+                bmp[dest + i] = (rgb[2 - i] as u16 * alpha as u16 / 255) as u8;
+            }
+        }
+    }
+    Some(bmp)
 }
 
 /// The logo omega-zero ships for a panel of `size`, from the card's System folder: the one named for
@@ -118,13 +179,14 @@ fn replace(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<()> {
 }
 
 fn ships_a_logo(system: &Path) -> bool {
-    fs::read_dir(system).is_ok_and(|entries| {
-        entries.flatten().any(|e| {
-            let name = e.file_name();
-            let name = name.to_string_lossy();
-            name.starts_with("bootlogo") && name.ends_with(".bmp")
+    system.join("bootlogo.png").is_file()
+        || fs::read_dir(system).is_ok_and(|entries| {
+            entries.flatten().any(|e| {
+                let name = e.file_name();
+                let name = name.to_string_lossy();
+                name.starts_with("bootlogo") && name.ends_with(".bmp")
+            })
         })
-    })
 }
 
 pub fn refresh(card: &Path) {
@@ -147,18 +209,14 @@ pub fn refresh(card: &Path) {
         None => {
             eprintln!("omega-zero: bootlogo: no logo on {device} to size ours by, leaving it alone")
         }
-        Some(size) => match choose(&system, size).map(|p| (fs::read(&p), p)) {
-            None => eprintln!(
-                "omega-zero: bootlogo: no {}x{} logo in System/, leaving the boot logo alone",
-                size.0, size.1
-            ),
-            Some((Err(e), p)) => eprintln!("omega-zero: bootlogo: {}: {e}", p.display()),
-            Some((Ok(logo), p)) => match install(&logo, mount) {
+        Some(size) => match logo_bytes(&system, size) {
+            None => eprintln!("omega-zero: bootlogo: no valid logo in System/"),
+            Some(logo) => match install(&logo, mount) {
                 Ok(Outcome::Installed) => {
-                    eprintln!("omega-zero: bootlogo: installed {}", p.display())
+                    eprintln!("omega-zero: bootlogo: installed System/bootlogo.png")
                 }
                 Ok(Outcome::Same) => {}
-                Ok(other) => eprintln!("omega-zero: bootlogo: {}: {other:?}", p.display()),
+                Ok(other) => eprintln!("omega-zero: bootlogo: {other:?}"),
                 Err(e) => eprintln!("omega-zero: bootlogo: {e}"),
             },
         },

@@ -558,20 +558,31 @@ impl App {
         }
         let seated = if fell.is_some() {
             fell
-        } else if !self.state.resume_last {
-            None
-        } else if self.single_cart() {
-            Some((self.shelf_at, 0))
         } else {
-            let stem = self.state.cart.clone().or_else(|| {
-                self.state
-                    .resume_last
-                    .then(|| self.state.last_cart.clone())
-                    .flatten()
-            });
-            let platform = self.state.cart_platform.or(self.state.last_platform);
-            stem.and_then(|stem| self.seat_of(&stem, platform))
+            self.state
+                .cart
+                .as_ref()
+                .and_then(|stem| self.seat_of(stem, self.state.cart_platform))
         };
+        if fell.is_none() {
+            if let Some((at, i)) = self.state.last_cart.as_ref().and_then(|stem| {
+                if self.shelf_at >= 5 {
+                    self.shelf()
+                        .carts
+                        .iter()
+                        .position(|c| {
+                            c.stem == *stem
+                                && self.state.last_platform.is_none_or(|p| p == c.platform)
+                        })
+                        .map(|i| (self.shelf_at, i))
+                } else {
+                    self.seat_of(stem, self.state.last_platform)
+                }
+            }) {
+                self.shelf_at = at;
+                self.shelf_mut().select(i);
+            }
+        }
         self.phase = Phase::Shelf;
         let held = std::mem::take(&mut self.hold_resume);
         match seated {
@@ -608,22 +619,88 @@ impl App {
     }
 
     pub(crate) fn regroup_shelves(&mut self) {
-        let selected = self
-            .shelf()
-            .carts
-            .get(self.shelf().index)
-            .map(|c| (c.platform, c.stem.clone()));
-        Shelf::regroup(&mut self.shelves, self.state.all_systems);
-        self.shelf_at = 0;
-        if let Some((p, stem)) = selected {
-            if let Some((at, i)) = self.seat_of(&stem, Some(p)) {
-                self.shelf_at = at;
-                self.shelf_mut().select(i);
-            }
+        self.rebuild_carousels();
+        if self.state.carousel > 0 {
+            self.shelf_at = 4 + self.state.carousel as usize;
         }
-        self.shelf_platform = omega_ui::Printed::default();
-        self.shelf_named = None;
-        self.name_pending = true;
+    }
+
+    fn rebuild_carousels(&mut self) {
+        let previous: Vec<_> = self
+            .shelves
+            .iter()
+            .skip(5)
+            .map(|(_, s)| s.carts.get(s.index).map(|c| (c.platform, c.stem.clone())))
+            .collect();
+        self.shelves.truncate(5);
+        let mut all: Vec<_> = self
+            .carts()
+            .map(|c| {
+                (
+                    omega_store::sort_key(&c.stem),
+                    c.platform,
+                    format!("{}/{}", c.platform.dir_name(), c.stem),
+                )
+            })
+            .collect();
+        all.sort_by(|a, b| a.0.cmp(&b.0).then((a.1 as u8).cmp(&(b.1 as u8))));
+        let all: Vec<_> = all.into_iter().map(|(_, _, key)| key).collect();
+        let mut favourites: Vec<_> = self
+            .state
+            .favourites
+            .iter()
+            .filter(|key| all.contains(key))
+            .cloned()
+            .collect();
+        favourites.sort_by_key(|key| key.split_once('/').map(|(_, s)| omega_store::sort_key(s)));
+        for (i, keys) in [all, self.state.recent.clone(), favourites]
+            .iter()
+            .enumerate()
+        {
+            let mut shelf = Shelf::projection(&self.shelves, keys);
+            if let Some(Some((p, stem))) = previous.get(i) {
+                if let Some(index) = shelf
+                    .carts
+                    .iter()
+                    .position(|c| c.platform == *p && c.stem == *stem)
+                {
+                    shelf.select(index);
+                }
+            }
+            self.shelves.push((Platform::Gba, shelf));
+        }
+    }
+
+    fn toggle_favourite(&mut self) {
+        let Some(cart) = self.shelf().carts.get(self.shelf().index) else {
+            return;
+        };
+        let key = format!("{}/{}", cart.platform.dir_name(), cart.stem);
+        let added = if let Some(index) = self.state.favourites.iter().position(|k| k == &key) {
+            self.state.favourites.remove(index);
+            false
+        } else {
+            self.state.favourites.push(key);
+            true
+        };
+        self.rebuild_carousels();
+        self.hud.toast(
+            if added {
+                Toast::FavouriteAdded
+            } else {
+                Toast::FavouriteRemoved
+            },
+            self.now(),
+        );
+        self.persist();
+    }
+
+    pub fn selected_is_favourite(&self) -> bool {
+        self.shelf().carts.get(self.shelf().index).is_some_and(|c| {
+            self.state
+                .favourites
+                .contains(&format!("{}/{}", c.platform.dir_name(), c.stem))
+        })
     }
 
     pub(crate) fn shelf(&self) -> &Shelf {
@@ -635,16 +712,22 @@ impl App {
     }
 
     fn switch_shelf(&mut self, by: i32) {
+        if self.shelves.len() < 8 {
+            self.rebuild_carousels();
+        }
         let Some(to) = self.next_shelf(by) else {
             return;
         };
         self.shelf_mut().release_hold();
         self.play_held = None;
         self.shelf_at = to;
+        self.state.carousel = if to < 5 { 0 } else { (to - 4) as u8 };
+        self.state.all_systems = self.state.carousel == 1;
         self.shelf_platform = omega_ui::Printed::default();
         self.pill_letter = None;
         self.shelf_named = None;
         self.name_pending = true;
+        self.persist();
     }
 
     fn jump_letter(&mut self, dir: i32) {
@@ -662,6 +745,7 @@ impl App {
         if self.pill_letter != Some(letter) {
             self.shelf_platform = omega_ui::Printed::default();
         }
+        self.persist();
         self.pill_letter = Some(letter);
         self.shelf_named = None;
         self.name_pending = true;
@@ -671,10 +755,18 @@ impl App {
         let n = self.shelves.len() as i32;
         (1..n)
             .map(|step| (self.shelf_at as i32 + by * step).rem_euclid(n) as usize)
-            .find(|at| !self.shelves[*at].1.carts.is_empty())
+            .find(|at| *at >= 5 || !self.shelves[*at].1.carts.is_empty())
     }
 
     fn seat_of(&self, stem: &str, platform: Option<Platform>) -> Option<(usize, usize)> {
+        if let Some(index) = self
+            .shelf()
+            .carts
+            .iter()
+            .position(|c| c.stem == stem && platform.is_none_or(|p| p == c.platform))
+        {
+            return Some((self.shelf_at, index));
+        }
         self.shelves
             .iter()
             .enumerate()
@@ -762,7 +854,9 @@ impl App {
     pub fn pill_text(&self) -> Option<String> {
         match self.pill_letter {
             Some(letter) => Some(letter.to_string()),
-            None if self.state.all_systems => Some("ALL SYSTEMS".to_string()),
+            None if self.shelf_at >= 5 => {
+                Some(["ALL SYSTEMS", "RECENT", "FAVOURITES"][self.shelf_at - 5].to_string())
+            }
             None => self
                 .shelves
                 .get(self.shelf_at)
@@ -781,8 +875,12 @@ impl App {
     }
 
     pub fn shelf_platform_name(&self) -> Option<&'static str> {
-        self.next_shelf(1)?;
-        Some(self.shelves[self.shelf_at].0.name())
+        self.carts().next()?;
+        Some(if self.shelf_at >= 5 {
+            ["ALL SYSTEMS", "RECENT", "FAVOURITES"][self.shelf_at - 5]
+        } else {
+            self.shelves[self.shelf_at].0.name()
+        })
     }
 
     /// Moves to the screen `to`, the one shown now sliding away as it comes in.
@@ -820,6 +918,7 @@ impl App {
     pub fn carts(&self) -> impl Iterator<Item = &Cart> {
         self.shelves
             .iter()
+            .take(5)
             .flat_map(|(_, shelf)| shelf.carts.iter())
     }
 
@@ -841,10 +940,11 @@ impl App {
 
     pub fn set_faces(&mut self, faces: Vec<TexId>) {
         let mut faces = faces.into_iter();
-        for (_, shelf) in &mut self.shelves {
+        for (_, shelf) in self.shelves.iter_mut().take(5) {
             let n = shelf.carts.len();
             shelf.set_faces(faces.by_ref().take(n).collect());
         }
+        self.rebuild_carousels();
     }
 
     pub fn set_snapshot(&mut self, snapshot: Box<dyn Snapshot>) {
@@ -861,6 +961,24 @@ impl App {
 
     pub fn set_named_core(&mut self, named: bool) {
         self.named_core = named;
+    }
+
+    pub fn preferred_video_mode(&self) -> VideoMode {
+        if self.platform == Platform::Gba {
+            return VideoMode::Actual;
+        }
+        [VideoMode::Integer, VideoMode::Fit, VideoMode::Stretch]
+            [self.state.scales[self.platform as usize].min(2) as usize]
+    }
+
+    fn cycle_picture(&mut self, by: i32) {
+        let index = match self.video_mode {
+            VideoMode::Actual | VideoMode::Integer => 0,
+            VideoMode::Fit => 1,
+            VideoMode::Stretch => 2,
+        };
+        let index = (index + by).rem_euclid(3) as usize;
+        self.set_picture([VideoMode::Integer, VideoMode::Fit, VideoMode::Stretch][index]);
     }
 
     pub fn set_video_mode(&mut self, mode: VideoMode) {
@@ -915,6 +1033,12 @@ impl App {
             return;
         }
         self.video_mode = mode;
+        self.state.scales[self.platform as usize] = match mode {
+            VideoMode::Actual | VideoMode::Integer => 0,
+            VideoMode::Fit => 1,
+            VideoMode::Stretch => 2,
+        };
+        self.persist();
         let (Some(root), Phase::Playing { cart }) = (self.root.clone(), &self.phase) else {
             return;
         };
@@ -1028,7 +1152,7 @@ impl App {
     }
 
     pub fn set_power(&mut self, mut power: Power) {
-        power.set_backlight(self.state.brightness);
+        power.set_backlight(self.state.brightness.max(1));
         self.headphones = power.headphones();
         self.hud.set_headphones(self.headphones);
         let secs = power.now();
@@ -1232,8 +1356,18 @@ impl App {
             return self.clock_input(action);
         }
         match action {
-            Action::GbaUp(Btn::Left) => self.shelf_mut().release_left(),
-            Action::GbaUp(Btn::Right) => self.shelf_mut().release_right(),
+            Action::GbaUp(Btn::Left) => {
+                self.shelf_mut().release_left();
+                if self.on_shelf() {
+                    self.persist();
+                }
+            }
+            Action::GbaUp(Btn::Right) => {
+                self.shelf_mut().release_right();
+                if self.on_shelf() {
+                    self.persist();
+                }
+            }
             _ => {}
         }
         if self.game_menu.is_some() {
@@ -1245,6 +1379,7 @@ impl App {
         let now = self.now();
         match self.phase {
             Phase::Shelf => match action {
+                Action::GbaDown(Btn::Y) => self.toggle_favourite(),
                 Action::GbaDown(Btn::X) if self.core_picker.is_none() => self.open_core_picker(),
                 _ if self.core_picker.is_some() => self.core_picker_input(action),
                 // START is the settings button on the shelf; MENU opens nothing here
@@ -1252,9 +1387,13 @@ impl App {
                 Action::SelectTap => self.go(Phase::Controls, Dir::Deeper),
                 Action::GbaDown(Btn::Up) => self.jump_letter(-1),
                 Action::GbaDown(Btn::Down) => self.jump_letter(1),
-                Action::ShelfLeft | Action::GbaDown(Btn::Left) => self.shelf_mut().hold_left(now),
+                Action::ShelfLeft | Action::GbaDown(Btn::Left) => {
+                    self.shelf_mut().hold_left(now);
+                    self.persist();
+                }
                 Action::ShelfRight | Action::GbaDown(Btn::Right) => {
-                    self.shelf_mut().hold_right(now)
+                    self.shelf_mut().hold_right(now);
+                    self.persist();
                 }
                 Action::GbaDown(Btn::A) => self.play_held = Some(now),
                 Action::GbaUp(Btn::A) => {
@@ -1270,10 +1409,10 @@ impl App {
             Phase::Inserting { .. } if action == Action::Eject => self.eject(),
             Phase::Playing { .. } => match action {
                 Action::GbaDown(Btn::L1) if self.frontend_owns_the_shoulders() => {
-                    self.set_picture(VideoMode::Stretch)
+                    self.cycle_picture(-1)
                 }
                 Action::GbaDown(Btn::R1) if self.frontend_owns_the_shoulders() => {
-                    self.set_picture(VideoMode::Actual)
+                    self.cycle_picture(1)
                 }
                 Action::Eject => self.eject(),
                 Action::GameMenu => self.game_menu_shortcut(),
@@ -1451,6 +1590,7 @@ impl App {
     pub fn carts_nearest_first(&self) -> Vec<&Cart> {
         let n = self.shelves.len();
         let mut carts = Vec::new();
+        let mut seen = std::collections::HashSet::new();
         for (_, shelf) in self.shelves.iter().cycle().skip(self.shelf_at).take(n) {
             let len = shelf.carts.len();
             let mut row: Vec<(usize, &Cart)> = shelf.carts.iter().enumerate().collect();
@@ -1458,7 +1598,11 @@ impl App {
                 let d = i.abs_diff(shelf.index);
                 d.min(len - d)
             });
-            carts.extend(row.into_iter().map(|(_, c)| c));
+            carts.extend(
+                row.into_iter()
+                    .map(|(_, c)| c)
+                    .filter(|c| seen.insert((c.platform as u8, c.stem.as_str()))),
+            );
         }
         carts
     }
@@ -1506,6 +1650,30 @@ impl App {
                 false => Toast::ColourOff,
             };
             self.hud.toast(said, self.now());
+            return true;
+        }
+        if matches!(action, Action::BrightnessDown | Action::BrightnessUp) {
+            let old = (self.state.brightness, self.state.dim);
+            if action == Action::BrightnessDown {
+                if self.state.brightness > 1 {
+                    self.state.brightness -= 1;
+                } else {
+                    self.state.brightness = 1;
+                    self.state.dim = (self.state.dim + 1).min(4);
+                }
+            } else if self.state.dim > 0 {
+                self.state.dim -= 1;
+            } else {
+                self.state.brightness = up(self.state.brightness.max(1), 1, BRIGHTNESS_MAX);
+            }
+            let shown = self.state.brightness.max(1) + 3 - self.state.dim;
+            self.hud.show(HudKind::Brightness, shown, false, self.now());
+            if let Some(power) = &mut self.power {
+                power.set_backlight(self.state.brightness.max(1));
+            }
+            if old != (self.state.brightness, self.state.dim) {
+                self.persist();
+            }
             return true;
         }
         let s = &self.state;
@@ -1599,6 +1767,10 @@ impl App {
 
     pub fn blue_light(&self) -> u8 {
         self.state.blue_light
+    }
+
+    pub fn dim_gain(&self) -> f32 {
+        [1.0, 0.75, 0.5, 0.25, 0.125][self.state.dim.min(4) as usize]
     }
 
     pub fn brightness(&self) -> u8 {
@@ -1900,12 +2072,28 @@ impl App {
         let Some(root) = &self.root else {
             return;
         };
-        if let Err(e) = write_app_state(root, &self.state) {
+        let mut state = self.state.clone();
+        if let Some(cart) = self.shelf().carts.get(self.shelf().index) {
+            state.last_cart = Some(cart.stem.clone());
+            state.last_platform = Some(cart.platform);
+        }
+        if let Err(e) = write_app_state(root, &state) {
             eprintln!("omega-zero: omega-zero.state: {e}");
         }
     }
 
     pub fn on_core_ready(&mut self) {
+        if let Some(cart) = self.seated_cart() {
+            let key = format!("{}/{}", cart.platform.dir_name(), cart.stem);
+            self.state.recent.retain(|k| k != &key);
+            self.state.recent.insert(0, key);
+            self.state.recent.truncate(10);
+            self.rebuild_carousels();
+            if let Some((_, recent)) = self.shelves.get_mut(6) {
+                recent.select(0);
+            }
+            self.persist();
+        }
         let Phase::Inserting {
             cart, core_ready, ..
         } = &mut self.phase
@@ -2994,6 +3182,7 @@ impl App {
     }
 
     pub fn flush_resume(&mut self) {
+        self.persist();
         self.settle_saves();
         self.autosave_at = self.now() + AUTOSAVE_MS;
         let (Some(root), Some(snapshot), Some(cart)) = (&self.root, &self.snapshot, self.seated())

@@ -11,6 +11,7 @@ mod host;
 mod lcd3x;
 mod pipeline;
 mod power;
+mod presets;
 mod quad;
 mod shaders;
 mod surface;

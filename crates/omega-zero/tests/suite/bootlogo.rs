@@ -193,3 +193,33 @@ fn the_logo_shown_is_the_cards_for_the_panel_at_its_size() {
     );
     assert!(shown(s, (720, 480)).is_none());
 }
+
+#[test]
+fn replaceable_png_wins_over_bmp_and_fits_all_panels() {
+    let d = tempfile::tempdir().unwrap();
+    std::fs::write(d.path().join("bootlogo-720x480.bmp"), wide(80)).unwrap();
+    let mut png = Vec::new();
+    {
+        let mut enc = png::Encoder::new(&mut png, 2, 1);
+        enc.set_color(png::ColorType::Rgba);
+        enc.set_depth(png::BitDepth::Eight);
+        enc.write_header()
+            .unwrap()
+            .write_image_data(&[255, 0, 0, 255, 0, 255, 0, 128])
+            .unwrap();
+    }
+    std::fs::write(d.path().join("bootlogo.png"), png).unwrap();
+    for size in [(720, 480), (640, 480), (480, 720), (720, 720)] {
+        let bytes = omega_zero::bootlogo::logo_bytes(d.path(), size).unwrap();
+        assert_eq!(dims(&bytes), Some(size));
+        let picture = face(&bytes).unwrap();
+        assert_eq!(&picture.rgba[..4], &[0, 0, 0, 255]);
+        let at = ((size.1 / 2 * size.0 + size.0 / 4) * 4) as usize;
+        assert_eq!(&picture.rgba[at..at + 4], &[255, 0, 0, 255]);
+    }
+    std::fs::write(d.path().join("bootlogo.png"), b"broken").unwrap();
+    assert_eq!(
+        omega_zero::bootlogo::logo_bytes(d.path(), (720, 480)).unwrap(),
+        wide(80)
+    );
+}

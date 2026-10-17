@@ -458,7 +458,7 @@ fn a_session_put_away_while_its_core_opens_leaves_no_note() {
 }
 
 #[test]
-fn last_launched_game_resumes_after_returning_to_the_selector() {
+fn menu_boot_restores_hover_without_launching() {
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     write_app_state(
         d.path(),
@@ -471,7 +471,8 @@ fn last_launched_game_resumes_after_returning_to_the_selector() {
     )
     .unwrap();
     let app = App::boot(d.path());
-    assert!(matches!(app.phase(), Phase::Inserting { cart, .. } if cart == "Fusion"));
+    assert!(matches!(app.phase(), Phase::Shelf));
+    assert_eq!(app.selected_stem(), Some("Fusion"));
     let mut state = read_app_state(d.path());
     state.resume_last = false;
     write_app_state(d.path(), &state).unwrap();
@@ -494,6 +495,6 @@ fn startup_crash_does_not_resurrect_the_failed_last_game_on_a_later_boot() {
     std::fs::write(d.path().join("Config/.starting"), "GBA/Fusion").unwrap();
     let failed = App::boot(d.path());
     assert!(matches!(failed.phase(), Phase::Shelf));
-    assert_eq!(read_app_state(d.path()).last_cart, None);
+    assert_eq!(read_app_state(d.path()).cart, None);
     assert!(matches!(App::boot(d.path()).phase(), Phase::Shelf));
 }

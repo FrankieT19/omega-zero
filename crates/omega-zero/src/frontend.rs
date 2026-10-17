@@ -311,6 +311,7 @@ impl Frontend {
 
     pub fn compose(&mut self, compositor: &mut Compositor) {
         compositor.set_blue_light(self.session.app().blue_light());
+        compositor.set_dim(self.session.app().dim_gain());
         compositor.set_shake(self.session.app().screen_shake());
         compositor.set_screen_power(self.session.app().screen_power());
         let platform = self.session.app().platform();
@@ -325,6 +326,8 @@ impl Frontend {
         let screen = crate::video_mode::screen_for(platform, self.session.app().video_mode, size);
         let (mode, strength, blend) = self.session.app().shader_settings();
         compositor.set_game_effect(mode, strength, blend);
+        let (shadow_x, shadow_y) = self.session.app().shader_shadow();
+        compositor.set_game_shadow(shadow_x, shadow_y);
         compositor.set_game_view(screen.view);
         compositor.set_still_view(screen.still);
         let picture = crate::video_mode::picture_rect(platform, screen.view);
