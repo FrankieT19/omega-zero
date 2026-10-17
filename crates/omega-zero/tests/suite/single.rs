@@ -58,6 +58,7 @@ fn two_carts_still_show_the_shelf_and_still_eject() {
 fn a_single_cart_that_will_not_load_falls_back_to_the_shelf() {
     let d = tmp_root_with_carts(&["Broken"]);
     let mut a = boot(d.path());
+    a.apply(Action::Insert);
     a.on_core_failed();
     for _ in 0..120 {
         a.update(1.0 / 60.0);

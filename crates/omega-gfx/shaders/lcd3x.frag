@@ -18,7 +18,7 @@ precision highp float;
 #else
 precision mediump float;
 #endif
-#define COMPAT_PRECISION mediump
+#define COMPAT_PRECISION highp
 #else
 #define COMPAT_PRECISION
 #endif

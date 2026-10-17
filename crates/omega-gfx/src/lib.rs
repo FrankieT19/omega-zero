@@ -11,6 +11,7 @@ mod host;
 mod lcd3x;
 mod pipeline;
 mod power;
+mod presets;
 mod quad;
 mod shaders;
 mod surface;
@@ -30,5 +31,3 @@ pub use power::{screen_brightness, screen_glow, screen_rect_in, screen_scale, sc
 pub use surface::{
     blit_rect, blit_rect_fit, fit_rect, fit_scale, panel_rect, GfxError, Rotation, Surface,
 };
-
-mod presets;

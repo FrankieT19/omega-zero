@@ -18,8 +18,10 @@ pub const FF_SPEED_DEFAULT: u8 = 6;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct AppState {
+    /// The selector hover saved at the last menu interaction or shutdown.
     pub last_cart: Option<String>,
     pub last_platform: Option<Platform>,
+    /// Legacy setting retained for old state files; active-game markers control resume.
     pub resume_last: bool,
     pub all_systems: bool,
     pub low_poly_labels: bool,
