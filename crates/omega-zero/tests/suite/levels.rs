@@ -17,7 +17,8 @@ fn levels_clamp_and_persist() {
     for _ in 0..20 {
         a.apply(Action::BrightnessDown);
     }
-    assert_eq!(read_app_state(d.path()).brightness, 0);
+    assert_eq!(read_app_state(d.path()).brightness, 1);
+    assert_eq!(read_app_state(d.path()).dim, 4);
 }
 
 #[test]

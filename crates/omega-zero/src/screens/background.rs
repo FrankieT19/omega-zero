@@ -29,7 +29,7 @@ pub fn background_face(view: &ListView, pal: &Palette) -> UndoFace {
         .first()
         .is_some_and(|r| r.label == crate::list_view::RowLabel::Setting("System"))
     {
-        "DISPLAY & STARTUP"
+        "DISPLAY"
     } else {
         TITLE
     };
@@ -96,11 +96,7 @@ impl App {
 
     pub fn shader_settings(&self) -> (u8, f32, f32) {
         let i = self.platform() as usize;
-        (
-            self.state.shaders[i],
-            self.state.mask_strength[i] as f32 / 10.0,
-            self.state.pixel_blend[i] as f32 / 10.0,
-        )
+        (self.state.shaders[i], 1.0, 1.0)
     }
 
     pub(crate) fn cycle_shader(&mut self) {
@@ -127,11 +123,11 @@ impl App {
                 return;
             }
             Action::GbaDown(Btn::Up) => {
-                screen.display_row = (screen.display_row + 6) % 7;
+                screen.display_row = (screen.display_row + 2) % 3;
                 return;
             }
             Action::GbaDown(Btn::Down) => {
-                screen.display_row = (screen.display_row + 1) % 7;
+                screen.display_row = (screen.display_row + 1) % 3;
                 return;
             }
             Action::GbaDown(Btn::Left) => false,
@@ -149,14 +145,7 @@ impl App {
         match screen.display_row {
             0 => screen.display_system = step(i as u8, 5) as usize,
             1 => self.state.shaders[i] = step(self.state.shaders[i], 8),
-            2 => self.state.mask_strength[i] = step(self.state.mask_strength[i], 11),
-            3 => self.state.pixel_blend[i] = step(self.state.pixel_blend[i], 11),
-            4 => self.state.resume_last = !self.state.resume_last,
-            5 => {
-                self.state.all_systems = !self.state.all_systems;
-                self.regroup_shelves();
-            }
-            6 => {
+            2 => {
                 self.state.low_poly_labels = !self.state.low_poly_labels;
                 self.stale_faces = self.carts().map(|c| (c.platform, c.stem.clone())).collect();
             }
@@ -183,16 +172,6 @@ impl App {
                     "Shader",
                     RowValue::Choice(omega_store::SHADER_NAMES[self.state.shaders[i] as usize]),
                 ),
-                row(
-                    "Mask",
-                    RowValue::Name(format!("{}%", self.state.mask_strength[i] * 10)),
-                ),
-                row(
-                    "Pixel blend",
-                    RowValue::Name(format!("{}%", self.state.pixel_blend[i] * 10)),
-                ),
-                row("Boot last game", RowValue::Setting(self.state.resume_last)),
-                row("All systems", RowValue::Setting(self.state.all_systems)),
                 row(
                     "Low poly labels",
                     RowValue::Setting(self.state.low_poly_labels),

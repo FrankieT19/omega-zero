@@ -558,20 +558,23 @@ impl App {
         }
         let seated = if fell.is_some() {
             fell
-        } else if !self.state.resume_last {
-            None
-        } else if self.single_cart() {
-            Some((self.shelf_at, 0))
         } else {
-            let stem = self.state.cart.clone().or_else(|| {
-                self.state
-                    .resume_last
-                    .then(|| self.state.last_cart.clone())
-                    .flatten()
-            });
-            let platform = self.state.cart_platform.or(self.state.last_platform);
-            stem.and_then(|stem| self.seat_of(&stem, platform))
+            self.state
+                .cart
+                .as_ref()
+                .and_then(|stem| self.seat_of(stem, self.state.cart_platform))
         };
+        if fell.is_none() {
+            if let Some((at, i)) = self
+                .state
+                .last_cart
+                .as_ref()
+                .and_then(|stem| self.seat_of(stem, self.state.last_platform))
+            {
+                self.shelf_at = at;
+                self.shelf_mut().select(i);
+            }
+        }
         self.phase = Phase::Shelf;
         let held = std::mem::take(&mut self.hold_resume);
         match seated {
@@ -635,8 +638,37 @@ impl App {
     }
 
     fn switch_shelf(&mut self, by: i32) {
-        let Some(to) = self.next_shelf(by) else {
-            return;
+        let nonempty: Vec<usize> = self
+            .shelves
+            .iter()
+            .enumerate()
+            .filter(|(_, (_, s))| !s.carts.is_empty())
+            .map(|(i, _)| i)
+            .collect();
+        let boundary = self.state.all_systems
+            || if by > 0 {
+                nonempty.last() == Some(&self.shelf_at)
+            } else {
+                nonempty.first() == Some(&self.shelf_at)
+            };
+        let to = if boundary {
+            self.state.all_systems = !self.state.all_systems;
+            self.regroup_shelves();
+            if self.state.all_systems {
+                0
+            } else if by > 0 {
+                self.shelves
+                    .iter()
+                    .position(|(_, s)| !s.carts.is_empty())
+                    .unwrap_or(0)
+            } else {
+                self.shelves
+                    .iter()
+                    .rposition(|(_, s)| !s.carts.is_empty())
+                    .unwrap_or(0)
+            }
+        } else {
+            self.next_shelf(by).unwrap_or(self.shelf_at)
         };
         self.shelf_mut().release_hold();
         self.play_held = None;
@@ -645,6 +677,7 @@ impl App {
         self.pill_letter = None;
         self.shelf_named = None;
         self.name_pending = true;
+        self.persist();
     }
 
     fn jump_letter(&mut self, dir: i32) {
@@ -662,6 +695,7 @@ impl App {
         if self.pill_letter != Some(letter) {
             self.shelf_platform = omega_ui::Printed::default();
         }
+        self.persist();
         self.pill_letter = Some(letter);
         self.shelf_named = None;
         self.name_pending = true;
@@ -781,8 +815,14 @@ impl App {
     }
 
     pub fn shelf_platform_name(&self) -> Option<&'static str> {
-        self.next_shelf(1)?;
-        Some(self.shelves[self.shelf_at].0.name())
+        if self.carts().next().is_none() {
+            return None;
+        }
+        Some(if self.state.all_systems {
+            "ALL SYSTEMS"
+        } else {
+            self.shelves[self.shelf_at].0.name()
+        })
     }
 
     /// Moves to the screen `to`, the one shown now sliding away as it comes in.
@@ -1028,7 +1068,7 @@ impl App {
     }
 
     pub fn set_power(&mut self, mut power: Power) {
-        power.set_backlight(self.state.brightness);
+        power.set_backlight(self.state.brightness.max(1));
         self.headphones = power.headphones();
         self.hud.set_headphones(self.headphones);
         let secs = power.now();
@@ -1252,9 +1292,13 @@ impl App {
                 Action::SelectTap => self.go(Phase::Controls, Dir::Deeper),
                 Action::GbaDown(Btn::Up) => self.jump_letter(-1),
                 Action::GbaDown(Btn::Down) => self.jump_letter(1),
-                Action::ShelfLeft | Action::GbaDown(Btn::Left) => self.shelf_mut().hold_left(now),
+                Action::ShelfLeft | Action::GbaDown(Btn::Left) => {
+                    self.shelf_mut().hold_left(now);
+                    self.persist();
+                }
                 Action::ShelfRight | Action::GbaDown(Btn::Right) => {
-                    self.shelf_mut().hold_right(now)
+                    self.shelf_mut().hold_right(now);
+                    self.persist();
                 }
                 Action::GbaDown(Btn::A) => self.play_held = Some(now),
                 Action::GbaUp(Btn::A) => {
@@ -1508,6 +1552,30 @@ impl App {
             self.hud.toast(said, self.now());
             return true;
         }
+        if matches!(action, Action::BrightnessDown | Action::BrightnessUp) {
+            let old = (self.state.brightness, self.state.dim);
+            if action == Action::BrightnessDown {
+                if self.state.brightness > 1 {
+                    self.state.brightness -= 1;
+                } else {
+                    self.state.brightness = 1;
+                    self.state.dim = (self.state.dim + 1).min(4);
+                }
+            } else if self.state.dim > 0 {
+                self.state.dim -= 1;
+            } else {
+                self.state.brightness = up(self.state.brightness.max(1), 1, BRIGHTNESS_MAX);
+            }
+            let shown = self.state.brightness.max(1) + 3 - self.state.dim;
+            self.hud.show(HudKind::Brightness, shown, false, self.now());
+            if let Some(power) = &mut self.power {
+                power.set_backlight(self.state.brightness.max(1));
+            }
+            if old != (self.state.brightness, self.state.dim) {
+                self.persist();
+            }
+            return true;
+        }
         let s = &self.state;
         let (kind, value) = match action {
             Action::BrightnessUp => (HudKind::Brightness, up(s.brightness, 1, BRIGHTNESS_MAX)),
@@ -1599,6 +1667,10 @@ impl App {
 
     pub fn blue_light(&self) -> u8 {
         self.state.blue_light
+    }
+
+    pub fn dim_gain(&self) -> f32 {
+        [1.0, 0.75, 0.5, 0.25, 0.125][self.state.dim.min(4) as usize]
     }
 
     pub fn brightness(&self) -> u8 {
@@ -1705,10 +1777,14 @@ impl App {
         // the shelf keeps swaying while it slides away or back
         if self.shelf_shown() {
             let picking = self.core_picker.is_some();
+            let before = self.shelf().index;
             let shelf = self.shelf_mut();
             shelf.tick(now);
             shelf.hold_still(picking);
             shelf.update(dt);
+            if self.shelf().index != before {
+                self.persist();
+            }
         }
         if self.slide.as_ref().is_some_and(|s| s.over(now)) {
             self.slide = None;
@@ -1900,7 +1976,12 @@ impl App {
         let Some(root) = &self.root else {
             return;
         };
-        if let Err(e) = write_app_state(root, &self.state) {
+        let mut state = self.state.clone();
+        if let Some(cart) = self.shelf().carts.get(self.shelf().index) {
+            state.last_cart = Some(cart.stem.clone());
+            state.last_platform = Some(cart.platform);
+        }
+        if let Err(e) = write_app_state(root, &state) {
             eprintln!("omega-zero: omega-zero.state: {e}");
         }
     }

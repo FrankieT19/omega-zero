@@ -60,12 +60,12 @@ struct Sharp {
     u_glow: gl::types::GLint,
     u_uv: gl::types::GLint,
     u_scale: gl::types::GLint,
-    u_effect: gl::types::GLint,
     /// The size of the texture drawn, in texels.
     u_src: gl::types::GLint,
 }
 
 pub struct GamePass {
+    presets: std::cell::RefCell<crate::presets::Presets>,
     lcd: Lcd,
     sharp: Sharp,
     game: gl::types::GLuint,
@@ -102,10 +102,10 @@ impl GamePass {
             gl::Uniform2f(uniform(lcd, "u_target"), out_w() as f32, out_h() as f32);
             gl::UseProgram(sharp);
             gl::Uniform1i(uniform(sharp, "u_game"), 0);
-            gl::Uniform1i(uniform(sharp, "u_mask"), 1);
             gl::Uniform2f(uniform(sharp, "u_target"), out_w() as f32, out_h() as f32);
         }
         Ok(GamePass {
+            presets: std::cell::RefCell::new(crate::presets::Presets::new()?),
             lcd: Lcd {
                 prog: lcd,
                 u_rect: uniform(lcd, "u_rect"),
@@ -121,7 +121,6 @@ impl GamePass {
                 u_glow: uniform(sharp, "u_glow"),
                 u_uv: uniform(sharp, "u_uv"),
                 u_scale: uniform(sharp, "u_scale"),
-                u_effect: uniform(sharp, "u_effect"),
                 u_src: uniform(sharp, "u_src"),
             },
             game,
@@ -222,6 +221,12 @@ impl GamePass {
     }
 
     fn draw_source(&self, tex: gl::types::GLuint, src: (u32, u32), quad: &Quad, view: GameView) {
+        if let Some((mode @ 1..=7, _, _)) = self.effect {
+            self.presets
+                .borrow_mut()
+                .draw(mode, tex, src, view, self.power, quad);
+            return;
+        }
         let mut view = view;
         if self.effect.is_some_and(|(mode, strength, _)| {
             mode != 2 || strength < 1.0 || view.filter != Filter::Lcd3x
@@ -251,8 +256,6 @@ impl GamePass {
             },
             Filter::Sharp => unsafe {
                 gl::UseProgram(self.sharp.prog);
-                let (mode, strength, blend) = self.effect.unwrap_or((0, 0.0, 0.0));
-                gl::Uniform3f(self.sharp.u_effect, mode as f32, strength, blend);
                 gl::Uniform4f(self.sharp.u_rect, x, y, w, h);
                 gl::Uniform4f(self.sharp.u_uv, uv[0], uv[1], uv[2], uv[3]);
                 gl::Uniform2f(self.sharp.u_src, src_w, src_h);

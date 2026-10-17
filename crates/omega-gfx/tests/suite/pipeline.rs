@@ -11,7 +11,7 @@ static GL: Mutex<()> = Mutex::new(());
 fn compositor() -> Option<(MutexGuard<'static, ()>, HeadlessSurface, Compositor)> {
     let guard = GL.lock().unwrap_or_else(PoisonError::into_inner);
     let surface = HeadlessSurface::new().ok()?;
-    let compositor = Compositor::new(&surface).ok()?;
+    let compositor = Compositor::new(&surface).expect("shader programs must compile");
     Some((guard, surface, compositor))
 }
 
@@ -37,16 +37,12 @@ fn selectable_masks_and_pixel_transparency_change_the_rendered_picture() {
     c.begin_frame();
     c.draw_game();
     let clean = c.read_frame();
-    for mode in 1..=3 {
+    for mode in 1..=7 {
         c.set_game_effect(mode, 1.0, 0.5);
         c.begin_frame();
         c.draw_game();
         assert_ne!(c.read_frame(), clean, "mask {mode} did not render");
     }
-    c.set_game_effect(1, 0.0, 0.5);
-    c.begin_frame();
-    c.draw_game();
-    assert_eq!(c.read_frame(), clean, "zero mask strength should be clean");
     let mut dither = flat_shot([255; 3]);
     for (i, pixel) in dither.chunks_exact_mut(4).enumerate() {
         if i % 2 == 0 {

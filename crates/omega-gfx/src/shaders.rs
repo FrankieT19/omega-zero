@@ -183,8 +183,6 @@ uniform sampler2D u_game;
 uniform vec2 u_src;
 uniform vec4 u_uv;
 uniform vec2 u_scale;
-uniform vec3 u_effect;
-uniform sampler2D u_mask;
 uniform float u_bright;
 uniform float u_glow;
 varying vec2 v_uv;
@@ -194,27 +192,6 @@ void main() {
     vec2 region = 0.5 - 0.5 / u_scale;
     vec2 f = (from_centre - clamp(from_centre, -region, region)) * u_scale + 0.5;
     vec3 rgb = texture2D(u_game, (floor(texel) + f) / u_src).rgb;
-    float mode = u_effect.x;
-    float base = mode;
-    if (mode >= 4.0) {
-        // Spatial blending smooths alternating pixels used for faux transparency.
-        vec2 uv = (floor(texel) + vec2(0.5)) / u_src;
-        vec3 beside = (texture2D(u_game, uv + vec2(1.0 / u_src.x, 0.0)).rgb
-                     + texture2D(u_game, uv - vec2(1.0 / u_src.x, 0.0)).rgb) * 0.5;
-        rgb = mix(rgb, beside, u_effect.z * 0.5);
-        base = mode - 4.0;
-    }
-    vec2 cell = fract(texel);
-    vec3 mask = vec3(1.0);
-    if (base > 0.5 && base < 1.5) {
-        mask = vec3(0.75 + 0.25 * step(0.33, cell.x), 1.0, 1.0 - 0.25 * step(0.67, cell.x));
-    } else if (base > 1.5 && base < 2.5) {
-        mask = texture2D(u_mask, texel).rgb;
-    } else if (base > 2.5) {
-        vec2 width = min(vec2(0.22), 0.65 / u_scale);
-        mask *= 0.7 + 0.3 * smoothstep(0.0, width.x, cell.x) * smoothstep(0.0, width.y, cell.y);
-    }
-    rgb *= mix(vec3(1.0), mask, u_effect.y);
     FRAG_COLOR = vec4(mix(rgb * u_bright, vec3(1.0), u_glow), 1.0);
 }
 "#;

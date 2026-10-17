@@ -29,6 +29,7 @@ pub struct AppState {
     pub cart: Option<String>,
     pub cart_platform: Option<Platform>,
     pub brightness: u8,
+    pub dim: u8,
     pub blue_light: u8,
     pub volume: u8,
     pub volume_hp: u8,
@@ -73,6 +74,7 @@ impl Default for AppState {
             cart: None,
             cart_platform: None,
             brightness: 5,
+            dim: 0,
             blue_light: 0,
             volume: 60,
             volume_hp: 60,
@@ -140,6 +142,7 @@ pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
         s.all_systems as u8,
         s.low_poly_labels as u8
     ));
+    text.push_str(&format!("dim={}\n", s.dim));
     for i in 0..5 {
         text.push_str(&format!(
             "shader_{i}={}\nmask_{i}={}\nblend_{i}={}\n",
@@ -177,6 +180,7 @@ fn parse(text: &str) -> Option<AppState> {
             continue;
         };
         match key {
+            "dim" => extra.dim = level(value, 4).unwrap_or(0),
             "last_cart" => extra.last_cart = (!value.is_empty()).then(|| value.to_string()),
             "last_platform" => extra.last_platform = platform_value(value),
             "resume_last" => extra.resume_last = flag(value).unwrap_or(true),

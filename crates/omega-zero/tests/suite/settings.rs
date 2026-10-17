@@ -678,14 +678,13 @@ fn mixed_carousel_preserves_system_identity_and_uploaded_faces() {
     let gba = app.face_of(omega_store::Platform::Gba, "Emerald");
     let gb = app.face_of(omega_store::Platform::Gb, "Emerald");
     assert_ne!(gba, gb);
-    display_at(&mut app, 5);
-    press(&mut app, Btn::Right);
+    press(&mut app, Btn::L1);
     assert_eq!(app.pill_text().as_deref(), Some("ALL SYSTEMS"));
     assert_eq!(app.face_of(omega_store::Platform::Gba, "Emerald"), gba);
     assert_eq!(app.face_of(omega_store::Platform::Gb, "Emerald"), gb);
     assert_eq!(app.carts().count(), 3);
     assert!(read_app_state(d.path()).all_systems);
-    press(&mut app, Btn::Right);
+    press(&mut app, Btn::R1);
     assert_eq!(app.face_of(omega_store::Platform::Gb, "Emerald"), gb);
     assert!(!read_app_state(d.path()).all_systems);
 }
@@ -717,7 +716,42 @@ fn blue_light_hotkey_wraps_and_low_poly_labels_setting_survives_boot() {
         app.apply(Action::BlueLightDown);
     }
     assert_eq!(app.blue_light(), 0);
-    display_at(&mut app, 6);
+    display_at(&mut app, 2);
     press(&mut app, Btn::Right);
     assert!(App::boot(d.path()).low_poly_labels());
+}
+
+#[test]
+fn mixed_carousel_and_hover_survive_menu_poweroff() {
+    let (d, mut app, _) = on_carousel();
+    press(&mut app, Btn::L1);
+    press(&mut app, Btn::Right);
+    let selected = app.selected_stem().unwrap().to_string();
+    let app = App::boot(d.path());
+    assert!(matches!(app.phase(), Phase::Shelf));
+    assert_eq!(app.pill_text().as_deref(), Some("ALL SYSTEMS"));
+    assert_eq!(app.selected_stem(), Some(selected.as_str()));
+}
+
+#[test]
+fn software_dimming_extends_hardware_minimum_and_is_saved() {
+    let (d, mut app, _) = on_carousel();
+    for _ in 0..4 {
+        app.apply(Action::BrightnessDown);
+    }
+    assert_eq!(app.brightness(), 1);
+    for gain in [0.75, 0.5, 0.25, 0.125] {
+        app.apply(Action::BrightnessDown);
+        assert_eq!(app.dim_gain(), gain);
+        assert_eq!(app.brightness(), 1);
+        assert_eq!(App::boot(d.path()).dim_gain(), gain);
+    }
+    app.apply(Action::BrightnessDown);
+    assert_eq!(app.dim_gain(), 0.125);
+    for gain in [0.25, 0.5, 0.75, 1.0] {
+        app.apply(Action::BrightnessUp);
+        assert_eq!(app.dim_gain(), gain);
+    }
+    app.apply(Action::BrightnessUp);
+    assert_eq!(app.brightness(), 2);
 }

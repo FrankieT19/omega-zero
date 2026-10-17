@@ -90,7 +90,7 @@ impl HudKind {
 
     fn max(self) -> u8 {
         match self {
-            HudKind::Brightness => BRIGHTNESS_MAX,
+            HudKind::Brightness => BRIGHTNESS_MAX + 3,
             HudKind::BlueLight => BLUE_LIGHT_MAX,
             HudKind::Volume => VOLUME_MAX,
             HudKind::Rewind => 100,
