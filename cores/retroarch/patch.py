@@ -14,7 +14,30 @@ unsigned omega_flags = 0;
 static void command_parse_sub_msg(command_t *handle, const char *tok)''')
 replace('command.c', '   handle->error   = false;', '''   handle->error   = false;
    if (sscanf(tok, "OMEGA_INPUT %x %u", &omega_pad, &omega_flags) == 2)
-      return;''')
+      return;
+   if (strncmp(tok, "OMEGA_PARAM ", 12) == 0)
+   {
+      char name[64]; float value; video_shader_ctx_t current;
+      if (sscanf(tok + 12, "%63s %f", name, &value) == 2
+            && video_shader_driver_get_current_shader(&current) && current.data)
+      {
+         unsigned n;
+         for (n = 0; n < current.data->num_parameters; n++)
+         {
+            struct video_shader_parameter *p = &current.data->parameters[n];
+            if (strcmp(p->id, name) == 0)
+               video_shader_param_set(p, value < p->minimum ? p->minimum :
+                  value > p->maximum ? p->maximum : value);
+         }
+      }
+      return;
+   }
+   if (strncmp(tok, "OMEGA_VOLUME ", 13) == 0)
+   {
+      float db = (float)atof(tok + 13);
+      command_event_set_volume(config_get_ptr(), db, false, false);
+      return;
+   }''')
 # Hold flags remain active between stdin polls. Standard commands remain unchanged.
 replace('input/input_driver.c', 'static void *input_null_init', '''extern unsigned omega_pad;
 extern unsigned omega_flags;
@@ -43,6 +66,37 @@ replace('input/input_driver.c', '         && input_st->command[j]->state[i])', '
 replace('input/input_driver.c', '            if (input_st->command[j]->state[i])', '''            if (input_st->command[j]->state[i]
                 || (i == RARCH_FAST_FORWARD_HOLD_KEY && (omega_flags & 1))
                 || (i == RARCH_REWIND && (omega_flags & 2)))''')
+replace('input/input_driver.c', 'static input_device_driver_t null_joypad = {', r"""
+static void *omega_joy_init(void *data) { return (void*)-1; }
+static bool omega_joy_query(unsigned port) { return port == 0; }
+static void omega_joy_destroy(void) { }
+static int32_t omega_joy_button(unsigned port, uint16_t id) { return port == 0 && id < 16 ? ((omega_pad >> id) & 1) : 0; }
+static int16_t omega_joy_state(rarch_joypad_info_t *info, const uint16_t *keys, const uint32_t *axes, unsigned port) {
+   unsigned n; uint16_t mask = 0;
+   for (n = 0; n < 16; n++) if (omega_joy_button(port, keys[n])) mask |= 1u << n;
+   return (int16_t)mask;
+}
+static void omega_joy_buttons(unsigned port, input_bits_t *state) {
+   unsigned n; BIT256_CLEAR_ALL_PTR(state);
+   for (n=0;n<16;n++) if (omega_joy_button(port,n)) BIT256_SET_PTR(state,n);
+}
+static int16_t omega_joy_axis(unsigned port, uint32_t axis) { return 0; }
+static void omega_joy_poll(void) { }
+static bool omega_joy_rumble(unsigned port, enum retro_rumble_effect effect, uint16_t strength) {
+   static uint16_t motors[2] = {0,0};
+   if (port || effect > RETRO_RUMBLE_WEAK) return false;
+   motors[effect] = strength;
+   printf("OMEGA_RUMBLE %u\n", motors[0] > motors[1] ? motors[0] : motors[1]); fflush(stdout);
+   return true;
+}
+static const char *omega_joy_name(unsigned port) { return "omega-zero"; }
+static input_device_driver_t omega_joypad = {
+   omega_joy_init, omega_joy_query, omega_joy_destroy, omega_joy_button,
+   omega_joy_state, omega_joy_buttons, omega_joy_axis, omega_joy_poll,
+   omega_joy_rumble, NULL, NULL, NULL, omega_joy_name, "omega"
+};
+static input_device_driver_t null_joypad = {""")
+replace('input/input_driver.c', 'input_device_driver_t *joypad_drivers[] = {', 'input_device_driver_t *joypad_drivers[] = {\n   &omega_joypad,')
 # The context advertised GLSL alone even when it created an ES3 context for glcore.
 replace('gfx/drivers_context/mali_fbdev_ctx.c', '   BIT32_SET(flags, GFX_CTX_FLAGS_SHADERS_GLSL);', '''   BIT32_SET(flags, GFX_CTX_FLAGS_SHADERS_GLSL);
    if (mali_flags & GFX_CTX_MALI_FBDEV_FLAG_GLES3)
