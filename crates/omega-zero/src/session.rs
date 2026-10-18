@@ -169,7 +169,13 @@ impl Session {
         for ev in events {
             use omega_input::{Btn, RawEvent};
             match ev {
-                RawEvent::Down(btn) if btn != Btn::Lid => self.held_inputs |= 1 << btn as u8,
+                RawEvent::Down(btn) if btn != Btn::Lid => {
+                    let bit = 1 << btn as u8;
+                    if self.held_inputs & bit != 0 {
+                        continue;
+                    }
+                    self.held_inputs |= bit;
+                }
                 RawEvent::Up(btn) => self.held_inputs &= !(1 << btn as u8),
                 _ => {}
             }

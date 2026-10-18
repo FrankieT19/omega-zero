@@ -321,6 +321,7 @@ pub struct App {
     pub(crate) act_at: Millis,
     pub(crate) root: Option<PathBuf>,
     pub(crate) state: AppState,
+    state_writer: Option<crate::state_writer::StateWriter>,
     pub(crate) vol_before: Vec<(u8, bool, Millis)>,
     pub(crate) snapshot: Option<Box<dyn Snapshot>>,
     pub(crate) core: Core,
@@ -486,6 +487,7 @@ impl App {
             act_at: 0,
             root: None,
             state: AppState::default(),
+            state_writer: None,
             vol_before: Vec::new(),
             snapshot: None,
             core: Core::default(),
@@ -535,6 +537,10 @@ impl App {
         omega_ui::set_theme(Theme::read(root));
         let mut app = App::new(scan(root).unwrap_or_default());
         app.root = Some(root.to_path_buf());
+        #[cfg(feature = "device")]
+        {
+            app.state_writer = crate::state_writer::StateWriter::new(root.to_path_buf()).ok();
+        }
         app.theme = Theme::read_override(root);
         app.state = read_app_state(root);
         app.regroup_shelves();
@@ -735,7 +741,7 @@ impl App {
         self.pill_letter = None;
         self.shelf_named = None;
         self.name_pending = true;
-        self.persist();
+        self.persist_hover();
     }
 
     fn jump_letter(&mut self, dir: i32) {
@@ -753,7 +759,7 @@ impl App {
         if self.pill_letter != Some(letter) {
             self.shelf_platform = omega_ui::Printed::default();
         }
-        self.persist();
+        self.persist_hover();
         self.pill_letter = Some(letter);
         self.shelf_named = None;
         self.name_pending = true;
@@ -1368,13 +1374,13 @@ impl App {
             Action::GbaUp(Btn::Left) => {
                 self.shelf_mut().release_left();
                 if self.on_shelf() {
-                    self.persist();
+                    self.persist_hover();
                 }
             }
             Action::GbaUp(Btn::Right) => {
                 self.shelf_mut().release_right();
                 if self.on_shelf() {
-                    self.persist();
+                    self.persist_hover();
                 }
             }
             _ => {}
@@ -1401,11 +1407,11 @@ impl App {
                 Action::GbaDown(Btn::Down) => self.jump_letter(1),
                 Action::ShelfLeft | Action::GbaDown(Btn::Left) => {
                     self.shelf_mut().hold_left(now);
-                    self.persist();
+                    self.persist_hover();
                 }
                 Action::ShelfRight | Action::GbaDown(Btn::Right) => {
                     self.shelf_mut().hold_right(now);
-                    self.persist();
+                    self.persist_hover();
                 }
                 Action::GbaDown(Btn::A) => self.play_held = Some(now),
                 Action::GbaUp(Btn::A) => {
@@ -2086,16 +2092,32 @@ impl App {
         self.persist();
     }
 
-    pub(crate) fn persist(&self) {
-        let Some(root) = &self.root else {
-            return;
-        };
+    fn saved_state(&self) -> AppState {
         let mut state = self.state.clone();
         if let Some(cart) = self.shelf().carts.get(self.shelf().index) {
             state.last_cart = Some(cart.stem.clone());
             state.last_platform = Some(cart.platform);
         }
-        if let Err(e) = write_app_state(root, &state) {
+        state
+    }
+    fn persist_hover(&self) {
+        if let Some(writer) = &self.state_writer {
+            writer.hover(self.saved_state());
+        } else {
+            self.persist();
+        }
+    }
+    pub(crate) fn persist(&self) {
+        let Some(root) = &self.root else {
+            return;
+        };
+        let state = self.saved_state();
+        let result = if let Some(writer) = &self.state_writer {
+            writer.durable(state)
+        } else {
+            write_app_state(root, &state)
+        };
+        if let Err(e) = result {
             eprintln!("omega-zero: omega-zero.state: {e}");
         }
     }

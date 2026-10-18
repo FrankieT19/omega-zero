@@ -1,14 +1,20 @@
-// Dark final third of each source-pixel cell: exact 2x2 lit + black separators at 3x.
-// GB/GBC Stretch overrides RasterSize to preserve a physical three-pixel panel grid.
+// Slang LCD mask factors are cached by lcd_mask.rs; upstream sources retain attribution.
 #ifdef GL_ES
 precision highp float;
 #endif
-uniform sampler2D Texture;
-uniform vec2 RasterSize, OutputSize;
+uniform sampler2D Texture, Mask;
 uniform vec4 u_crop;
+uniform vec2 FullSourceSize;
+uniform float u_lcd_darkness, u_post, u_saturation, u_bright, u_glow;
 varying vec4 TEX0;
 void main() {
-    vec2 cell = mod(gl_FragCoord.xy, OutputSize/RasterSize)/(OutputSize/RasterSize);
-    if (cell.x >= 0.6666667 || cell.y >= 0.6666667) { FRAG_COLOR=vec4(0.0,0.0,0.0,1.0); return; }
-    FRAG_COLOR=vec4(palette_rgb(texture2D(Texture,u_crop.xy+TEX0.xy*u_crop.zw).rgb,u_palette),1.0);
+    vec2 p=floor((u_crop.xy+TEX0.xy*u_crop.zw)*FullSourceSize);
+    vec3 rgb=palette_rgb(texture2D(Texture,(p+0.5)/FullSourceSize).rgb,u_palette);
+    vec3 mask=texture2D(Mask,TEX0.xy).rgb;
+    rgb*=mask;
+    if (u_post>0.5) {
+        rgb=mix(vec3(dot(rgb,vec3(0.299,0.587,0.114))),rgb,u_saturation);
+        rgb=mix(rgb*u_bright,vec3(1.0),u_glow);
+    }
+    FRAG_COLOR=vec4(rgb,1.0);
 }

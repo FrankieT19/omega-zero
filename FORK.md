@@ -92,3 +92,14 @@ Gambatte palette definitions: https://github.com/libretro/gambatte-libretro/blob
 - SNES Integer / Fit 4:3 / Stretch is global. Changing it in the in-game Picture menu updates the same system preference as Display settings. Old per-game SNES scaling overrides are ignored; crop/zoom remain per-game. PS1 per-game scaling remains available.
 
 Device compilation, GLES2 linking, both landscape render suites and the ARM64 package/native-core smoke checks validate this change. Real RG SP visual quality, power behavior and the Crash Team Racing exit reproduction need hardware confirmation.
+
+
+## v6: compiled Slang LCDs and shared navigation recovery
+
+- LCD1x/LCD3x now originate from the unmodified, pinned Libretro Slang files. `scripts/compile-lcd-slang.py` runs glslang (`-V -Os`) and SPIRV-Cross (`--es --version 100`), with only GL output/version bindings changed afterward. Generated files and source hashes are included. This is Slang cross-compilation for the existing GLES2 renderer, not a Vulkan backend or a general runtime Slang preset loader.
+- The real compiled Slang shader is evaluated on white to cache its colour-modulation coefficients. Plain LCD1x/LCD3x and Grid then use one nearest-sampled drawing pass, with no per-frame trigonometry or extra viewport copy. Pixel Transparency retains its required pass ordering. An independent GPU test compares actual game pixels rendered by the original compiled shader against this cached path. The mask cache interpolates coefficients only; game pixels are explicitly fetched at nearest texel centres. LCD darkness 100% uses the original defaults. Edge smoothing and its stored preference are removed.
+- Console masks use a source-anchored 3x cell pattern warped with the game, including fractional crop/zoom origins, rather than independently stretching a screen grid. GB/GBC Stretch retains its fixed panel raster. At fractional display scales some physical columns/rows necessarily repeat or disappear, but the pattern follows the same source-pixel boundaries as the picture.
+- The Inactivity row and panel are now named **Sleep**, retaining separate menu/game settings.
+- Navigation no longer fsyncs on the main thread on the device: a single ordered writer coalesces hover updates. Settings, launch/save and normal lid/power shutdown use a durable fence through the same queue, so older hover writes cannot overwrite newer state. This addresses a shared source of stalls affecting GBA as well as PS1, rather than assuming a CTR-only defect. Repeated Down reports for an already-held button are discarded before gesture processing. Existing stable springs and exit cleanup remain.
+
+The changed rendering pipeline, speaker buzz and reported persistent navigation fault need verification on the actual RG SP. Passing software tests alone does not establish the hardware causes of those symptoms.

@@ -942,19 +942,6 @@ fn brightness_hardware_and_dimming_steps_map_to_all_thirteen_hud_cells() {
 }
 
 #[test]
-fn lcd_edge_smoothing_is_optional_and_saved_per_system() {
-    let (d, mut app, _) = on_carousel();
-    display_at(&mut app, 8);
-    press(&mut app, Btn::Right);
-    assert!(app.lcd_aa());
-    app.set_platform(omega_store::Platform::Snes);
-    assert!(!app.lcd_aa());
-    assert_eq!(
-        read_app_state(d.path()).lcd_aa,
-        [true, false, false, false, false]
-    );
-}
-#[test]
 fn inactivity_menu_saves_separate_menu_and_game_timings() {
     let (d, mut app, _) = on_carousel();
     open_at(&mut app, SettingsRow::Inactivity);

@@ -305,7 +305,10 @@ impl Frontend {
         self.session.app().picture_adjust.apply(&mut screen.still);
         let (mode, strength, blend) = self.session.app().shader_settings();
         compositor.set_game_effect(mode, strength, blend);
-        compositor.set_lcd_aa(self.session.app().lcd_aa());
+        compositor.set_source_grid(matches!(
+            platform,
+            omega_store::Platform::Snes | omega_store::Platform::Ps1
+        ));
         compositor.set_lcd_darkness(self.session.app().lcd_darkness());
         let (shadow_x, shadow_y) = self.session.app().shader_shadow();
         compositor.set_game_shadow(shadow_x, shadow_y);
