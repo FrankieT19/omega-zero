@@ -2,12 +2,13 @@
 #ifdef GL_ES
 precision highp float;
 #endif
+uniform vec2 RasterSize;
 uniform sampler2D Texture;
 uniform sampler2D OrigTexture;
 uniform vec4 u_crop;
 uniform vec4 u_orig_crop;
-vec4 input_sample(vec2 uv) { return texture2D(Texture, u_crop.xy + clamp(uv,0.0,1.0)*u_crop.zw); }
-vec4 original_sample(vec2 uv) { return texture2D(OrigTexture, u_orig_crop.xy + clamp(uv,0.0,1.0)*u_orig_crop.zw); }
+vec4 input_sample(vec2 uv) { return vec4(palette_rgb(texture2D(Texture, u_crop.xy + clamp(uv,0.0,1.0)*u_crop.zw).rgb,u_palette),1.0); }
+vec4 original_sample(vec2 uv) { return vec4(palette_rgb(texture2D(OrigTexture, u_orig_crop.xy + clamp(uv,0.0,1.0)*u_orig_crop.zw).rgb,u_orig_palette),1.0); }
 
 
 
@@ -51,7 +52,7 @@ const vec3 offsets = vec3(3.141592654) * vec3(1.0/2.0,1.0/2.0 - 2.0/3.0,1.0/2.0-
 
 void main()
 {
-    vec2 omega = vec2(3.141592654) * vec2(2.0) * OrigInputSize;
+    vec2 omega = vec2(3.141592654) * vec2(2.0) * RasterSize;
     vec3 res = input_sample( vTexCoord).xyz;
 
     vec2 angle = vTexCoord * TextureSize / InputSize * omega;

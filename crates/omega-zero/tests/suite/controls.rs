@@ -133,6 +133,7 @@ fn controls_says_what_the_shelf_and_a_gba_game_do_with_each_button() {
             ("SELECT+▲▼", "BRIGHTNESS"),
             ("SELECT+◀", "BLUE LIGHT"),
             ("SELECT+▶", "SHADER"),
+            ("SELECT+X", "CROP / ZOOM"),
             ("SELECT+L1", "LOAD STATE"),
             ("SELECT+R1", "SAVE STATE"),
             ("SELECT+Y", "COLOUR"),
@@ -157,6 +158,7 @@ fn a_game_boy_has_no_core_to_pick_and_leaves_l1_and_r1_to_the_picture() {
             ("SELECT+MENU", "LINK"),
             ("SELECT+Y", "COLOUR"),
             ("L1 R1", "PICTURE SIZE"),
+            ("SELECT+B", "PALETTE"),
         ] {
             assert!(game.contains(&line), "{platform:?} has no {line:?}");
         }
@@ -178,6 +180,7 @@ fn a_snes_game_rewinds_and_fast_forwards_but_neither_links_nor_corrects_colour()
             ("SELECT+▲▼", "BRIGHTNESS"),
             ("SELECT+◀", "BLUE LIGHT"),
             ("SELECT+▶", "SHADER"),
+            ("SELECT+X", "CROP / ZOOM"),
             ("SELECT+L1", "LOAD STATE"),
             ("SELECT+R1", "SAVE STATE"),
             ("VOL+ VOL-", "MUTE"),
@@ -201,6 +204,7 @@ fn a_playstation_game_fast_forwards_on_select_r2_and_swaps_discs() {
             ("SELECT+▲▼", "BRIGHTNESS"),
             ("SELECT+◀", "BLUE LIGHT"),
             ("SELECT+▶", "SHADER"),
+            ("SELECT+X", "CROP / ZOOM"),
             ("SELECT+L1", "LOAD STATE"),
             ("SELECT+R1", "SAVE STATE"),
             ("VOL+ VOL-", "MUTE"),

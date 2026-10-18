@@ -84,8 +84,14 @@ fn uniform(prog: gl::types::GLuint, name: &str) -> gl::types::GLint {
 
 impl GamePass {
     pub fn new() -> Result<Self, GfxError> {
-        let lcd = crate::shaders::program(RECT_VERT, GAME_FRAG)?;
-        let sharp = crate::shaders::program(RECT_VERT, GAME_SHARP_FRAG)?;
+        let lcd = crate::shaders::program(
+            RECT_VERT,
+            &format!("{}\n{}", crate::shaders::GAME_PALETTE, GAME_FRAG),
+        )?;
+        let sharp = crate::shaders::program(
+            RECT_VERT,
+            &format!("{}\n{}", crate::shaders::GAME_PALETTE, GAME_SHARP_FRAG),
+        )?;
         let game = crate::gl::texture(SRC_W, SRC_H, gl::NEAREST, gl::CLAMP_TO_EDGE, gl::BGRA, None);
         let mask = crate::gl::texture(
             3,
@@ -131,6 +137,13 @@ impl GamePass {
             view: None,
             still: None,
         })
+    }
+
+    pub fn set_display(&mut self, saturation: f32, panel_raster: bool, palette: u8) {
+        let mut presets = self.presets.borrow_mut();
+        presets.saturation = saturation.clamp(0.0, 2.0);
+        presets.panel_raster = panel_raster;
+        presets.palette = palette.min(4);
     }
 
     pub fn set_shadow(&mut self, x: f32, y: f32) {
@@ -247,6 +260,14 @@ impl GamePass {
         match view.filter {
             Filter::Lcd3x => unsafe {
                 gl::UseProgram(self.lcd.prog);
+                gl::Uniform1f(
+                    uniform(self.lcd.prog, "u_palette"),
+                    self.presets.borrow().palette as f32,
+                );
+                gl::Uniform1f(
+                    uniform(self.lcd.prog, "u_saturation"),
+                    self.presets.borrow().saturation,
+                );
                 gl::Uniform4f(self.lcd.u_rect, x, y, w, h);
                 gl::Uniform4f(self.lcd.u_uv, uv[0], uv[1], uv[2], uv[3]);
                 gl::Uniform2f(
@@ -264,6 +285,14 @@ impl GamePass {
             },
             Filter::Sharp => unsafe {
                 gl::UseProgram(self.sharp.prog);
+                gl::Uniform1f(
+                    uniform(self.sharp.prog, "u_palette"),
+                    self.presets.borrow().palette as f32,
+                );
+                gl::Uniform1f(
+                    uniform(self.sharp.prog, "u_saturation"),
+                    self.presets.borrow().saturation,
+                );
                 gl::Uniform4f(self.sharp.u_rect, x, y, w, h);
                 gl::Uniform4f(self.sharp.u_uv, uv[0], uv[1], uv[2], uv[3]);
                 gl::Uniform2f(self.sharp.u_src, src_w, src_h);

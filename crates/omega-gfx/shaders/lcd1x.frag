@@ -2,12 +2,13 @@
 #ifdef GL_ES
 precision highp float;
 #endif
+uniform vec2 RasterSize;
 uniform sampler2D Texture;
 uniform sampler2D OrigTexture;
 uniform vec4 u_crop;
 uniform vec4 u_orig_crop;
-vec4 input_sample(vec2 uv) { return texture2D(Texture, u_crop.xy + clamp(uv,0.0,1.0)*u_crop.zw); }
-vec4 original_sample(vec2 uv) { return texture2D(OrigTexture, u_orig_crop.xy + clamp(uv,0.0,1.0)*u_orig_crop.zw); }
+vec4 input_sample(vec2 uv) { return vec4(palette_rgb(texture2D(Texture, u_crop.xy + clamp(uv,0.0,1.0)*u_crop.zw).rgb,u_palette),1.0); }
+vec4 original_sample(vec2 uv) { return vec4(palette_rgb(texture2D(OrigTexture, u_orig_crop.xy + clamp(uv,0.0,1.0)*u_orig_crop.zw).rgb,u_orig_palette),1.0); }
 
 
 
@@ -50,7 +51,7 @@ void main()
    // > Note the 0.25 pixel offset -> required to ensure that
    //   scanlines occur *between* pixels
    COMPAT_PRECISION vec2 angle =
-      2.0 * PI * ((TEX0.xy * OrigInputSize * TextureSize / InputSize) - 0.25);
+      2.0 * PI * ((TEX0.xy * RasterSize * TextureSize / InputSize) - 0.25);
 
    COMPAT_PRECISION float yfactor = (BRIGHTEN_SCANLINES + sin(angle.y)) / (BRIGHTEN_SCANLINES + 1.0);
    COMPAT_PRECISION float xfactor = (BRIGHTEN_LCD + sin(angle.x)) / (BRIGHTEN_LCD + 1.0);

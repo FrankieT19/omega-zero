@@ -2346,3 +2346,41 @@ fn switching_shelves_drops_the_letter_for_the_new_system() {
     tap(&mut a, Btn::R1);
     assert_eq!(a.pill_text().as_deref(), Some("GB"));
 }
+
+#[test]
+fn picture_popup_saves_crop_and_zoom_per_game_and_resets() {
+    let d = common::tmp_root_with_carts(&["Emerald", "Fusion"]);
+    let mut a = common::app_playing_in(d.path(), "Emerald");
+    a.apply(Action::PictureMenu);
+    assert!(a.picture_menu_open());
+    a.apply(Action::GbaDown(Btn::Right));
+    a.apply(Action::GbaDown(Btn::Down));
+    a.apply(Action::GbaDown(Btn::Right));
+    assert_eq!(
+        omega_store::ini::value(d.path(), "Config/picture.ini", "GBA/Emerald").as_deref(),
+        Some("105,1,0,0,0")
+    );
+    a.apply(Action::GbaDown(Btn::B));
+    assert!(!a.picture_menu_open());
+    a.load_picture("Fusion");
+    a.apply(Action::PictureMenu);
+    assert_eq!(
+        a.background_view().unwrap().rows[0].value,
+        Some(omega_zero::list_view::RowValue::Name("100%".into()))
+    );
+    a.apply(Action::PictureMenu);
+    a.load_picture("Emerald");
+    a.apply(Action::PictureMenu);
+    assert_eq!(
+        a.background_view().unwrap().rows[0].value,
+        Some(omega_zero::list_view::RowValue::Name("105%".into()))
+    );
+    for _ in 0..5 {
+        a.apply(Action::GbaDown(Btn::Down));
+    }
+    a.apply(Action::GbaDown(Btn::A));
+    assert_eq!(
+        omega_store::ini::value(d.path(), "Config/picture.ini", "GBA/Emerald").as_deref(),
+        Some("100,0,0,0,0")
+    );
+}

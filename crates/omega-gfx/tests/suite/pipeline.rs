@@ -1114,8 +1114,9 @@ fn reference_presets_keep_cropped_frames_upright_including_two_passes() {
         c.begin_frame();
         c.draw_game();
         let frame = c.read_frame();
-        let top = px(&frame, out_w() as usize / 2, out_h() as usize / 4);
-        let bottom = px(&frame, out_w() as usize / 2, out_h() as usize * 3 / 4);
+        let x = out_w() as usize / 2 / 3 * 3;
+        let top = px(&frame, x, out_h() as usize / 4 / 3 * 3);
+        let bottom = px(&frame, x, (out_h() as usize * 3 / 4) / 3 * 3);
         assert!(
             top[0] > top[2] + 30,
             "preset {mode} flipped the top: {top:?}"
@@ -1159,5 +1160,157 @@ fn shadow_offset_controls_reach_every_pixel_transparency_preset() {
             zero,
             "preset {mode} ignored shadow controls"
         );
+    }
+}
+
+#[test]
+fn grid_has_exact_black_separators_with_and_without_transparency() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    c.set_game_view(sharp([0.0, 0.0, out_w() as f32, out_h() as f32]));
+    c.upload_game(&flat_shot([200; 3]));
+    for mode in [3, 7] {
+        c.set_game_effect(mode, 1.0, 1.0);
+        c.begin_frame();
+        c.draw_game();
+        let frame = c.read_frame();
+        for y in 0..out_h() as usize {
+            for x in 0..out_w() as usize {
+                let value = px(&frame, x, y);
+                if x % 3 == 2 || y % 3 == 2 {
+                    assert_eq!(value, [0; 3], "grid {mode} at {x},{y}");
+                } else if mode == 3 {
+                    assert_eq!(value, [200; 3], "uneven grid at {x},{y}");
+                } else {
+                    assert!(value.iter().any(|v| *v > 0));
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn gba_grid_cells_match_source_texels_at_exact_three_times_scale() {
+    if out_w() != 720 || out_h() != 480 {
+        return;
+    }
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let (src, at) = located(240, 160);
+    c.upload_game(&src);
+    c.set_game_view(sharp([0.0, 0.0, 720.0, 480.0]));
+    c.set_game_effect(3, 1.0, 1.0);
+    c.begin_frame();
+    c.draw_game();
+    let frame = c.read_frame();
+    for y in 0..480 {
+        for x in 0..720 {
+            let expected = if x % 3 == 2 || y % 3 == 2 {
+                [0; 3]
+            } else {
+                at(x / 3, y / 3)
+            };
+            assert_eq!(px(&frame, x, y), expected, "source misalignment at {x},{y}");
+        }
+    }
+}
+
+#[test]
+fn stretching_gbc_keeps_lcd_panel_cells_the_same_size_as_gba() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    c.upload_game(&flat_shot([200; 3]));
+    for mode in [1, 2, 3, 5, 6, 7] {
+        c.set_game_effect(mode, 1.0, 1.0);
+        c.set_game_display(1.0, true, 0);
+        c.set_game_view(GameView {
+            rect: [0.0, 0.0, out_w() as f32, out_h() as f32],
+            uv: WHOLE,
+            filter: Filter::Sharp,
+        });
+        c.begin_frame();
+        c.draw_game();
+        let gba = c.read_frame();
+        c.set_game_view(GameView {
+            rect: [0.0, 0.0, out_w() as f32, out_h() as f32],
+            uv: GB_RECT,
+            filter: Filter::Sharp,
+        });
+        c.begin_frame();
+        c.draw_game();
+        let stretched = c.read_frame();
+        if mode <= 3 {
+            for (index, (actual, expected)) in stretched.iter().zip(&gba).enumerate() {
+                assert!(
+                    actual.abs_diff(*expected) <= 2,
+                    "preset {mode} stretched its mask at channel {index}: {actual} vs {expected}"
+                );
+            }
+        } else {
+            // Compare the 3x3 LCD phase rather than PT's source-dependent texture/shadows.
+            // A stretched 160x144 mask loses this repeating contrast on a 720x480 panel.
+            let phases = |frame: &[u8]| {
+                let mut sum = [[0.0f64; 3]; 9];
+                let mut count = [0u32; 9];
+                for y in 0..out_h() as usize {
+                    for x in 0..out_w() as usize {
+                        let phase = (y % 3) * 3 + x % 3;
+                        let pixel = px(frame, x, y);
+                        for (value, channel) in sum[phase].iter_mut().zip(pixel) {
+                            *value += channel as f64;
+                        }
+                        count[phase] += 1;
+                    }
+                }
+                for (phase, channels) in sum.iter_mut().enumerate() {
+                    for value in channels {
+                        *value /= count[phase] as f64;
+                    }
+                }
+                sum
+            };
+            for (actual, expected) in phases(&stretched)
+                .iter()
+                .flatten()
+                .zip(phases(&gba).iter().flatten())
+            {
+                assert!(
+                    (actual - expected).abs() <= 1.5,
+                    "preset {mode} changed its panel phase: {actual} vs {expected}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn saturation_and_palettes_work_in_clean_and_filtered_modes() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    c.set_game_view(sharp([0.0, 0.0, out_w() as f32, out_h() as f32]));
+    c.upload_game(&flat_shot([40, 120, 200]));
+    for mode in 0..=7 {
+        c.set_game_effect(mode, 1.0, 1.0);
+        c.set_game_display(0.0, false, 0);
+        c.begin_frame();
+        c.draw_game();
+        let frame = c.read_frame();
+        for (x, y) in [(3, 3), (123, 123)] {
+            let p = px(&frame, x, y);
+            assert!(
+                p[0].abs_diff(p[1]) <= 1 && p[1].abs_diff(p[2]) <= 1,
+                "mode {mode} ignored saturation"
+            );
+        }
+        c.set_game_display(1.0, false, 3);
+        c.begin_frame();
+        c.draw_game();
+        let frame = c.read_frame();
+        let p = px(&frame, 123, 123);
+        assert!(p[2] > p[0], "mode {mode} ignored blue palette: {p:?}");
     }
 }

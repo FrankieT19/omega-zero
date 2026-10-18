@@ -155,6 +155,8 @@ void main() {
 }
 "#;
 
+pub const GAME_PALETTE: &str = include_str!("../shaders/palette.glsl");
+
 pub const GAME_FRAG: &str = r#"
 precision mediump float;
 uniform sampler2D u_game;
@@ -163,10 +165,12 @@ uniform vec2 u_src;
 uniform vec4 u_uv;
 uniform float u_bright;
 uniform float u_glow;
+uniform float u_saturation;
 varying vec2 v_uv;
 void main() {
     vec2 uv = u_uv.xy + v_uv * u_uv.zw;
-    vec3 rgb = texture2D(u_game, uv).rgb * texture2D(u_mask, v_uv * u_src).rgb;
+    vec3 rgb = palette_rgb(texture2D(u_game, uv).rgb,u_palette) * texture2D(u_mask, v_uv * u_src).rgb;
+    rgb = mix(vec3(dot(rgb, vec3(0.299, 0.587, 0.114))), rgb, u_saturation);
     FRAG_COLOR = vec4(mix(rgb * u_bright, vec3(1.0), u_glow), 1.0);
 }
 "#;
@@ -185,13 +189,15 @@ uniform vec4 u_uv;
 uniform vec2 u_scale;
 uniform float u_bright;
 uniform float u_glow;
+uniform float u_saturation;
 varying vec2 v_uv;
 void main() {
     vec2 texel = (u_uv.xy + v_uv * u_uv.zw) * u_src;
     vec2 from_centre = fract(texel) - 0.5;
     vec2 region = 0.5 - 0.5 / u_scale;
     vec2 f = (from_centre - clamp(from_centre, -region, region)) * u_scale + 0.5;
-    vec3 rgb = texture2D(u_game, (floor(texel) + f) / u_src).rgb;
+    vec3 rgb = palette_rgb(texture2D(u_game, (floor(texel) + f) / u_src).rgb,u_palette);
+    rgb = mix(vec3(dot(rgb, vec3(0.299, 0.587, 0.114))), rgb, u_saturation);
     FRAG_COLOR = vec4(mix(rgb * u_bright, vec3(1.0), u_glow), 1.0);
 }
 "#;

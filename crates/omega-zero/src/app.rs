@@ -324,6 +324,8 @@ pub struct App {
     pub(crate) vol_before: Vec<(u8, bool, Millis)>,
     pub(crate) snapshot: Option<Box<dyn Snapshot>>,
     pub(crate) core: Core,
+    pub(crate) picture_adjust: crate::picture::Picture,
+    pub(crate) picture_menu: Option<usize>,
     pub(crate) colour_pending: Option<bool>,
     pub(crate) link_player: Option<u8>,
     pub(crate) platform: Platform,
@@ -485,6 +487,8 @@ impl App {
             vol_before: Vec::new(),
             snapshot: None,
             core: Core::default(),
+            picture_adjust: crate::picture::Picture::default(),
+            picture_menu: None,
             colour_pending: None,
             link_player: None,
             platform: Platform::default(),
@@ -1370,6 +1374,9 @@ impl App {
             }
             _ => {}
         }
+        if self.picture_menu.is_some() {
+            return self.picture_input(action);
+        }
         if self.game_menu.is_some() {
             return self.game_menu_input(action);
         }
@@ -1415,6 +1422,7 @@ impl App {
                     self.cycle_picture(1)
                 }
                 Action::Eject => self.eject(),
+                Action::PictureMenu => self.picture_menu = Some(0),
                 Action::GameMenu => self.game_menu_shortcut(),
                 Action::Polaroids => self.open_polaroids(),
                 Action::SaveState => self.save_state(),
@@ -1635,6 +1643,10 @@ impl App {
     }
 
     fn adjust(&mut self, action: Action) -> bool {
+        if action == Action::PaletteNext {
+            self.cycle_palette();
+            return true;
+        }
         if action == Action::ShaderNext {
             self.cycle_shader();
             return true;
@@ -2209,6 +2221,9 @@ impl App {
         }
         if let Some(screen) = &self.disc_screen {
             self.draw_disc_screen(screen, out);
+        }
+        if self.picture_menu.is_some() {
+            self.draw_background_screen(out);
         }
         self.hud.draw_at(self.now(), self.top_bar_reach(), out);
         self.draw_opening(out);

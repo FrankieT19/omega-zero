@@ -31,6 +31,8 @@ pub struct AppState {
     pub low_poly_labels: bool,
     pub shaders: [u8; 5],
     /// Pixel Transparency shadow offsets, in half-pixel steps.
+    pub saturation: [u8; 5],
+    pub palettes: [u8; 5],
     pub shadow_x: [i8; 5],
     pub shadow_y: [i8; 5],
     pub mask_strength: [u8; 5],
@@ -82,6 +84,8 @@ impl Default for AppState {
             scales: [0; 5],
             low_poly_labels: false,
             shaders: [2, 2, 2, 0, 0],
+            saturation: [100; 5],
+            palettes: [0; 5],
             shadow_x: [2; 5],
             shadow_y: [2; 5],
             mask_strength: [10; 5],
@@ -166,7 +170,11 @@ pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
         text.push_str(&format!("favourite={key}\n"));
     }
     for i in 0..5 {
-        text.push_str(&format!("scale_{i}={}\n", s.scales[i]));
+        text.push_str(&format!("palette_{i}={}\n", s.palettes[i]));
+        text.push_str(&format!(
+            "scale_{i}={}\nsaturation_{i}={}\n",
+            s.scales[i], s.saturation[i]
+        ));
         text.push_str(&format!(
             "shader_{i}={}\nmask_{i}={}\nblend_{i}={}\nshadow_x_{i}={}\nshadow_y_{i}={}\n",
             s.shaders[i], s.mask_strength[i], s.pixel_blend[i], s.shadow_x[i], s.shadow_y[i]
@@ -243,6 +251,12 @@ fn parse(text: &str) -> Option<AppState> {
             "font" => font = Font::from_key(value),
             _ => {
                 for i in 0..5 {
+                    if key == format!("palette_{i}") {
+                        extra.palettes[i] = level(value, 4).unwrap_or(0);
+                    }
+                    if key == format!("saturation_{i}") {
+                        extra.saturation[i] = level(value, 200).unwrap_or(100);
+                    }
                     if key == format!("scale_{i}") {
                         extra.scales[i] = level(value, 2).unwrap_or(0);
                     }

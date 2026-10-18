@@ -22,18 +22,25 @@ const COPY: &str = r#"
 precision mediump float;
 #endif
 uniform sampler2D u_game;
-uniform float u_bright, u_glow;
+uniform float u_bright, u_glow, u_saturation;
 varying vec2 v_uv;
-void main() { FRAG_COLOR=vec4(mix(texture2D(u_game,v_uv).rgb*u_bright,vec3(1.0),u_glow),1.0); }
+void main() {
+    vec3 rgb=texture2D(u_game,v_uv).rgb;
+    rgb=mix(vec3(dot(rgb,vec3(0.299,0.587,0.114))),rgb,u_saturation);
+    FRAG_COLOR=vec4(mix(rgb*u_bright,vec3(1.0),u_glow),1.0);
+}
 "#;
 
 pub(crate) struct Presets {
-    programs: [Option<u32>; 5],
-    failed: [bool; 5],
+    programs: [Option<u32>; 4],
+    failed: [bool; 4],
     copy: u32,
     targets: [(u32, u32); 2],
     size: (u32, u32),
     pub shadow: (f32, f32),
+    pub panel_raster: bool,
+    pub saturation: f32,
+    pub palette: u8,
 }
 fn loc(p: u32, n: &str) -> i32 {
     crate::gl::uniform_location(p, n)
@@ -41,12 +48,15 @@ fn loc(p: u32, n: &str) -> i32 {
 impl Presets {
     pub fn new() -> Result<Self, GfxError> {
         Ok(Self {
-            programs: [None; 5],
-            failed: [false; 5],
+            programs: [None; 4],
+            failed: [false; 4],
             copy: crate::shaders::program(crate::shaders::RECT_VERT, COPY)?,
             targets: [(0, 0); 2],
             size: (0, 0),
             shadow: (1.0, 1.0),
+            panel_raster: false,
+            saturation: 1.0,
+            palette: 0,
         })
     }
     fn resize(&mut self, size: (u32, u32)) {
@@ -93,23 +103,25 @@ impl Presets {
             4 => &[3],
             5 => &[0, 3],
             6 => &[1, 3],
-            _ => &[4, 3],
+            _ => &[3],
         };
         // Compile only the programs in the selected preset, once per GL context.
         // The selector and Clean mode do not pay for unused grid or shadow programs.
         let sources = [
             include_str!("../shaders/lcd1x.frag"),
             include_str!("../shaders/lcd3x.frag"),
-            include_str!("../shaders/lcd-grid-v2.frag"),
+            include_str!("../shaders/pixel-grid.frag"),
             include_str!("../shaders/pixel_transparency.frag"),
-            include_str!("../shaders/lcd-grid-combo.frag"),
         ];
         for &index in chain {
             if self.failed[index] {
                 return false;
             }
             if self.programs[index].is_none() {
-                match crate::shaders::program(VERT, sources[index]) {
+                match crate::shaders::program(
+                    VERT,
+                    &format!("{}\n{}", crate::shaders::GAME_PALETTE, sources[index]),
+                ) {
                     Ok(p) => self.programs[index] = Some(p),
                     Err(e) => {
                         eprintln!("omega-zero: shader: {e}");
@@ -154,6 +166,13 @@ impl Presets {
                 for name in ["OrigInputSize", "OrigTextureSize"] {
                     gl::Uniform2f(loc(p, name), orig.0, orig.1);
                 }
+                gl::Uniform1f(loc(p, "u_grid"), if mode == 7 { 1.0 } else { 0.0 });
+                let raster = if self.panel_raster {
+                    (size.0 as f32 / 3.0, size.1 as f32 / 3.0)
+                } else {
+                    orig
+                };
+                gl::Uniform2f(loc(p, "RasterSize"), raster.0, raster.1);
                 gl::Uniform2f(loc(p, "OutputSize"), size.0 as f32, size.1 as f32);
                 gl::Uniform4f(loc(p, "u_crop"), crop[0], crop[1], crop[2], crop[3]);
                 gl::Uniform4f(
@@ -163,6 +182,11 @@ impl Presets {
                     view.uv[2],
                     view.uv[3],
                 );
+                gl::Uniform1f(
+                    loc(p, "u_palette"),
+                    if pass == 0 { self.palette as f32 } else { 0.0 },
+                );
+                gl::Uniform1f(loc(p, "u_orig_palette"), self.palette as f32);
                 gl::Uniform1i(loc(p, "Texture"), 0);
                 gl::Uniform1i(loc(p, "OrigTexture"), 1);
                 gl::Uniform1i(loc(p, "FrameDirection"), 1);
@@ -189,6 +213,7 @@ impl Presets {
                 crate::out_w() as f32,
                 crate::out_h() as f32,
             );
+            gl::Uniform1f(loc(p, "u_saturation"), self.saturation);
             gl::Uniform1f(loc(p, "u_bright"), screen_brightness(power));
             gl::Uniform1f(loc(p, "u_glow"), screen_glow(power));
             gl::Uniform1i(loc(p, "u_game"), 0);

@@ -74,7 +74,7 @@ fn playing(root: &Path, c: &mut Compositor) -> Vec<u8> {
 }
 
 #[test]
-fn a_card_overlay_frames_the_game_without_covering_it() {
+fn decorative_overlays_are_ignored_and_letterboxing_stays_black() {
     let _core = core_lock();
     let Ok(surface) = HeadlessSurface::new() else {
         return;
@@ -88,7 +88,14 @@ fn a_card_overlay_frames_the_game_without_covering_it() {
     write_overlay(d.path(), picture);
 
     let px = playing(d.path(), &mut c);
-    assert_eq!(at(&px, 2, 2), RED, "the overlay is not over the corner");
+    assert_eq!(at(&px, 2, 2), [0; 3], "decorative corner was drawn");
+    for x in 0..out_w() as usize {
+        assert_eq!(
+            at(&px, x, out_h() as usize - 2),
+            [0; 3],
+            "wordmark or grey border under game"
+        );
+    }
     let (cx, cy) = (
         (picture[0] + picture[2] / 2.0) as usize,
         (picture[1] + picture[3] / 2.0) as usize,
