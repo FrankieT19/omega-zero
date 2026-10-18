@@ -146,7 +146,7 @@ fn configs_is_as_tall_as_its_rows_and_general_takes_the_rest() {
 #[test]
 fn every_row_stands_in_its_own_panels_well() {
     let frame = settings_frame(5, palette(NIGHT));
-    let rects = settings_row_rects(&SettingsRow::ALL, frame.wells);
+    let rects = settings_visible_rects(&SettingsRow::ALL, frame.wells, SettingsRow::FastForward);
     for (row, [x, y, w, h]) in &rects {
         let [wx, wy, ww, wh] = frame.wells[row.group().index()];
         assert_eq!((*x, *w, *h), (wx - 1, ww + 2, ROW_H), "{row:?}");
