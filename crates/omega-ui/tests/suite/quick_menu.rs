@@ -8,8 +8,8 @@ use omega_ui::kit::palette::{palette, Palette};
 use omega_ui::kit::row::ROW_H;
 use omega_ui::{
     date_time_text, settings_frame, settings_panels, settings_row_face, settings_row_rects,
-    settings_row_width, settings_title_face, ClockPicker, QuickValue, RowShown, SettingsBaked,
-    SettingsGroup, SettingsRow, UndoFace,
+    settings_row_width, settings_title_face, settings_visible_rects, ClockPicker, QuickValue,
+    RowShown, SettingsBaked, SettingsGroup, SettingsRow, UndoFace,
 };
 
 const NIGHT: u8 = 0;
@@ -73,7 +73,15 @@ fn composed(shown: &[RowShown], pal: &Palette) -> UndoFace {
         let [tx, ty, ..] = frame.titles[g.index()];
         over(&mut modal, &settings_title_face(g, pal), tx - mx, ty - my);
     }
-    for (row, [x, y, w, _]) in settings_row_rects(&rows, frame.wells) {
+    for (row, [x, y, w, _]) in settings_visible_rects(
+        &rows,
+        frame.wells,
+        shown
+            .iter()
+            .find(|s| s.lit)
+            .map(|s| s.row)
+            .unwrap_or(SettingsRow::FastForward),
+    ) {
         let s = shown.iter().find(|s| s.row == row).expect("a row shown");
         over(&mut modal, &settings_row_face(w, s, pal), x - mx, y - my);
     }
@@ -138,7 +146,7 @@ fn configs_is_as_tall_as_its_rows_and_general_takes_the_rest() {
 #[test]
 fn every_row_stands_in_its_own_panels_well() {
     let frame = settings_frame(5, palette(NIGHT));
-    let rects = settings_row_rects(&SettingsRow::ALL, frame.wells);
+    let rects = settings_visible_rects(&SettingsRow::ALL, frame.wells, SettingsRow::FastForward);
     for (row, [x, y, w, h]) in &rects {
         let [wx, wy, ww, wh] = frame.wells[row.group().index()];
         assert_eq!((*x, *w, *h), (wx - 1, ww + 2, ROW_H), "{row:?}");
@@ -336,7 +344,7 @@ fn settings_is_flows_pixel_for_pixel() {
         // Keep checking the original kit layout against them; the new row uses the same kit.
         let rows: Vec<_> = flow_rows(lit)
             .into_iter()
-            .filter(|shown| shown.row != SettingsRow::Display)
+            .filter(|shown| !matches!(shown.row, SettingsRow::Display | SettingsRow::Inactivity))
             .collect();
         let ours = composed(&rows, palette(colour));
         if let Ok(dir) = std::env::var("SETTINGS_OUT") {
@@ -474,7 +482,8 @@ fn the_rows_run_in_the_order_the_user_chose() {
             "Bluetooth",
             "Theme",
             "About",
-            "Display"
+            "Display",
+            "Inactivity"
         ]
     );
     let opens: Vec<SettingsRow> = SettingsRow::ALL.into_iter().filter(|r| r.opens()).collect();
@@ -487,7 +496,8 @@ fn the_rows_run_in_the_order_the_user_chose() {
             SettingsRow::Bluetooth,
             SettingsRow::Background,
             SettingsRow::About,
-            SettingsRow::Display
+            SettingsRow::Display,
+            SettingsRow::Inactivity
         ]
     );
 }
@@ -526,7 +536,7 @@ fn a_hidden_row_is_stepped_over_both_ways() {
     assert_eq!(SettingsRow::DateTime.down_in(&rows), SettingsRow::Bluetooth);
     assert_eq!(SettingsRow::Bluetooth.up_in(&rows), SettingsRow::DateTime);
     assert_eq!(
-        SettingsRow::Display.down_in(&rows),
+        SettingsRow::Inactivity.down_in(&rows),
         SettingsRow::FastForward
     );
     assert_eq!(SettingsRow::DateTime.down(), SettingsRow::Network);
@@ -565,4 +575,20 @@ fn a_picker_for_a_set_clock_starts_at_the_local_time_and_its_offset() {
         "the picker does not show the minute it was opened in"
     );
     assert!(p.text().starts_with("2026-09-15 16:35"), "{}", p.text());
+}
+
+#[test]
+fn settings_scrolls_each_selected_row_fully_inside_its_panel() {
+    let frame = settings_frame(5, palette(NIGHT));
+    for selected in SettingsRow::ALL {
+        let visible = settings_visible_rects(&SettingsRow::ALL, frame.wells, selected);
+        assert!(visible.iter().any(|(r, _)| *r == selected));
+        for (row, [_x, y, _w, h]) in visible {
+            let well = frame.wells[row.group().index()];
+            assert!(
+                y >= well[1] && y + h <= well[1] + well[3],
+                "{row:?} overflows with {selected:?} selected"
+            );
+        }
+    }
 }

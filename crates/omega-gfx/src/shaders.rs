@@ -244,7 +244,7 @@ void main() {
 "#;
 
 pub const BLIT_FRAG: &str = r#"
-precision mediump float;
+precision highp float;
 uniform sampler2D u_tex;
 uniform vec3 u_gain;
 varying vec2 v_uv;

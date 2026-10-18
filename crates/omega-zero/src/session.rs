@@ -25,6 +25,7 @@ pub struct Session {
     sink: Box<dyn AudioSink>,
     gestures: Gestures,
     pad: Pad,
+    held_inputs: u64,
     rewinding: bool,
     fast: bool,
     motor: u16,
@@ -59,6 +60,7 @@ impl Session {
             sink,
             gestures: Gestures::new(),
             pad: Pad::default(),
+            held_inputs: 0,
             rewinding: false,
             fast: false,
             motor: 0,
@@ -165,6 +167,13 @@ impl Session {
         self.pad.set_keys(keys);
         let mut actions = self.gestures.set_keys(keys);
         for ev in events {
+            use omega_input::{Btn, RawEvent};
+            match ev {
+                RawEvent::Down(btn) if btn != Btn::Lid => self.held_inputs |= 1 << btn as u8,
+                RawEvent::Up(btn) => self.held_inputs &= !(1 << btn as u8),
+                _ => {}
+            }
+            self.app.note_activity();
             actions.extend(self.gestures.feed(ev, now));
         }
         actions.extend(self.gestures.tick(now));
@@ -227,6 +236,9 @@ impl Session {
     }
 
     pub fn update(&mut self, dt: f32) {
+        if self.held_inputs != 0 {
+            self.app.note_activity();
+        }
         self.bridge_link(|app| app.update(dt));
         if let Some(emu) = &self.emu {
             emu.set_volume(self.app.output_volume());
@@ -395,6 +407,15 @@ impl Session {
         let stem = match self.app.phase() {
             Phase::Shelf => {
                 self.emu = None;
+                if self.running.take().is_some() {
+                    self.gestures = Gestures::new();
+                    self.pad.clear();
+                    self.held_inputs = 0;
+                    self.fast = false;
+                    self.rewinding = false;
+                    self.app.release_shelf_holds();
+                    self.app.snapshot = None;
+                }
                 return;
             }
             Phase::Inserting { cart, .. } => cart.clone(),

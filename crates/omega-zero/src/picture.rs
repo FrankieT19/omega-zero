@@ -68,6 +68,9 @@ impl App {
             .as_deref()
             .and_then(Picture::parse)
             .unwrap_or_default();
+        if self.platform() == omega_store::Platform::Snes {
+            self.picture_adjust.scaling = None;
+        }
         self.video_mode = self
             .picture_adjust
             .scaling
@@ -117,7 +120,13 @@ impl App {
                                 VideoMode::Stretch => 2,
                             };
                             let index = (current + by).rem_euclid(3) as u8;
-                            self.picture_adjust.scaling = Some(index);
+                            if self.platform() == omega_store::Platform::Snes {
+                                self.state.scales[omega_store::Platform::Snes as usize] = index;
+                                self.picture_adjust.scaling = None;
+                                self.persist();
+                            } else {
+                                self.picture_adjust.scaling = Some(index);
+                            }
                             self.video_mode =
                                 [VideoMode::Integer, VideoMode::Fit, VideoMode::Stretch]
                                     [index as usize];

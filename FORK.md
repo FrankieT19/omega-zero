@@ -81,3 +81,14 @@ Device compilation and GLES2 compile/link validation are checked locally. CI ren
 - Carousel models are drawn from farthest to nearest, so a focused SNES cart covers its GB/GBC neighbours on either side.
 
 Gambatte palette definitions: https://github.com/libretro/gambatte-libretro/blob/d9d6cd06382d1ced30de34d56d3609452323dab1/libgambatte/libretro/libretro_core_options.h
+
+
+## v5: LCD sampling, carousel recovery and inactivity
+
+- Compared LCD1x/LCD3x against the standard Libretro Slang handheld presets used from RetroArch's handheld directory: one nearest-filtered viewport pass, original phase and brightness defaults. The port now bounds sinusoidal phase within each source-pixel cell and uses high-precision copy/blit coordinates on GLES. At exact 3x, each GBA pixel receives the same repeating 3x3 mask. Optional **Display > LCD edge smoothing** uses sharp bilinear sampling only at source-pixel boundaries; it defaults off, preserves integer-scale sharpness, and adds no pass. LCD darkness 100% preserves the original formula. This frontend hosts libretro directly, so the preset is ported to GLES rather than executed by RetroArch's Slang runtime. Exact Anbernic firmware binaries were unavailable for comparison.
+- LCD and Grid masks follow stretched source pixels on GBA, SNES and PS1. Only GB/GBC Stretch keeps a fixed three-screen-pixel raster, to emulate the GBA screen. Grid+PT keeps its fused separator pass.
+- Carousel springs use the stable closed-form critically damped solution, so long core shutdown/save frames cannot make scrolling explode. Returning from a core also clears held shelf movement, gesture chords, fast-forward and rewind state.
+- **Settings > Inactivity** selects **Menus / In game**, **Dim after**, and **Sleep after** independently. Choices: Off, 15s, 30s, 1/2/5/10/15/30/60 minutes. Defaults: menu dim 1 minute / sleep 5 minutes; game dim 5 minutes / sleep 15 minutes. In-game overlays use menu timings. Any input, including a held button, resets inactivity. Dimming fades to 25% of the chosen brightness; activity fades back. Sleep fades to black before calling the same save, pause, radio cool-down and backlight-off routine as lid close. Power wakes it during the existing three-minute doze window; after that it powers down and the normal boot/resume rules apply. The setting does not simulate a Linux suspend.
+- SNES Integer / Fit 4:3 / Stretch is global. Changing it in the in-game Picture menu updates the same system preference as Display settings. Old per-game SNES scaling overrides are ignored; crop/zoom remain per-game. PS1 per-game scaling remains available.
+
+Device compilation, GLES2 linking, both landscape render suites and the ARM64 package/native-core smoke checks validate this change. Real RG SP visual quality, power behavior and the Crash Team Racing exit reproduction need hardware confirmation.

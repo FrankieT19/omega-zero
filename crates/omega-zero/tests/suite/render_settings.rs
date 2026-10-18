@@ -15,7 +15,7 @@ use omega_store::{read_app_state, write_app_state, BackdropStyle};
 use omega_ui::kit::layout::modal_rect;
 use omega_ui::kit::palette::{palette, Palette};
 use omega_ui::{
-    configs_in, settings_frame, settings_row_face, settings_row_rects, settings_title_face,
+    configs_in, settings_frame, settings_row_face, settings_title_face, settings_visible_rects,
     RowShown, SettingsRow, UndoFace,
 };
 use omega_zero::frontend::Frontend;
@@ -129,7 +129,15 @@ fn expected(shown: &[RowShown], pal: &Palette) -> UndoFace {
         let [tx, ty, ..] = frame.titles[g.index()];
         over(&mut modal, &settings_title_face(g, pal), tx - mx, ty - my);
     }
-    for (row, [x, y, w, _]) in settings_row_rects(&rows, frame.wells) {
+    for (row, [x, y, w, _]) in settings_visible_rects(
+        &rows,
+        frame.wells,
+        shown
+            .iter()
+            .find(|s| s.lit)
+            .map(|s| s.row)
+            .unwrap_or(SettingsRow::FastForward),
+    ) {
         let s = shown.iter().find(|s| s.row == row).expect("a row shown");
         over(&mut modal, &settings_row_face(w, s, pal), x - mx, y - my);
     }
@@ -167,7 +175,7 @@ fn holds_the_modal(px: &[u8], f: &Frontend, name: &str) {
 fn row_rect(f: &Frontend, row: SettingsRow) -> [u32; 4] {
     let rows = f.app().settings_rows();
     let frame = settings_frame(configs_in(&rows), f.app().palette());
-    settings_row_rects(&rows, frame.wells)
+    settings_visible_rects(&rows, frame.wells, f.app().settings_row().unwrap())
         .into_iter()
         .find(|(r, _)| *r == row)
         .expect("a row shown")

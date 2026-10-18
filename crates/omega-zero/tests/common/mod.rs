@@ -572,6 +572,18 @@ pub fn app_playing_with_volume(root: &Path, volume: u8) -> App {
     )
 }
 
+pub fn app_playing_with_state(root: &Path, stem: &str, state: AppState) -> App {
+    seated(
+        root,
+        StubSnapshot::boxed(),
+        AppState {
+            cart: Some(stem.into()),
+            clock_set: true,
+            ..state
+        },
+    )
+}
+
 pub fn app_playing_with(root: &Path, stem: &str, snapshot: Box<dyn Snapshot>) -> App {
     seated(
         root,

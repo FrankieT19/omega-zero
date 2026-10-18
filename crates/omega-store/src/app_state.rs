@@ -33,6 +33,10 @@ pub struct AppState {
     /// Pixel Transparency shadow offsets, in half-pixel steps.
     pub saturation: [u8; 5],
     pub lcd_darkness: [u8; 5],
+    pub lcd_aa: [bool; 5],
+    /// Seconds without input, menus then gameplay; zero disables a timer.
+    pub idle_dim: [u16; 2],
+    pub idle_sleep: [u16; 2],
     pub palettes: [u8; 5],
     pub shadow_x: [i8; 5],
     pub shadow_y: [i8; 5],
@@ -87,6 +91,9 @@ impl Default for AppState {
             shaders: [2, 2, 2, 0, 0],
             saturation: [100; 5],
             lcd_darkness: [100; 5],
+            lcd_aa: [false; 5],
+            idle_dim: [60, 300],
+            idle_sleep: [300, 900],
             palettes: [0; 5],
             shadow_x: [2; 5],
             shadow_y: [2; 5],
@@ -172,7 +179,14 @@ pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
         text.push_str(&format!("favourite={key}\n"));
     }
     text.push_str("display_version=4\n");
+    for i in 0..2 {
+        text.push_str(&format!(
+            "idle_dim_{i}={}\nidle_sleep_{i}={}\n",
+            s.idle_dim[i], s.idle_sleep[i]
+        ));
+    }
     for i in 0..5 {
+        text.push_str(&format!("lcd_aa_{i}={}\n", s.lcd_aa[i] as u8));
         text.push_str(&format!("lcd_darkness_{i}={}\n", s.lcd_darkness[i]));
         text.push_str(&format!("palette_{i}={}\n", s.palettes[i]));
         text.push_str(&format!(
@@ -256,7 +270,26 @@ fn parse(text: &str) -> Option<AppState> {
             "backdrop_colour" => backdrop_colour = colour_index(value),
             "font" => font = Font::from_key(value),
             _ => {
+                for i in 0..2 {
+                    if key == format!("idle_dim_{i}") {
+                        extra.idle_dim[i] = value
+                            .parse::<u16>()
+                            .ok()
+                            .filter(|v| *v <= 3600)
+                            .unwrap_or(extra.idle_dim[i]);
+                    }
+                    if key == format!("idle_sleep_{i}") {
+                        extra.idle_sleep[i] = value
+                            .parse::<u16>()
+                            .ok()
+                            .filter(|v| *v <= 3600)
+                            .unwrap_or(extra.idle_sleep[i]);
+                    }
+                }
                 for i in 0..5 {
+                    if key == format!("lcd_aa_{i}") {
+                        extra.lcd_aa[i] = flag(value).unwrap_or(false);
+                    }
                     if key == format!("palette_{i}") {
                         extra.palettes[i] =
                             level(value, (crate::GB_PALETTES.len() - 1) as u8).unwrap_or(0);

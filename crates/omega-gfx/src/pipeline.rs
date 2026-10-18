@@ -139,6 +139,10 @@ impl GamePass {
         })
     }
 
+    pub fn set_lcd_aa(&mut self, enabled: bool) {
+        self.presets.borrow_mut().lcd_aa = enabled;
+    }
+
     pub fn set_lcd_darkness(&mut self, value: f32) {
         self.presets.borrow_mut().lcd_darkness = value.clamp(0.0, 2.0);
     }

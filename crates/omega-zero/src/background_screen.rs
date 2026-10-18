@@ -55,6 +55,7 @@ impl Sel {
 pub struct BackgroundScreen {
     pub sel: Sel,
     pub display: bool,
+    pub idle: bool,
     pub display_row: usize,
     pub display_system: usize,
 }
@@ -64,6 +65,7 @@ impl Default for BackgroundScreen {
         BackgroundScreen {
             sel: Sel::Style,
             display: false,
+            idle: false,
             display_row: 0,
             display_system: 0,
         }

@@ -355,6 +355,7 @@ pub struct App {
     pub(crate) screen: f32,
     pub(crate) game_ready: bool,
     pub(crate) clock: f64,
+    pub(crate) inactivity: crate::inactivity::Idle,
     pub(crate) power: Option<Power>,
     pub(crate) dozed_at: Millis,
     pub(crate) woke_on_press: bool,
@@ -513,6 +514,7 @@ impl App {
             screen: 0.0,
             game_ready: false,
             clock: 0.0,
+            inactivity: crate::inactivity::Idle::default(),
             power: None,
             dozed_at: 0,
             woke_on_press: false,
@@ -1314,6 +1316,7 @@ impl App {
     }
 
     pub fn apply(&mut self, action: Action) {
+        self.note_activity();
         let taken = self.opening_takes(action) || self.start_notice_takes(action);
         self.press_ends_boot_fade(action);
         if taken {
@@ -1851,6 +1854,7 @@ impl App {
 
     pub fn update(&mut self, dt: f32) {
         self.clock += dt as f64 * 1000.0;
+        self.step_inactivity(dt);
         self.step_boot_fade(dt);
         self.step_opening(dt);
         self.step_start_notice(dt);
@@ -2690,7 +2694,8 @@ impl App {
         }
     }
 
-    fn doze(&mut self) {
+    pub(crate) fn doze(&mut self) {
+        self.picture_menu = None;
         if self.link_active() {
             self.end_link();
         }
@@ -2725,6 +2730,7 @@ impl App {
         if let Some(power) = &mut self.power {
             power.on_open();
         }
+        self.note_activity();
     }
 
     pub fn on_doze_timeout(&mut self) {

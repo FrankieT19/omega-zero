@@ -19,7 +19,7 @@ void main() {
 "#;
 const COPY: &str = r#"
 #ifdef GL_ES
-precision mediump float;
+precision highp float;
 #endif
 uniform sampler2D u_game;
 uniform float u_bright, u_glow, u_saturation;
@@ -42,6 +42,7 @@ pub(crate) struct Presets {
     pub saturation: f32,
     pub palette: u8,
     pub lcd_darkness: f32,
+    pub lcd_aa: bool,
 }
 fn loc(p: u32, n: &str) -> i32 {
     crate::gl::uniform_location(p, n)
@@ -59,6 +60,7 @@ impl Presets {
             saturation: 1.0,
             palette: 0,
             lcd_darkness: 1.0,
+            lcd_aa: false,
         })
     }
     fn resize(&mut self, size: (u32, u32)) {
@@ -190,6 +192,8 @@ impl Presets {
                 );
                 gl::Uniform1f(loc(p, "u_orig_palette"), self.palette as f32);
                 gl::Uniform1f(loc(p, "u_lcd_darkness"), self.lcd_darkness);
+                gl::Uniform2f(loc(p, "FullSourceSize"), source.0 as f32, source.1 as f32);
+                gl::Uniform1f(loc(p, "u_lcd_aa"), if self.lcd_aa { 1.0 } else { 0.0 });
                 gl::Uniform1i(loc(p, "Texture"), 0);
                 gl::Uniform1i(loc(p, "OrigTexture"), 1);
                 gl::Uniform1i(loc(p, "FrameDirection"), 1);
@@ -199,7 +203,17 @@ impl Presets {
                 gl::BindTexture(gl::TEXTURE_2D, input);
                 gl::ActiveTexture(gl::TEXTURE1);
                 gl::BindTexture(gl::TEXTURE_2D, original);
+                let aa = self.lcd_aa && (index == 0 || index == 1);
+                if aa {
+                    gl::ActiveTexture(gl::TEXTURE0);
+                    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
+                    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+                }
                 quad.draw();
+                if aa {
+                    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
+                    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
+                }
                 input = self.targets[pass].1;
             }
             gl::BindFramebuffer(gl::FRAMEBUFFER, fbo as u32);

@@ -15,6 +15,7 @@ pub mod emu;
 pub mod face_builder;
 pub mod frames;
 pub mod frontend;
+mod inactivity;
 pub mod input;
 pub mod json;
 pub mod label_cutter;

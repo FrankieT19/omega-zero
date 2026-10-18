@@ -1169,6 +1169,7 @@ fn grid_has_exact_black_separators_with_and_without_transparency() {
         return;
     };
     c.set_game_view(sharp([0.0, 0.0, out_w() as f32, out_h() as f32]));
+    c.set_game_display(1.0, true, 0);
     c.upload_game(&flat_shot([200; 3]));
     for mode in [3, 7] {
         c.set_game_effect(mode, 1.0, 1.0);
@@ -1340,5 +1341,91 @@ fn lcd_darkness_adjusts_both_reference_masks_and_their_pt_combinations() {
             averages[0] > averages[1] && averages[1] > averages[2],
             "preset {mode} ignored LCD darkness: {averages:?}"
         );
+    }
+}
+
+#[test]
+fn stock_lcd_cells_repeat_without_alternating_rows_at_three_times_gba() {
+    if out_w() != 720 || out_h() != 480 {
+        return;
+    }
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    c.upload_game(&flat_shot([200; 3]));
+    c.set_game_view(sharp([0.0, 0.0, 720.0, 480.0]));
+    for mode in [1, 2] {
+        c.set_game_effect(mode, 1.0, 1.0);
+        c.begin_frame();
+        c.draw_game();
+        let frame = c.read_frame();
+        for y in 0..480 {
+            for x in 0..720 {
+                let expected = px(&frame, x % 3, y % 3);
+                let actual = px(&frame, x, y);
+                for channel in 0..3 {
+                    assert!(
+                        actual[channel].abs_diff(expected[channel]) <= 1,
+                        "LCD {mode} banding at {x},{y}: {actual:?} vs {expected:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+#[test]
+fn optional_lcd_edge_smoothing_keeps_integer_scaled_source_pixels_sharp() {
+    if out_w() != 720 || out_h() != 480 {
+        return;
+    }
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let (src, _) = located(240, 160);
+    c.upload_game(&src);
+    c.set_game_view(sharp([0.0, 0.0, 720.0, 480.0]));
+    for mode in [1, 2, 5, 6] {
+        c.set_game_effect(mode, 1.0, 1.0);
+        c.set_lcd_aa(false);
+        c.begin_frame();
+        c.draw_game();
+        let nearest = c.read_frame();
+        c.set_lcd_aa(true);
+        c.begin_frame();
+        c.draw_game();
+        let aa = c.read_frame();
+        for (at, (a, b)) in aa.iter().zip(&nearest).enumerate() {
+            assert!(
+                a.abs_diff(*b) <= 2,
+                "LCD {mode} softened integer pixel at channel {at}: {a} vs {b}"
+            );
+        }
+    }
+}
+#[test]
+fn stretched_console_grid_uses_source_pixel_cells_instead_of_fixed_panel_cells() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    c.upload_game_sized(&vec![200; 320 * 240 * 4], (320, 240));
+    c.set_game_view(sharp([0.0, 0.0, out_w() as f32, out_h() as f32]));
+    c.set_game_display(1.0, false, 0);
+    for mode in [3, 7] {
+        c.set_game_effect(mode, 1.0, 1.0);
+        c.begin_frame();
+        c.draw_game();
+        let frame = c.read_frame();
+        for y in 0..out_h() as usize {
+            for x in 0..out_w() as usize {
+                let phase_x = ((x as f32 + 0.5) * 320.0 / out_w() as f32).fract();
+                let phase_y = ((y as f32 + 0.5) * 240.0 / out_h() as f32).fract();
+                let black = phase_x >= 0.6666667 || phase_y >= 0.6666667;
+                assert_eq!(
+                    px(&frame, x, y) == [0; 3],
+                    black,
+                    "console grid {mode} at {x},{y}"
+                );
+            }
+        }
     }
 }

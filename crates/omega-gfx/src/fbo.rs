@@ -173,6 +173,10 @@ impl Compositor {
         self.game.set_source_rect(rect);
     }
 
+    pub fn set_lcd_aa(&mut self, enabled: bool) {
+        self.game.set_lcd_aa(enabled);
+    }
+
     pub fn set_lcd_darkness(&mut self, value: f32) {
         self.game.set_lcd_darkness(value);
     }

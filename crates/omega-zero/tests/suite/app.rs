@@ -2405,7 +2405,11 @@ fn console_picture_popup_switches_full_screen_stretch_and_four_three_fit() {
         );
         a.apply(Action::GbaDown(Btn::Right));
         a.apply(Action::GbaDown(Btn::B));
-        let mut again = common::app_playing_in(d.path(), "Emerald");
+        let mut again = common::app_playing_with_state(
+            d.path(),
+            "Emerald",
+            omega_store::read_app_state(d.path()),
+        );
         again.set_platform(platform);
         again.load_picture("Emerald");
         again.apply(Action::PictureMenu);
@@ -2422,4 +2426,34 @@ fn console_picture_popup_switches_full_screen_stretch_and_four_three_fit() {
         assert!((fit.view.rect[2] / fit.view.rect[3] - 4.0 / 3.0).abs() < 0.005);
         assert_eq!(fit.view.rect[3], out_h() as f32);
     }
+}
+
+#[test]
+fn snes_scaling_is_global_and_ignores_legacy_per_game_scale_overrides() {
+    use omega_zero::video_mode::VideoMode;
+    let d = common::tmp_root_with_carts(&["Emerald", "Fusion"]);
+    omega_store::ini::write(
+        d.path(),
+        "Config/picture.ini",
+        "SNES/Fusion",
+        "110,1,0,0,0,0",
+    )
+    .unwrap();
+    let mut a = common::app_playing_in(d.path(), "Emerald");
+    a.set_platform(Platform::Snes);
+    a.load_picture("Emerald");
+    a.apply(Action::PictureMenu);
+    a.apply(Action::GbaDown(Btn::Right));
+    assert_eq!(omega_store::read_app_state(d.path()).scales[3], 2);
+    a.load_picture("Fusion");
+    a.apply(Action::PictureMenu);
+    assert_eq!(
+        a.background_view().unwrap().rows[0].value,
+        Some(omega_zero::list_view::RowValue::Choice("Stretch"))
+    );
+    assert_eq!(a.preferred_video_mode(), VideoMode::Stretch);
+    assert_eq!(
+        a.background_view().unwrap().rows[1].value,
+        Some(omega_zero::list_view::RowValue::Name("110%".into()))
+    );
 }
