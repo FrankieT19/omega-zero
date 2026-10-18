@@ -214,3 +214,25 @@ fn duplicate_dpad_reports_do_not_skip_games_after_returning_from_gba_or_ps1() {
         );
     }
 }
+
+#[test]
+fn a_fresh_dpad_press_after_a_long_frame_does_not_inherit_repeat_time() {
+    let d = common::tmp_root_with_carts(&["Alpha", "Beta", "Charlie", "Delta"]);
+    common::clocked(d.path());
+    let mut s = Session::boot(d.path().to_path_buf());
+    let stems: Vec<_> = s.app().carts().map(|c| c.stem.clone()).collect();
+    let at = stems
+        .iter()
+        .position(|x| Some(x.as_str()) == s.app().selected_stem())
+        .unwrap();
+    s.advance_at([RawEvent::Down(Btn::Right)], 10000, 10.0);
+    assert_eq!(
+        s.app().selected_stem(),
+        Some(stems[(at + 1) % stems.len()].as_str())
+    );
+    s.advance_at([RawEvent::Up(Btn::Right)], 10016, 0.016);
+    assert_eq!(
+        s.app().selected_stem(),
+        Some(stems[(at + 1) % stems.len()].as_str())
+    );
+}

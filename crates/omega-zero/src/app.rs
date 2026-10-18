@@ -1860,6 +1860,10 @@ impl App {
 
     pub fn update(&mut self, dt: f32) {
         self.clock += dt as f64 * 1000.0;
+        self.update_frame(dt);
+    }
+
+    pub(crate) fn update_frame(&mut self, dt: f32) {
         self.step_inactivity(dt);
         self.step_boot_fade(dt);
         self.step_opening(dt);

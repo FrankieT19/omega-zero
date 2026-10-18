@@ -103,3 +103,5 @@ Device compilation, GLES2 linking, both landscape render suites and the ARM64 pa
 - Navigation no longer fsyncs on the main thread on the device: a single ordered writer coalesces hover updates. Settings, launch/save and normal lid/power shutdown use a durable fence through the same queue, so older hover writes cannot overwrite newer state. This addresses a shared source of stalls affecting GBA as well as PS1, rather than assuming a CTR-only defect. Repeated Down reports for an already-held button are discarded before gesture processing. Existing stable springs and exit cleanup remain.
 
 The changed rendering pipeline, speaker buzz and reported persistent navigation fault need verification on the actual RG SP. Passing software tests alone does not establish the hardware causes of those symptoms.
+
+Input/repeat timing also uses the presentation's monotonic timestamp before handling fresh input, independently of animation elapsed time. A press arriving after a long save/render frame can no longer inherit that stalled frame as held time and immediately repeat. A ten-second-stall regression covers this separate shared cause of skipping.
