@@ -1364,8 +1364,8 @@ fn stock_lcd_cells_repeat_without_alternating_rows_at_three_times_gba() {
                 let expected = px(&frame, x % 3, y % 3);
                 let actual = px(&frame, x, y);
                 for channel in 0..3 {
-                    assert!(
-                        actual[channel].abs_diff(expected[channel]) <= 1,
+                    assert_eq!(
+                        actual[channel], expected[channel],
                         "LCD {mode} banding at {x},{y}: {actual:?} vs {expected:?}"
                     );
                 }

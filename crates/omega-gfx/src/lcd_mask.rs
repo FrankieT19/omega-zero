@@ -58,7 +58,14 @@ impl Drop for Mask {
     }
 }
 fn phase(at: u32, n: u32, raster: f32, origin: f32, snap: bool) -> f32 {
-    let p = ((at as f32 + 0.5) * raster / n as f32 + origin).rem_euclid(1.0);
+    let pitch = n as f32 / raster;
+    // Exact integer cells must repeat bit-for-bit, including half-step mask quantization.
+    let p = if (pitch - pitch.round()).abs() < 0.00001 && pitch.round() >= 1.0 {
+        (((at % pitch.round() as u32) as f32 + 0.5) / pitch.round() + origin.rem_euclid(1.0))
+            .rem_euclid(1.0)
+    } else {
+        ((at as f32 + 0.5) * raster / n as f32 + origin).rem_euclid(1.0)
+    };
     if snap {
         (p * 3.0).floor().min(2.0) / 3.0 + 1.0 / 6.0
     } else {
@@ -114,6 +121,15 @@ fn pixels(key: Key, table: Option<&[u8]>) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn integer_pixel_cells_repeat_exactly_even_at_half_step_quantization() {
+        for x in 0..720 {
+            assert_eq!(
+                phase(x, 720, 240.0, 0.0, false),
+                phase(x % 3, 720, 240.0, 0.0, false)
+            );
+        }
+    }
     #[test]
     fn cropped_mask_phase_uses_the_same_source_pixel_boundaries_as_the_game() {
         let a = phase(0, 720, 320.0 * 0.99, 3.2, false);
