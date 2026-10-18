@@ -26,7 +26,7 @@ pub fn background_face(view: &ListView, pal: &Palette) -> UndoFace {
     let content = rows_height(view.rows.len());
     let title = match view.rows.first().map(|r| &r.label) {
         Some(crate::list_view::RowLabel::Setting("System")) => "DISPLAY",
-        Some(crate::list_view::RowLabel::Setting("Zoom")) => "PICTURE",
+        Some(crate::list_view::RowLabel::Setting("Scaling")) => "PICTURE",
         _ => TITLE,
     };
     let mut panel = panel_face(WIDTH, panel_height(content), title, true, pal);
@@ -93,38 +93,39 @@ impl App {
         self.state.low_poly_labels
     }
 
+    /// Palettes are supplied by Gambatte, not a post-processing colour remap.
     pub fn game_palette(&self) -> u8 {
-        if matches!(
-            self.platform(),
-            omega_store::Platform::Gb | omega_store::Platform::Gbc
-        ) {
-            self.state.palettes[self.platform() as usize]
+        0
+    }
+    pub fn gb_palette(&self) -> u8 {
+        self.state.palettes[omega_store::Platform::Gb as usize]
+    }
+    pub fn take_palette(&mut self) -> Option<u8> {
+        if std::mem::take(&mut self.palette_pending) {
+            Some(self.gb_palette())
         } else {
-            0
+            None
         }
     }
     pub(crate) fn cycle_palette(&mut self) {
-        if !matches!(
-            self.platform(),
-            omega_store::Platform::Gb | omega_store::Platform::Gbc
-        ) {
+        if self.platform() != omega_store::Platform::Gb
+            || self.core() != omega_store::Core::Gambatte
+        {
             return;
         }
-        let i = self.platform() as usize;
-        self.state.palettes[i] = (self.state.palettes[i] + 1) % 5;
+        let i = omega_store::Platform::Gb as usize;
+        self.state.palettes[i] =
+            (self.state.palettes[i] + 1) % omega_store::GB_PALETTES.len() as u8;
+        self.palette_pending = true;
         self.hud
             .toast(omega_ui::Toast::Palette(self.state.palettes[i]), self.now());
         self.persist();
     }
     pub fn shader_saturation(&self) -> f32 {
-        if matches!(
-            self.platform(),
-            omega_store::Platform::Gb | omega_store::Platform::Gbc
-        ) {
-            self.state.saturation[self.platform() as usize] as f32 / 100.0
-        } else {
-            1.0
-        }
+        self.state.saturation[self.platform() as usize] as f32 / 100.0
+    }
+    pub fn lcd_darkness(&self) -> f32 {
+        self.state.lcd_darkness[self.platform() as usize] as f32 / 100.0
     }
 
     pub fn shader_shadow(&self) -> (f32, f32) {
@@ -164,11 +165,11 @@ impl App {
                 return;
             }
             Action::GbaDown(Btn::Up) => {
-                screen.display_row = (screen.display_row + 6) % 7;
+                screen.display_row = (screen.display_row + 7) % 8;
                 return;
             }
             Action::GbaDown(Btn::Down) => {
-                screen.display_row = (screen.display_row + 1) % 7;
+                screen.display_row = (screen.display_row + 1) % 8;
                 return;
             }
             Action::GbaDown(Btn::Left) => false,
@@ -195,7 +196,12 @@ impl App {
                 self.state.shadow_y[i] =
                     (self.state.shadow_y[i] + if forward { 1 } else { -1 }).clamp(-60, 60)
             }
-            6 if i == 1 || i == 2 => {
+            7 => {
+                self.state.lcd_darkness[i] = (self.state.lcd_darkness[i] as i16
+                    + if forward { 10 } else { -10 })
+                .clamp(0, 200) as u8;
+            }
+            6 => {
                 self.state.saturation[i] = (self.state.saturation[i] as i16
                     + if forward { 10 } else { -10 })
                 .clamp(0, 200) as u8;
@@ -253,8 +259,12 @@ impl App {
                 ViewRow {
                     label: RowLabel::Setting("Saturation"),
                     value: Some(RowValue::Name(format!("{}%", self.state.saturation[i]))),
-                    dim: i != 1 && i != 2,
+                    dim: false,
                 },
+                row(
+                    "LCD darkness",
+                    RowValue::Name(format!("{}%", self.state.lcd_darkness[i])),
+                ),
             ],
             lit: Some(screen.display_row),
             status: Vec::new(),

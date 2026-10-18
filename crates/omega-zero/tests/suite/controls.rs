@@ -144,24 +144,16 @@ fn controls_says_what_the_shelf_and_a_gba_game_do_with_each_button() {
 }
 
 #[test]
-fn a_game_boy_has_no_core_to_pick_and_leaves_l1_and_r1_to_the_picture() {
+fn game_boys_offer_gambatte_and_mgba_and_only_gb_offers_palettes() {
     for platform in [Platform::Gb, Platform::Gbc] {
         let view = ControlsView::new(platform);
-        assert!(
-            !view.groups[0].lines.contains(&("X", "CORE")),
-            "{platform:?} offers a core to pick"
-        );
-        assert_eq!(view.groups[0].lines.len(), SHELF_WITH_CORES.len() - 1);
+        assert!(view.groups[0].lines.contains(&("X", "CORE")));
         let game = &view.groups[1].lines;
-        for line in [
-            ("L2", "REWIND"),
-            ("SELECT+MENU", "LINK"),
-            ("SELECT+Y", "COLOUR"),
-            ("L1 R1", "PICTURE SIZE"),
-            ("SELECT+B", "PALETTE"),
-        ] {
-            assert!(game.contains(&line), "{platform:?} has no {line:?}");
-        }
+        assert!(game.contains(&("L1 R1", "PICTURE SIZE")));
+        assert_eq!(
+            game.contains(&("SELECT+B", "PALETTE")),
+            platform == Platform::Gb
+        );
     }
 }
 

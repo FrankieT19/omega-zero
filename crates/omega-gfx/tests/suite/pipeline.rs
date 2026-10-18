@@ -1314,3 +1314,31 @@ fn saturation_and_palettes_work_in_clean_and_filtered_modes() {
         assert!(p[2] > p[0], "mode {mode} ignored blue palette: {p:?}");
     }
 }
+
+#[test]
+fn lcd_darkness_adjusts_both_reference_masks_and_their_pt_combinations() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    c.set_game_view(sharp([0.0, 0.0, out_w() as f32, out_h() as f32]));
+    c.upload_game(&flat_shot([200; 3]));
+    for mode in [1, 2, 5, 6] {
+        c.set_game_effect(mode, 1.0, 1.0);
+        let mut averages = Vec::new();
+        for darkness in [0.0, 1.0, 2.0] {
+            c.set_lcd_darkness(darkness);
+            c.begin_frame();
+            c.draw_game();
+            let frame = c.read_frame();
+            let sum: u64 = frame
+                .chunks_exact(4)
+                .map(|p| p[0] as u64 + p[1] as u64 + p[2] as u64)
+                .sum();
+            averages.push(sum);
+        }
+        assert!(
+            averages[0] > averages[1] && averages[1] > averages[2],
+            "preset {mode} ignored LCD darkness: {averages:?}"
+        );
+    }
+}

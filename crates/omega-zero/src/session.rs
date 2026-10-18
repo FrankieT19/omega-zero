@@ -247,6 +247,16 @@ impl Session {
                 }
             }
         }
+        if let Some(index) = self.app.take_palette() {
+            if self.app.platform() == Platform::Gb && self.app.core() == omega_store::Core::Gambatte
+            {
+                if let Some(emu) = &self.emu {
+                    for (key, value) in crate::core::gb_palette_options(index) {
+                        emu.set_option(key, value);
+                    }
+                }
+            }
+        }
         if let Some(disc) = self.app.take_disc_swap() {
             if let Some(emu) = &self.emu {
                 emu.set_disc(disc);
@@ -416,8 +426,8 @@ impl Session {
         let core = omega_store::core_for_platform(&self.root, stem, platform);
         self.app.set_core(core);
         self.app.set_platform(platform);
-        self.app.load_picture(stem);
         self.app.set_video_mode(self.app.preferred_video_mode());
+        self.app.load_picture(stem);
         self.app.set_link_loaded(serial);
         let resume = (!self.app.starting_clean())
             .then(|| persist::read_resume(&self.root, platform, core, stem))
@@ -434,6 +444,11 @@ impl Session {
         let opened = open(&self.root, core, setup);
         self.app.set_named_core(opened.named);
         let mut game = opened.core;
+        if platform == Platform::Gb && core == omega_store::Core::Gambatte {
+            for (key, value) in crate::core::gb_palette_options(self.app.gb_palette()) {
+                game.set_option(key, value);
+            }
+        }
         // a game put away on its second disc comes back on it, for its resume state is of that
         // disc; a game started afresh starts from the first
         if let Some((index, path)) = resume
@@ -445,6 +460,13 @@ impl Session {
             self.app.set_disc_in(stem, index);
         }
         let sav = persist::read_sav(&self.root, platform, stem);
+        if core == omega_store::Core::Gambatte {
+            if let Some(bytes) = &sav {
+                if let Err(e) = persist::backup_before_gambatte(&self.root, platform, stem, bytes) {
+                    eprintln!("omega-zero: save backup: {e}");
+                }
+            }
+        }
         persist::mark_starting(&self.root, platform, stem);
         self.starting = true;
         let ring = self.sink.ring();

@@ -83,7 +83,7 @@ pub fn open(root: &Path, core: Core, setup: Setup) -> Opened {
 /// picture, so a SNES or PlayStation game without its core is still laid out as one.
 fn stand_in(core: Core) -> MockCore {
     match core {
-        Core::Mgba | Core::Gpsp => MockCore::new(),
+        Core::Mgba | Core::Gpsp | Core::Gambatte => MockCore::new(),
         Core::Snes9x | Core::Supafaust => MockCore::sized(256, 224),
         Core::PcsxRearmed => MockCore::sized(320, 240),
     }
@@ -165,6 +165,10 @@ fn report_missing(core: Core, paths: &[PathBuf]) {
 
 pub fn colour_option(which: Core, on: bool) -> Option<(&'static str, &'static str)> {
     match which {
+        Core::Gambatte => Some((
+            "gambatte_gbc_color_correction",
+            if on { "always" } else { "disabled" },
+        )),
         Core::Mgba => Some(("mgba_color_correction", if on { "Auto" } else { "OFF" })),
         Core::Gpsp => Some((
             "gpsp_color_correction",
@@ -172,6 +176,27 @@ pub fn colour_option(which: Core, on: bool) -> Option<(&'static str, &'static st
         )),
         Core::Snes9x | Core::Supafaust | Core::PcsxRearmed => None,
     }
+}
+
+pub fn gb_palette_options(index: u8) -> [(&'static str, &'static str); 2] {
+    let palette = omega_store::GB_PALETTES
+        .get(index as usize)
+        .copied()
+        .unwrap_or(omega_store::GB_PALETTES[0]);
+    [
+        (
+            "gambatte_gb_colorization",
+            if index == 0 { "GBC" } else { "internal" },
+        ),
+        (
+            "gambatte_gb_internal_palette",
+            if index == 0 {
+                "GBC - Dark Green"
+            } else {
+                palette
+            },
+        ),
+    ]
 }
 
 pub fn apply_link_options(core: &mut LibretroCore, which: Core, player: u8) {
@@ -217,6 +242,11 @@ pub fn core_options(
     let mut set: Vec<(&'static str, String)> = Vec::new();
     let mut put = |key: &'static str, value: &str| set.push((key, value.to_string()));
     match which {
+        Core::Gambatte => {
+            put("gambatte_gb_colorization", "GBC");
+            put("gambatte_gb_internal_palette", "GBC - Dark Green");
+            put("gambatte_mix_frames", "disabled");
+        }
         Core::Mgba => {
             put("mgba_frameskip", "auto");
             put("mgba_sgb_borders", "OFF");

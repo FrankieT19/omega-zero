@@ -9,12 +9,14 @@ use omega_input::{Action, Btn};
 pub struct Picture {
     pub zoom: u16,
     pub edges: [u8; 4],
+    pub scaling: Option<u8>,
 }
 impl Default for Picture {
     fn default() -> Self {
         Self {
             zoom: 100,
             edges: [0; 4],
+            scaling: None,
         }
     }
 }
@@ -38,12 +40,17 @@ impl Picture {
             .map(str::parse)
             .collect::<Result<_, _>>()
             .ok()?;
-        if n.len() != 5 || !(100..=200).contains(&n[0]) || n[1..].iter().any(|v| *v > 20) {
+        if !(5..=6).contains(&n.len())
+            || !(100..=200).contains(&n[0])
+            || n[1..5].iter().any(|v| *v > 20)
+            || n.get(5).is_some_and(|v| *v > 2)
+        {
             return None;
         }
         Some(Self {
             zoom: n[0],
             edges: [n[1] as u8, n[2] as u8, n[3] as u8, n[4] as u8],
+            scaling: n.get(5).map(|v| *v as u8),
         })
     }
 }
@@ -61,6 +68,17 @@ impl App {
             .as_deref()
             .and_then(Picture::parse)
             .unwrap_or_default();
+        self.video_mode = self
+            .picture_adjust
+            .scaling
+            .map(|n| {
+                [
+                    crate::video_mode::VideoMode::Integer,
+                    crate::video_mode::VideoMode::Fit,
+                    crate::video_mode::VideoMode::Stretch,
+                ][n as usize]
+            })
+            .unwrap_or_else(|| self.preferred_video_mode());
         self.picture_menu = None;
     }
     pub fn picture_menu_open(&self) -> bool {
@@ -76,11 +94,11 @@ impl App {
                 return;
             }
             Action::GbaDown(Btn::Up) => {
-                self.picture_menu = Some((row + 6) % 7);
+                self.picture_menu = Some((row + 7) % 8);
                 return;
             }
             Action::GbaDown(Btn::Down) => {
-                self.picture_menu = Some((row + 1) % 7);
+                self.picture_menu = Some((row + 1) % 8);
                 return;
             }
             Action::GbaDown(Btn::Left | Btn::Right | Btn::A) => {
@@ -91,14 +109,32 @@ impl App {
                 };
                 match row {
                     0 => {
+                        use crate::video_mode::VideoMode;
+                        if self.platform() != omega_store::Platform::Gba {
+                            let current: i32 = match self.video_mode {
+                                VideoMode::Actual | VideoMode::Integer => 0,
+                                VideoMode::Fit => 1,
+                                VideoMode::Stretch => 2,
+                            };
+                            let index = (current + by).rem_euclid(3) as u8;
+                            self.picture_adjust.scaling = Some(index);
+                            self.video_mode =
+                                [VideoMode::Integer, VideoMode::Fit, VideoMode::Stretch]
+                                    [index as usize];
+                        }
+                    }
+                    1 => {
                         self.picture_adjust.zoom =
                             (self.picture_adjust.zoom as i32 + by * 5).clamp(100, 200) as u16
                     }
-                    1..=4 => {
-                        self.picture_adjust.edges[row - 1] =
-                            (self.picture_adjust.edges[row - 1] as i32 + by).clamp(0, 20) as u8
+                    2..=5 => {
+                        self.picture_adjust.edges[row - 2] =
+                            (self.picture_adjust.edges[row - 2] as i32 + by).clamp(0, 20) as u8
                     }
-                    5 => self.picture_adjust = Picture::default(),
+                    6 => {
+                        self.picture_adjust = Picture::default();
+                        self.video_mode = self.preferred_video_mode();
+                    }
                     _ => {
                         self.picture_menu = None;
                         return;
@@ -109,10 +145,13 @@ impl App {
         }
         if let (Some(root), Phase::Playing { cart }) = (self.root(), &self.phase) {
             let p = self.picture_adjust;
-            let value = format!(
+            let mut value = format!(
                 "{},{},{},{},{}",
                 p.zoom, p.edges[0], p.edges[1], p.edges[2], p.edges[3]
             );
+            if let Some(scale) = p.scaling {
+                value.push_str(&format!(",{scale}"));
+            }
             if let Err(e) = omega_store::ini::write(
                 root,
                 "Config/picture.ini",
@@ -126,6 +165,7 @@ impl App {
     pub(crate) fn picture_view(&self) -> Option<ListView> {
         let row = self.picture_menu?;
         let labels = [
+            "Scaling",
             "Zoom",
             "Crop left",
             "Crop right",
@@ -141,14 +181,29 @@ impl App {
                 .map(|(i, label)| ViewRow {
                     label: RowLabel::Setting(label),
                     value: match i {
-                        0 => Some(RowValue::Name(format!("{}%", self.picture_adjust.zoom))),
-                        1..=4 => Some(RowValue::Name(format!(
+                        0 => Some(RowValue::Choice(match self.video_mode {
+                            crate::video_mode::VideoMode::Actual
+                            | crate::video_mode::VideoMode::Integer => "Integer",
+                            crate::video_mode::VideoMode::Fit => {
+                                if matches!(
+                                    self.platform(),
+                                    omega_store::Platform::Snes | omega_store::Platform::Ps1
+                                ) {
+                                    "Fit 4:3"
+                                } else {
+                                    "Fit"
+                                }
+                            }
+                            crate::video_mode::VideoMode::Stretch => "Stretch",
+                        })),
+                        1 => Some(RowValue::Name(format!("{}%", self.picture_adjust.zoom))),
+                        2..=5 => Some(RowValue::Name(format!(
                             "{}%",
-                            self.picture_adjust.edges[i - 1]
+                            self.picture_adjust.edges[i - 2]
                         ))),
                         _ => None,
                     },
-                    dim: false,
+                    dim: i == 0 && self.platform() == omega_store::Platform::Gba,
                 })
                 .collect(),
             lit: Some(row),

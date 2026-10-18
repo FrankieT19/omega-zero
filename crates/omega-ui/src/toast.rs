@@ -100,10 +100,10 @@ impl Toast {
     /// The line in the toast's well, in its own case.
     pub fn text(self) -> &'static str {
         match self {
-            Toast::Palette(n) => ["Game colours", "Pocket", "DMG green", "Blue", "Grayscale"]
+            Toast::Palette(n) => omega_store::GB_PALETTES
                 .get(n as usize)
                 .copied()
-                .unwrap_or("Game colours"),
+                .unwrap_or(omega_store::GB_PALETTES[0]),
             Toast::Shader(n) => omega_store::SHADER_NAMES
                 .get(n as usize)
                 .copied()

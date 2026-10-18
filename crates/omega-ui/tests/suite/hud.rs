@@ -75,7 +75,11 @@ fn nothing_shows_until_something_is_adjusted() {
 
 #[test]
 fn volume_and_brightness_use_their_own_scales() {
-    assert_eq!(lit(HudKind::Brightness, 12), 9, "brightness 12 is not full");
+    assert_eq!(
+        lit(HudKind::Brightness, 13),
+        13,
+        "brightness 13 is not full"
+    );
     assert_eq!(
         lit(HudKind::Volume, 9),
         2,
@@ -90,7 +94,7 @@ fn volume_and_brightness_use_their_own_scales() {
 fn each_level_has_its_title_and_cells() {
     let kinds = [
         (HudKind::Volume, "VOLUME", 20),
-        (HudKind::Brightness, "BRIGHTNESS", 9),
+        (HudKind::Brightness, "BRIGHTNESS", 13),
         (HudKind::BlueLight, "BLUE LIGHT", 9),
         (HudKind::Rewind, "REWIND", 20),
     ];
@@ -399,4 +403,11 @@ fn the_faces_follow_the_palette() {
             .any(|p| p[3] == 255 && p[..3] == amber.label),
         "the lit cells are not in the palette's label colour"
     );
+}
+
+#[test]
+fn all_thirteen_brightness_steps_have_distinct_visible_cells() {
+    for step in 1..=13 {
+        assert_eq!(lit(HudKind::Brightness, step), step as u32);
+    }
 }

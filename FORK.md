@@ -70,3 +70,14 @@ Full rendering tests require macOS, as in upstream CI. Hardware validation is st
 Reference palette tables: [mGBA pinned source](https://github.com/libretro/mgba/blob/e31759b24e7a4e3899285ff720d7b573ac328ae7/src/gb/overrides.c), [Gambatte GBC entries](https://github.com/libretro/gambatte-libretro/blob/master/libgambatte/libretro/gbcpalettes.h).
 
 Device compilation and GLES2 compile/link validation are checked locally. CI renders pixel-level grid/alignment, saturation, palette, crop/orientation and fixed-raster regressions on both supported landscape resolutions. H700 frame rate and the exact appearance on the RG SP panel still require hardware verification.
+
+## v4: native GB palettes and display controls
+
+- GB/GBC now default to Gambatte, pinned to d9d6cd06382d1ced30de34d56d3609452323dab1. The ARM64 build runs a real-core GB palette smoke test before packaging. mGBA remains selectable with X on GB/GBC carts for existing save states and cable link play. State files remain separated by core; existing battery saves are backed up as `<game>.pre-gambatte.sav` before first loading through Gambatte. Battery saves are shared; save states do not transfer between emulators.
+- SELECT+B applies only to original GB games running Gambatte. It cycles game-specific GBC colours, Pocket, DMG, Blue, grayscale, Light, and the remaining original GBC presets (Brown, Dark Blue, Dark Brown, Dark Green, Green, Inverted, Orange, Pastel Mix, Red, Yellow). These are Gambatte's native background/sprite palettes; the v3 luminance remap is no longer used. Native GBC games always keep their full colours.
+- SELECT+X > Scaling selects per-game Integer / Fit / Stretch without leaving play. On SNES/PS1, Fit is 4:3 and fills the available height on landscape panels; Stretch fills all four screen edges. Integer uses native whole-pixel scaling, so SNES's usual 256x224 frame has its native 8:7 pixel aspect in this mode. Existing v3 SNES defaults migrate once to Fit. Per-game scaling is saved with crop/zoom; legacy five-value picture files still load.
+- Saturation 0–200% is saved independently for all five systems. LCD darkness 0–200% controls the LCD1x/LCD3x mask, including LCD+PT: 0% removes mask darkening, 100% is the original shader formula, and 200% deepens the mask. Both are in Display settings; shadows, grid spacing and PT defaults are otherwise preserved.
+- The brightness indicator has 13 cells, one per hardware/dimming step, with the darkest level still showing one cell.
+- Carousel models are drawn from farthest to nearest, so a focused SNES cart covers its GB/GBC neighbours on either side.
+
+Gambatte palette definitions: https://github.com/libretro/gambatte-libretro/blob/d9d6cd06382d1ced30de34d56d3609452323dab1/libgambatte/libretro/libretro_core_options.h

@@ -139,6 +139,10 @@ impl GamePass {
         })
     }
 
+    pub fn set_lcd_darkness(&mut self, value: f32) {
+        self.presets.borrow_mut().lcd_darkness = value.clamp(0.0, 2.0);
+    }
+
     pub fn set_display(&mut self, saturation: f32, panel_raster: bool, palette: u8) {
         let mut presets = self.presets.borrow_mut();
         presets.saturation = saturation.clamp(0.0, 2.0);
