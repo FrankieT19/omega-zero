@@ -14,7 +14,7 @@ mkdir -p "$work"
 tar -xzf "$src" --strip-components=1 -C "$work"
 python3 cores/retroarch/patch.py "$work"
 cd "$work"
-./configure --prefix=/usr --enable-opengles3 --enable-mali_fbdev \
+./configure --prefix=/usr --enable-opengles --enable-opengles3 --enable-mali_fbdev \
   --enable-slang   \
   --enable-builtinglslang --enable-builtinspirv_cross --enable-command  \
   --enable-alsa --enable-rgui --disable-x11 --disable-wayland --disable-kms \

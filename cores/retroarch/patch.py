@@ -15,6 +15,22 @@ static void command_parse_sub_msg(command_t *handle, const char *tok)''')
 replace('command.c', '   handle->error   = false;', '''   handle->error   = false;
    if (sscanf(tok, "OMEGA_INPUT %x %u", &omega_pad, &omega_flags) == 2)
       return;
+   if (strcmp(tok, "OMEGA_SCREEN") == 0)
+   {
+      video_shader_ctx_t current; video_viewport_t vp;
+      if (video_shader_driver_get_current_shader(&current) && current.data
+            && video_driver_get_viewport_info(&vp))
+      {
+         unsigned n;
+         for (n=0;n<current.data->num_parameters;n++)
+         {
+            struct video_shader_parameter *p = &current.data->parameters[n];
+            if (strcmp(p->id,"OMEGA_ORIGIN_X")==0) video_shader_param_set(p,(float)VIDEO_POS_X(vp.pos));
+            if (strcmp(p->id,"OMEGA_ORIGIN_Y")==0) video_shader_param_set(p,(float)(VIDEO_SCALE_H(vp.full_dims)-VIDEO_POS_Y(vp.pos)-VIDEO_SCALE_H(vp.dims)));
+         }
+      }
+      return;
+   }
    if (strncmp(tok, "OMEGA_PARAM ", 12) == 0)
    {
       char name[64]; float value; video_shader_ctx_t current;
@@ -39,10 +55,16 @@ replace('command.c', '   handle->error   = false;', '''   handle->error   = fals
       return;
    }''')
 # Hold flags remain active between stdin polls. Standard commands remain unchanged.
-replace('input/input_driver.c', 'static void *input_null_init', '''extern unsigned omega_pad;
+replace('input/input_driver.c', 'static void *input_null_init', '''#include <sys/prctl.h>
+#include <signal.h>
+extern unsigned omega_pad;
 extern unsigned omega_flags;
 static void *input_null_init''')
-replace('input/input_driver.c', 'static input_driver_t input_null = {', '''static int16_t omega_input_state(void *data,
+replace('input/input_driver.c', 'static input_driver_t input_null = {', '''static void *omega_input_init(const char *joypad_driver) {
+   prctl(PR_SET_PDEATHSIG, SIGTERM);
+   return getppid() == 1 ? NULL : (void*)-1;
+}
+static int16_t omega_input_state(void *data,
       const input_device_driver_t *joypad, rarch_joypad_info_t *joypad_info,
       const retro_keybind_set *binds,
       unsigned port, unsigned device, unsigned index, unsigned id)
@@ -53,7 +75,7 @@ replace('input/input_driver.c', 'static input_driver_t input_null = {', '''stati
 }
 static uint64_t omega_capabilities(void *data) { return 1ULL << RETRO_DEVICE_JOYPAD; }
 static input_driver_t input_omega = {
-   input_null_init, input_null_poll, omega_input_state, input_null_free,
+   omega_input_init, input_null_poll, omega_input_state, input_null_free,
    input_null_set_sensor_state, input_null_get_sensor_input, omega_capabilities,
    "omega", input_null_grab_mouse, input_null_grab_stdin, input_null_keypress_vibrate
 };
