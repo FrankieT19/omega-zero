@@ -1259,8 +1259,8 @@ fn stretching_gbc_keeps_lcd_panel_cells_the_same_size_as_gba() {
                     for x in 0..out_w() as usize {
                         let phase = (y % 3) * 3 + x % 3;
                         let pixel = px(frame, x, y);
-                        for channel in 0..3 {
-                            sum[phase][channel] += pixel[channel] as f64;
+                        for (value, channel) in sum[phase].iter_mut().zip(pixel) {
+                            *value += channel as f64;
                         }
                         count[phase] += 1;
                     }
