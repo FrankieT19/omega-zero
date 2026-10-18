@@ -131,7 +131,7 @@ fn up_and_down_move_the_bar_and_wrap_at_the_ends() {
     press(&mut a, Btn::Up);
     assert_eq!(
         a.settings_row(),
-        Some(SettingsRow::Display),
+        Some(SettingsRow::Inactivity),
         "up from the top did not wrap to the bottom"
     );
     for want in [
@@ -146,6 +146,7 @@ fn up_and_down_move_the_bar_and_wrap_at_the_ends() {
         SettingsRow::Background,
         SettingsRow::About,
         SettingsRow::Display,
+        SettingsRow::Inactivity,
         SettingsRow::FastForward,
     ] {
         press(&mut a, Btn::Down);
@@ -935,4 +936,37 @@ fn brightness_hardware_and_dimming_steps_map_to_all_thirteen_hud_cells() {
         cells.push(app.hud().gauge().unwrap().lit);
     }
     assert_eq!(cells, (1..=13).rev().collect::<Vec<_>>());
+}
+
+#[test]
+fn lcd_edge_smoothing_is_optional_and_saved_per_system() {
+    let (d, mut app, _) = on_carousel();
+    display_at(&mut app, 8);
+    press(&mut app, Btn::Right);
+    assert!(app.lcd_aa());
+    app.set_platform(omega_store::Platform::Snes);
+    assert!(!app.lcd_aa());
+    assert_eq!(
+        read_app_state(d.path()).lcd_aa,
+        [true, false, false, false, false]
+    );
+}
+#[test]
+fn inactivity_menu_saves_separate_menu_and_game_timings() {
+    let (d, mut app, _) = on_carousel();
+    open_at(&mut app, SettingsRow::Inactivity);
+    press(&mut app, Btn::A);
+    app.finish_slide();
+    assert_eq!(app.background_view().unwrap().rows.len(), 3);
+    press(&mut app, Btn::Down);
+    press(&mut app, Btn::Right);
+    press(&mut app, Btn::Down);
+    press(&mut app, Btn::Left);
+    press(&mut app, Btn::Down);
+    press(&mut app, Btn::Right);
+    press(&mut app, Btn::Down);
+    press(&mut app, Btn::Left);
+    let state = read_app_state(d.path());
+    assert_eq!(state.idle_dim, [120, 120]);
+    assert_eq!(state.idle_sleep, [120, 900]);
 }

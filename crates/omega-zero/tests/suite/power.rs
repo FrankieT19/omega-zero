@@ -476,3 +476,68 @@ fn a_shut_lid_over_a_session_takes_its_network_down_too() {
     );
     assert!(jobs.contains(&RadioJob::Cool));
 }
+
+#[test]
+fn inactivity_fades_saves_and_uses_lid_sleep_with_power_button_wake() {
+    let d = tmp_root_with_carts(&["Emerald"]);
+    let mut a = common::app_playing_with_state(
+        d.path(),
+        "Emerald",
+        AppState {
+            idle_dim: [1, 1],
+            idle_sleep: [2, 2],
+            ..Default::default()
+        },
+    );
+    let (power, backlight) = panel(d.path(), Duration::from_secs(60));
+    a.set_power(power);
+    a.update(0.01);
+    a.update(1.0);
+    assert!(a.inactivity_gain() < 1.0 && a.inactivity_gain() > 0.25);
+    assert_ne!(backlight.load(Ordering::Relaxed), 0);
+    for _ in 0..55 {
+        a.update(0.02);
+    }
+    assert!(
+        !matches!(a.phase(), Phase::Doze { .. }),
+        "sleep skipped the fade"
+    );
+    for _ in 0..30 {
+        a.update(0.02);
+    }
+    assert!(matches!(a.phase(), Phase::Doze { cart: Some(_) }));
+    assert_eq!(backlight.load(Ordering::Relaxed), 0);
+    assert!(
+        StateRing::new(d.path(), Platform::Gba, Core::Mgba, "Emerald")
+            .read_resume()
+            .unwrap()
+            .is_some()
+    );
+    a.apply(Action::PowerPress);
+    assert!(matches!(a.phase(), Phase::Playing { .. }));
+    a.update(0.02);
+    assert!(a.inactivity_gain() > 0.0 && a.inactivity_gain() < 1.0);
+    for _ in 0..15 {
+        a.update(0.02);
+    }
+    assert!(!matches!(a.phase(), Phase::Doze { .. }));
+}
+#[test]
+fn held_buttons_prevent_menu_inactivity_sleep_until_released() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    let mut state = read_app_state(d.path());
+    state.idle_dim = [1, 1];
+    state.idle_sleep = [2, 2];
+    write_app_state(d.path(), &state).unwrap();
+    let (mut s2, _) = session_with_platform(d.path());
+    s2.feed([RawEvent::Down(Btn::Right)], 0);
+    for _ in 0..200 {
+        s2.update(0.02);
+    }
+    assert!(!matches!(s2.app().phase(), Phase::Doze { .. }));
+    s2.feed([RawEvent::Up(Btn::Right)], 4000);
+    for _ in 0..180 {
+        s2.update(0.02);
+    }
+    assert!(matches!(s2.app().phase(), Phase::Doze { cart: None }));
+}

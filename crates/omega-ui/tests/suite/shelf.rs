@@ -938,3 +938,22 @@ fn focused_snes_model_is_drawn_after_both_game_boy_neighbours() {
     });
     assert_eq!(last, Some(TexId::from_raw(100)));
 }
+
+#[test]
+fn long_core_exit_frames_do_not_destabilize_single_cart_navigation() {
+    let mut s = shelf_with(10);
+    s.right();
+    s.update(0.016);
+    for dt in [0.25, 2.0, 60.0, 10000.0] {
+        s.update(dt);
+        assert!(s.scroll.is_finite());
+        assert!((s.scroll - s.scroll_target()).abs() < 1.0);
+    }
+    assert_eq!(s.index, 1);
+    s.right();
+    assert_eq!(s.index, 2);
+    s.update(1.0);
+    assert!((s.scroll - s.scroll_target()).abs() < 0.01);
+    s.left();
+    assert_eq!(s.index, 1);
+}

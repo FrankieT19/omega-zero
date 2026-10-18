@@ -3,3 +3,5 @@ Sources: libretro/glsl-shaders @ ce9a41242e27f41e16bc35c28943466cee3e8ff8, handh
 Upstream source: https://github.com/libretro/glsl-shaders/tree/ce9a41242e27f41e16bc35c28943466cee3e8ff8/handheld
 Pixel Transparency by Matt Akins: https://github.com/mattakins/Pixel_Transparency
 LCD1x includes GPL-2.0-or-later terms in the original header; see ../COPYING* or the project GPL license for full terms.
+
+LCD1x/LCD3x also checked against libretro/slang-shaders @ e1d75632a205c70f14a4cc947c46d5abb7b3f7f1, handheld/lcd1x.slangp and lcd3x.slangp (single viewport pass, nearest filtering). Original Slang sources are included alongside the GLSL originals. The GLES adapters bound trigonometric phase to one source-pixel cell, avoiding large-angle precision differences; the copy and final blit use high precision. Stock sampling is the default. Optional LCD edge smoothing uses sharp bilinear sampling at source boundaries, with nearest filtering restored before Pixel Transparency. LCD darkness remains an explicit user adjustment. Grid follows source pixels except GB/GBC Stretch, which emulates the fixed GBA panel grid.

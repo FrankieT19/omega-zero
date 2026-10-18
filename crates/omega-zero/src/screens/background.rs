@@ -25,6 +25,7 @@ pub const TITLE: &str = "THEME";
 pub fn background_face(view: &ListView, pal: &Palette) -> UndoFace {
     let content = rows_height(view.rows.len());
     let title = match view.rows.first().map(|r| &r.label) {
+        Some(crate::list_view::RowLabel::Setting("Context")) => "INACTIVITY",
         Some(crate::list_view::RowLabel::Setting("System")) => "DISPLAY",
         Some(crate::list_view::RowLabel::Setting("Scaling")) => "PICTURE",
         _ => TITLE,
@@ -36,6 +37,9 @@ pub fn background_face(view: &ListView, pal: &Palette) -> UndoFace {
 
 impl App {
     pub(crate) fn background_input(&mut self, action: Action) {
+        if matches!(&self.phase, Phase::Background(s) if s.idle) {
+            return self.inactivity_input(action);
+        }
         if matches!(&self.phase, Phase::Background(s) if s.display) {
             return self.display_input(action);
         }
@@ -70,6 +74,7 @@ impl App {
             return Some(view);
         }
         match &self.phase {
+            Phase::Background(screen) if screen.idle => Some(self.inactivity_view(screen)),
             Phase::Background(screen) if screen.display => Some(self.display_view(screen)),
             Phase::Background(screen) => Some(screen.view(self.backdrop(), self.state.font)),
             _ => None,
@@ -124,6 +129,9 @@ impl App {
     pub fn shader_saturation(&self) -> f32 {
         self.state.saturation[self.platform() as usize] as f32 / 100.0
     }
+    pub fn lcd_aa(&self) -> bool {
+        self.state.lcd_aa[self.platform() as usize]
+    }
     pub fn lcd_darkness(&self) -> f32 {
         self.state.lcd_darkness[self.platform() as usize] as f32 / 100.0
     }
@@ -165,11 +173,11 @@ impl App {
                 return;
             }
             Action::GbaDown(Btn::Up) => {
-                screen.display_row = (screen.display_row + 7) % 8;
+                screen.display_row = (screen.display_row + 8) % 9;
                 return;
             }
             Action::GbaDown(Btn::Down) => {
-                screen.display_row = (screen.display_row + 1) % 8;
+                screen.display_row = (screen.display_row + 1) % 9;
                 return;
             }
             Action::GbaDown(Btn::Left) => false,
@@ -196,6 +204,7 @@ impl App {
                 self.state.shadow_y[i] =
                     (self.state.shadow_y[i] + if forward { 1 } else { -1 }).clamp(-60, 60)
             }
+            8 => self.state.lcd_aa[i] = !self.state.lcd_aa[i],
             7 => {
                 self.state.lcd_darkness[i] = (self.state.lcd_darkness[i] as i16
                     + if forward { 10 } else { -10 })
@@ -264,6 +273,10 @@ impl App {
                 row(
                     "LCD darkness",
                     RowValue::Name(format!("{}%", self.state.lcd_darkness[i])),
+                ),
+                row(
+                    "LCD edge smoothing",
+                    RowValue::Setting(self.state.lcd_aa[i]),
                 ),
             ],
             lit: Some(screen.display_row),

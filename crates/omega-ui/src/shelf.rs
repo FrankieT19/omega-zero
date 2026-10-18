@@ -485,10 +485,19 @@ impl Shelf {
     }
 
     pub fn update(&mut self, dt: f32) {
-        self.calm_down(dt);
-        let accel = -2.0 * OMEGA * self.vel - OMEGA * OMEGA * (self.scroll - self.scroll_target());
-        self.vel += accel * dt;
-        self.scroll += self.vel * dt;
+        self.calm_down(if dt.is_finite() { dt.max(0.0) } else { 0.0 });
+        let target = self.scroll_target();
+        if !dt.is_finite() || !self.scroll.is_finite() || !self.vel.is_finite() {
+            self.scroll = target;
+            self.vel = 0.0;
+            return;
+        }
+        let dt = dt.max(0.0);
+        let x = self.scroll - target;
+        let q = self.vel + OMEGA * x;
+        let decay = (-OMEGA * dt).exp();
+        self.scroll = target + (x + q * dt) * decay;
+        self.vel = (self.vel - OMEGA * q * dt) * decay;
     }
 
     /// Keeps the selected cart from swaying while something else has it, such as the core

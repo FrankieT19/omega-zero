@@ -336,7 +336,7 @@ fn settings_is_flows_pixel_for_pixel() {
         // Keep checking the original kit layout against them; the new row uses the same kit.
         let rows: Vec<_> = flow_rows(lit)
             .into_iter()
-            .filter(|shown| shown.row != SettingsRow::Display)
+            .filter(|shown| !matches!(shown.row, SettingsRow::Display | SettingsRow::Inactivity))
             .collect();
         let ours = composed(&rows, palette(colour));
         if let Ok(dir) = std::env::var("SETTINGS_OUT") {
@@ -474,7 +474,8 @@ fn the_rows_run_in_the_order_the_user_chose() {
             "Bluetooth",
             "Theme",
             "About",
-            "Display"
+            "Display",
+            "Inactivity"
         ]
     );
     let opens: Vec<SettingsRow> = SettingsRow::ALL.into_iter().filter(|r| r.opens()).collect();
@@ -487,7 +488,8 @@ fn the_rows_run_in_the_order_the_user_chose() {
             SettingsRow::Bluetooth,
             SettingsRow::Background,
             SettingsRow::About,
-            SettingsRow::Display
+            SettingsRow::Display,
+            SettingsRow::Inactivity
         ]
     );
 }
@@ -526,7 +528,7 @@ fn a_hidden_row_is_stepped_over_both_ways() {
     assert_eq!(SettingsRow::DateTime.down_in(&rows), SettingsRow::Bluetooth);
     assert_eq!(SettingsRow::Bluetooth.up_in(&rows), SettingsRow::DateTime);
     assert_eq!(
-        SettingsRow::Display.down_in(&rows),
+        SettingsRow::Inactivity.down_in(&rows),
         SettingsRow::FastForward
     );
     assert_eq!(SettingsRow::DateTime.down(), SettingsRow::Network);

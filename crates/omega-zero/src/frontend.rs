@@ -287,7 +287,7 @@ impl Frontend {
 
     pub fn compose(&mut self, compositor: &mut Compositor) {
         compositor.set_blue_light(self.session.app().blue_light());
-        compositor.set_dim(self.session.app().dim_gain());
+        compositor.set_dim(self.session.app().dim_gain() * self.session.app().inactivity_gain());
         compositor.set_shake(self.session.app().screen_shake());
         compositor.set_screen_power(self.session.app().screen_power());
         let platform = self.session.app().platform();
@@ -305,6 +305,7 @@ impl Frontend {
         self.session.app().picture_adjust.apply(&mut screen.still);
         let (mode, strength, blend) = self.session.app().shader_settings();
         compositor.set_game_effect(mode, strength, blend);
+        compositor.set_lcd_aa(self.session.app().lcd_aa());
         compositor.set_lcd_darkness(self.session.app().lcd_darkness());
         let (shadow_x, shadow_y) = self.session.app().shader_shadow();
         compositor.set_game_shadow(shadow_x, shadow_y);

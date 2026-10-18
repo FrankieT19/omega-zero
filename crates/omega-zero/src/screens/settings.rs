@@ -31,7 +31,8 @@ impl App {
             SettingsRow::FastForwardSound => Some(QuickValue::flag(self.state.ff_sound)),
             SettingsRow::ColourCorrection => Some(QuickValue::flag(self.state.colour_correction)),
             SettingsRow::Rumble => Some(QuickValue::flag(self.state.rumble)),
-            SettingsRow::Display
+            SettingsRow::Inactivity
+            | SettingsRow::Display
             | SettingsRow::Labels
             | SettingsRow::DateTime
             | SettingsRow::Network
@@ -123,6 +124,10 @@ impl App {
 
     fn open_settings_row(&mut self, row: SettingsRow) {
         let to = match row {
+            SettingsRow::Inactivity => Phase::Background(BackgroundScreen {
+                idle: true,
+                ..BackgroundScreen::default()
+            }),
             SettingsRow::Display => Phase::Background(BackgroundScreen {
                 display: true,
                 ..BackgroundScreen::default()
@@ -157,7 +162,8 @@ impl App {
                 self.colour_pending = Some(s.colour_correction);
             }
             SettingsRow::Rumble => s.rumble = !s.rumble,
-            SettingsRow::Display
+            SettingsRow::Inactivity
+            | SettingsRow::Display
             | SettingsRow::Labels
             | SettingsRow::DateTime
             | SettingsRow::Network
