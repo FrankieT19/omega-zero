@@ -564,6 +564,7 @@ tasks:
       - cp vendor/retroarch-src.tar.gz {{.OUT}}/System/licenses/retroarch-ea79555bc8fcd4cb1a2fb8a48c1a6cdba819fb07.tar.gz
       - cp cores/retroarch/build.sh {{.OUT}}/System/licenses/retroarch-build.sh
       - cp cores/retroarch/patch.py {{.OUT}}/System/licenses/retroarch-patch.py
+      - cp cores/retroarch/dimmer.h {{.OUT}}/System/licenses/retroarch-dimmer.h
       - cp cores/retroarch/probe.c {{.OUT}}/System/licenses/retroarch-probe.c
       - cp cores/retroarch/smoke.py {{.OUT}}/System/licenses/retroarch-smoke.py
       - cp vendor/retroarch.meta {{.OUT}}/System/licenses/retroarch.meta

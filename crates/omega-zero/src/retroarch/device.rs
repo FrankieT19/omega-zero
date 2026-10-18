@@ -129,6 +129,58 @@ fn volume(player: &mut Player, power: &Power, state: &AppState) -> std::io::Resu
     player.send(format!("OMEGA_VOLUME {db:.3}"))
 }
 
+fn runtime_libraries() -> std::io::Result<std::ffi::OsString> {
+    use std::os::unix::fs::symlink;
+    let aliases = std::path::PathBuf::from("/run/omega-retroarch-libs");
+    std::fs::create_dir_all(&aliases)?;
+    // BaseOS images may supply the vendor libraries with unversioned names. Resolve
+    // aliases inside our own config folder, leaving the OS library tree untouched.
+    let mut search = std::env::var_os("LD_LIBRARY_PATH")
+        .map(|v| std::env::split_paths(&v).collect::<Vec<_>>())
+        .unwrap_or_default();
+    search.extend(
+        [
+            "/lib",
+            "/usr/lib",
+            "/lib64",
+            "/usr/lib64",
+            "/lib/aarch64-linux-gnu",
+            "/usr/lib/aarch64-linux-gnu",
+        ]
+        .map(std::path::PathBuf::from),
+    );
+    for (names, candidates) in [
+        (
+            ["libEGL.so.1", "libEGL.so"],
+            ["libEGL.so.1", "libEGL.so", "libMali.so"],
+        ),
+        (
+            ["libGLESv2.so.2", "libGLESv2.so"],
+            ["libGLESv2.so.2", "libGLESv2.so", "libMali.so"],
+        ),
+    ] {
+        if let Some(source) = candidates
+            .into_iter()
+            .flat_map(|name| search.iter().map(move |dir| dir.join(name)))
+            .find(|p| p.is_file())
+            .and_then(|p| p.canonicalize().ok())
+        {
+            for name in names {
+                let target = aliases.join(name);
+                if std::fs::symlink_metadata(&target).is_ok_and(|m| m.file_type().is_symlink()) {
+                    std::fs::remove_file(&target)?;
+                }
+                if !target.exists() {
+                    symlink(&source, &target)?;
+                }
+            }
+        }
+    }
+    let mut paths = vec![aliases];
+    paths.extend(search);
+    std::env::join_paths(paths).map_err(std::io::Error::other)
+}
+
 fn play(launch: &Launch, state: &mut AppState) -> std::io::Result<()> {
     launch.prepare(state)?;
     state.cart = Some(launch.stem());
@@ -140,6 +192,12 @@ fn play(launch: &Launch, state: &mut AppState) -> std::io::Result<()> {
     let log = std::fs::File::create(launch.root.join("Config/retroarch/retroarch.log"))?;
     let mut command = Command::new(launch.root.join("System/retroarch"));
     command
+        .env("LD_LIBRARY_PATH", runtime_libraries()?)
+        .env("OMEGA_DISPLAY_DIM", dim_gain(state).to_string())
+        .env(
+            "OMEGA_DISPLAY_BLUE",
+            (state.blue_light as f32 / 9.0).to_string(),
+        )
         .arg("--config")
         .arg(launch.directory().join("current.cfg"))
         .arg("-L")
@@ -188,6 +246,8 @@ fn play(launch: &Launch, state: &mut AppState) -> std::io::Result<()> {
     let mut query = began - Duration::from_secs(1);
     let mut ready = false;
     let mut initialized = false;
+    let mut shader_ready = false;
+    let mut content_at = None;
     let mut held = 0u64;
     let mut idle = crate::inactivity::Idle::default();
     let mut fade = 1.0f32;
@@ -220,9 +280,26 @@ fn play(launch: &Launch, state: &mut AppState) -> std::io::Result<()> {
         last = now;
         while let Ok(line) = rx.try_recv() {
             if line.starts_with("GET_STATUS PLAYING") || line.starts_with("GET_STATUS PAUSED") {
+                if !ready {
+                    content_at = Some(now);
+                }
                 ready = true;
             }
-            if line.starts_with("GET_OPTION menu ") {
+            if line.starts_with("OMEGA_SHADER ")
+                && line
+                    .split_whitespace()
+                    .nth(1)
+                    .and_then(|s| s.parse::<u32>().ok())
+                    .is_some_and(|n| n > 0)
+                && !shader_ready
+            {
+                shader_ready = true;
+                std::fs::write(
+                    launch.root.join("Config/retroarch/shader-status.txt"),
+                    &line,
+                )?;
+            }
+            if line.starts_with("menu\t") {
                 menu_open = line.trim_end().ends_with("on");
             }
             if let Some(value) = line
@@ -233,8 +310,18 @@ fn play(launch: &Launch, state: &mut AppState) -> std::io::Result<()> {
             }
         }
         if ready && now.duration_since(query) > Duration::from_millis(250) {
-            player.send("GET_OPTION menu\nOMEGA_SCREEN")?;
+            player.send(if shader_ready {
+                "GET_OPTION menu\nOMEGA_SCREEN"
+            } else {
+                "GET_OPTION menu\nOMEGA_SCREEN\nOMEGA_SHADER"
+            })?;
             query = now;
+        }
+        if ready
+            && !shader_ready
+            && content_at.is_some_and(|at| now.duration_since(at) > Duration::from_secs(15))
+        {
+            return Err(std::io::Error::other("RetroArch loaded the game but no shader preset; see Config/retroarch/retroarch.log"));
         }
         if !ready {
             if now.duration_since(query) > Duration::from_millis(250) {
@@ -251,6 +338,13 @@ fn play(launch: &Launch, state: &mut AppState) -> std::io::Result<()> {
                 menu_open = true;
             }
             crate::persist::clear_starting(&launch.root);
+            let key = format!("{}/{}", launch.platform.dir_name(), launch.stem());
+            state.recent.retain(|v| v != &key);
+            state.recent.insert(0, key);
+            state.recent.truncate(10);
+            keep(launch, state)?;
+            player.param("OMEGA_BLUE", state.blue_light as f32 / 9.0)?;
+            player.send("OMEGA_SCREEN")?;
             volume(&mut player, &power, state)?;
             idle.touch(ms);
         }
@@ -491,10 +585,6 @@ fn play(launch: &Launch, state: &mut AppState) -> std::io::Result<()> {
                 }
             }
             if want_sleep {
-                if menu_open {
-                    player.send("SET_OPTION menu off")?;
-                    menu_open = false;
-                }
                 fade = (fade - dt).max(0.0);
                 idle.gain = fade;
             } else if !sleeping {
@@ -510,9 +600,7 @@ fn play(launch: &Launch, state: &mut AppState) -> std::io::Result<()> {
                 last_gain = gain;
             }
             if want_sleep && !sleeping && fade <= 0.001 {
-                player.send(
-                    "OMEGA_INPUT 0 0\nSET_OPTION menu off\nSET_OPTION pause on\nSAVE_STATE_SLOT -1",
-                )?;
+                player.send("OMEGA_INPUT 0 0\nSET_OPTION pause on\nSAVE_STATE_SLOT -1")?;
                 power.set_rumble(0);
                 power.on_close();
                 sleeping = true;

@@ -3,12 +3,13 @@
 set -eu
 commit=ea79555bc8fcd4cb1a2fb8a48c1a6cdba819fb07
 out=vendor/retroarch
-stamp="commit=$commit bridge=2 gles=3 slang=upstream"
+stamp="commit=$commit patch=$(sha256sum cores/retroarch/patch.py | cut -d' ' -f1) dimmer=$(sha256sum cores/retroarch/dimmer.h | cut -d' ' -f1) recipe=$(sha256sum 'cores/retroarch/build.sh' | cut -d' ' -f1) smoke=$(sha256sum cores/retroarch/smoke.py | cut -d' ' -f1) gles=3 slang=upstream"
 if [ -x "$out" ] && [ "$(cat "$out.meta" 2>/dev/null)" = "$stamp" ]; then exit 0; fi
 apt-get install -y --no-install-recommends python3 pkg-config libegl1-mesa-dev libgles2-mesa-dev libasound2-dev zlib1g-dev
 mkdir -p vendor target-device/retroarch
 src=vendor/retroarch-src.tar.gz
 [ -f "$src" ] || curl -fL --retry 3 -o "$src" "https://github.com/libretro/RetroArch/archive/$commit.tar.gz"
+printf '%s  %s\n' 4d0c35f1b3c9b0361c5f81693e335edfe7872e77a25511bbcc0743ea8865701c "$src" | sha256sum -c -
 work=target-device/retroarch/source
 mkdir -p "$work"
 tar -xzf "$src" --strip-components=1 -C "$work"

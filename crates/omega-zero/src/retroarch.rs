@@ -235,7 +235,7 @@ impl Launch {
                 .and_then(|m| m.modified())
                 .ok()
                 .zip(sav.metadata().and_then(|m| m.modified()).ok())
-                .is_some_and(|(a, b)| a > b);
+                .is_some_and(|(a, b)| a >= b);
             if !newer {
                 omega_store::atomic_write(&srm, &bytes)?;
             }
@@ -285,8 +285,6 @@ impl Launch {
         for (k, v) in [
             ("OMEGA_GRID", if matches!(mode, 3 | 7) { 1.0 } else { 0.0 }),
             ("OMEGA_SATURATION", state.saturation[i] as f32 / 100.0),
-            ("OMEGA_DIM", dim_gain(state)),
-            ("OMEGA_BLUE", state.blue_light as f32 / 9.0),
             ("PT_SHADOW_OFFSET_X", state.shadow_x[i] as f32 / 2.0),
             ("PT_SHADOW_OFFSET_Y", state.shadow_y[i] as f32 / 2.0),
             ("PT_SHADOW_MOTION", 0.0),
@@ -315,6 +313,32 @@ impl Launch {
         ] {
             put(&mut s, k, &format!("{v:.4}"));
         }
+        // LCD3x uses lower-case parameter IDs; LCD1x uses upper-case IDs.
+        let dark = state.lcd_darkness[i] as f32;
+        put(
+            &mut s,
+            "brighten_scanlines",
+            &format!(
+                "{:.4}",
+                if dark == 0.0 {
+                    32.0
+                } else {
+                    (1600.0 / dark).clamp(1.0, 32.0)
+                }
+            ),
+        );
+        put(
+            &mut s,
+            "brighten_lcd",
+            &format!(
+                "{:.4}",
+                if dark == 0.0 {
+                    12.0
+                } else {
+                    (400.0 / dark).clamp(1.0, 12.0)
+                }
+            ),
+        );
         if let Some(p) = omega_store::ini::value(
             &self.root,
             "Config/picture.ini",
@@ -395,6 +419,25 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn stock_lcd_defaults_and_both_parameter_spellings_are_preserved() {
+        let l = launch(Path::new("/card"), Platform::Gba);
+        let mut state = AppState::default();
+        for mode in [1, 2, 5, 6] {
+            let text = l.preset(&state, mode);
+            for key in ["BRIGHTEN_SCANLINES", "brighten_scanlines"] {
+                assert!(text.contains(&format!("{key} = \"16.0000\"")));
+            }
+            for key in ["BRIGHTEN_LCD", "brighten_lcd"] {
+                assert!(text.contains(&format!("{key} = \"4.0000\"")));
+            }
+        }
+        state.lcd_darkness[0] = 200;
+        let text = l.preset(&state, 6);
+        assert!(text.contains("brighten_scanlines = \"8.0000\""));
+        assert!(text.contains("PT_SHADOW_OFFSET_X = \"1.0000\""));
+    }
+
     #[test]
     fn backend_configuration_uses_private_input_and_keeps_native_states_separate() {
         let l = launch(Path::new("/card"), Platform::Snes);

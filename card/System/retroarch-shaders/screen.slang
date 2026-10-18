@@ -2,8 +2,6 @@
 // omega-zero's display controls. LCD1x/LCD3x and PT run in their original passes.
 #pragma parameter OMEGA_GRID "Fixed screen grid" 0.0 0.0 1.0 1.0
 #pragma parameter OMEGA_SATURATION "Saturation" 1.0 0.0 2.0 0.1
-#pragma parameter OMEGA_DIM "Screen brightness" 1.0 0.0 1.0 0.01
-#pragma parameter OMEGA_BLUE "Blue light reduction" 0.0 0.0 1.0 0.111111
 #pragma parameter OMEGA_LEFT "Crop left" 0.0 0.0 0.2 0.01
 #pragma parameter OMEGA_RIGHT "Crop right" 0.0 0.0 0.2 0.01
 #pragma parameter OMEGA_TOP "Crop top" 0.0 0.0 0.2 0.01
@@ -17,8 +15,6 @@ layout(push_constant) uniform Push {
     vec4 OutputSize;
     float OMEGA_GRID;
     float OMEGA_SATURATION;
-    float OMEGA_DIM;
-    float OMEGA_BLUE;
     float OMEGA_LEFT;
     float OMEGA_RIGHT;
     float OMEGA_TOP;
@@ -47,6 +43,6 @@ void main() {
     vec2 source=lo+(1.0-lo-hi)*((uv-0.5)/params.OMEGA_ZOOM+0.5);
     vec3 rgb=texture(Source,source).rgb;
     rgb=mix(vec3(dot(rgb,vec3(0.299,0.587,0.114))),rgb,params.OMEGA_SATURATION);
-    rgb*=mix(vec3(1.0),vec3(1.0,0.82,0.62),params.OMEGA_BLUE)*params.OMEGA_DIM;
+    // Brightness/blue-light controls are applied after all gameplay, menu and OSD rendering.
     FragColor=vec4(rgb,1.0);
 }

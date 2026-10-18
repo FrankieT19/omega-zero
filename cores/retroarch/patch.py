@@ -11,6 +11,16 @@ def replace(file, old, new):
     p.write_text(s.replace(old, new))
 replace('command.c', 'static void command_parse_sub_msg(command_t *handle, const char *tok)', '''unsigned omega_pad = 0;
 unsigned omega_flags = 0;
+static retro_atomic_int_t omega_dim_bits = 1065353216;
+static retro_atomic_int_t omega_blue_bits = 0;
+float omega_display_get(unsigned which) {
+   int bits=retro_atomic_load_relaxed_int(which?&omega_blue_bits:&omega_dim_bits);
+   float value;memcpy(&value,&bits,sizeof(value));return value;
+}
+void omega_display_set(unsigned which,float value) {
+   int bits;value=value<0?0:value>1?1:value;memcpy(&bits,&value,sizeof(bits));
+   retro_atomic_store_relaxed_int(which?&omega_blue_bits:&omega_dim_bits,bits);
+}
 static void command_parse_sub_msg(command_t *handle, const char *tok)''')
 replace('command.c', '   handle->error   = false;', '''   handle->error   = false;
    if (sscanf(tok, "OMEGA_INPUT %x %u", &omega_pad, &omega_flags) == 2)
@@ -34,6 +44,14 @@ replace('command.c', '   handle->error   = false;', '''   handle->error   = fals
       }
       return;
    }
+   if (strcmp(tok,"OMEGA_SHADER")==0)
+   {
+      video_shader_ctx_t current;
+      if (video_shader_driver_get_current_shader(&current) && current.data)
+         printf("OMEGA_SHADER %u %s\\n",current.data->passes,current.data->path);
+      else printf("OMEGA_SHADER 0\\n");
+      fflush(stdout);return;
+   }
    if (strcmp(tok, "OMEGA_SCREEN") == 0)
    {
       video_shader_ctx_t current; video_viewport_t vp;
@@ -53,8 +71,10 @@ replace('command.c', '   handle->error   = false;', '''   handle->error   = fals
    if (strncmp(tok, "OMEGA_PARAM ", 12) == 0)
    {
       char name[64]; float value; video_shader_ctx_t current;
-      if (sscanf(tok + 12, "%63s %f", name, &value) == 2
-            && video_shader_driver_get_current_shader(&current) && current.data)
+      if (sscanf(tok + 12, "%63s %f", name, &value) != 2) return;
+      if (strcmp(name,"OMEGA_DIM")==0) omega_display_set(0,value);
+      if (strcmp(name,"OMEGA_BLUE")==0) omega_display_set(1,value);
+      if (video_shader_driver_get_current_shader(&current) && current.data)
       {
          unsigned n;
          for (n = 0; n < current.data->num_parameters; n++)
@@ -79,8 +99,13 @@ replace('input/input_driver.c', 'static void *input_null_init', '''#include <sys
 #include <unistd.h>
 extern unsigned omega_pad;
 extern unsigned omega_flags;
+extern void omega_display_set(unsigned which,float value);
 static void *input_null_init''')
 replace('input/input_driver.c', 'static input_driver_t input_null = {', '''static void *omega_input_init(const char *joypad_driver) {
+   const char *dim=getenv("OMEGA_DISPLAY_DIM");
+   const char *blue=getenv("OMEGA_DISPLAY_BLUE");
+   if (dim) omega_display_set(0,(float)atof(dim));
+   if (blue) omega_display_set(1,(float)atof(blue));
    prctl(PR_SET_PDEATHSIG, SIGTERM);
    return getppid() == 1 ? NULL : (void*)-1;
 }
@@ -143,4 +168,10 @@ replace('input/input_driver.c', 'input_device_driver_t *joypad_drivers[] = {', '
 replace('gfx/drivers_context/mali_fbdev_ctx.c', '   BIT32_SET(flags, GFX_CTX_FLAGS_SHADERS_GLSL);', '''   BIT32_SET(flags, GFX_CTX_FLAGS_SHADERS_GLSL);
    if (mali_flags & GFX_CTX_MALI_FBDEV_FLAG_GLES3)
       BIT32_SET(flags, GFX_CTX_FLAGS_SHADERS_SLANG);''')
-print('Applied omega-zero private stdin/input bridge; Slang renderer unchanged')
+print('Applied omega-zero private stdin/input bridge; Slang pipeline unchanged')
+
+# The display multiply runs after game, menu and OSD rendering, not inside a preset.
+replace('gfx/drivers/gl3.c', '   GLuint menu_texture;', '   GLuint menu_texture;\n   GLuint omega_shade_texture;')
+replace('gfx/drivers/gl3.c', '   if (gl->menu_texture != 0)\n      glDeleteTextures(1, &gl->menu_texture);', '   if (gl->omega_shade_texture) glDeleteTextures(1,&gl->omega_shade_texture);\n   if (gl->menu_texture != 0)\n      glDeleteTextures(1, &gl->menu_texture);')
+replace('gfx/drivers/gl3.c', '#if defined(HAVE_MENU)\nstatic void gl3_draw_menu_texture', Path(__file__).with_name('dimmer.h').read_text()+'\n#if defined(HAVE_MENU)\nstatic void gl3_draw_menu_texture')
+replace('gfx/drivers/gl3.c', '   if (gl->ctx_driver->update_window_title)\n      gl->ctx_driver->update_window_title(gl->ctx_data);', '   gl3_draw_omega_shade(gl,width,height);\n   if (gl->ctx_driver->update_window_title)\n      gl->ctx_driver->update_window_title(gl->ctx_data);')

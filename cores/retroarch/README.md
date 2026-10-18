@@ -18,8 +18,9 @@ libretro/slang-shaders at `e1d75632a205c70f14a4cc947c46d5abb7b3f7f1`. The Pixel 
 source is from the same commit. Author and licence notices remain in those files. LCD passes
 use nearest filtering, viewport output, no float/sRGB framebuffer, and original source-size
 uniforms. At 100% LCD darkness the upstream brightness parameters are unchanged (16 and 4).
-A final neutral display-control pass adds saturation, brightness, blue-light reduction and
-optional cropping. Only Grid / Grid + PT uses its fixed three-physical-pixel raster.
+A final neutral shader pass adds saturation and optional cropping. A separate colour
+multiply after game/menu/OSD rendering applies brightness and blue-light reduction, including
+when an unrelated user preset is loaded. Only Grid / Grid + PT uses its fixed three-physical-pixel raster.
 
 Display > Game backend switches RetroArch / Native. Display > Shader settings opens
 RetroArch on an available game of the selected system, starting in its menu. SELECT+X or
@@ -39,8 +40,9 @@ Generated configs/presets live in `Config/retroarch/<SYSTEM>/`; the latest gamep
 `Config/retroarch/retroarch.log`. To preserve a preset tweaked in RetroArch, save it as
 `Config/retroarch/<SYSTEM>/custom.slangp`. It is then used at launch; cycling presets
 intentionally selects the generated presets instead. The generated files can be recreated.
-When loading an unrelated preset without omega-zero's final display pass, that preset also
-controls which software display adjustments are available. Hardware brightness still works.
+When loading an unrelated preset without omega-zero's final shader pass, its saturation
+and crop controls remain that preset's own. Brightness, blue-light reduction and sleep fades
+still cover the whole display.
 
 Native save states remain untouched. RetroArch stores its own states under
 `States/RetroArch/<SYSTEM>/<CORE>/`. Raw native states are not automatically imported.
