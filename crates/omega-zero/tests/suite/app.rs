@@ -947,16 +947,20 @@ fn x_on(mut pressed: App, mut untouched: App) -> (Option<Core>, f32, bool) {
 }
 
 #[test]
-fn x_opens_no_picker_on_a_game_boy_cart() {
+fn x_opens_the_gambatte_mgba_picker_on_a_game_boy_cart() {
     let (_d, gb) = on_shelf_gb(&["Tetris", "Zzz"]);
     let (_twin, gb_twin) = on_shelf_gb(&["Tetris", "Zzz"]);
     let (picker, shake, moved) = x_on(gb, gb_twin);
-    assert_eq!(picker, None, "a Game Boy cart opened the GBA picker");
+    assert_eq!(
+        picker,
+        Some(Core::Gambatte),
+        "GB should default to Gambatte"
+    );
     assert_eq!(
         shake, 0.0,
         "X on a Game Boy cart was answered with a refusal shake"
     );
-    assert!(!moved, "X changed what the shelf draws");
+    assert!(moved, "the Game Boy picker did not change the shelf");
 
     let (_d, gba) = on_shelf(&["Emerald", "Zzz"]);
     let (_twin, gba_twin) = on_shelf(&["Emerald", "Zzz"]);
@@ -2353,6 +2357,7 @@ fn picture_popup_saves_crop_and_zoom_per_game_and_resets() {
     let mut a = common::app_playing_in(d.path(), "Emerald");
     a.apply(Action::PictureMenu);
     assert!(a.picture_menu_open());
+    a.apply(Action::GbaDown(Btn::Down));
     a.apply(Action::GbaDown(Btn::Right));
     a.apply(Action::GbaDown(Btn::Down));
     a.apply(Action::GbaDown(Btn::Right));
@@ -2365,17 +2370,17 @@ fn picture_popup_saves_crop_and_zoom_per_game_and_resets() {
     a.load_picture("Fusion");
     a.apply(Action::PictureMenu);
     assert_eq!(
-        a.background_view().unwrap().rows[0].value,
+        a.background_view().unwrap().rows[1].value,
         Some(omega_zero::list_view::RowValue::Name("100%".into()))
     );
     a.apply(Action::PictureMenu);
     a.load_picture("Emerald");
     a.apply(Action::PictureMenu);
     assert_eq!(
-        a.background_view().unwrap().rows[0].value,
+        a.background_view().unwrap().rows[1].value,
         Some(omega_zero::list_view::RowValue::Name("105%".into()))
     );
-    for _ in 0..5 {
+    for _ in 0..6 {
         a.apply(Action::GbaDown(Btn::Down));
     }
     a.apply(Action::GbaDown(Btn::A));
@@ -2383,4 +2388,38 @@ fn picture_popup_saves_crop_and_zoom_per_game_and_resets() {
         omega_store::ini::value(d.path(), "Config/picture.ini", "GBA/Emerald").as_deref(),
         Some("100,0,0,0,0")
     );
+}
+
+#[test]
+fn console_picture_popup_switches_full_screen_stretch_and_four_three_fit() {
+    use omega_zero::video_mode::{screen_for, VideoMode};
+    for platform in [Platform::Snes, Platform::Ps1] {
+        let d = common::tmp_root_with_carts(&["Emerald", "Fusion"]);
+        let mut a = common::app_playing_in(d.path(), "Emerald");
+        a.set_platform(platform);
+        a.load_picture("Emerald");
+        a.apply(Action::PictureMenu);
+        assert_eq!(
+            a.background_view().unwrap().rows[0].value,
+            Some(omega_zero::list_view::RowValue::Choice("Fit 4:3"))
+        );
+        a.apply(Action::GbaDown(Btn::Right));
+        a.apply(Action::GbaDown(Btn::B));
+        let mut again = common::app_playing_in(d.path(), "Emerald");
+        again.set_platform(platform);
+        again.load_picture("Emerald");
+        again.apply(Action::PictureMenu);
+        assert_eq!(
+            again.background_view().unwrap().rows[0].value,
+            Some(omega_zero::list_view::RowValue::Choice("Stretch"))
+        );
+        let stretch = screen_for(platform, VideoMode::Stretch, (256, 224));
+        assert_eq!(
+            stretch.view.rect,
+            [0.0, 0.0, out_w() as f32, out_h() as f32]
+        );
+        let fit = screen_for(platform, VideoMode::Fit, (256, 224));
+        assert!((fit.view.rect[2] / fit.view.rect[3] - 4.0 / 3.0).abs() < 0.005);
+        assert_eq!(fit.view.rect[3], out_h() as f32);
+    }
 }

@@ -41,6 +41,7 @@ pub(crate) struct Presets {
     pub panel_raster: bool,
     pub saturation: f32,
     pub palette: u8,
+    pub lcd_darkness: f32,
 }
 fn loc(p: u32, n: &str) -> i32 {
     crate::gl::uniform_location(p, n)
@@ -57,6 +58,7 @@ impl Presets {
             panel_raster: false,
             saturation: 1.0,
             palette: 0,
+            lcd_darkness: 1.0,
         })
     }
     fn resize(&mut self, size: (u32, u32)) {
@@ -187,6 +189,7 @@ impl Presets {
                     if pass == 0 { self.palette as f32 } else { 0.0 },
                 );
                 gl::Uniform1f(loc(p, "u_orig_palette"), self.palette as f32);
+                gl::Uniform1f(loc(p, "u_lcd_darkness"), self.lcd_darkness);
                 gl::Uniform1i(loc(p, "Texture"), 0);
                 gl::Uniform1i(loc(p, "OrigTexture"), 1);
                 gl::Uniform1i(loc(p, "FrameDirection"), 1);

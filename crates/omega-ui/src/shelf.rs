@@ -528,7 +528,15 @@ impl Shelf {
         let recede = recede.clamp(0.0, 1.0);
         let dim = dim.clamp(0.0, 1.0);
         let target = self.scroll_target();
-        for slot in -SLOTS..=SLOTS {
+        // Draw distant carts first, independent of shell dimensions. The focused cart
+        // must cover either neighbour even when its model is much wider.
+        let mut slots: Vec<_> = (-SLOTS..=SLOTS).collect();
+        slots.sort_by(|a, b| {
+            (target + *b as f32 - self.scroll)
+                .abs()
+                .total_cmp(&(target + *a as f32 - self.scroll).abs())
+        });
+        for slot in slots {
             let Some(i) = self.cart_at_offset(slot) else {
                 continue;
             };

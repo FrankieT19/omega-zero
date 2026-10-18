@@ -83,14 +83,15 @@ impl HudKind {
     /// the volume and the rewind left.
     pub fn cells(self) -> u32 {
         match self {
-            HudKind::Brightness | HudKind::BlueLight => 9,
+            HudKind::Brightness => (BRIGHTNESS_MAX + 4) as u32,
+            HudKind::BlueLight => 9,
             HudKind::Volume | HudKind::Rewind => 20,
         }
     }
 
     fn max(self) -> u8 {
         match self {
-            HudKind::Brightness => BRIGHTNESS_MAX + 3,
+            HudKind::Brightness => BRIGHTNESS_MAX + 4,
             HudKind::BlueLight => BLUE_LIGHT_MAX,
             HudKind::Volume => VOLUME_MAX,
             HudKind::Rewind => 100,

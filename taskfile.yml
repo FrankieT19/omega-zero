@@ -6,16 +6,18 @@ vars:
   SNES9X_HOST: vendor/snes9x_libretro.dylib
   SUPAFAUST_HOST: vendor/mednafen_supafaust_libretro.dylib
   PCSX_HOST: vendor/pcsx_rearmed_libretro.dylib
+  GAMBATTE_COMMIT: d9d6cd06382d1ced30de34d56d3609452323dab1
+  GAMBATTE_HOST: vendor/gambatte_libretro.dylib
   MGBA_COMMIT: e31759b24e7a4e3899285ff720d7b573ac328ae7
   GPSP_COMMIT: 7b2dd37394e2822110cacef321e9bb291a305b77
   SNES9X_COMMIT: fae2fea08f74180759ef540ee94259213f503480
   SUPAFAUST_COMMIT: 642d1d1b6684aa7e306a02a89885f3f5456a5157
   PCSX_COMMIT: c8816799b50388e61cfe237fe2cdbb7d8175f20a
   # The libretro names of the cores the device bundle ships, <name>_libretro.so in System/
-  DEVICE_CORES: mgba gpsp snes9x mednafen_supafaust pcsx_rearmed
+  DEVICE_CORES: mgba gpsp gambatte snes9x mednafen_supafaust pcsx_rearmed
   # The cores built by cores/<name>/build.sh whose source archive ships in System/licenses/
   # beside them, as <name>:<libretro name>. gpSP's ships too, the way it always has
-  SOURCE_CORES: snes9x:snes9x supafaust:mednafen_supafaust pcsx_rearmed:pcsx_rearmed
+  SOURCE_CORES: gambatte-libretro:gambatte snes9x:snes9x supafaust:mednafen_supafaust pcsx_rearmed:pcsx_rearmed
 
 tasks:
   default:
@@ -124,6 +126,7 @@ tasks:
       core silently runs the mock (a test pattern and a sine tone) instead
     cmds:
       - task: core:mgba:host
+      - task: core:gambatte:host
       - task: core:gpsp:host
       - task: core:snes9x:host
       - task: core:supafaust:host
@@ -138,6 +141,12 @@ tasks:
       - sh cores/mgba/build.sh build {{.MGBA_COMMIT}} target/mgba {{.CORE}}
       - file {{.CORE}} | grep -q Mach-O
       - 'echo "built {{.CORE}}"'
+
+  core:gambatte:host:
+    desc: Fetch Gambatte for host testing and previews
+    cmds:
+      - task: core:buildbot
+        vars: {LIB: gambatte}
 
   core:gpsp:host:
     desc: Fetch the host gpSP core from the libretro buildbot
@@ -317,7 +326,7 @@ tasks:
       - ./target/release/omega-zero --init-root {{.OUT}}
       - cp target/release/omega-zero {{.OUT}}/System/omega-zero
       - >-
-        cp {{.CORE}} {{.GPSP_HOST}} {{.SNES9X_HOST}} {{.SUPAFAUST_HOST}} {{.PCSX_HOST}}
+        cp {{.CORE}} {{.GAMBATTE_HOST}} {{.GPSP_HOST}} {{.SNES9X_HOST}} {{.SUPAFAUST_HOST}} {{.PCSX_HOST}}
         {{.OUT}}/System/
       - 'echo "dist ready at {{.OUT}}, copy its contents to SD2"'
 
@@ -375,6 +384,21 @@ tasks:
     deps: [core:gpsp]
     cmds:
       - sh cores/gpsp/test/run.sh vendor/gpsp-src.tar.gz
+
+  core:gambatte:
+    desc: Build pinned Gambatte for the ARM64 device
+    status:
+      - test -f vendor/gambatte_libretro.so
+      - test "$(cat vendor/gambatte_libretro.so.meta 2>/dev/null)" = "$(sh cores/gambatte-libretro/build.sh stamp {{.GAMBATTE_COMMIT}})"
+    cmds:
+      - task: core:src
+        vars: {NAME: gambatte-libretro, COMMIT: '{{.GAMBATTE_COMMIT}}', FILE: Makefile.libretro}
+      - task: device:sh
+        vars:
+          CMD: >-
+            sh cores/gambatte-libretro/build.sh build {{.GAMBATTE_COMMIT}} vendor/gambatte-libretro-src.tar.gz
+            target-device/gambatte vendor/gambatte_libretro.so
+      - file vendor/gambatte_libretro.so | grep -q aarch64
 
   core:snes9x:
     desc: >-
@@ -462,7 +486,7 @@ tasks:
 
   cores:device:
     desc: Build every core the device bundle ships, mGBA, gpSP, Snes9x, Supafaust and pcsx_rearmed
-    deps: [core:device, core:gpsp, core:snes9x, core:supafaust, core:pcsx]
+    deps: [core:device, core:gpsp, core:gambatte, core:snes9x, core:supafaust, core:pcsx]
 
   device:sh:
     desc: >-
@@ -553,6 +577,9 @@ tasks:
           sha="$(cat "vendor/$name-src.sha")"
           cp "vendor/$name-src.tar.gz" "{{.OUT}}/System/licenses/$name-${sha}.tar.gz"
           cp "vendor/${lib}_libretro.so.meta" "{{.OUT}}/System/licenses/$name-${sha}.meta"
+          for helper in build.sh probe.c; do
+            [ ! -f "cores/$name/$helper" ] || cp "cores/$name/$helper" "{{.OUT}}/System/licenses/$name-$helper"
+          done
           for p in cores/$name/*.patch; do
             [ -f "$p" ] || continue
             cp "$p" "{{.OUT}}/System/licenses/$name-$(basename "$p")"

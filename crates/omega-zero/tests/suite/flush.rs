@@ -363,3 +363,14 @@ fn a_lid_close_right_after_an_autosave_leaves_the_lids_state() {
         "the autosave landed over the lid's save"
     );
 }
+
+#[test]
+fn the_first_gambatte_battery_backup_is_kept_on_subsequent_runs() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    persist::backup_before_gambatte(d.path(), Platform::Gb, "Tetris", b"original").unwrap();
+    persist::backup_before_gambatte(d.path(), Platform::Gb, "Tetris", b"new core save").unwrap();
+    assert_eq!(
+        std::fs::read(d.path().join("Saves/GB/Tetris.pre-gambatte.sav")).unwrap(),
+        b"original"
+    );
+}

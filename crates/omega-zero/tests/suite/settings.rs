@@ -863,7 +863,9 @@ fn scaling_choices_are_saved_independently_for_each_non_gba_system() {
         }
         press(&mut app, Btn::Down);
         press(&mut app, Btn::Down);
-        press(&mut app, Btn::Right);
+        if read_app_state(d.path()).scales[platform as usize] != 1 {
+            press(&mut app, Btn::Right);
+        }
         app.set_platform(platform);
         assert_eq!(
             app.preferred_video_mode(),
@@ -871,4 +873,66 @@ fn scaling_choices_are_saved_independently_for_each_non_gba_system() {
         );
     }
     assert_eq!(read_app_state(d.path()).scales, [0, 1, 1, 1, 1]);
+}
+
+#[test]
+fn every_system_has_saved_saturation_and_lcd_darkness_controls() {
+    let (d, mut app, _) = on_carousel();
+    for platform in omega_store::Platform::ALL {
+        display_at(&mut app, 0);
+        for _ in 0..platform as usize {
+            press(&mut app, Btn::Right);
+        }
+        for _ in 0..6 {
+            press(&mut app, Btn::Down);
+        }
+        press(&mut app, Btn::Left);
+        press(&mut app, Btn::Down);
+        press(&mut app, Btn::Right);
+        app.set_platform(platform);
+        assert_eq!(app.shader_saturation(), 0.9);
+        assert_eq!(app.lcd_darkness(), 1.1);
+    }
+    let state = read_app_state(d.path());
+    assert_eq!(state.saturation, [90; 5]);
+    assert_eq!(state.lcd_darkness, [110; 5]);
+}
+
+#[test]
+fn native_palette_cycles_only_on_gambatte_gb_and_survives_reboot() {
+    let (d, mut app, _) = on_carousel();
+    app.set_core(omega_store::Core::Gambatte);
+    app.set_platform(omega_store::Platform::Gb);
+    for i in 1..=omega_store::GB_PALETTES.len() {
+        app.apply(Action::PaletteNext);
+        assert_eq!(
+            app.take_palette(),
+            Some((i % omega_store::GB_PALETTES.len()) as u8)
+        );
+        assert_eq!(app.game_palette(), 0);
+    }
+    app.apply(Action::PaletteNext);
+    assert_eq!(read_app_state(d.path()).palettes[1], 1);
+    app.set_platform(omega_store::Platform::Gbc);
+    let before = app.gb_palette();
+    app.take_palette();
+    app.apply(Action::PaletteNext);
+    assert_eq!(app.gb_palette(), before);
+    assert_eq!(app.take_palette(), None);
+    assert_eq!(app.game_palette(), 0);
+}
+
+#[test]
+fn brightness_hardware_and_dimming_steps_map_to_all_thirteen_hud_cells() {
+    let (_, mut app, _) = on_carousel();
+    for _ in 0..20 {
+        app.apply(Action::BrightnessUp);
+    }
+    let mut cells = Vec::new();
+    cells.push(app.hud().gauge().unwrap().lit);
+    for _ in 0..12 {
+        app.apply(Action::BrightnessDown);
+        cells.push(app.hud().gauge().unwrap().lit);
+    }
+    assert_eq!(cells, (1..=13).rev().collect::<Vec<_>>());
 }

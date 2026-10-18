@@ -78,7 +78,7 @@ impl ControlsView {
             ("SELECT+L1", "LOAD STATE"),
             ("SELECT+R1", "SAVE STATE"),
         ]);
-        if matches!(platform, Platform::Gb | Platform::Gbc) {
+        if matches!(platform, Platform::Gb) {
             game.push(("SELECT+B", "PALETTE"));
         }
         if platform.colour_correction() {

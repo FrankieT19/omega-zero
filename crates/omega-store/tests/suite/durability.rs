@@ -612,3 +612,21 @@ fn per_system_saturation_and_palettes_survive_reboot() {
     assert_eq!(loaded.palettes[2], 0);
     assert_eq!(loaded.saturation[2], 80);
 }
+
+#[test]
+fn lcd_darkness_round_trips_and_old_snes_default_migrates_to_four_three_fit() {
+    let d = tmp_root();
+    let state = AppState {
+        lcd_darkness: [0, 50, 100, 150, 200],
+        ..AppState::default()
+    };
+    write_app_state(d.path(), &state).unwrap();
+    assert_eq!(read_app_state(d.path()), state);
+    let path = d.path().join("Config/omega-zero.state");
+    let text = std::fs::read_to_string(&path)
+        .unwrap()
+        .replace("display_version=4\n", "")
+        .replace("scale_3=1", "scale_3=0");
+    std::fs::write(path, text).unwrap();
+    assert_eq!(read_app_state(d.path()).scales[3], 1);
+}

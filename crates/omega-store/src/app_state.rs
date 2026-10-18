@@ -32,6 +32,7 @@ pub struct AppState {
     pub shaders: [u8; 5],
     /// Pixel Transparency shadow offsets, in half-pixel steps.
     pub saturation: [u8; 5],
+    pub lcd_darkness: [u8; 5],
     pub palettes: [u8; 5],
     pub shadow_x: [i8; 5],
     pub shadow_y: [i8; 5],
@@ -81,10 +82,11 @@ impl Default for AppState {
             carousel: 0,
             recent: Vec::new(),
             favourites: Vec::new(),
-            scales: [0; 5],
+            scales: [0, 0, 0, 1, 1],
             low_poly_labels: false,
             shaders: [2, 2, 2, 0, 0],
             saturation: [100; 5],
+            lcd_darkness: [100; 5],
             palettes: [0; 5],
             shadow_x: [2; 5],
             shadow_y: [2; 5],
@@ -169,7 +171,9 @@ pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
     for key in &s.favourites {
         text.push_str(&format!("favourite={key}\n"));
     }
+    text.push_str("display_version=4\n");
     for i in 0..5 {
+        text.push_str(&format!("lcd_darkness_{i}={}\n", s.lcd_darkness[i]));
         text.push_str(&format!("palette_{i}={}\n", s.palettes[i]));
         text.push_str(&format!(
             "scale_{i}={}\nsaturation_{i}={}\n",
@@ -185,6 +189,7 @@ pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
 
 fn parse(text: &str) -> Option<AppState> {
     let mut extra = AppState::default();
+    let mut display_version = 0;
     let mut cart = None;
     let mut cart_platform = None;
     let mut brightness = None;
@@ -211,6 +216,7 @@ fn parse(text: &str) -> Option<AppState> {
             continue;
         };
         match key {
+            "display_version" => display_version = value.parse::<u8>().unwrap_or(0),
             "carousel" => extra.carousel = level(value, 3).unwrap_or(0),
             "recent" if extra.recent.len() < 10 => {
                 if !extra.recent.iter().any(|k| k == value) {
@@ -252,7 +258,11 @@ fn parse(text: &str) -> Option<AppState> {
             _ => {
                 for i in 0..5 {
                     if key == format!("palette_{i}") {
-                        extra.palettes[i] = level(value, 4).unwrap_or(0);
+                        extra.palettes[i] =
+                            level(value, (crate::GB_PALETTES.len() - 1) as u8).unwrap_or(0);
+                    }
+                    if key == format!("lcd_darkness_{i}") {
+                        extra.lcd_darkness[i] = level(value, 200).unwrap_or(100);
                     }
                     if key == format!("saturation_{i}") {
                         extra.saturation[i] = level(value, 200).unwrap_or(100);
@@ -286,6 +296,9 @@ fn parse(text: &str) -> Option<AppState> {
                 }
             }
         }
+    }
+    if display_version < 4 && extra.scales[3] == 0 {
+        extra.scales[3] = 1;
     }
     if extra.carousel == 0 && extra.all_systems {
         extra.carousel = 1;

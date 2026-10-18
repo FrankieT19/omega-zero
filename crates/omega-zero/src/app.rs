@@ -327,6 +327,7 @@ pub struct App {
     pub(crate) picture_adjust: crate::picture::Picture,
     pub(crate) picture_menu: Option<usize>,
     pub(crate) colour_pending: Option<bool>,
+    pub(crate) palette_pending: bool,
     pub(crate) link_player: Option<u8>,
     pub(crate) platform: Platform,
     pub(crate) named_core: bool,
@@ -490,6 +491,7 @@ impl App {
             picture_adjust: crate::picture::Picture::default(),
             picture_menu: None,
             colour_pending: None,
+            palette_pending: false,
             link_player: None,
             platform: Platform::default(),
             named_core: false,
@@ -1678,7 +1680,7 @@ impl App {
             } else {
                 self.state.brightness = up(self.state.brightness.max(1), 1, BRIGHTNESS_MAX);
             }
-            let shown = self.state.brightness.max(1) + 3 - self.state.dim;
+            let shown = self.state.brightness.max(1) + 4 - self.state.dim;
             self.hud.show(HudKind::Brightness, shown, false, self.now());
             if let Some(power) = &mut self.power {
                 power.set_backlight(self.state.brightness.max(1));

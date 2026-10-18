@@ -18,15 +18,16 @@ fn opened_over(cores: &'static [Core], seat: Core, at: Millis) -> CorePicker {
 }
 
 #[test]
-fn the_gba_and_the_snes_each_have_two_sockets_and_the_rest_one() {
+fn game_boys_gba_and_snes_offer_two_cores_and_ps1_one() {
     assert_eq!(Core::for_platform(Platform::Gba), GBA);
     assert_eq!(
         Core::for_platform(Platform::Snes),
         [Core::Snes9x, Core::Supafaust]
     );
-    for p in [Platform::Gb, Platform::Gbc, Platform::Ps1] {
-        assert_eq!(Core::for_platform(p).len(), 1, "{p:?} has a core to pick");
+    for p in [Platform::Gb, Platform::Gbc] {
+        assert_eq!(Core::for_platform(p), [Core::Gambatte, Core::Mgba]);
     }
+    assert_eq!(Core::for_platform(Platform::Ps1), [Core::PcsxRearmed]);
 }
 
 #[test]

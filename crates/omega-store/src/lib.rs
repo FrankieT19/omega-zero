@@ -28,6 +28,25 @@ pub mod snes;
 mod stamp;
 mod theme;
 
+pub const GB_PALETTES: [&str; 16] = [
+    "GBC (game)",
+    "GB - Pocket",
+    "GB - DMG",
+    "GBC - Blue",
+    "GBC - Grayscale",
+    "GB - Light",
+    "GBC - Brown",
+    "GBC - Dark Blue",
+    "GBC - Dark Brown",
+    "GBC - Dark Green",
+    "GBC - Green",
+    "GBC - Inverted",
+    "GBC - Orange",
+    "GBC - Pastel Mix",
+    "GBC - Red",
+    "GBC - Yellow",
+];
+
 pub use app_state::{
     read_app_state, write_app_state, AppState, BLUE_LIGHT_MAX, BRIGHTNESS_MAX, FF_SPEEDS,
     FF_SPEED_DEFAULT, UTC_OFFSET_MAX, UTC_OFFSET_MIN, VOLUME_MAX,

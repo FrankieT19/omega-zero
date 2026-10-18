@@ -24,7 +24,8 @@ fn shelf_with(n: usize) -> Shelf {
 fn placed(s: &Shelf) -> Vec<(f32, f32)> {
     let mut out = Vec::new();
     s.draw_row(None, 0.0, 0.0, 1.0, &mut out);
-    out.iter()
+    let mut row: Vec<_> = out
+        .iter()
         .map(|d| match *d {
             Draw::Rect { x, w, .. } => (x, w),
             Draw::Tex { x, w, .. } => (x, w),
@@ -33,7 +34,9 @@ fn placed(s: &Shelf) -> Vec<(f32, f32)> {
             Draw::Model { x, w, .. } => (x, w),
             Draw::Game | Draw::Shot { .. } => (0.0, out_w() as f32),
         })
-        .collect()
+        .collect();
+    row.sort_by(|a, b| a.0.total_cmp(&b.0));
+    row
 }
 
 fn xw(d: &Draw) -> (f32, f32) {
@@ -161,8 +164,8 @@ fn two_carts_repeat_around_the_ring() {
     s.draw_row(None, 0.0, 0.0, 1.0, &mut out);
     assert_eq!(
         drawn_cart_indices(&out),
-        vec![1, 0, 1],
-        "a row of two is not the other cart, the selection, the other cart again"
+        vec![1, 1, 0],
+        "both side images must be behind the selection"
     );
     let row = placed(&s);
     let centres: Vec<f32> = row.iter().map(|(x, w)| x + w / 2.0).collect();
@@ -914,4 +917,24 @@ fn each_snes_shell_is_backed_by_its_own_shadow() {
         "the American cart beside the selected one and the Super Famicom one are not each \
          backed by their own shell"
     );
+}
+
+#[test]
+fn focused_snes_model_is_drawn_after_both_game_boy_neighbours() {
+    let mut carts = shelf_with(3).carts;
+    carts[0].platform = Platform::Snes;
+    carts[1].platform = Platform::Gb;
+    carts[2].platform = Platform::Gbc;
+    let mut shelf = Shelf::new(carts);
+    shelf.set_faces((0..3).map(|i| TexId::from_raw(100 + i)).collect());
+    let mut out = Vec::new();
+    shelf.draw(0.0, &mut out);
+    let last = out.iter().rev().find_map(|d| match d {
+        Draw::Spun { tex, .. }
+        | Draw::Tex { tex, .. }
+        | Draw::Model { tex, .. }
+        | Draw::Turned { tex, .. } => Some(*tex),
+        _ => None,
+    });
+    assert_eq!(last, Some(TexId::from_raw(100)));
 }

@@ -99,6 +99,31 @@ pub fn write_sav(root: &Path, platform: Platform, stem: &str, sav: &[u8]) -> std
     Ok(true)
 }
 
+pub fn backup_before_gambatte(
+    root: &Path,
+    platform: Platform,
+    stem: &str,
+    sav: &[u8],
+) -> std::io::Result<()> {
+    use std::io::Write;
+    let path = sav_path(root, platform, stem).with_extension("pre-gambatte.sav");
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+    {
+        Ok(mut file) => {
+            file.write_all(sav)?;
+            file.sync_all()
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
 pub fn read_sav(root: &Path, platform: Platform, stem: &str) -> Option<Vec<u8>> {
     std::fs::read(sav_path(root, platform, stem))
         .or_else(|_| {

@@ -3,6 +3,7 @@
 precision highp float;
 #endif
 uniform vec2 RasterSize;
+uniform float u_lcd_darkness;
 uniform sampler2D Texture;
 uniform sampler2D OrigTexture;
 uniform vec4 u_crop;
@@ -60,7 +61,7 @@ void main()
     float yfactor = (brighten_scanlines + sin(angle.y)) / (brighten_scanlines + 1.0);
     vec3 xfactors = (brighten_lcd + sin(angle.x + offsets)) / (brighten_lcd + 1.0);
    
-    vec3 color = yfactor * xfactors * res;
+    vec3 color = max(vec3(0.0), vec3(1.0)-u_lcd_darkness*(vec3(1.0)-yfactor*xfactors))*res;
    
    FRAG_COLOR = vec4(color.x, color.y, color.z, 1.0);
 } 

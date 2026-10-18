@@ -3,6 +3,7 @@
 precision highp float;
 #endif
 uniform vec2 RasterSize;
+uniform float u_lcd_darkness;
 uniform sampler2D Texture;
 uniform sampler2D OrigTexture;
 uniform vec4 u_crop;
@@ -60,7 +61,7 @@ void main()
    COMPAT_PRECISION vec3 colour = input_sample( TEX0.xy).rgb;
 
    // Apply LCD grid effect
-   colour.rgb = yfactor * xfactor * colour.rgb;
+   colour.rgb *= max(0.0, 1.0-u_lcd_darkness*(1.0-yfactor*xfactor));
 
    FRAG_COLOR = vec4(colour.rgb, 1.0);
 } 

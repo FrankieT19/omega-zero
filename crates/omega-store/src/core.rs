@@ -13,19 +13,22 @@ pub enum Core {
     Snes9x,
     Supafaust,
     PcsxRearmed,
+    Gambatte,
 }
 
 impl Core {
-    pub const ALL: [Core; 5] = [
+    pub const ALL: [Core; 6] = [
         Core::Mgba,
         Core::Gpsp,
         Core::Snes9x,
         Core::Supafaust,
         Core::PcsxRearmed,
+        Core::Gambatte,
     ];
 
     pub fn as_str(&self) -> &'static str {
         match self {
+            Core::Gambatte => "gambatte",
             Core::Mgba => "mgba",
             Core::Gpsp => "gpsp",
             Core::Snes9x => "snes9x",
@@ -50,6 +53,7 @@ impl Core {
     /// chip has room for, six letters at most, so Supafaust is Faust.
     pub fn text(self) -> &'static str {
         match self {
+            Core::Gambatte => "Gamb",
             Core::Mgba => "mGBA",
             Core::Gpsp => "gpSP",
             Core::Snes9x => "Snes9x",
@@ -61,6 +65,7 @@ impl Core {
     /// The core's whole name, in its own case, as About credits it.
     pub fn name(self) -> &'static str {
         match self {
+            Core::Gambatte => "Gambatte",
             Core::Mgba => "mGBA",
             Core::Gpsp => "gpSP",
             Core::Snes9x => "Snes9x",
@@ -71,6 +76,7 @@ impl Core {
 
     pub fn parse(s: &str) -> Option<Core> {
         match s.trim().to_ascii_lowercase().as_str() {
+            "gambatte" => Some(Core::Gambatte),
             "mgba" => Some(Core::Mgba),
             "gpsp" => Some(Core::Gpsp),
             "snes9x" => Some(Core::Snes9x),
@@ -89,7 +95,7 @@ impl Core {
     pub fn for_platform(platform: Platform) -> &'static [Core] {
         match platform {
             Platform::Gba => &[Core::Mgba, Core::Gpsp],
-            Platform::Gb | Platform::Gbc => &[Core::Mgba],
+            Platform::Gb | Platform::Gbc => &[Core::Gambatte, Core::Mgba],
             Platform::Snes => &[Core::Snes9x, Core::Supafaust],
             Platform::Ps1 => &[Core::PcsxRearmed],
         }
