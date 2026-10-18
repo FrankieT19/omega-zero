@@ -1242,11 +1242,46 @@ fn stretching_gbc_keeps_lcd_panel_cells_the_same_size_as_gba() {
         c.begin_frame();
         c.draw_game();
         let stretched = c.read_frame();
-        for (index, (actual, expected)) in stretched.iter().zip(&gba).enumerate() {
-            assert!(
-                actual.abs_diff(*expected) <= 2,
-                "preset {mode} stretched its mask at channel {index}: {actual} vs {expected}"
-            );
+        if mode <= 3 {
+            for (index, (actual, expected)) in stretched.iter().zip(&gba).enumerate() {
+                assert!(
+                    actual.abs_diff(*expected) <= 2,
+                    "preset {mode} stretched its mask at channel {index}: {actual} vs {expected}"
+                );
+            }
+        } else {
+            // Compare the 3x3 LCD phase rather than PT's source-dependent texture/shadows.
+            // A stretched 160x144 mask loses this repeating contrast on a 720x480 panel.
+            let phases = |frame: &[u8]| {
+                let mut sum = [[0.0f64; 3]; 9];
+                let mut count = [0u32; 9];
+                for y in 0..out_h() as usize {
+                    for x in 0..out_w() as usize {
+                        let phase = (y % 3) * 3 + x % 3;
+                        let pixel = px(frame, x, y);
+                        for channel in 0..3 {
+                            sum[phase][channel] += pixel[channel] as f64;
+                        }
+                        count[phase] += 1;
+                    }
+                }
+                for (phase, channels) in sum.iter_mut().enumerate() {
+                    for value in channels {
+                        *value /= count[phase] as f64;
+                    }
+                }
+                sum
+            };
+            for (actual, expected) in phases(&stretched)
+                .iter()
+                .flatten()
+                .zip(phases(&gba).iter().flatten())
+            {
+                assert!(
+                    (actual - expected).abs() <= 1.5,
+                    "preset {mode} changed its panel phase: {actual} vs {expected}"
+                );
+            }
         }
     }
 }
