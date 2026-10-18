@@ -3,7 +3,9 @@
 The H700 package includes a pinned RetroArch build with `glcore`, Mali framebuffer EGL/ES3,
 Slang, ALSA and RGUI. The carousel still uses omega-zero's GLES renderer. Gameplay runs in
 a separate process; exiting replaces the companion with a new carousel process. They never
-own EGL, audio or the game input concurrently.
+own EGL, audio or the game input concurrently. Handoffs use BaseOS's explicit ARM64 dynamic
+loader and the card's known executable paths; they do not rely on `/proc/self/exe`, which can
+name the loader. RetroArch's config/cache paths stay on the card.
 
 The backend source is libretro/RetroArch at `ea79555bc8fcd4cb1a2fb8a48c1a6cdba819fb07`.
 `build.sh` applies `patch.py` and builds on ARM64 Debian bullseye. The patch adds a private

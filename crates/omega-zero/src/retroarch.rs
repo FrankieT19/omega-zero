@@ -148,6 +148,7 @@ impl Launch {
         );
         for (key, path) in [
             ("system_directory", self.root.join("BIOS")),
+            ("cache_directory", self.root.join("Config/retroarch/cache")),
             ("savefile_directory", self.saves()),
             ("savestate_directory", self.states()),
             ("screenshot_directory", self.root.join("Screenshots")),
@@ -182,7 +183,13 @@ impl Launch {
     }
     pub fn prepare(&self, state: &AppState) -> std::io::Result<()> {
         let dir = self.directory();
-        for path in [dir.clone(), self.saves(), self.states()] {
+        for path in [
+            dir.clone(),
+            self.saves(),
+            self.states(),
+            self.root.join("Config/retroarch/cache"),
+            self.root.join("Config/retroarch/xdg"),
+        ] {
             std::fs::create_dir_all(path)?;
         }
         omega_store::atomic_write(&dir.join("current.cfg"), self.config(state).as_bytes())?;

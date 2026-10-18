@@ -25,7 +25,7 @@ savefile_directory = "{root}"
 savestate_directory = "{root}"
 ''')
     with (root/'log').open('w') as log:
-        p=subprocess.Popen([exe,'--config',str(cfg),'-L',core,str(rom),'--verbose'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=log,text=True,bufsize=1)
+        p=subprocess.Popen(['/lib/ld-linux-aarch64.so.1',exe,'--config',str(cfg),'-L',core,str(rom),'--verbose'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=log,text=True,bufsize=1)
         replies=queue.Queue(); seen=[]
         def reader():
             for line in p.stdout: replies.put(line.strip())

@@ -15,9 +15,11 @@ use super::{dim_gain, Launch};
 use crate::input::{DeviceInput, Pad};
 
 pub fn enter(launch: Launch) -> ! {
-    let exe = std::env::current_exe().expect("frontend executable path");
+    // BaseOS invokes the ELF through its loader; /proc/self/exe can name that loader.
+    // Follow launch_frontend.sh and use the card's known frontend path explicitly.
     crate::spawn::keep_files_to_self();
-    let error = Command::new(&exe)
+    let error = Command::new("/lib/ld-linux-aarch64.so.1")
+        .arg(launch.root.join("System/omega-zero"))
         .arg("--retroarch-session")
         .arg(&launch.root)
         .arg(&launch.rom)
@@ -71,7 +73,9 @@ pub fn run(args: Vec<String>) {
     }
     crate::persist::clear_starting(&launch.root);
     crate::spawn::keep_files_to_self();
-    let error = Command::new(std::env::current_exe().expect("frontend executable path")).exec();
+    let error = Command::new("/lib/ld-linux-aarch64.so.1")
+        .arg(launch.root.join("System/omega-zero"))
+        .exec();
     eprintln!("omega-zero: reopen carousel: {error}");
 }
 
@@ -190,9 +194,12 @@ fn play(launch: &Launch, state: &mut AppState) -> std::io::Result<()> {
     keep(launch, state)?;
     crate::persist::mark_starting(&launch.root, launch.platform, &launch.stem());
     let log = std::fs::File::create(launch.root.join("Config/retroarch/retroarch.log"))?;
-    let mut command = Command::new(launch.root.join("System/retroarch"));
+    let mut command = Command::new("/lib/ld-linux-aarch64.so.1");
+    command.arg(launch.root.join("System/retroarch"));
     command
         .env("LD_LIBRARY_PATH", runtime_libraries()?)
+        .env("XDG_CONFIG_HOME", launch.root.join("Config/retroarch/xdg"))
+        .env("XDG_CACHE_HOME", launch.root.join("Config/retroarch/cache"))
         .env("OMEGA_DISPLAY_DIM", dim_gain(state).to_string())
         .env(
             "OMEGA_DISPLAY_BLUE",
