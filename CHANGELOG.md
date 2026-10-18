@@ -1,3 +1,11 @@
+## Frankie v7 — RetroArch gameplay backend
+
+- Run games through bundled RetroArch with its real Slang pipeline, upstream LCD1x/LCD3x/PT sources, Mali ES3 and nearest filtering. Keep a Native backend option for the original in-game UI and link play.
+- Keep Grid / Grid + PT on a fixed three-screen-pixel pattern in every system and scaling mode. Other shader patterns follow game pixels.
+- Bridge the existing hotkeys, per-system display settings, GB palettes, battery saves, brightness, rumble, inactivity and lid/power handling. Open RetroArch shader settings from Display or SELECT+X during gameplay.
+- Return to a fresh carousel process after gameplay so emulator graphics, audio and held-input state cannot leak into menu navigation. Preserve hover, carousel, recent games and favourites.
+- Preserve native states and one-time battery backups; keep RetroArch states separately. V6 is tagged `backup/pre-retroarch-v6`.
+
 # Changelog
 
 ## omega-zero 1.2.0

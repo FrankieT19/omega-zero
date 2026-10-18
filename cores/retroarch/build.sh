@@ -20,8 +20,8 @@ cd "$work"
   --enable-alsa --enable-rgui --disable-x11 --disable-wayland --disable-kms \
   --disable-sdl --disable-sdl2 --disable-vulkan --disable-opengl1 \
   --disable-udev --disable-pulse --disable-jack --disable-oss  \
-  --disable-ffmpeg --disable-qt --disable-discord --disable-mpv --disable-libshake
-make -j2
+  --disable-ffmpeg --disable-qt --disable-discord --disable-mpv --disable-libshake --disable-mcp --disable-freetype --disable-libusb --disable-ssl --disable-retrossl
+make -j2 LDFLAGS="-static-libstdc++ -static-libgcc"
 cd ../../..
 cp "$work/retroarch" "$out"
 strip "$out"
@@ -30,3 +30,6 @@ printf '%s\n' "$stamp" > "$out.meta"
 "$out" --features > "$out.features"
 grep -E 'Slang.*yes|slang.*yes' "$out.features"
 file "$out" | grep -q aarch64
+readelf -d "$out" | grep NEEDED
+cc -shared -fPIC -I "$work/libretro-common/include" cores/retroarch/probe.c -o target-device/retroarch/probe_libretro.so
+python3 cores/retroarch/smoke.py "$out" target-device/retroarch/probe_libretro.so

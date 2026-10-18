@@ -15,6 +15,25 @@ static void command_parse_sub_msg(command_t *handle, const char *tok)''')
 replace('command.c', '   handle->error   = false;', '''   handle->error   = false;
    if (sscanf(tok, "OMEGA_INPUT %x %u", &omega_pad, &omega_flags) == 2)
       return;
+   if (strncmp(tok,"OMEGA_MSG ",10)==0)
+   {
+      runloop_msg_queue_push(tok+10, strlen(tok+10), 1, 90, true, NULL,
+            MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
+      return;
+   }
+   if (strncmp(tok,"OMEGA_SCALE ",12)==0)
+   {
+      unsigned mode, aspect;
+      if (sscanf(tok+12,"%u %u",&mode,&aspect)==2 && mode<3 && aspect<=ASPECT_RATIO_FULL)
+      {
+         settings_t *settings=config_get_ptr();
+         configuration_set_bool(settings,settings->bools.video_scale_integer,mode==0);
+         configuration_set_uint(settings,settings->uints.video_aspect_ratio_idx,aspect);
+         command_event(CMD_EVENT_VIDEO_SET_ASPECT_RATIO,NULL);
+         command_event(CMD_EVENT_VIDEO_APPLY_STATE_CHANGES,NULL);
+      }
+      return;
+   }
    if (strcmp(tok, "OMEGA_SCREEN") == 0)
    {
       video_shader_ctx_t current; video_viewport_t vp;
@@ -57,6 +76,7 @@ replace('command.c', '   handle->error   = false;', '''   handle->error   = fals
 # Hold flags remain active between stdin polls. Standard commands remain unchanged.
 replace('input/input_driver.c', 'static void *input_null_init', '''#include <sys/prctl.h>
 #include <signal.h>
+#include <unistd.h>
 extern unsigned omega_pad;
 extern unsigned omega_flags;
 static void *input_null_init''')
