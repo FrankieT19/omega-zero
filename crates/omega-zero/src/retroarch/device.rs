@@ -90,7 +90,7 @@ impl Player {
         self.send(format!("OMEGA_MSG {text}"))
     }
     fn finish(&mut self) -> std::io::Result<()> {
-        self.send("OMEGA_INPUT 0 0\nSET_OPTION pause off\nQUIT")?;
+        self.send("OMEGA_INPUT 0 0\nSET_OPTION pause off\nOMEGA_QUIT")?;
         let limit = Instant::now() + Duration::from_secs(8);
         while Instant::now() < limit {
             if self.child.try_wait()?.is_some() {
@@ -423,6 +423,7 @@ fn play(launch: &Launch, state: &mut AppState) -> std::io::Result<()> {
                     fast = false;
                     rewind = false;
                     pad.clear();
+                    player.send("SET_OPTION pause on")?;
                 }
                 Action::LidOpen => {
                     lid = false;
@@ -438,6 +439,9 @@ fn play(launch: &Launch, state: &mut AppState) -> std::io::Result<()> {
                 }
                 Action::PowerTap if !lid => {
                     want_sleep = !want_sleep;
+                    if want_sleep {
+                        player.send("SET_OPTION pause on")?;
+                    }
                     if !want_sleep {
                         sleeping = false;
                         closed_at = None;

@@ -13,6 +13,7 @@ stdin_cmd_enable = "true"
 network_cmd_enable = "false"
 menu_driver = "rgui"
 config_save_on_exit = "false"
+confirm_quit = "false"
 savestate_file_compression = "false"
 savestate_auto_save = "true"
 sort_savefiles_enable = "false"
@@ -58,7 +59,7 @@ savestate_directory = "{root}"
             send('LOAD_STATE_SLOT 0\nOMEGA_SCREEN\nOMEGA_PARAM OMEGA_DIM 0.25')
             expect('SET_OPTION pause on\nGET_STATUS','GET_STATUS PAUSED')
             expect('SET_OPTION pause off\nGET_STATUS','GET_STATUS PLAYING')
-            send('QUIT'); assert p.wait(timeout=10)==0
+            send('OMEGA_QUIT'); assert p.wait(timeout=10)==0
             battery=(root/'probe.srm').read_bytes()
             assert battery[:2]==b'\x01\x01',f'Gamepad bridge failed: {battery[:8]!r}'
             assert (root/'probe.state.auto').stat().st_size>32

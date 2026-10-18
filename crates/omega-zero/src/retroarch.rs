@@ -99,6 +99,7 @@ impl Launch {
             ("stdin_cmd_enable", "true"),
             ("network_cmd_enable", "false"),
             ("config_save_on_exit", "false"),
+            ("confirm_quit", "false"),
             ("savestate_auto_save", "true"),
             ("savestate_file_compression", "false"),
             ("block_sram_overwrite", "true"),

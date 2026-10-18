@@ -25,6 +25,11 @@ static void command_parse_sub_msg(command_t *handle, const char *tok)''')
 replace('command.c', '   handle->error   = false;', '''   handle->error   = false;
    if (sscanf(tok, "OMEGA_INPUT %x %u", &omega_pad, &omega_flags) == 2)
       return;
+   if (strcmp(tok,"OMEGA_QUIT")==0)
+   {
+      command_event(CMD_EVENT_QUIT,NULL);
+      return;
+   }
    if (strncmp(tok,"OMEGA_MSG ",10)==0)
    {
       runloop_msg_queue_push(tok+10, strlen(tok+10), 1, 90, true, NULL,
