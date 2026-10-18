@@ -173,6 +173,10 @@ impl Compositor {
         self.game.set_source_rect(rect);
     }
 
+    pub fn set_game_display(&mut self, saturation: f32, panel_raster: bool, palette: u8) {
+        self.game.set_display(saturation, panel_raster, palette);
+    }
+
     pub fn set_game_shadow(&mut self, x: f32, y: f32) {
         self.game.set_shadow(x, y);
     }

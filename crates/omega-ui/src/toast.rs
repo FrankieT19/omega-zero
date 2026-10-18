@@ -8,6 +8,7 @@ use crate::plate::UndoFace;
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Toast {
     Shader(u8),
+    Palette(u8),
     FavouriteAdded,
     FavouriteRemoved,
     StateSaved,
@@ -40,7 +41,7 @@ const DISC_IN: [&str; 9] = [
 
 impl Toast {
     /// Every toast there is, a disc's once, as disc 1.
-    pub const ALL: [Toast; 14] = [
+    pub const ALL: [Toast; 15] = [
         Toast::StateSaved,
         Toast::StateLoaded,
         Toast::NeedsGpsp,
@@ -55,11 +56,13 @@ impl Toast {
         Toast::Shader(0),
         Toast::FavouriteAdded,
         Toast::FavouriteRemoved,
+        Toast::Palette(0),
     ];
 
     /// Its place in `ALL`: every disc's toast is the one place.
     pub fn index(self) -> usize {
         match self {
+            Toast::Palette(_) => 14,
             Toast::Shader(_) => 11,
             Toast::FavouriteAdded => 12,
             Toast::FavouriteRemoved => 13,
@@ -80,6 +83,7 @@ impl Toast {
     /// What it is about, in the toast's title tab.
     pub fn label(self) -> &'static str {
         match self {
+            Toast::Palette(_) => "PALETTE",
             Toast::Shader(_) => "SHADER",
             Toast::FavouriteAdded | Toast::FavouriteRemoved => "FAVOURITES",
             Toast::StateSaved | Toast::StateLoaded => "SAVE STATE",
@@ -96,6 +100,10 @@ impl Toast {
     /// The line in the toast's well, in its own case.
     pub fn text(self) -> &'static str {
         match self {
+            Toast::Palette(n) => ["Game colours", "Pocket", "DMG green", "Blue", "Grayscale"]
+                .get(n as usize)
+                .copied()
+                .unwrap_or("Game colours"),
             Toast::Shader(n) => omega_store::SHADER_NAMES
                 .get(n as usize)
                 .copied()

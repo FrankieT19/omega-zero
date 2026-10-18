@@ -72,6 +72,8 @@ fn select_chords_map_to_all_four_axes() {
         (Btn::Down, BrightnessDown),
         (Right, ShaderNext),
         (Left, BlueLightDown),
+        (Btn::X, PictureMenu),
+        (Btn::B, PaletteNext),
     ] {
         let mut g = Gestures::new();
         g.feed(RawEvent::Down(Select), 0);
@@ -687,4 +689,16 @@ fn new_keys_let_go_of_a_rewind_and_a_fast_forward_under_way() {
         vec![FfStart],
         "R2 stayed held as the chord it was"
     );
+}
+
+#[test]
+fn display_chords_do_not_leak_buttons_on_release() {
+    for btn in [Btn::X, Btn::B] {
+        let mut g = Gestures::new();
+        assert!(g.feed(Down(Select), 0).is_empty());
+        let action = g.feed(Down(btn), 10);
+        assert_eq!(action.len(), 1);
+        assert!(g.feed(Up(btn), 20).is_empty());
+        assert!(g.feed(Up(Select), 30).is_empty());
+    }
 }

@@ -2,12 +2,13 @@
 #ifdef GL_ES
 precision highp float;
 #endif
+uniform float u_grid;
 uniform sampler2D Texture;
 uniform sampler2D OrigTexture;
 uniform vec4 u_crop;
 uniform vec4 u_orig_crop;
-vec4 input_sample(vec2 uv) { return texture2D(Texture, u_crop.xy + clamp(uv,0.0,1.0)*u_crop.zw); }
-vec4 original_sample(vec2 uv) { return texture2D(OrigTexture, u_orig_crop.xy + clamp(uv,0.0,1.0)*u_orig_crop.zw); }
+vec4 input_sample(vec2 uv) { return vec4(palette_rgb(texture2D(Texture, u_crop.xy + clamp(uv,0.0,1.0)*u_crop.zw).rgb,u_palette),1.0); }
+vec4 original_sample(vec2 uv) { return vec4(palette_rgb(texture2D(OrigTexture, u_orig_crop.xy + clamp(uv,0.0,1.0)*u_orig_crop.zw).rgb,u_orig_palette),1.0); }
 
 
 
@@ -164,6 +165,11 @@ vec3 generateProceduralBackground(vec2 uv) {
 
 void main()
 {
+    // Grid + PT is fused: separators stay literally black, without shadow/noise work.
+    vec2 cell = mod(floor(gl_FragCoord.xy), 3.0);
+    if (u_grid > 0.5 && (cell.x > 1.5 || cell.y > 1.5)) {
+        FRAG_COLOR=vec4(0.0,0.0,0.0,1.0); return;
+    }
     // Cache texture samples
     vec4 lcd_color = input_sample( TEX0.xy);
     vec3 original_pixel = original_sample( orig_coord).rgb;

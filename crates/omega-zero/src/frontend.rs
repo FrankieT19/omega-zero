@@ -5,12 +5,10 @@ use omega_input::{InputSource, Millis};
 use omega_power::{Platform, Power};
 use omega_store::Cart;
 use omega_ui::{
-    bezel_mark_face, chip_face, chip_face_in, chip_shadow_face, chip_shadow_face_in,
-    generated_face, lid_shadow_face, mark_height, mark_rect, model_shadow, rim, socket_face,
-    wallpaper_face, wears_label, CartFace, CartMeshes, CartModel, UndoFace, BEZEL_FILL,
-    SNES_SOCKETS,
+    chip_face, chip_face_in, chip_shadow_face, chip_shadow_face_in, generated_face,
+    lid_shadow_face, model_shadow, socket_face, wallpaper_face, wears_label, CartFace, CartMeshes,
+    CartModel, UndoFace, SNES_SOCKETS,
 };
-use omega_ui::{overlay_clear, overlay_face, overlay_path};
 
 use crate::face_builder::FaceBuilder;
 use crate::frontend::faces::upload_nearest;
@@ -98,8 +96,6 @@ pub struct Frontend {
     /// About's modal, baked as one face.
     about: Baked<(AboutView, u8)>,
     settings: SettingsTexes,
-    bezel_marks: Vec<BezelMark>,
-    overlays: Vec<Overlay>,
     /// The Network modal's own faces.
     network_modal: NetworkTexes,
     /// The Bluetooth modal's own faces.
@@ -145,24 +141,6 @@ fn boot_faces(carts: &[&Cart]) -> Vec<(CartFace, bool)> {
     })
 }
 
-/// A card's own overlay for one system, read once and checked against each layout it is
-/// laid over: one that would hide the game is refused rather than drawn.
-struct Overlay {
-    platform: omega_store::Platform,
-    face: Option<UndoFace>,
-    tex: Option<TexId>,
-    checked: Vec<([i32; 4], bool)>,
-}
-
-/// A console's wordmark, uploaded once for each system and height it has been printed at.
-struct BezelMark {
-    platform: omega_store::Platform,
-    height: u32,
-    tex: TexId,
-    w: u32,
-    h: u32,
-}
-
 impl Frontend {
     pub fn boot(platform: Box<dyn Platform>) -> Self {
         let now = Instant::now();
@@ -189,8 +167,6 @@ impl Frontend {
             top_bar: TopBarTexes::default(),
             about: Baked::default(),
             settings: SettingsTexes::default(),
-            bezel_marks: Vec::new(),
-            overlays: Vec::new(),
             network_modal: NetworkTexes::default(),
             bluetooth_modal: BluetoothTexes::default(),
             keyboard: KeyboardTexes::default(),
@@ -323,17 +299,31 @@ impl Frontend {
             Some((p, size)) if p == platform => size,
             _ => platform.picture(),
         };
-        let screen = crate::video_mode::screen_for(platform, self.session.app().video_mode, size);
+        let mut screen =
+            crate::video_mode::screen_for(platform, self.session.app().video_mode, size);
+        self.session.app().picture_adjust.apply(&mut screen.view);
+        self.session.app().picture_adjust.apply(&mut screen.still);
         let (mode, strength, blend) = self.session.app().shader_settings();
         compositor.set_game_effect(mode, strength, blend);
         let (shadow_x, shadow_y) = self.session.app().shader_shadow();
         compositor.set_game_shadow(shadow_x, shadow_y);
+        compositor.set_game_display(
+            self.session.app().shader_saturation(),
+            matches!(
+                platform,
+                omega_store::Platform::Gb | omega_store::Platform::Gbc
+            ) && self.session.app().video_mode == crate::video_mode::VideoMode::Stretch,
+            self.session.app().game_palette(),
+        );
         compositor.set_game_view(screen.view);
         compositor.set_still_view(screen.still);
-        let picture = crate::video_mode::picture_rect(platform, screen.view);
-        let overlay = self.overlay(platform, picture, compositor);
-        let bezel = self.bezel(platform, screen.bands, picture, overlay, compositor);
-        compositor.set_bezel(bezel);
+        compositor.set_bezel(Some(Bezel {
+            bands: screen.bands,
+            fill: [0.0, 0.0, 0.0, 1.0],
+            rims: Vec::new(),
+            marks: Vec::new(),
+            overlay: None,
+        }));
         compositor.begin_frame();
         if let Some(frame) = frame {
             compositor.upload_game_sized(&frame, frame.size());
@@ -416,129 +406,6 @@ impl Frontend {
             self.core_asked = None;
             self.core_built = None;
         }
-    }
-
-    /// The console's body for the bands the picture leaves, rimmed in black where they meet
-    /// it, with its wordmark printed on the deepest band that runs the width of the canvas.
-    fn bezel(
-        &mut self,
-        platform: omega_store::Platform,
-        bands: Vec<[f32; 4]>,
-        picture: [f32; 4],
-        overlay: Option<TexId>,
-        compositor: &mut Compositor,
-    ) -> Option<Bezel> {
-        if overlay.is_some() {
-            return Some(Bezel {
-                bands,
-                fill: BEZEL_FILL,
-                rims: Vec::new(),
-                marks: Vec::new(),
-                overlay,
-            });
-        }
-        if bands.is_empty() {
-            return None;
-        }
-        let rims = bands.iter().filter_map(|b| rim(*b, picture).1).collect();
-        let printed = bands
-            .iter()
-            .copied()
-            .filter(|b| b[2] >= out_w() as f32)
-            .max_by(|a, b| a[3].total_cmp(&b[3]))
-            .map(|b| rim(b, picture).0);
-        let marks = printed
-            .and_then(|band| {
-                let m = self.bezel_mark(platform, mark_height(band[3]), compositor)?;
-                Some((m.tex, mark_rect(band, m.w, m.h)))
-            })
-            .into_iter()
-            .collect();
-        Some(Bezel {
-            bands,
-            fill: BEZEL_FILL,
-            rims,
-            marks,
-            overlay: None,
-        })
-    }
-
-    fn overlay(
-        &mut self,
-        platform: omega_store::Platform,
-        picture: [f32; 4],
-        compositor: &mut Compositor,
-    ) -> Option<TexId> {
-        let at = match self.overlays.iter().position(|o| o.platform == platform) {
-            Some(at) => at,
-            None => {
-                let face = self
-                    .session
-                    .app()
-                    .root()
-                    .and_then(|root| overlay_face(root, platform));
-                self.overlays.push(Overlay {
-                    platform,
-                    face,
-                    tex: None,
-                    checked: Vec::new(),
-                });
-                self.overlays.len() - 1
-            }
-        };
-        let root = self.session.app().root().map(|r| r.to_path_buf());
-        let o = &mut self.overlays[at];
-        let face = o.face.as_ref()?;
-        let key = picture.map(|v| v.round() as i32);
-        let clear = match o.checked.iter().find(|(k, _)| *k == key) {
-            Some((_, clear)) => *clear,
-            None => {
-                let clear = overlay_clear(&face.rgba, face.w, face.h, picture);
-                if !clear {
-                    let path = root.map(|r| overlay_path(&r, platform));
-                    eprintln!(
-                        "omega-zero: overlay: {} covers the game at {picture:?}, so it is not drawn",
-                        path.map_or_else(String::new, |p| p.display().to_string())
-                    );
-                }
-                o.checked.push((key, clear));
-                clear
-            }
-        };
-        if !clear {
-            return None;
-        }
-        if o.tex.is_none() {
-            o.tex = Some(compositor.create_texture(face.w, face.h, &face.rgba));
-        }
-        o.tex
-    }
-
-    fn bezel_mark(
-        &mut self,
-        platform: omega_store::Platform,
-        height: u32,
-        compositor: &mut Compositor,
-    ) -> Option<&BezelMark> {
-        let known = self
-            .bezel_marks
-            .iter()
-            .position(|m| m.platform == platform && m.height == height);
-        let at = match known {
-            Some(at) => at,
-            None => {
-                let face = bezel_mark_face(platform, height)?;
-                self.bezel_marks.push(BezelMark {
-                    platform,
-                    height,
-                    tex: compositor.create_texture(face.w, face.h, &face.rgba),
-                    w: face.w,
-                    h: face.h,
-                });
-                self.bezel_marks.len() - 1
-            }
-        };
-        self.bezel_marks.get(at)
     }
 
     pub fn drive_emulator(&mut self) {

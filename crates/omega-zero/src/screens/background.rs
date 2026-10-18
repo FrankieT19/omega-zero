@@ -24,14 +24,10 @@ pub const TITLE: &str = "THEME";
 /// The THEME panel holding `view`'s rows, in `pal`.
 pub fn background_face(view: &ListView, pal: &Palette) -> UndoFace {
     let content = rows_height(view.rows.len());
-    let title = if view
-        .rows
-        .first()
-        .is_some_and(|r| r.label == crate::list_view::RowLabel::Setting("System"))
-    {
-        "DISPLAY"
-    } else {
-        TITLE
+    let title = match view.rows.first().map(|r| &r.label) {
+        Some(crate::list_view::RowLabel::Setting("System")) => "DISPLAY",
+        Some(crate::list_view::RowLabel::Setting("Zoom")) => "PICTURE",
+        _ => TITLE,
     };
     let mut panel = panel_face(WIDTH, panel_height(content), title, true, pal);
     hold(&mut panel, &view.rows, view.lit, pal);
@@ -70,6 +66,9 @@ impl App {
 
     /// The THEME screen's list, while it is open.
     pub fn background_view(&self) -> Option<ListView> {
+        if let Some(view) = self.picture_view() {
+            return Some(view);
+        }
         match &self.phase {
             Phase::Background(screen) if screen.display => Some(self.display_view(screen)),
             Phase::Background(screen) => Some(screen.view(self.backdrop(), self.state.font)),
@@ -92,6 +91,40 @@ impl App {
 impl App {
     pub fn low_poly_labels(&self) -> bool {
         self.state.low_poly_labels
+    }
+
+    pub fn game_palette(&self) -> u8 {
+        if matches!(
+            self.platform(),
+            omega_store::Platform::Gb | omega_store::Platform::Gbc
+        ) {
+            self.state.palettes[self.platform() as usize]
+        } else {
+            0
+        }
+    }
+    pub(crate) fn cycle_palette(&mut self) {
+        if !matches!(
+            self.platform(),
+            omega_store::Platform::Gb | omega_store::Platform::Gbc
+        ) {
+            return;
+        }
+        let i = self.platform() as usize;
+        self.state.palettes[i] = (self.state.palettes[i] + 1) % 5;
+        self.hud
+            .toast(omega_ui::Toast::Palette(self.state.palettes[i]), self.now());
+        self.persist();
+    }
+    pub fn shader_saturation(&self) -> f32 {
+        if matches!(
+            self.platform(),
+            omega_store::Platform::Gb | omega_store::Platform::Gbc
+        ) {
+            self.state.saturation[self.platform() as usize] as f32 / 100.0
+        } else {
+            1.0
+        }
     }
 
     pub fn shader_shadow(&self) -> (f32, f32) {
@@ -131,11 +164,11 @@ impl App {
                 return;
             }
             Action::GbaDown(Btn::Up) => {
-                screen.display_row = (screen.display_row + 5) % 6;
+                screen.display_row = (screen.display_row + 6) % 7;
                 return;
             }
             Action::GbaDown(Btn::Down) => {
-                screen.display_row = (screen.display_row + 1) % 6;
+                screen.display_row = (screen.display_row + 1) % 7;
                 return;
             }
             Action::GbaDown(Btn::Left) => false,
@@ -161,6 +194,11 @@ impl App {
             4 => {
                 self.state.shadow_y[i] =
                     (self.state.shadow_y[i] + if forward { 1 } else { -1 }).clamp(-60, 60)
+            }
+            6 if i == 1 || i == 2 => {
+                self.state.saturation[i] = (self.state.saturation[i] as i16
+                    + if forward { 10 } else { -10 })
+                .clamp(0, 200) as u8;
             }
             5 => {
                 self.state.low_poly_labels = !self.state.low_poly_labels;
@@ -212,6 +250,11 @@ impl App {
                     "Low poly labels",
                     RowValue::Setting(self.state.low_poly_labels),
                 ),
+                ViewRow {
+                    label: RowLabel::Setting("Saturation"),
+                    value: Some(RowValue::Name(format!("{}%", self.state.saturation[i]))),
+                    dim: i != 1 && i != 2,
+                },
             ],
             lit: Some(screen.display_row),
             status: Vec::new(),

@@ -590,3 +590,25 @@ fn a_font_the_reader_does_not_know_or_never_saw_is_bold() {
     }
     assert_eq!(AppState::default().font, Font::Bold);
 }
+
+#[test]
+fn per_system_saturation_and_palettes_survive_reboot() {
+    let d = tmp_root();
+    let s = AppState {
+        saturation: [100, 70, 80, 100, 100],
+        palettes: [0, 3, 1, 0, 0],
+        ..AppState::default()
+    };
+    write_app_state(d.path(), &s).unwrap();
+    assert_eq!(read_app_state(d.path()), s);
+    let path = d.path().join("Config/omega-zero.state");
+    let text = std::fs::read_to_string(&path)
+        .unwrap()
+        .replace("saturation_1=70", "saturation_1=201")
+        .replace("palette_2=1", "palette_2=99");
+    std::fs::write(path, text).unwrap();
+    let loaded = read_app_state(d.path());
+    assert_eq!(loaded.saturation[1], 100);
+    assert_eq!(loaded.palettes[2], 0);
+    assert_eq!(loaded.saturation[2], 80);
+}

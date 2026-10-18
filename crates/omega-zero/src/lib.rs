@@ -30,6 +30,7 @@ pub mod link_state;
 pub mod list_view;
 pub mod nav;
 pub mod opening;
+mod picture;
 pub mod persist;
 pub mod resample;
 pub mod rewind;

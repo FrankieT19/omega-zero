@@ -74,9 +74,13 @@ impl ControlsView {
             ("SELECT+▲▼", "BRIGHTNESS"),
             ("SELECT+◀", "BLUE LIGHT"),
             ("SELECT+▶", "SHADER"),
+            ("SELECT+X", "CROP / ZOOM"),
             ("SELECT+L1", "LOAD STATE"),
             ("SELECT+R1", "SAVE STATE"),
         ]);
+        if matches!(platform, Platform::Gb | Platform::Gbc) {
+            game.push(("SELECT+B", "PALETTE"));
+        }
         if platform.colour_correction() {
             game.push(("SELECT+Y", "COLOUR"));
         }

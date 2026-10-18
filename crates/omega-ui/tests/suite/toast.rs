@@ -93,6 +93,7 @@ fn the_banner_covers_events_and_the_selected_shader() {
             Toast::Shader(0),
             Toast::FavouriteAdded,
             Toast::FavouriteRemoved,
+            Toast::Palette(0),
         ],
         "a banner was added or dropped"
     );

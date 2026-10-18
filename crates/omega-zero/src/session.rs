@@ -338,7 +338,10 @@ impl Session {
     }
 
     fn held(&self) -> bool {
-        self.app.power_shown() || self.app.game_menu_open() || self.app.shutting_down()
+        self.app.picture_menu_open()
+            || self.app.power_shown()
+            || self.app.game_menu_open()
+            || self.app.shutting_down()
     }
 
     fn dozing(&self) -> bool {
@@ -413,6 +416,7 @@ impl Session {
         let core = omega_store::core_for_platform(&self.root, stem, platform);
         self.app.set_core(core);
         self.app.set_platform(platform);
+        self.app.load_picture(stem);
         self.app.set_video_mode(self.app.preferred_video_mode());
         self.app.set_link_loaded(serial);
         let resume = (!self.app.starting_clean())
