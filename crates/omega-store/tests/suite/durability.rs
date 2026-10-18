@@ -632,17 +632,15 @@ fn lcd_darkness_round_trips_and_old_snes_default_migrates_to_four_three_fit() {
 }
 
 #[test]
-fn inactivity_and_lcd_smoothing_round_trip_with_old_file_defaults() {
+fn sleep_timeouts_round_trip_with_old_file_defaults() {
     let d = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(d.path().join("Config")).unwrap();
     let old = read_app_state(d.path());
     assert_eq!(old.idle_dim, [60, 300]);
     assert_eq!(old.idle_sleep, [300, 900]);
-    assert_eq!(old.lcd_aa, [false; 5]);
     let state = AppState {
         idle_dim: [0, 120],
         idle_sleep: [600, 0],
-        lcd_aa: [true, false, true, false, true],
         ..old
     };
     write_app_state(d.path(), &state).unwrap();

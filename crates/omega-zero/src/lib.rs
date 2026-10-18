@@ -41,6 +41,7 @@ pub mod session;
 pub mod spawn;
 pub mod ssh;
 pub mod start_notice;
+mod state_writer;
 pub mod thumb;
 pub mod video_mode;
 pub mod wallpaper;

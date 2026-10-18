@@ -9,11 +9,13 @@ mod headless;
 #[cfg(feature = "host")]
 mod host;
 mod lcd3x;
+mod lcd_mask;
 mod pipeline;
 mod power;
 mod presets;
 mod quad;
 mod shaders;
+mod slang;
 mod surface;
 
 pub use canvas::{canvas, out_h, out_w, set_canvas, Canvas, CANVAS_ENV};

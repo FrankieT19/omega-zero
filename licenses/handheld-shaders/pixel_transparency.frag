@@ -3,6 +3,7 @@
 precision highp float;
 #endif
 uniform float u_grid;
+uniform sampler2D Mask;
 uniform vec2 RasterSize;
 uniform sampler2D Texture;
 uniform sampler2D OrigTexture;
@@ -167,8 +168,7 @@ vec3 generateProceduralBackground(vec2 uv) {
 void main()
 {
     // Grid + PT is fused: separators stay literally black, without shadow/noise work.
-    vec2 cell = mod(gl_FragCoord.xy, OutputSize/RasterSize)/(OutputSize/RasterSize);
-    if (u_grid > 0.5 && (cell.x >= 0.6666667 || cell.y >= 0.6666667)) {
+    if (u_grid > 0.5 && texture2D(Mask,TEX0.xy).r < 0.5) {
         FRAG_COLOR=vec4(0.0,0.0,0.0,1.0); return;
     }
     // Cache texture samples

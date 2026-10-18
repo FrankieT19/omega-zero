@@ -179,3 +179,60 @@ fn a_gba_game_keeps_l2_and_r2_from_the_game() {
         "a GBA game was handed a shoulder it does not have"
     );
 }
+
+#[test]
+fn duplicate_dpad_reports_do_not_skip_games_after_returning_from_gba_or_ps1() {
+    use omega_input::Action;
+    for platform in [Platform::Gba, Platform::Ps1] {
+        let d = root_with_games(platform, &["Alpha", "Beta", "Charlie", "Delta"]);
+        let (mut s, mut now) = playing(&d, platform, "Alpha");
+        s.app_mut().apply(Action::Eject);
+        for _ in 0..180 {
+            step(&mut s, &mut now, None);
+            if matches!(s.app().phase(), Phase::Shelf) {
+                break;
+            }
+        }
+        assert!(matches!(s.app().phase(), Phase::Shelf));
+        let stems: Vec<_> = s.app().carts().map(|c| c.stem.clone()).collect();
+        let at = stems
+            .iter()
+            .position(|x| Some(x.as_str()) == s.app().selected_stem())
+            .unwrap();
+        s.feed(
+            [RawEvent::Down(Btn::Right), RawEvent::Down(Btn::Right)],
+            now + 16,
+        );
+        s.update(0.016);
+        s.feed([RawEvent::Down(Btn::Right)], now + 32);
+        s.update(0.016);
+        s.feed([RawEvent::Up(Btn::Right)], now + 48);
+        s.update(0.016);
+        assert_eq!(
+            s.app().selected_stem(),
+            Some(stems[(at + 1) % stems.len()].as_str())
+        );
+    }
+}
+
+#[test]
+fn a_fresh_dpad_press_after_a_long_frame_does_not_inherit_repeat_time() {
+    let d = common::tmp_root_with_carts(&["Alpha", "Beta", "Charlie", "Delta"]);
+    common::clocked(d.path());
+    let mut s = Session::boot(d.path().to_path_buf());
+    let stems: Vec<_> = s.app().carts().map(|c| c.stem.clone()).collect();
+    let at = stems
+        .iter()
+        .position(|x| Some(x.as_str()) == s.app().selected_stem())
+        .unwrap();
+    s.advance_at([RawEvent::Down(Btn::Right)], 10000, 10.0);
+    assert_eq!(
+        s.app().selected_stem(),
+        Some(stems[(at + 1) % stems.len()].as_str())
+    );
+    s.advance_at([RawEvent::Up(Btn::Right)], 10016, 0.016);
+    assert_eq!(
+        s.app().selected_stem(),
+        Some(stems[(at + 1) % stems.len()].as_str())
+    );
+}

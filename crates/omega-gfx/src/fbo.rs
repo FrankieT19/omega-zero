@@ -173,8 +173,12 @@ impl Compositor {
         self.game.set_source_rect(rect);
     }
 
-    pub fn set_lcd_aa(&mut self, enabled: bool) {
-        self.game.set_lcd_aa(enabled);
+    #[cfg(feature = "test-support")]
+    pub fn draw_slang_reference(&self, mode: u8) {
+        self.game.draw_slang_reference(mode, &self.quad);
+    }
+    pub fn set_source_grid(&mut self, enabled: bool) {
+        self.game.set_source_grid(enabled);
     }
 
     pub fn set_lcd_darkness(&mut self, value: f32) {

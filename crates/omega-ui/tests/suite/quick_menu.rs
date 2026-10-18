@@ -483,7 +483,7 @@ fn the_rows_run_in_the_order_the_user_chose() {
             "Theme",
             "About",
             "Display",
-            "Inactivity"
+            "Sleep"
         ]
     );
     let opens: Vec<SettingsRow> = SettingsRow::ALL.into_iter().filter(|r| r.opens()).collect();

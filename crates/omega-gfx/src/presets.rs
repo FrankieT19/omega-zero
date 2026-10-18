@@ -6,6 +6,9 @@ use crate::{pipeline::GameView, quad::Quad, surface::GfxError};
 const VERT: &str = r#"
 attribute vec2 a_pos;
 uniform vec2 TextureSize, OrigTextureSize, OutputSize;
+uniform vec4 u_rect;
+uniform vec2 u_target;
+uniform float u_direct;
 varying vec4 TEX0;
 varying vec2 texel, orig_texel, orig_coord;
 varying float shadow_scale_factor;
@@ -14,7 +17,8 @@ void main() {
     texel=1.0/TextureSize; orig_texel=1.0/OrigTextureSize;
     orig_coord=a_pos;
     shadow_scale_factor=sqrt(OutputSize.x/640.0*OutputSize.y/480.0);
-    gl_Position=vec4(a_pos*2.0-1.0,0.0,1.0);
+    vec2 p=(u_rect.xy+a_pos*u_rect.zw)/u_target;
+    gl_Position=u_direct>0.5 ? vec4(p.x*2.0-1.0,1.0-p.y*2.0,0.0,1.0) : vec4(a_pos*2.0-1.0,0.0,1.0);
 }
 "#;
 const COPY: &str = r#"
@@ -42,7 +46,8 @@ pub(crate) struct Presets {
     pub saturation: f32,
     pub palette: u8,
     pub lcd_darkness: f32,
-    pub lcd_aa: bool,
+    pub source_grid: bool,
+    mask: crate::lcd_mask::Mask,
 }
 fn loc(p: u32, n: &str) -> i32 {
     crate::gl::uniform_location(p, n)
@@ -60,7 +65,8 @@ impl Presets {
             saturation: 1.0,
             palette: 0,
             lcd_darkness: 1.0,
-            lcd_aa: false,
+            source_grid: false,
+            mask: crate::lcd_mask::Mask::new()?,
         })
     }
     fn resize(&mut self, size: (u32, u32)) {
@@ -139,6 +145,38 @@ impl Presets {
             view.rect[2].round().max(1.0) as u32,
             view.rect[3].round().max(1.0) as u32,
         );
+        let orig = (source.0 as f32 * view.uv[2], source.1 as f32 * view.uv[3]);
+        let raster = if self.panel_raster {
+            (size.0 as f32 / 3.0, size.1 as f32 / 3.0)
+        } else {
+            orig
+        };
+        let origin = if self.panel_raster {
+            [0.0; 2]
+        } else {
+            [source.0 as f32 * view.uv[0], source.1 as f32 * view.uv[1]]
+        };
+        let kind = match mode {
+            1 | 5 => 0,
+            2 | 6 => 1,
+            _ => 2,
+        };
+        let direct = mode <= 3;
+        let key = crate::lcd_mask::Key {
+            size,
+            raster: [raster.0.to_bits(), raster.1.to_bits()],
+            origin: origin.map(f32::to_bits),
+            kind,
+            source_grid: self.source_grid && !self.panel_raster,
+        };
+        unsafe {
+            gl::ActiveTexture(gl::TEXTURE2);
+        }
+        let mask = if mode == 4 {
+            0
+        } else {
+            self.mask.get(key, quad)
+        };
         unsafe {
             let mut fbo = 0;
             let mut viewport = [0; 4];
@@ -146,14 +184,33 @@ impl Presets {
             gl::GetIntegerv(gl::VIEWPORT, viewport.as_mut_ptr());
             let blend = gl::IsEnabled(gl::BLEND) != 0;
             gl::Disable(gl::BLEND);
-            self.resize(size);
+            if !direct {
+                self.resize(size);
+            }
             let orig = (source.0 as f32 * view.uv[2], source.1 as f32 * view.uv[3]);
             let mut input = original;
             for (pass, &index) in chain.iter().enumerate() {
                 let p = self.programs[index].expect("selected shader compiled");
                 gl::UseProgram(p);
-                gl::BindFramebuffer(gl::FRAMEBUFFER, self.targets[pass].0);
-                gl::Viewport(0, 0, size.0 as i32, size.1 as i32);
+                if !direct {
+                    gl::BindFramebuffer(gl::FRAMEBUFFER, self.targets[pass].0);
+                    gl::Viewport(0, 0, size.0 as i32, size.1 as i32);
+                }
+                let (x, y, w, h) = screen_rect_in(power, view.rect);
+                gl::Uniform4f(loc(p, "u_rect"), x, y, w, h);
+                gl::Uniform2f(
+                    loc(p, "u_target"),
+                    crate::out_w() as f32,
+                    crate::out_h() as f32,
+                );
+                gl::Uniform1f(loc(p, "u_direct"), if direct { 1.0 } else { 0.0 });
+                gl::Uniform1f(loc(p, "u_post"), if direct { 1.0 } else { 0.0 });
+                gl::Uniform1f(loc(p, "u_saturation"), self.saturation);
+                gl::Uniform1f(loc(p, "u_bright"), screen_brightness(power));
+                gl::Uniform1f(loc(p, "u_glow"), screen_glow(power));
+                gl::Uniform1i(loc(p, "Mask"), 2);
+                gl::ActiveTexture(gl::TEXTURE2);
+                gl::BindTexture(gl::TEXTURE_2D, mask);
                 let crop = if pass == 0 {
                     view.uv
                 } else {
@@ -193,7 +250,6 @@ impl Presets {
                 gl::Uniform1f(loc(p, "u_orig_palette"), self.palette as f32);
                 gl::Uniform1f(loc(p, "u_lcd_darkness"), self.lcd_darkness);
                 gl::Uniform2f(loc(p, "FullSourceSize"), source.0 as f32, source.1 as f32);
-                gl::Uniform1f(loc(p, "u_lcd_aa"), if self.lcd_aa { 1.0 } else { 0.0 });
                 gl::Uniform1i(loc(p, "Texture"), 0);
                 gl::Uniform1i(loc(p, "OrigTexture"), 1);
                 gl::Uniform1i(loc(p, "FrameDirection"), 1);
@@ -203,16 +259,15 @@ impl Presets {
                 gl::BindTexture(gl::TEXTURE_2D, input);
                 gl::ActiveTexture(gl::TEXTURE1);
                 gl::BindTexture(gl::TEXTURE_2D, original);
-                let aa = self.lcd_aa && (index == 0 || index == 1);
-                if aa {
-                    gl::ActiveTexture(gl::TEXTURE0);
-                    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
-                    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
-                }
+                gl::ActiveTexture(gl::TEXTURE0);
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
                 quad.draw();
-                if aa {
-                    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
-                    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
+                if direct {
+                    if blend {
+                        gl::Enable(gl::BLEND);
+                    }
+                    return true;
                 }
                 input = self.targets[pass].1;
             }
@@ -239,6 +294,17 @@ impl Presets {
             quad.draw();
         }
         true
+    }
+    #[cfg(feature = "test-support")]
+    pub fn reference(&self, mode: u8, source: u32, size: (u32, u32), view: GameView, quad: &Quad) {
+        self.mask.lcd.draw(
+            mode - 1,
+            source,
+            size,
+            view,
+            (crate::out_w(), crate::out_h()),
+            quad,
+        );
     }
     fn clear(&mut self) {
         unsafe {

@@ -169,7 +169,13 @@ impl Session {
         for ev in events {
             use omega_input::{Btn, RawEvent};
             match ev {
-                RawEvent::Down(btn) if btn != Btn::Lid => self.held_inputs |= 1 << btn as u8,
+                RawEvent::Down(btn) if btn != Btn::Lid => {
+                    let bit = 1 << btn as u8;
+                    if self.held_inputs & bit != 0 {
+                        continue;
+                    }
+                    self.held_inputs |= bit;
+                }
                 RawEvent::Up(btn) => self.held_inputs &= !(1 << btn as u8),
                 _ => {}
             }
@@ -235,11 +241,29 @@ impl Session {
         self.sync_rumble();
     }
 
+    /// Input and repeat deadlines share the presentation's monotonic timestamp. In
+    /// particular, a fresh press after a slow save must not inherit that save's elapsed time.
+    pub fn advance_at(&mut self, events: impl IntoIterator<Item = RawEvent>, now: Millis, dt: f32) {
+        self.app.clock = self.app.clock.max(now as f64);
+        self.feed(events, now);
+        self.update_frame(dt, false);
+    }
+
     pub fn update(&mut self, dt: f32) {
+        self.update_frame(dt, true);
+    }
+
+    fn update_frame(&mut self, dt: f32, advance_clock: bool) {
         if self.held_inputs != 0 {
             self.app.note_activity();
         }
-        self.bridge_link(|app| app.update(dt));
+        self.bridge_link(|app| {
+            if advance_clock {
+                app.update(dt)
+            } else {
+                app.update_frame(dt)
+            }
+        });
         if let Some(emu) = &self.emu {
             emu.set_volume(self.app.output_volume());
         }

@@ -305,7 +305,10 @@ impl Frontend {
         self.session.app().picture_adjust.apply(&mut screen.still);
         let (mode, strength, blend) = self.session.app().shader_settings();
         compositor.set_game_effect(mode, strength, blend);
-        compositor.set_lcd_aa(self.session.app().lcd_aa());
+        compositor.set_source_grid(matches!(
+            platform,
+            omega_store::Platform::Snes | omega_store::Platform::Ps1
+        ));
         compositor.set_lcd_darkness(self.session.app().lcd_darkness());
         let (shadow_x, shadow_y) = self.session.app().shader_shadow();
         compositor.set_game_shadow(shadow_x, shadow_y);
@@ -420,11 +423,10 @@ impl Frontend {
 
     pub fn advance(&mut self, input: &mut dyn InputSource) {
         let now = self.now();
-        let events = input.poll(now);
-        self.session.feed(events, now);
         let dt = self.last.elapsed().as_secs_f32();
         self.last = Instant::now();
-        self.session.update(dt);
+        let events = input.poll(now);
+        self.session.advance_at(events, now, dt);
     }
 
     pub fn app(&self) -> &crate::app::App {
@@ -453,8 +455,7 @@ impl Frontend {
 
     pub fn advance_at(&mut self, input: &mut dyn InputSource, now: Millis, dt: f32) {
         let events = input.poll(now);
-        self.session.feed(events, now);
-        self.session.update(dt);
+        self.session.advance_at(events, now, dt);
     }
 
     fn now(&self) -> Millis {

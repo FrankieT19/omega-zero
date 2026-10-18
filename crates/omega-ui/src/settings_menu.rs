@@ -103,7 +103,7 @@ impl SettingsRow {
             SettingsRow::Background => "Theme",
             SettingsRow::About => "About",
             SettingsRow::Display => "Display",
-            SettingsRow::Inactivity => "Inactivity",
+            SettingsRow::Inactivity => "Sleep",
         }
     }
 
