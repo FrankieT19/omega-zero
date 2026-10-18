@@ -53,7 +53,7 @@ impl Core {
     /// chip has room for, six letters at most, so Supafaust is Faust.
     pub fn text(self) -> &'static str {
         match self {
-            Core::Gambatte => "Gambat",
+            Core::Gambatte => "Gamb",
             Core::Mgba => "mGBA",
             Core::Gpsp => "gpSP",
             Core::Snes9x => "Snes9x",

@@ -45,7 +45,7 @@ fn upload_faces(app: &mut App, c: &mut Compositor) {
     let rounded = tex(c, rounded.w, rounded.h, &rounded.rgba);
     app.set_gb_cart_shadows(notched, rounded);
 
-    let sockets = Core::for_platform(omega_store::Platform::Gba)
+    let sockets = Core::ALL
         .iter()
         .map(|k| {
             let f = socket_face(*k);
@@ -140,7 +140,7 @@ fn screen_px() -> usize {
 }
 
 #[test]
-fn x_draws_the_plain_shelf_on_a_game_boy_cart() {
+fn x_draws_the_core_picker_for_game_boy_and_gba() {
     let Some((_g, _s, mut c)) = compositor() else {
         eprintln!("no GL on this host, skipping");
         return;
@@ -157,13 +157,13 @@ fn x_draws_the_plain_shelf_on_a_game_boy_cart() {
     let after = shot(&pressed, &mut c, "gb-after-x");
     assert_eq!(
         pressed.core_picker(),
-        None,
-        "a Game Boy cart opened the GBA picker"
+        Some(Core::Gambatte),
+        "GB should default to Gambatte"
     );
     let n = changed(&after, &plain);
     assert!(
-        n < screen_px() / 1000,
-        "X put something on screen over a Game Boy cart: {n} pixels changed"
+        n > screen_px() / 100,
+        "the Game Boy core picker was not drawn: {n} pixels changed"
     );
 
     let d = common::tmp_root_with_carts(&["Emerald", "Zzz"]);
