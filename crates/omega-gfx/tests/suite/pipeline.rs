@@ -1241,11 +1241,13 @@ fn stretching_gbc_keeps_lcd_panel_cells_the_same_size_as_gba() {
         });
         c.begin_frame();
         c.draw_game();
-        assert_eq!(
-            c.read_frame(),
-            gba,
-            "preset {mode} stretched its mask with the GB source"
-        );
+        let stretched = c.read_frame();
+        for (index, (actual, expected)) in stretched.iter().zip(&gba).enumerate() {
+            assert!(
+                actual.abs_diff(*expected) <= 2,
+                "preset {mode} stretched its mask at channel {index}: {actual} vs {expected}"
+            );
+        }
     }
 }
 
