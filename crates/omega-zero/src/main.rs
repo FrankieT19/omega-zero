@@ -5,7 +5,13 @@ mod host_app;
 
 fn main() {
     let mut args = std::env::args().skip(1);
-    if args.next().as_deref() == Some("--init-root") {
+    let first = args.next();
+    #[cfg(not(feature = "host"))]
+    if first.as_deref() == Some("--retroarch-session") {
+        omega_zero::retroarch::run(args.collect());
+        return;
+    }
+    if first.as_deref() == Some("--init-root") {
         let Some(dir) = args.next() else {
             eprintln!("omega-zero: --init-root needs a directory");
             std::process::exit(2);

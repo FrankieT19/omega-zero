@@ -1219,12 +1219,12 @@ fn gba_grid_cells_match_source_texels_at_exact_three_times_scale() {
 }
 
 #[test]
-fn stretching_gbc_keeps_lcd_panel_cells_the_same_size_as_gba() {
+fn stretching_gbc_keeps_grid_panel_cells_the_same_size_as_gba() {
     let Some((_g, _s, mut c)) = compositor() else {
         return;
     };
     c.upload_game(&flat_shot([200; 3]));
-    for mode in [1, 2, 3, 5, 6, 7] {
+    for mode in [3, 7] {
         c.set_game_effect(mode, 1.0, 1.0);
         c.set_game_display(1.0, true, 0);
         c.set_game_view(GameView {
@@ -1374,7 +1374,7 @@ fn stock_lcd_cells_repeat_without_alternating_rows_at_three_times_gba() {
     }
 }
 #[test]
-fn stretched_console_grid_uses_source_pixel_cells_instead_of_fixed_panel_cells() {
+fn stretched_console_grid_keeps_three_physical_pixel_cells() {
     let Some((_g, _s, mut c)) = compositor() else {
         return;
     };
@@ -1388,9 +1388,7 @@ fn stretched_console_grid_uses_source_pixel_cells_instead_of_fixed_panel_cells()
         let frame = c.read_frame();
         for y in 0..out_h() as usize {
             for x in 0..out_w() as usize {
-                let phase_x = ((x as f32 + 0.5) * 320.0 / out_w() as f32).fract();
-                let phase_y = ((y as f32 + 0.5) * 240.0 / out_h() as f32).fract();
-                let black = phase_x >= 0.6666667 || phase_y >= 0.6666667;
+                let black = x % 3 == 2 || y % 3 == 2;
                 assert_eq!(
                     px(&frame, x, y) == [0; 3],
                     black,
@@ -1426,7 +1424,7 @@ fn cached_lcd_matches_the_compiled_unmodified_slang_shader_on_actual_game_pixels
     }
 }
 #[test]
-fn console_grid_tracks_fractionally_cropped_source_pixels_for_grid_and_grid_pt() {
+fn cropping_a_game_does_not_move_the_physical_grid() {
     let Some((_g, _s, mut c)) = compositor() else {
         return;
     };
@@ -1444,17 +1442,72 @@ fn console_grid_tracks_fractionally_cropped_source_pixels_for_grid_and_grid_pt()
         let frame = c.read_frame();
         for y in 0..out_h() as usize {
             for x in 0..out_w() as usize {
-                let phase_x =
-                    ((x as f32 + 0.5) * (320.0 * 0.99) / out_w() as f32 + 320.0 * 0.01).fract();
-                let phase_y =
-                    ((y as f32 + 0.5) * (240.0 * 0.98) / out_h() as f32 + 240.0 * 0.02).fract();
-                if (phase_x - 2.0 / 3.0).abs() < 0.0002 || (phase_y - 2.0 / 3.0).abs() < 0.0002 {
-                    continue;
-                }
                 assert_eq!(
                     px(&frame, x, y) == [0; 3],
-                    phase_x >= 2.0 / 3.0 || phase_y >= 2.0 / 3.0,
+                    x % 3 == 2 || y % 3 == 2,
                     "cropped grid {mode} at {x},{y}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn grid_stays_on_the_screen_raster_for_fit_integer_stretch_and_every_system() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    for source in [(160, 144), (256, 224), (320, 240)] {
+        c.upload_game_sized(&vec![200; (source.0 * source.1 * 4) as usize], source);
+        for (w, h) in [(533, 480), (480, 432), (out_w(), out_h())] {
+            let x = (out_w() - w) / 2;
+            let y = (out_h() - h) / 2;
+            c.set_game_view(sharp([x as f32, y as f32, w as f32, h as f32]));
+            for mode in [3, 7] {
+                c.set_game_effect(mode, 1.0, 1.0);
+                c.begin_frame();
+                c.draw_game();
+                let frame = c.read_frame();
+                for yy in y..y + h {
+                    for xx in x..x + w {
+                        assert_eq!(
+                            px(&frame, xx as usize, yy as usize) == [0; 3],
+                            xx % 3 == 2 || yy % 3 == 2,
+                            "screen grid {mode}, source {source:?}, view {w}x{h} at {xx},{yy}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn lcd_uses_game_pixels_in_gb_fit_and_stretch_even_with_the_old_panel_flag() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    c.upload_game_sized(&vec![200; 160 * 144 * 4], (160, 144));
+    c.set_game_display(1.0, true, 0);
+    for width in [533, out_w()] {
+        c.set_game_view(sharp([
+            ((out_w() - width) / 2) as f32,
+            0.0,
+            width as f32,
+            out_h() as f32,
+        ]));
+        for mode in [1, 2] {
+            c.set_game_effect(mode, 1.0, 1.0);
+            c.begin_frame();
+            c.draw_game();
+            let cached = c.read_frame();
+            c.begin_frame();
+            c.draw_slang_reference(mode);
+            let source = c.read_frame();
+            for (a, b) in cached.iter().zip(&source) {
+                assert!(
+                    a.abs_diff(*b) <= 2,
+                    "LCD {mode} was detached from GB game pixels"
                 );
             }
         }

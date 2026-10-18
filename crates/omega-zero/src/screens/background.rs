@@ -170,11 +170,11 @@ impl App {
                 return;
             }
             Action::GbaDown(Btn::Up) => {
-                screen.display_row = (screen.display_row + 7) % 8;
+                screen.display_row = (screen.display_row + 9) % 10;
                 return;
             }
             Action::GbaDown(Btn::Down) => {
-                screen.display_row = (screen.display_row + 1) % 8;
+                screen.display_row = (screen.display_row + 1) % 10;
                 return;
             }
             Action::GbaDown(Btn::Left) => false,
@@ -200,6 +200,31 @@ impl App {
             4 => {
                 self.state.shadow_y[i] =
                     (self.state.shadow_y[i] + if forward { 1 } else { -1 }).clamp(-60, 60)
+            }
+            8 => {
+                if let Some(root) = self.root() {
+                    let value = if crate::retroarch::requested(root) {
+                        "native\n"
+                    } else {
+                        "retroarch\n"
+                    };
+                    if let Err(e) = omega_store::atomic_write(
+                        &root.join("Config/backend.txt"),
+                        value.as_bytes(),
+                    ) {
+                        eprintln!("omega-zero: backend: {e}");
+                    }
+                }
+            }
+            9 => {
+                if self
+                    .root()
+                    .is_some_and(|root| root.join("System/retroarch").is_file())
+                {
+                    self.retroarch_setup = Some(omega_store::Platform::ALL[i]);
+                } else {
+                    self.refuse();
+                }
             }
             7 => {
                 self.state.lcd_darkness[i] = (self.state.lcd_darkness[i] as i16
@@ -270,6 +295,15 @@ impl App {
                     "LCD darkness",
                     RowValue::Name(format!("{}%", self.state.lcd_darkness[i])),
                 ),
+                row(
+                    "Game backend",
+                    RowValue::Choice(if self.root().is_some_and(crate::retroarch::requested) {
+                        "RetroArch"
+                    } else {
+                        "Native"
+                    }),
+                ),
+                row("Shader settings", RowValue::Choice("Open RetroArch")),
             ],
             lit: Some(screen.display_row),
             status: Vec::new(),

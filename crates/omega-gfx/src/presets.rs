@@ -42,11 +42,9 @@ pub(crate) struct Presets {
     targets: [(u32, u32); 2],
     size: (u32, u32),
     pub shadow: (f32, f32),
-    pub panel_raster: bool,
     pub saturation: f32,
     pub palette: u8,
     pub lcd_darkness: f32,
-    pub source_grid: bool,
     mask: crate::lcd_mask::Mask,
 }
 fn loc(p: u32, n: &str) -> i32 {
@@ -61,11 +59,9 @@ impl Presets {
             targets: [(0, 0); 2],
             size: (0, 0),
             shadow: (1.0, 1.0),
-            panel_raster: false,
             saturation: 1.0,
             palette: 0,
             lcd_darkness: 1.0,
-            source_grid: false,
             mask: crate::lcd_mask::Mask::new()?,
         })
     }
@@ -146,13 +142,14 @@ impl Presets {
             view.rect[3].round().max(1.0) as u32,
         );
         let orig = (source.0 as f32 * view.uv[2], source.1 as f32 * view.uv[3]);
-        let raster = if self.panel_raster {
+        let screen_grid = matches!(mode, 3 | 7);
+        let raster = if screen_grid {
             (size.0 as f32 / 3.0, size.1 as f32 / 3.0)
         } else {
             orig
         };
-        let origin = if self.panel_raster {
-            [0.0; 2]
+        let origin = if screen_grid {
+            [view.rect[0] / 3.0, view.rect[1] / 3.0]
         } else {
             [source.0 as f32 * view.uv[0], source.1 as f32 * view.uv[1]]
         };
@@ -167,7 +164,7 @@ impl Presets {
             raster: [raster.0.to_bits(), raster.1.to_bits()],
             origin: origin.map(f32::to_bits),
             kind,
-            source_grid: self.source_grid && !self.panel_raster,
+            source_grid: false,
         };
         unsafe {
             gl::ActiveTexture(gl::TEXTURE2);
@@ -228,7 +225,7 @@ impl Presets {
                     gl::Uniform2f(loc(p, name), orig.0, orig.1);
                 }
                 gl::Uniform1f(loc(p, "u_grid"), if mode == 7 { 1.0 } else { 0.0 });
-                let raster = if self.panel_raster {
+                let raster = if screen_grid {
                     (size.0 as f32 / 3.0, size.1 as f32 / 3.0)
                 } else {
                     orig

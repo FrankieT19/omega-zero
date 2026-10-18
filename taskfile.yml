@@ -534,9 +534,16 @@ tasks:
       - file target-device/device/examples/core_bench | grep -q aarch64
       - 'echo "built target-device/device/examples/core_bench, adb push it to /tmp/core_bench"'
 
+  backend:retroarch:
+    desc: Build RetroArch with its native Slang pipeline for BaseOS
+    cmds:
+      - task: device:sh
+        vars:
+          CMD: sh cores/retroarch/build.sh
+
   dist:device:
     desc: Build the SD2 tree for an H700 device, OUT defaults to ./dist-device
-    deps: [cores:device, build:device]
+    deps: [cores:device, build:device, backend:retroarch]
     vars:
       OUT: '{{.OUT | default "dist-device"}}'
     cmds:
@@ -545,14 +552,23 @@ tasks:
         vars:
           CMD: ./target-device/device/omega-zero --init-root {{.OUT}}
       - cp target-device/device/omega-zero {{.OUT}}/System/omega-zero
-      - cp card/System/* {{.OUT}}/System/
+      - cp -r card/System/* {{.OUT}}/System/
       - |
         set -eu
         for lib in {{.DEVICE_CORES}}; do
           file "vendor/${lib}_libretro.so" | grep -q aarch64
           cp "vendor/${lib}_libretro.so" {{.OUT}}/System/
         done
+      - cp vendor/retroarch vendor/retroarch.features {{.OUT}}/System/
       - cp -r licenses {{.OUT}}/System/licenses
+      - cp vendor/retroarch-src.tar.gz {{.OUT}}/System/licenses/retroarch-ea79555bc8fcd4cb1a2fb8a48c1a6cdba819fb07.tar.gz
+      - cp cores/retroarch/build.sh {{.OUT}}/System/licenses/retroarch-build.sh
+      - cp cores/retroarch/patch.py {{.OUT}}/System/licenses/retroarch-patch.py
+      - cp cores/retroarch/dimmer.h {{.OUT}}/System/licenses/retroarch-dimmer.h
+      - cp cores/retroarch/probe.c {{.OUT}}/System/licenses/retroarch-probe.c
+      - cp cores/retroarch/smoke.py {{.OUT}}/System/licenses/retroarch-smoke.py
+      - cp vendor/retroarch.meta {{.OUT}}/System/licenses/retroarch.meta
+      - cp cores/retroarch/README.md {{.OUT}}/System/RETROARCH.md
       - |
         set -euo pipefail
         sha="$(cat vendor/gpsp-src.sha)"

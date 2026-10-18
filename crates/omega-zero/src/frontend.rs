@@ -285,6 +285,10 @@ impl Frontend {
         compositor.end_frame(window);
     }
 
+    pub fn take_external_game(&mut self) -> Option<crate::retroarch::Launch> {
+        self.session.take_external()
+    }
+
     pub fn compose(&mut self, compositor: &mut Compositor) {
         compositor.set_blue_light(self.session.app().blue_light());
         compositor.set_dim(self.session.app().dim_gain() * self.session.app().inactivity_gain());
@@ -305,19 +309,12 @@ impl Frontend {
         self.session.app().picture_adjust.apply(&mut screen.still);
         let (mode, strength, blend) = self.session.app().shader_settings();
         compositor.set_game_effect(mode, strength, blend);
-        compositor.set_source_grid(matches!(
-            platform,
-            omega_store::Platform::Snes | omega_store::Platform::Ps1
-        ));
         compositor.set_lcd_darkness(self.session.app().lcd_darkness());
         let (shadow_x, shadow_y) = self.session.app().shader_shadow();
         compositor.set_game_shadow(shadow_x, shadow_y);
         compositor.set_game_display(
             self.session.app().shader_saturation(),
-            matches!(
-                platform,
-                omega_store::Platform::Gb | omega_store::Platform::Gbc
-            ) && self.session.app().video_mode == crate::video_mode::VideoMode::Stretch,
+            false,
             self.session.app().game_palette(),
         );
         compositor.set_game_view(screen.view);

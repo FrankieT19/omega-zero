@@ -146,18 +146,17 @@ impl GamePass {
             .borrow()
             .reference(mode, self.game, self.size, view, quad);
     }
-    pub fn set_source_grid(&mut self, enabled: bool) {
-        self.presets.borrow_mut().source_grid = enabled;
+    pub fn set_source_grid(&mut self, _enabled: bool) {
+        // Kept for callers of older builds. Each preset now determines its own raster.
     }
 
     pub fn set_lcd_darkness(&mut self, value: f32) {
         self.presets.borrow_mut().lcd_darkness = value.clamp(0.0, 2.0);
     }
 
-    pub fn set_display(&mut self, saturation: f32, panel_raster: bool, palette: u8) {
+    pub fn set_display(&mut self, saturation: f32, _panel_raster: bool, palette: u8) {
         let mut presets = self.presets.borrow_mut();
         presets.saturation = saturation.clamp(0.0, 2.0);
-        presets.panel_raster = panel_raster;
         presets.palette = palette.min(4);
     }
 
