@@ -329,6 +329,31 @@ pub fn settings_row_rects(
         .collect()
 }
 
+/// Keep the selected row visible when a group's list exceeds its panel height.
+/// Textures are reused while scrolling; only their positions and visibility change.
+pub fn settings_visible_rects(
+    rows: &[SettingsRow],
+    wells: [[u32; 4]; 2],
+    selected: SettingsRow,
+) -> Vec<(SettingsRow, [u32; 4])> {
+    let mut out = Vec::new();
+    for group in SettingsGroup::ALL {
+        let well = wells[group.index()];
+        let grouped: Vec<_> = rows
+            .iter()
+            .copied()
+            .filter(|r| r.group() == group)
+            .collect();
+        let capacity = (well[3] / ROW_H).max(1) as usize;
+        let cursor = grouped.iter().position(|r| *r == selected).unwrap_or(0);
+        let start = (cursor + 1).saturating_sub(capacity);
+        for (i, row) in grouped.into_iter().skip(start).take(capacity).enumerate() {
+            out.push((row, row_rect(well, i as u32)));
+        }
+    }
+    out
+}
+
 /// `top` laid over `under` with its top left at (`x`, `y`) wherever it is not clear.
 fn over(under: &mut UndoFace, top: &UndoFace, x: u32, y: u32) {
     for ty in 0..top.h.min(under.h.saturating_sub(y)) {
@@ -413,7 +438,7 @@ impl SettingsMenu<'_> {
         };
         out.push(faces.frame.quad());
         out.push(faces.titles[self.row.group().index()].quad());
-        for (row, [x, y, ..]) in settings_row_rects(self.rows, faces.wells) {
+        for (row, [x, y, ..]) in settings_visible_rects(self.rows, faces.wells, self.row) {
             if let Some((tex, [w, h])) = faces.rows[row.index()] {
                 out.push(quad(tex, w, h, screen_px(x), screen_px(y)));
             }

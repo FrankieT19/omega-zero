@@ -8,8 +8,8 @@ use omega_ui::kit::palette::{palette, Palette};
 use omega_ui::kit::row::ROW_H;
 use omega_ui::{
     date_time_text, settings_frame, settings_panels, settings_row_face, settings_row_rects,
-    settings_row_width, settings_title_face, ClockPicker, QuickValue, RowShown, SettingsBaked,
-    SettingsGroup, SettingsRow, UndoFace,
+    settings_row_width, settings_title_face, settings_visible_rects, ClockPicker, QuickValue,
+    RowShown, SettingsBaked, SettingsGroup, SettingsRow, UndoFace,
 };
 
 const NIGHT: u8 = 0;
@@ -73,7 +73,15 @@ fn composed(shown: &[RowShown], pal: &Palette) -> UndoFace {
         let [tx, ty, ..] = frame.titles[g.index()];
         over(&mut modal, &settings_title_face(g, pal), tx - mx, ty - my);
     }
-    for (row, [x, y, w, _]) in settings_row_rects(&rows, frame.wells) {
+    for (row, [x, y, w, _]) in settings_visible_rects(
+        &rows,
+        frame.wells,
+        shown
+            .iter()
+            .find(|s| s.lit)
+            .map(|s| s.row)
+            .unwrap_or(SettingsRow::FastForward),
+    ) {
         let s = shown.iter().find(|s| s.row == row).expect("a row shown");
         over(&mut modal, &settings_row_face(w, s, pal), x - mx, y - my);
     }
@@ -567,4 +575,20 @@ fn a_picker_for_a_set_clock_starts_at_the_local_time_and_its_offset() {
         "the picker does not show the minute it was opened in"
     );
     assert!(p.text().starts_with("2026-09-15 16:35"), "{}", p.text());
+}
+
+#[test]
+fn settings_scrolls_each_selected_row_fully_inside_its_panel() {
+    let frame = settings_frame(5, palette(NIGHT));
+    for selected in SettingsRow::ALL {
+        let visible = settings_visible_rects(&SettingsRow::ALL, frame.wells, selected);
+        assert!(visible.iter().any(|(r, _)| *r == selected));
+        for (row, [_x, y, _w, h]) in visible {
+            let well = frame.wells[row.group().index()];
+            assert!(
+                y >= well[1] && y + h <= well[1] + well[3],
+                "{row:?} overflows with {selected:?} selected"
+            );
+        }
+    }
 }

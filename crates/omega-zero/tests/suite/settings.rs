@@ -12,7 +12,7 @@ use omega_ui::kit::layout::modal_rect;
 use omega_ui::kit::palette::palette;
 use omega_ui::kit::row::ROW_H;
 use omega_ui::{
-    date_time_text, out_w, settings_frame, settings_row_rects, Draw, HudFace, QuickValue,
+    date_time_text, out_w, settings_frame, settings_visible_rects, Draw, HudFace, QuickValue,
     SettingsFaces, SettingsGroup, SettingsRow, TexId, SPRITE_PX,
 };
 use omega_zero::app::{App, Phase};
@@ -486,7 +486,9 @@ fn every_row_is_drawn_in_its_panels_well() {
     let faces = fake_faces(&mut a);
     open_at(&mut a, SettingsRow::FastForward);
     let out = frame(&a);
-    for (row, rect) in settings_row_rects(&a.settings_rows(), faces.wells) {
+    for (row, rect) in
+        settings_visible_rects(&a.settings_rows(), faces.wells, a.settings_row().unwrap())
+    {
         let [x, y, ..] = at_2x(rect);
         assert_eq!(
             placed(&out, 200 + row.index()),
@@ -539,6 +541,7 @@ fn the_rows_say_what_is_set_in_flows_capitals() {
             clock_text,
             text("OFF"),
             text("OFF"),
+            None,
             None,
             None,
             None,
