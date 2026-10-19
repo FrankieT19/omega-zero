@@ -333,11 +333,83 @@ fn all_non_gba_systems_support_stretch_aspect_fit_and_integer_scaling() {
             let source = platform.picture();
             let sx = integer.view.rect[2] / source.0 as f32;
             let sy = integer.view.rect[3] / source.1 as f32;
-            assert_eq!(sx, sx.floor());
-            assert_eq!(sx, sy);
+            if platform == Platform::Ps1 {
+                assert_eq!(sy, sy.floor());
+                assert!((integer.view.rect[2] / integer.view.rect[3] - 4.0 / 3.0).abs() < 0.002);
+            } else {
+                assert_eq!(sx, sx.floor());
+                assert_eq!(sx, sy);
+            }
             assert!(
                 integer.view.rect[2] <= canvas.w as f32 && integer.view.rect[3] <= canvas.h as f32
             );
         }
     }
+}
+
+#[test]
+fn ps1_integer_corrects_non_square_pixels_across_frame_width_and_resolution_changes() {
+    for c in [Canvas::WIDE, Canvas::FOUR_THREE] {
+        for frame in [
+            (256, 240),
+            (320, 240),
+            (368, 240),
+            (512, 240),
+            (640, 240),
+            (640, 480),
+        ] {
+            let screen = screen_on_frame(c, Platform::Ps1, VideoMode::Integer, frame);
+            assert_eq!(
+                screen.view.rect,
+                [((c.w - 640) / 2) as f32, 0.0, 640.0, 480.0],
+                "{frame:?}"
+            );
+            assert_eq!(screen.still, screen.view);
+            assert_eq!(screen.view.uv, WHOLE_TEXTURE);
+        }
+        let pal = screen_on_frame(c, Platform::Ps1, VideoMode::Integer, (640, 256));
+        assert_eq!(pal.view.rect[3], 256.0);
+        assert!((pal.view.rect[2] / pal.view.rect[3] - 4.0 / 3.0).abs() < 0.002);
+        let too_tall = screen_on_frame(c, Platform::Ps1, VideoMode::Integer, (640, 512));
+        assert_eq!(
+            too_tall.view,
+            screen_on_frame(c, Platform::Ps1, VideoMode::Fit, (640, 512)).view
+        );
+    }
+}
+#[test]
+fn snes_integer_height_four_three_keeps_whole_rows_at_every_source_width() {
+    for c in [Canvas::WIDE, Canvas::FOUR_THREE] {
+        for frame in [(256, 224), (512, 224), (512, 448), (256, 239), (512, 478)] {
+            let s = screen_on_frame(c, Platform::Snes, VideoMode::IntegerAspect, frame);
+            let h = if frame.1 == 239 || frame.1 == 478 {
+                478.0
+            } else {
+                448.0
+            };
+            assert_eq!(s.view.rect[3], h);
+            assert_eq!(s.view.rect[2], (h * 4.0 / 3.0_f32).round());
+            assert_eq!(
+                s.view.rect[3] / frame.1 as f32,
+                (s.view.rect[3] / frame.1 as f32).floor()
+            );
+            assert_eq!(s.view.rect[1], ((480.0 - h) / 2.0).round());
+            assert_eq!(s.still, s.view);
+        }
+    }
+    let raw = screen_on_frame(Canvas::WIDE, Platform::Snes, VideoMode::Integer, (256, 224));
+    assert_eq!(raw.view.rect, [104.0, 16.0, 512.0, 448.0]);
+    assert_eq!(
+        VideoMode::from_scale(4, Platform::Snes),
+        VideoMode::IntegerAspect
+    );
+    assert_eq!(VideoMode::from_scale(4, Platform::Ps1), VideoMode::Integer);
+    assert_eq!(
+        VideoMode::IntegerAspect.cycle(Platform::Snes, 1),
+        VideoMode::Fit
+    );
+    assert_eq!(
+        VideoMode::IntegerAspect.cycle(Platform::Snes, -1),
+        VideoMode::Integer
+    );
 }

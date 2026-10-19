@@ -1,10 +1,23 @@
-<h1 align="center"><img src="assets/logo/omega-zero-logo@2x.png" width="420" alt="omega-zero"></h1>
+# Omega Zero FrankieT's personal edition
 
-**FrankieT19 fork:** Slot Studio shell files, immediate boot with last-game resume,
-an optional combined carousel, low-poly label styling and per-system display filters.
-See [the fork guide](FORK.md) for settings and hotkeys. Custom card builds are available
-as artifacts in [the build workflow](https://github.com/FrankieT19/omega-zero/actions/workflows/release.yml).
-The upstream release link below does not contain these fork changes.
+A personal fork of [omega-zero](https://github.com/oauramos/omega-zero) for Anbernic H700 handhelds running BaseOS, with particular attention to the RG SP's 720x480 screen.
+
+Changes from upstream include:
+
+- **Carousels:** L/R cycles system shelves, All Systems, the last 10 recently played games and Favourites. Y adds or removes a favourite. Selected carts draw above their neighbours.
+- **Startup:** skip the frontend intro; restore the last carousel and hovered game when shut down in the menus, and resume gameplay only when shut down during a game. The Anbernic splash is a replaceable `System/bootlogo.png`.
+- **Cartridge styling:** read Slot Studio's `Labels/cart_shell.txt` for 3D cart shell colours and finishes, with optional low-poly label styling.
+- **Display and shaders:** native LCD1x, LCD3x, Pixel Transparency and combinations for handhelds; a physical screen Grid with adjustable separator opacity; flat CRT Scanlines, zfast CRT and CRT Pi for SNES/PS1. Shader cycling uses the normal notification style. SELECT+X adds per-game shader overrides, crop and zoom; Display controls saturation, darkness and PT shadow offsets. Sharp sampling helps fractional scaling.
+- **Scaling:** GB/GBC offer Integer, integer-height/full-width stretch, Fit and full Stretch. PS1 Integer keeps whole rows at the TV's 4:3 aspect ratio. SNES adds a global Integer H 4:3 mode alongside raw Integer, Fit 4:3 and Stretch. Decorative game borders are removed.
+- **Game Boy colour:** Gambatte is the default GB/GBC core; SELECT+B cycles game-specific GBC palettes and classic GB, Pocket, Light and grayscale choices for GB games. GBC games retain their full colour.
+- **Brightness and sleep:** 13 brightness steps include software dimming below the hardware minimum, with matching indicator steps. Sleep settings provide separate menu/game dim and sleep timers, smooth fades, and the existing lid/power shutdown and resume path.
+- **UI and controls:** wider pixel-aligned Wi-Fi artwork, selected-cart layering, stable carousel animation, and input/state-write changes to address stalls and held-button navigation after gameplay.
+
+See [the personal edition guide](FORK.md) for controls, settings, installation and limitations. Custom card builds are artifacts in [this fork's build workflow](https://github.com/FrankieT19/omega-zero/actions/workflows/release.yml). This frontend hosts libretro cores directly with native GLES shaders. Hardware appearance and performance still need testing on each device. Upstream links below describe the original project; its release downloads do not include these changes.
+
+---
+
+<h1 align="center"><img src="assets/logo/omega-zero-logo@2x.png" width="420" alt="omega-zero"></h1>
 
 <p align="center">A Game Boy-centric frontend for Anbernic H700 handhelds running
 <a href="https://github.com/pvaibhav/BaseOS">BaseOS</a>. It plays GBA, GBC and GB games, and SNES
@@ -46,12 +59,11 @@ is the most useful thing you can send.
   label scans: Game Boy carts in their own plastics, SNES carts in the American shape for a game
   from the USA and the Super Famicom's for the rest, and PlayStation discs, a game on several
   discs standing as a stack of them. The one you are on floats and sways; A pulls it down out of
-  the screen into the handheld, and the game comes on like a tube TV. This fork skips the frontend
-  intro and resumes the last launched game, or opens the selector when that option is disabled.
-- Five cores: mGBA and gpSP for the GBA and Snes9x and Supafaust for the SNES, chosen per cart;
-  mGBA for the Game Boys; PCSX ReARMed for the PlayStation, with a BIOS of its own built in. GBA
-  fills a 640x480 screen and the PlayStation fills it at 4:3; the SNES is drawn at twice its size,
-  and Game Boy stays at 3x.
+  the screen into the handheld, and the game comes on like a tube TV. This edition skips the frontend
+  intro and restores the last menu selection, resuming only a game active at shutdown.
+- Six cores: mGBA and gpSP for the GBA and Snes9x and Supafaust for the SNES, chosen per cart;
+  Gambatte (or mGBA) for the Game Boys; PCSX ReARMed for the PlayStation, with a BIOS of its own built in. GBA
+  uses its original layout; consoles and Game Boy have selectable scaling modes.
 - A PlayStation game on several discs is one game: DISC, on SELECT+MENU in a game, puts another
   disc in, and the game resumes with the disc that was in the drive.
 - Resume on boot, save states with a switcher, rewind (not on the PlayStation), fast-forward,

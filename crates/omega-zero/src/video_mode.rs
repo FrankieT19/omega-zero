@@ -18,6 +18,7 @@ pub enum VideoMode {
     Fit,
     Integer,
     IntegerWide,
+    IntegerAspect,
 }
 
 impl VideoMode {
@@ -26,6 +27,7 @@ impl VideoMode {
             1 => Self::Fit,
             2 => Self::Stretch,
             3 if platform.owns_shoulders() => Self::IntegerWide,
+            4 if platform == Platform::Snes => Self::IntegerAspect,
             _ => Self::Integer,
         }
     }
@@ -35,11 +37,14 @@ impl VideoMode {
             Self::Fit => 1,
             Self::Stretch => 2,
             Self::IntegerWide => 3,
+            Self::IntegerAspect => 4,
         }
     }
     pub fn cycle(self, platform: Platform, by: i32) -> Self {
         let modes: &[Self] = if platform.owns_shoulders() {
             &[Self::Integer, Self::IntegerWide, Self::Fit, Self::Stretch]
+        } else if platform == Platform::Snes {
+            &[Self::Integer, Self::IntegerAspect, Self::Fit, Self::Stretch]
         } else {
             &[Self::Integer, Self::Fit, Self::Stretch]
         };
@@ -50,6 +55,7 @@ impl VideoMode {
         match self {
             Self::Actual | Self::Integer => "Integer",
             Self::IntegerWide => "Integer H stretch",
+            Self::IntegerAspect => "Integer H 4:3",
             Self::Fit if matches!(platform, Platform::Ps1 | Platform::Snes) => "Fit 4:3",
             Self::Fit => "Fit",
             Self::Stretch => "Stretch",
@@ -62,6 +68,7 @@ impl VideoMode {
             VideoMode::Fit => "fit",
             VideoMode::Integer => "integer",
             VideoMode::IntegerWide => "integer-wide",
+            VideoMode::IntegerAspect => "integer-aspect",
         }
     }
 
@@ -72,6 +79,7 @@ impl VideoMode {
             "fit" => Some(VideoMode::Fit),
             "integer" => Some(VideoMode::Integer),
             "integer-wide" => Some(VideoMode::IntegerWide),
+            "integer-aspect" => Some(VideoMode::IntegerAspect),
             _ => None,
         }
     }
@@ -157,7 +165,7 @@ pub fn screen_on_frame(
 ) -> Screen {
     if matches!(
         mode,
-        VideoMode::Fit | VideoMode::Integer | VideoMode::IntegerWide
+        VideoMode::Fit | VideoMode::Integer | VideoMode::IntegerWide | VideoMode::IntegerAspect
     ) || (mode == VideoMode::Stretch && platform != Platform::Gba)
     {
         let (cw, ch) = (c.w as f32, c.h as f32);
@@ -168,6 +176,8 @@ pub fn screen_on_frame(
             (p.0 as f32, p.1 as f32)
         };
         let (dw, dh) = match mode {
+            VideoMode::IntegerAspect => integer_height_four_three(cw, ch, h),
+            VideoMode::Integer if platform == Platform::Ps1 => integer_height_four_three(cw, ch, h),
             VideoMode::IntegerWide => (cw, (ch / h).floor().max(1.0) * h),
             VideoMode::Stretch => (cw, ch),
             VideoMode::Fit if is_console(platform) => four_three(cw, ch),
@@ -247,7 +257,10 @@ pub fn screen_on_frame(
             let view = match mode {
                 VideoMode::Actual => lcd(whole, actual),
                 VideoMode::Stretch => lcd([0.0, 0.0, cw, ch], uv),
-                VideoMode::Fit | VideoMode::Integer | VideoMode::IntegerWide => {
+                VideoMode::Fit
+                | VideoMode::Integer
+                | VideoMode::IntegerWide
+                | VideoMode::IntegerAspect => {
                     unreachable!("handled above")
                 }
             };
@@ -314,6 +327,19 @@ fn snes_whole(cw: f32, ch: f32, lines: u32) -> (f32, f32) {
     let (w, h) = (SNES_W * scale, lines * scale);
     if w <= cw && h <= ch {
         (w, h)
+    } else {
+        four_three(cw, ch)
+    }
+}
+
+/// Preserve whole source rows while correcting TV pixels to the displayed 4:3 shape.
+/// Console framebuffer widths are not display widths (for example PS1 640x240).
+/// If even one source row per output row will not fit, retain the full frame at Fit 4:3.
+fn integer_height_four_three(cw: f32, ch: f32, lines: f32) -> (f32, f32) {
+    let scale = (ch.min(cw * 3.0 / 4.0) / lines).floor();
+    if scale >= 1.0 {
+        let h = lines * scale;
+        ((h * 4.0 / 3.0).round(), h)
     } else {
         four_three(cw, ch)
     }
@@ -386,7 +412,10 @@ mod four_mode_tests {
         }
         assert_eq!(VideoMode::Fit.scale(), 1);
         assert_eq!(VideoMode::Stretch.scale(), 2);
-        assert_eq!(VideoMode::Integer.cycle(Platform::Snes, 1), VideoMode::Fit);
+        assert_eq!(
+            VideoMode::Integer.cycle(Platform::Snes, 1),
+            VideoMode::IntegerAspect
+        );
         assert_eq!(VideoMode::from_scale(3, Platform::Ps1), VideoMode::Integer);
     }
 }

@@ -295,8 +295,16 @@ fn parse(text: &str) -> Option<AppState> {
                         extra.saturation[i] = level(value, 200).unwrap_or(100);
                     }
                     if key == format!("scale_{i}") {
-                        extra.scales[i] =
-                            level(value, if matches!(i, 1 | 2) { 3 } else { 2 }).unwrap_or(0);
+                        extra.scales[i] = level(
+                            value,
+                            match i {
+                                1 | 2 => 3,
+                                3 => 4,
+                                _ => 2,
+                            },
+                        )
+                        .filter(|v| i != 3 || *v != 3)
+                        .unwrap_or(0);
                     }
                     if key == format!("shadow_x_{i}") {
                         extra.shadow_x[i] = value

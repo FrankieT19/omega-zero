@@ -986,3 +986,23 @@ fn gb_integer_height_stretch_is_saved_without_changing_old_fit_and_stretch_value
     press(&mut app, Btn::Right);
     assert_eq!(read_app_state(d.path()).scales[1], 0);
 }
+
+#[test]
+fn display_snes_integer_aspect_setting_is_saved_and_restored() {
+    use omega_store::Platform;
+    use omega_zero::video_mode::VideoMode;
+    let (d, mut app, _) = on_carousel();
+    display_at(&mut app, 0);
+    for _ in 0..3 {
+        press(&mut app, Btn::Right);
+    }
+    press(&mut app, Btn::Down);
+    press(&mut app, Btn::Down);
+    press(&mut app, Btn::Left);
+    assert_eq!(read_app_state(d.path()).scales[3], 4);
+    let mut reboot = App::boot(d.path());
+    reboot.set_platform(Platform::Snes);
+    assert_eq!(reboot.preferred_video_mode(), VideoMode::IntegerAspect);
+    press(&mut app, Btn::Right);
+    assert_eq!(read_app_state(d.path()).scales[3], 1);
+}
