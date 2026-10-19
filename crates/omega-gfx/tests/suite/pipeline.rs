@@ -1510,9 +1510,12 @@ fn grid_darkness_is_separator_opacity_and_leaves_the_other_pixels_unchanged() {
     let Some((_g, _s, mut c)) = compositor() else {
         return;
     };
-    c.upload_game(&flat_shot([200; 3]));
     c.set_game_view(sharp([0.0, 0.0, out_w() as f32, out_h() as f32]));
     for (mode, clean) in [(3, 0), (7, 4)] {
+        // PT's procedural paper grain can vary by a few levels between draws.
+        // Dark nonzero input limits that contribution while still checking every
+        // opacity against the visible PT colour; plain Grid also checks bright input.
+        c.upload_game(&flat_shot([if mode == 7 { 32 } else { 200 }; 3]));
         c.set_game_effect(clean, 1.0, 1.0);
         c.begin_frame();
         c.draw_game();
