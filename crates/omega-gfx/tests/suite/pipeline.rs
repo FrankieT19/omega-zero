@@ -1073,14 +1073,10 @@ fn reference_lcd1x_matches_its_default_formula_at_viewport_scale() {
     c.draw_game();
     let frame = c.read_frame();
     for (x, y) in [(5, 8), (122, 101), (321, 250)] {
-        let angle_x = 2.0
-            * std::f32::consts::PI
-            * ((((x as f32 + 0.5) / out_w() as f32 * SRC_W as f32).fract() * 3.0).floor() + 0.5)
-            / 3.0;
-        let angle_y = 2.0
-            * std::f32::consts::PI
-            * ((((y as f32 + 0.5) / out_h() as f32 * SRC_H as f32).fract() * 3.0).floor() + 0.5)
-            / 3.0;
+        let angle_x =
+            std::f32::consts::TAU * ((x as f32 + 0.5) / out_w() as f32 * SRC_W as f32 - 0.25);
+        let angle_y =
+            std::f32::consts::TAU * ((y as f32 + 0.5) / out_h() as f32 * SRC_H as f32 - 0.25);
         let expected =
             (200.0 * (4.0 + angle_x.sin()) / 5.0 * (16.0 + angle_y.sin()) / 17.0).round() as i32;
         for value in px(&frame, x, y) {
@@ -1485,17 +1481,98 @@ fn lcd_uses_game_pixels_in_gb_fit_and_stretch_even_with_the_old_panel_flag() {
             for (x, y) in [(2, 3), (80, 90), (width - 2, out_h() - 3)] {
                 let phase_x = ((x as f32 + 0.5) * 160.0 / width as f32).fract();
                 let phase_y = ((y as f32 + 0.5) * 144.0 / out_h() as f32).fract();
-                let phase_x = ((phase_x * 3.0).floor() + 0.5) / 3.0;
-                let phase_y = ((phase_y * 3.0).floor() + 0.5) / 3.0;
+                let (phase_x, phase_y) = if mode == 1 {
+                    (phase_x - 0.25, phase_y - 0.25)
+                } else {
+                    (phase_x, phase_y)
+                };
                 let yf = (16.0 + (std::f32::consts::TAU * phase_y).sin()) / 17.0;
                 let pixel = px(&actual, (left + x) as usize, y as usize);
                 for (channel, value) in pixel.into_iter().enumerate() {
-                    let offset = if mode == 2 { channel as f32 / 3.0 } else { 0.0 };
+                    let offset = if mode == 2 {
+                        0.25 - channel as f32 / 3.0
+                    } else {
+                        0.0
+                    };
                     let xf = (4.0 + (std::f32::consts::TAU * (phase_x + offset)).sin()) / 5.0;
                     assert!(
                         (value as f32 - 200.0 * xf * yf).abs() <= 2.0,
                         "LCD {mode} detached from GB pixels at {x},{y}: {value}"
                     );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn grid_darkness_is_separator_opacity_and_leaves_the_other_pixels_unchanged() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    c.upload_game(&flat_shot([200; 3]));
+    c.set_game_view(sharp([0.0, 0.0, out_w() as f32, out_h() as f32]));
+    for (mode, clean) in [(3, 0), (7, 4)] {
+        c.set_game_effect(clean, 1.0, 1.0);
+        c.begin_frame();
+        c.draw_game();
+        let plain = c.read_frame();
+        for opacity in [0.0_f32, 0.25, 0.5, 1.0] {
+            c.set_lcd_darkness(opacity);
+            c.set_game_effect(mode, 1.0, 1.0);
+            c.begin_frame();
+            c.draw_game();
+            let grid = c.read_frame();
+            for y in 0..out_h() as usize {
+                for x in 0..out_w() as usize {
+                    let gain = if x % 3 == 2 || y % 3 == 2 {
+                        1.0 - opacity
+                    } else {
+                        1.0
+                    };
+                    for (got, source) in px(&grid, x, y).into_iter().zip(px(&plain, x, y)) {
+                        assert!(
+                            (got as f32 - source as f32 * gain).abs() <= 2.0,
+                            "grid opacity {opacity}, mode {mode}, at {x},{y}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn lcd_matches_unmodified_upstream_defaults_across_systems_scaling_and_crop() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    for size in [(240, 160), (160, 144), (256, 224), (320, 240)] {
+        let (image, _) = located(size.0, size.1);
+        c.upload_game_sized(&image, (size.0 as u32, size.1 as u32));
+        for uv in [WHOLE, [0.01, 0.02, 0.96, 0.95]] {
+            for width in [out_w(), 480] {
+                c.set_game_view(GameView {
+                    rect: [
+                        ((out_w() - width) / 2) as f32,
+                        0.0,
+                        width as f32,
+                        out_h() as f32,
+                    ],
+                    uv,
+                    filter: Filter::Sharp,
+                });
+                for mode in [1, 2] {
+                    c.set_game_effect(mode, 1.0, 1.0);
+                    c.begin_frame();
+                    c.draw_game();
+                    let native = c.read_frame();
+                    c.begin_frame();
+                    c.draw_lcd_reference(mode);
+                    let upstream = c.read_frame();
+                    for (index, (got, expected)) in native.iter().zip(upstream.iter()).enumerate() {
+                        assert!(got.abs_diff(*expected)<=2,"LCD {mode}, source {size:?}, width {width}, crop {uv:?}, channel {index}: {got} vs {expected}");
+                    }
                 }
             }
         }

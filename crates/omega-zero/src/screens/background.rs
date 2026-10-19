@@ -126,9 +126,6 @@ impl App {
             .toast(omega_ui::Toast::Palette(self.state.palettes[i]), self.now());
         self.persist();
     }
-    pub fn ps1_gba_pixels(&self) -> bool {
-        self.state.ps1_gba_pixels && self.platform() == omega_store::Platform::Ps1
-    }
     pub fn shader_saturation(&self) -> f32 {
         self.state.saturation[self.platform() as usize] as f32 / 100.0
     }
@@ -173,11 +170,11 @@ impl App {
                 return;
             }
             Action::GbaDown(Btn::Up) => {
-                screen.display_row = (screen.display_row + 8) % 9;
+                screen.display_row = (screen.display_row + 7) % 8;
                 return;
             }
             Action::GbaDown(Btn::Down) => {
-                screen.display_row = (screen.display_row + 1) % 9;
+                screen.display_row = (screen.display_row + 1) % 8;
                 return;
             }
             Action::GbaDown(Btn::Left) => false,
@@ -195,7 +192,13 @@ impl App {
         match screen.display_row {
             0 => screen.display_system = step(i as u8, 5) as usize,
             1 => self.state.shaders[i] = step(self.state.shaders[i], 8),
-            2 if i > 0 => self.state.scales[i] = step(self.state.scales[i], 3),
+            2 if i > 0 => {
+                let platform = omega_store::Platform::ALL[i];
+                self.state.scales[i] =
+                    crate::video_mode::VideoMode::from_scale(self.state.scales[i], platform)
+                        .cycle(platform, if forward { 1 } else { -1 })
+                        .scale();
+            }
             3 => {
                 self.state.shadow_x[i] =
                     (self.state.shadow_x[i] + if forward { 1 } else { -1 }).clamp(-60, 60)
@@ -213,9 +216,6 @@ impl App {
                 self.state.saturation[i] = (self.state.saturation[i] as i16
                     + if forward { 10 } else { -10 })
                 .clamp(0, 200) as u8;
-            }
-            8 if i == omega_store::Platform::Ps1 as usize => {
-                self.state.ps1_gba_pixels = !self.state.ps1_gba_pixels;
             }
             5 => {
                 self.state.low_poly_labels = !self.state.low_poly_labels;
@@ -247,11 +247,11 @@ impl App {
                 ViewRow {
                     label: RowLabel::Setting("Scaling"),
                     value: Some(RowValue::Choice(
-                        ["Integer", "Fit", "Stretch"][if i == 0 {
-                            0
-                        } else {
-                            self.state.scales[i] as usize
-                        }],
+                        crate::video_mode::VideoMode::from_scale(
+                            self.state.scales[i],
+                            omega_store::Platform::ALL[i],
+                        )
+                        .label(omega_store::Platform::ALL[i]),
                     )),
                     dim: i == 0,
                 },
@@ -273,18 +273,9 @@ impl App {
                     dim: false,
                 },
                 row(
-                    "LCD darkness",
+                    "LCD/Grid darkness",
                     RowValue::Name(format!("{}%", self.state.lcd_darkness[i])),
                 ),
-                ViewRow {
-                    label: RowLabel::Setting("PS1 pixels"),
-                    value: Some(RowValue::Choice(if self.state.ps1_gba_pixels {
-                        "GBA 240x160"
-                    } else {
-                        "Native"
-                    })),
-                    dim: i != omega_store::Platform::Ps1 as usize,
-                },
             ],
             lit: Some(screen.display_row),
             status: Vec::new(),

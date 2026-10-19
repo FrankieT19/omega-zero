@@ -78,7 +78,6 @@ pub struct Frontend {
     last: Instant,
     draws: Vec<Draw>,
     polaroid_texes: Vec<TexId>,
-    ps1_pixels: Vec<u8>,
     faces: FaceBuilder,
     /// Draws each cart's face from its label, the scans with no cut yet cut first, for compose
     /// to upload as they come back.
@@ -155,7 +154,6 @@ impl Frontend {
             last: now,
             draws: Vec::new(),
             polaroid_texes: Vec::new(),
-            ps1_pixels: Vec::new(),
             faces: FaceBuilder::spawn(),
             cutter: LabelCutter::spawn(),
             link: LinkTexes::default(),
@@ -301,8 +299,6 @@ impl Frontend {
             Some((p, size)) if p == platform => size,
             _ => platform.picture(),
         };
-        let reduced = self.session.app().ps1_gba_pixels();
-        let size = if reduced { (240, 160) } else { size };
         let mut screen =
             crate::video_mode::screen_for(platform, self.session.app().video_mode, size);
         self.session.app().picture_adjust.apply(&mut screen.view);
@@ -328,12 +324,7 @@ impl Frontend {
         }));
         compositor.begin_frame();
         if let Some(frame) = frame {
-            if reduced {
-                crate::frames::gba_raster(&frame, frame.size(), &mut self.ps1_pixels);
-                compositor.upload_game_sized(&self.ps1_pixels, (240, 160));
-            } else {
-                compositor.upload_game_sized(&frame, frame.size());
-            }
+            compositor.upload_game_sized(&frame, frame.size());
             crate::latency::taken();
         }
         sync_clock(self.session.app_mut(), compositor, &mut self.clocks);

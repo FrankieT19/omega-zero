@@ -173,6 +173,10 @@ impl Compositor {
         self.game.set_source_rect(rect);
     }
 
+    #[cfg(feature = "test-support")]
+    pub fn draw_lcd_reference(&self, mode: u8) {
+        self.game.draw_lcd_reference(mode, &self.quad);
+    }
     pub fn set_source_grid(&mut self, enabled: bool) {
         self.game.set_source_grid(enabled);
     }

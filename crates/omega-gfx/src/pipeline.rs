@@ -139,6 +139,16 @@ impl GamePass {
         })
     }
 
+    #[cfg(feature = "test-support")]
+    pub fn draw_lcd_reference(&self, mode: u8, quad: &Quad) {
+        self.presets.borrow().reference(
+            mode,
+            self.game,
+            self.size,
+            self.view.unwrap_or_else(|| GameView::canvas(WHOLE_TEXTURE)),
+            quad,
+        );
+    }
     pub fn set_source_grid(&mut self, _enabled: bool) {
         // Kept for callers of older builds. Each preset now determines its own raster.
     }

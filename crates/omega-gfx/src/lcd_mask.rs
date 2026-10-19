@@ -1,5 +1,5 @@
-//! Native LCD coefficient masks, cached when geometry changes. The original omega-zero
-//! sine mask follows source pixels; Grid follows physical display pixels.
+//! Upstream LCD default coefficients evaluated at output pixel centres and cached on geometry
+//! changes. Phases follow the visible source pixels; Grid follows physical display pixels.
 use crate::quad::Quad;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -72,17 +72,28 @@ fn pixels(key: Key) -> Vec<u8> {
     let ys: Vec<_> = (0..h)
         .map(|y| phase(y, h, raster[1], origin[1], key.source_grid))
         .collect();
-    let lcd = crate::lcd3x::lcd3x_mask();
     let mut data = Vec::with_capacity((w * h * 4) as usize);
     for y in ys {
         for x in &xs {
             if key.kind < 2 {
-                // Repeat the original nearest 3x3 texture within each source pixel.
-                // LCD1x uses its first channel as a monochrome cell; LCD3x keeps RGB offsets.
-                let cell =
-                    lcd[(y * 3.0).floor().min(2.0) as usize][(*x * 3.0).floor().min(2.0) as usize];
+                // Upstream LCD1x has a quarter-cell offset on both axes. LCD3x uses
+                // a half-pi RGB phase followed by negative two-thirds-pi channel steps.
+                // Keep continuous phase at noninteger scales; never snap to a 3x3 table.
+                let tau = std::f32::consts::TAU;
+                let (xp, yp) = if key.kind == 0 {
+                    (*x - 0.25, y - 0.25)
+                } else {
+                    (*x, y)
+                };
+                let yf = (16.0 + (tau * yp).sin()) / 17.0;
                 for c in 0..3 {
-                    data.push((255.0 * cell[if key.kind == 0 { 0 } else { c }]).round() as u8);
+                    let offset = if key.kind == 1 {
+                        std::f32::consts::PI * (0.5 - c as f32 * 2.0 / 3.0)
+                    } else {
+                        0.0
+                    };
+                    let xf = (4.0 + (tau * xp + offset).sin()) / 5.0;
+                    data.push((255.0 * xf * yf).round() as u8);
                 }
             } else {
                 data.extend_from_slice(
@@ -101,17 +112,6 @@ fn pixels(key: Key) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn native_lcd3x_is_the_original_omega_zero_three_by_three_mask() {
-        let key = Key {
-            size: (3, 3),
-            raster: [1.0_f32.to_bits(); 2],
-            origin: [0.0_f32.to_bits(); 2],
-            kind: 1,
-            source_grid: false,
-        };
-        assert_eq!(pixels(key), crate::lcd3x::mask_texture_rgba8());
-    }
     #[test]
     fn integer_pixel_cells_repeat_exactly_even_at_half_step_quantization() {
         for x in 0..720 {

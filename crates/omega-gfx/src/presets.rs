@@ -292,6 +292,65 @@ impl Presets {
         }
         true
     }
+    #[cfg(feature = "test-support")]
+    pub fn reference(
+        &self,
+        mode: u8,
+        original: u32,
+        source: (u32, u32),
+        view: GameView,
+        quad: &Quad,
+    ) {
+        let vertex = r#"
+attribute vec2 a_pos;
+uniform vec4 u_rect, u_crop;
+uniform vec2 u_target;
+varying vec4 TEX0;
+void main() {
+    TEX0 = vec4(u_crop.xy + a_pos * u_crop.zw, 0.0, 1.0);
+    vec2 p = (u_rect.xy + a_pos * u_rect.zw) / u_target;
+    gl_Position = vec4(p.x*2.0-1.0, 1.0-p.y*2.0, 0.0, 1.0);
+}
+"#;
+        let fragment = if mode == 1 {
+            include_str!("../shaders/lcd1x.upstream.glsl")
+        } else {
+            include_str!("../shaders/lcd3x.upstream.glsl")
+        };
+        let p = crate::shaders::program(vertex, &format!("#define FRAGMENT\n{fragment}"))
+            .expect("upstream LCD compiles");
+        unsafe {
+            gl::UseProgram(p);
+            gl::Uniform4f(
+                loc(p, "u_rect"),
+                view.rect[0],
+                view.rect[1],
+                view.rect[2],
+                view.rect[3],
+            );
+            gl::Uniform4f(
+                loc(p, "u_crop"),
+                view.uv[0],
+                view.uv[1],
+                view.uv[2],
+                view.uv[3],
+            );
+            gl::Uniform2f(
+                loc(p, "u_target"),
+                crate::out_w() as f32,
+                crate::out_h() as f32,
+            );
+            for n in ["OrigInputSize", "TextureSize", "InputSize"] {
+                gl::Uniform2f(loc(p, n), source.0 as f32, source.1 as f32);
+            }
+            gl::Uniform2f(loc(p, "OutputSize"), view.rect[2], view.rect[3]);
+            gl::Uniform1i(loc(p, "Texture"), 0);
+            gl::ActiveTexture(gl::TEXTURE0);
+            gl::BindTexture(gl::TEXTURE_2D, original);
+            quad.draw();
+            gl::DeleteProgram(p);
+        }
+    }
     fn clear(&mut self) {
         unsafe {
             for (f, t) in &mut self.targets {

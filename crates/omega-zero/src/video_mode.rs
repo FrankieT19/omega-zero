@@ -17,15 +17,51 @@ pub enum VideoMode {
     Stretch,
     Fit,
     Integer,
+    IntegerWide,
 }
 
 impl VideoMode {
+    pub fn from_scale(index: u8, platform: Platform) -> Self {
+        match index {
+            1 => Self::Fit,
+            2 => Self::Stretch,
+            3 if platform.owns_shoulders() => Self::IntegerWide,
+            _ => Self::Integer,
+        }
+    }
+    pub fn scale(self) -> u8 {
+        match self {
+            Self::Actual | Self::Integer => 0,
+            Self::Fit => 1,
+            Self::Stretch => 2,
+            Self::IntegerWide => 3,
+        }
+    }
+    pub fn cycle(self, platform: Platform, by: i32) -> Self {
+        let modes: &[Self] = if platform.owns_shoulders() {
+            &[Self::Integer, Self::IntegerWide, Self::Fit, Self::Stretch]
+        } else {
+            &[Self::Integer, Self::Fit, Self::Stretch]
+        };
+        let at = modes.iter().position(|mode| *mode == self).unwrap_or(0) as i32;
+        modes[(at + by).rem_euclid(modes.len() as i32) as usize]
+    }
+    pub fn label(self, platform: Platform) -> &'static str {
+        match self {
+            Self::Actual | Self::Integer => "Integer",
+            Self::IntegerWide => "Integer H stretch",
+            Self::Fit if matches!(platform, Platform::Ps1 | Platform::Snes) => "Fit 4:3",
+            Self::Fit => "Fit",
+            Self::Stretch => "Stretch",
+        }
+    }
     pub fn as_str(self) -> &'static str {
         match self {
             VideoMode::Actual => "actual",
             VideoMode::Stretch => "stretch",
             VideoMode::Fit => "fit",
             VideoMode::Integer => "integer",
+            VideoMode::IntegerWide => "integer-wide",
         }
     }
 
@@ -35,6 +71,7 @@ impl VideoMode {
             "stretch" => Some(VideoMode::Stretch),
             "fit" => Some(VideoMode::Fit),
             "integer" => Some(VideoMode::Integer),
+            "integer-wide" => Some(VideoMode::IntegerWide),
             _ => None,
         }
     }
@@ -118,8 +155,10 @@ pub fn screen_on_frame(
     mode: VideoMode,
     frame: (u32, u32),
 ) -> Screen {
-    if matches!(mode, VideoMode::Fit | VideoMode::Integer)
-        || (mode == VideoMode::Stretch && platform != Platform::Gba)
+    if matches!(
+        mode,
+        VideoMode::Fit | VideoMode::Integer | VideoMode::IntegerWide
+    ) || (mode == VideoMode::Stretch && platform != Platform::Gba)
     {
         let (cw, ch) = (c.w as f32, c.h as f32);
         let (w, h) = if is_console(platform) {
@@ -129,6 +168,7 @@ pub fn screen_on_frame(
             (p.0 as f32, p.1 as f32)
         };
         let (dw, dh) = match mode {
+            VideoMode::IntegerWide => (cw, (ch / h).floor().max(1.0) * h),
             VideoMode::Stretch => (cw, ch),
             VideoMode::Fit if is_console(platform) => four_three(cw, ch),
             VideoMode::Fit => {
@@ -207,7 +247,9 @@ pub fn screen_on_frame(
             let view = match mode {
                 VideoMode::Actual => lcd(whole, actual),
                 VideoMode::Stretch => lcd([0.0, 0.0, cw, ch], uv),
-                VideoMode::Fit | VideoMode::Integer => unreachable!("handled above"),
+                VideoMode::Fit | VideoMode::Integer | VideoMode::IntegerWide => {
+                    unreachable!("handled above")
+                }
             };
             Screen {
                 view,
@@ -313,4 +355,38 @@ pub fn picture_rect(platform: Platform, view: GameView) -> [f32; 4] {
     let x1 = rx + (window[0] + window[2] - u) / uw * rw;
     let y1 = ry + (window[1] + window[3] - v) / vh * rh;
     [x0, y0, x1 - x0, y1 - y0]
+}
+
+#[cfg(test)]
+mod four_mode_tests {
+    use super::*;
+    #[test]
+    fn gb_modes_cycle_in_requested_order_and_preserve_legacy_encoding() {
+        for platform in [Platform::Gb, Platform::Gbc] {
+            let mut mode = VideoMode::Integer;
+            for next in [
+                VideoMode::IntegerWide,
+                VideoMode::Fit,
+                VideoMode::Stretch,
+                VideoMode::Integer,
+            ] {
+                mode = mode.cycle(platform, 1);
+                assert_eq!(mode, next);
+                assert_eq!(VideoMode::from_scale(mode.scale(), platform), mode);
+            }
+            assert_eq!(VideoMode::Integer.cycle(platform, -1), VideoMode::Stretch);
+            let screen = screen_on_frame(
+                Canvas { w: 720, h: 480 },
+                platform,
+                VideoMode::IntegerWide,
+                (240, 160),
+            );
+            assert_eq!(screen.view.rect, [0.0, 24.0, 720.0, 432.0]);
+            assert_eq!(screen.view.uv, source_rect(platform, VideoMode::Stretch));
+        }
+        assert_eq!(VideoMode::Fit.scale(), 1);
+        assert_eq!(VideoMode::Stretch.scale(), 2);
+        assert_eq!(VideoMode::Integer.cycle(Platform::Snes, 1), VideoMode::Fit);
+        assert_eq!(VideoMode::from_scale(3, Platform::Ps1), VideoMode::Integer);
+    }
 }

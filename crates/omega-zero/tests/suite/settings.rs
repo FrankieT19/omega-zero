@@ -867,7 +867,10 @@ fn scaling_choices_are_saved_independently_for_each_non_gba_system() {
         }
         press(&mut app, Btn::Down);
         press(&mut app, Btn::Down);
-        if read_app_state(d.path()).scales[platform as usize] != 1 {
+        for _ in 0..4 {
+            if read_app_state(d.path()).scales[platform as usize] == 1 {
+                break;
+            }
             press(&mut app, Btn::Right);
         }
         app.set_platform(platform);
@@ -962,26 +965,24 @@ fn inactivity_menu_saves_separate_menu_and_game_timings() {
 }
 
 #[test]
-fn ps1_gba_display_pixels_are_optional_saved_and_do_not_affect_other_systems() {
+fn gb_integer_height_stretch_is_saved_without_changing_old_fit_and_stretch_values() {
     let (d, mut app, _) = on_carousel();
-    assert!(!read_app_state(d.path()).ps1_gba_pixels);
     display_at(&mut app, 0);
-    for _ in 0..4 {
-        press(&mut app, Btn::Right);
-    }
-    for _ in 0..8 {
-        press(&mut app, Btn::Down);
-    }
     press(&mut app, Btn::Right);
-    assert!(read_app_state(d.path()).ps1_gba_pixels);
+    press(&mut app, Btn::Down);
+    press(&mut app, Btn::Down);
+    press(&mut app, Btn::Right);
+    assert_eq!(read_app_state(d.path()).scales[1], 3);
     let mut reboot = App::boot(d.path());
-    for system in omega_store::Platform::ALL {
-        reboot.set_platform(system);
-        assert_eq!(
-            reboot.ps1_gba_pixels(),
-            system == omega_store::Platform::Ps1
-        );
-    }
-    press(&mut app, Btn::Left);
-    assert!(!read_app_state(d.path()).ps1_gba_pixels);
+    reboot.set_platform(omega_store::Platform::Gb);
+    assert_eq!(
+        reboot.preferred_video_mode(),
+        omega_zero::video_mode::VideoMode::IntegerWide
+    );
+    press(&mut app, Btn::Right);
+    assert_eq!(read_app_state(d.path()).scales[1], 1);
+    press(&mut app, Btn::Right);
+    assert_eq!(read_app_state(d.path()).scales[1], 2);
+    press(&mut app, Btn::Right);
+    assert_eq!(read_app_state(d.path()).scales[1], 0);
 }

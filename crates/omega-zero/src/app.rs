@@ -981,18 +981,11 @@ impl App {
         if self.platform == Platform::Gba {
             return VideoMode::Actual;
         }
-        [VideoMode::Integer, VideoMode::Fit, VideoMode::Stretch]
-            [self.state.scales[self.platform as usize].min(2) as usize]
+        VideoMode::from_scale(self.state.scales[self.platform as usize], self.platform)
     }
 
     fn cycle_picture(&mut self, by: i32) {
-        let index = match self.video_mode {
-            VideoMode::Actual | VideoMode::Integer => 0,
-            VideoMode::Fit => 1,
-            VideoMode::Stretch => 2,
-        };
-        let index = (index + by).rem_euclid(3) as usize;
-        self.set_picture([VideoMode::Integer, VideoMode::Fit, VideoMode::Stretch][index]);
+        self.set_picture(self.video_mode.cycle(self.platform, by));
     }
 
     pub fn set_video_mode(&mut self, mode: VideoMode) {
@@ -1047,11 +1040,7 @@ impl App {
             return;
         }
         self.video_mode = mode;
-        self.state.scales[self.platform as usize] = match mode {
-            VideoMode::Actual | VideoMode::Integer => 0,
-            VideoMode::Fit => 1,
-            VideoMode::Stretch => 2,
-        };
+        self.state.scales[self.platform as usize] = mode.scale();
         self.persist();
         let (Some(root), Phase::Playing { cart }) = (self.root.clone(), &self.phase) else {
             return;

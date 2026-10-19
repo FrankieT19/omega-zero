@@ -1,3 +1,10 @@
+## Display corrections (v9)
+
+- Remove the PS1 240x160 display reduction and its setting.
+- Replace the approximate native LCD masks with upstream default continuous phases: LCD1x quarter-cell alignment, LCD3x RGB offsets, and source-pixel scaling at every resolution/crop. Add comparisons against the actual upstream GLSL rendering.
+- LCD/Grid darkness now controls Grid and Grid+PT separator opacity (100% black, 50% half underlying colour, 0% no separators), keeping the physical 3-pixel raster.
+- GB/GBC L/R cycles Integer, Integer height/full width, Fit height with aspect ratio, and full Stretch. Preserve legacy saved Fit/Stretch encodings.
+
 ## Native gameplay restoration (v8)
 
 - Restore the pre-RetroArch native core integration, in-game UI and hotkeys; remove the RetroArch process/Slang backend and its build dependency.
