@@ -72,17 +72,17 @@ fn pixels(key: Key) -> Vec<u8> {
     let ys: Vec<_> = (0..h)
         .map(|y| phase(y, h, raster[1], origin[1], key.source_grid))
         .collect();
+    let lcd = crate::lcd3x::lcd3x_mask();
     let mut data = Vec::with_capacity((w * h * 4) as usize);
     for y in ys {
         for x in &xs {
             if key.kind < 2 {
-                // Same coefficients and phase as the original 3x omega-zero mask.
-                // LCD1x shares the monochrome mask; LCD3x offsets its RGB columns.
-                let yfactor = (16.0 + (std::f32::consts::TAU * y).sin()) / 17.0;
+                // Repeat the original nearest 3x3 texture within each source pixel.
+                // LCD1x uses its first channel as a monochrome cell; LCD3x keeps RGB offsets.
+                let cell =
+                    lcd[(y * 3.0).floor().min(2.0) as usize][(*x * 3.0).floor().min(2.0) as usize];
                 for c in 0..3 {
-                    let offset = if key.kind == 1 { c as f32 / 3.0 } else { 0.0 };
-                    let xfactor = (4.0 + (std::f32::consts::TAU * (*x + offset)).sin()) / 5.0;
-                    data.push((255.0 * xfactor * yfactor).round() as u8);
+                    data.push((255.0 * cell[if key.kind == 0 { 0 } else { c }]).round() as u8);
                 }
             } else {
                 data.extend_from_slice(

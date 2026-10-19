@@ -1073,10 +1073,14 @@ fn reference_lcd1x_matches_its_default_formula_at_viewport_scale() {
     c.draw_game();
     let frame = c.read_frame();
     for (x, y) in [(5, 8), (122, 101), (321, 250)] {
-        let angle_x =
-            2.0 * std::f32::consts::PI * ((x as f32 + 0.5) / out_w() as f32 * SRC_W as f32);
-        let angle_y =
-            2.0 * std::f32::consts::PI * ((y as f32 + 0.5) / out_h() as f32 * SRC_H as f32);
+        let angle_x = 2.0
+            * std::f32::consts::PI
+            * ((((x as f32 + 0.5) / out_w() as f32 * SRC_W as f32).fract() * 3.0).floor() + 0.5)
+            / 3.0;
+        let angle_y = 2.0
+            * std::f32::consts::PI
+            * ((((y as f32 + 0.5) / out_h() as f32 * SRC_H as f32).fract() * 3.0).floor() + 0.5)
+            / 3.0;
         let expected =
             (200.0 * (4.0 + angle_x.sin()) / 5.0 * (16.0 + angle_y.sin()) / 17.0).round() as i32;
         for value in px(&frame, x, y) {
@@ -1481,6 +1485,8 @@ fn lcd_uses_game_pixels_in_gb_fit_and_stretch_even_with_the_old_panel_flag() {
             for (x, y) in [(2, 3), (80, 90), (width - 2, out_h() - 3)] {
                 let phase_x = ((x as f32 + 0.5) * 160.0 / width as f32).fract();
                 let phase_y = ((y as f32 + 0.5) * 144.0 / out_h() as f32).fract();
+                let phase_x = ((phase_x * 3.0).floor() + 0.5) / 3.0;
+                let phase_y = ((phase_y * 3.0).floor() + 0.5) / 3.0;
                 let yf = (16.0 + (std::f32::consts::TAU * phase_y).sin()) / 17.0;
                 let pixel = px(&actual, (left + x) as usize, y as usize);
                 for (channel, value) in pixel.into_iter().enumerate() {
