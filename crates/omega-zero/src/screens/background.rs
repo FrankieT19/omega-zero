@@ -143,15 +143,25 @@ impl App {
 
     pub fn shader_settings(&self) -> (u8, f32, f32) {
         let i = self.platform() as usize;
-        (self.state.shaders[i], 1.0, 1.0)
+        (
+            self.shader_override
+                .filter(|_| matches!(self.phase, Phase::Playing { .. }))
+                .unwrap_or(self.state.shaders[i]),
+            1.0,
+            1.0,
+        )
     }
 
     pub(crate) fn cycle_shader(&mut self) {
-        let i = self.platform() as usize;
-        self.state.shaders[i] = (self.state.shaders[i] + 1) % 8;
-        self.hud
-            .toast(omega_ui::Toast::Shader(self.state.shaders[i]), self.now());
-        self.persist();
+        let next = omega_store::next_shader(self.platform(), self.shader_settings().0, 1);
+        if matches!(self.phase, Phase::Playing { .. }) && self.shader_override.is_some() {
+            self.shader_override = Some(next);
+            self.persist_shader_override();
+        } else {
+            self.state.shaders[self.platform() as usize] = next;
+            self.persist();
+        }
+        self.hud.toast(omega_ui::Toast::Shader(next), self.now());
     }
 
     fn display_input(&mut self, action: Action) {
@@ -191,7 +201,13 @@ impl App {
         };
         match screen.display_row {
             0 => screen.display_system = step(i as u8, 5) as usize,
-            1 => self.state.shaders[i] = step(self.state.shaders[i], 8),
+            1 => {
+                self.state.shaders[i] = omega_store::next_shader(
+                    omega_store::Platform::ALL[i],
+                    self.state.shaders[i],
+                    if forward { 1 } else { -1 },
+                )
+            }
             2 if i > 0 => {
                 let platform = omega_store::Platform::ALL[i];
                 self.state.scales[i] =
@@ -273,7 +289,11 @@ impl App {
                     dim: false,
                 },
                 row(
-                    "LCD/Grid darkness",
+                    if i >= 3 {
+                        "Scanline darkness"
+                    } else {
+                        "LCD/Grid darkness"
+                    },
                     RowValue::Name(format!("{}%", self.state.lcd_darkness[i])),
                 ),
             ],

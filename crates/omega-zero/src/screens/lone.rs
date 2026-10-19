@@ -75,6 +75,8 @@ impl Words {
             RowLabel::Name(name) => name.clone(),
         };
         let value = row.value.as_ref().map(|value| match value {
+            RowValue::Checkbox(true) => "[X]".to_string(),
+            RowValue::Checkbox(false) => "[ ]".to_string(),
             RowValue::Setting(true) => "ON".to_string(),
             RowValue::Setting(false) => "OFF".to_string(),
             RowValue::Choice(text) | RowValue::Said(text) => text.to_uppercase(),

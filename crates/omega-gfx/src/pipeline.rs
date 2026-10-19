@@ -163,12 +163,20 @@ impl GamePass {
         presets.palette = palette.min(4);
     }
 
+    pub fn set_antialias(&mut self, enabled: bool) {
+        self.presets.borrow_mut().antialias = enabled;
+    }
+
     pub fn set_shadow(&mut self, x: f32, y: f32) {
         self.presets.borrow_mut().shadow = (x.clamp(-30.0, 30.0), y.clamp(-30.0, 30.0));
     }
 
     pub fn set_effect(&mut self, mode: u8, strength: f32, blend: f32) {
-        self.effect = Some((mode.min(7), strength.clamp(0.0, 1.0), blend.clamp(0.0, 1.0)));
+        self.effect = Some((
+            mode.min(10),
+            strength.clamp(0.0, 1.0),
+            blend.clamp(0.0, 1.0),
+        ));
     }
 
     pub fn set_power(&mut self, t: f32) {
@@ -255,7 +263,7 @@ impl GamePass {
     }
 
     fn draw_source(&self, tex: gl::types::GLuint, src: (u32, u32), quad: &Quad, view: GameView) {
-        if let Some((mode @ 1..=7, _, _)) = self.effect {
+        if let Some((mode @ 1..=10, _, _)) = self.effect {
             if self.power <= 0.0
                 || self
                     .presets

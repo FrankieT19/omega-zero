@@ -32,13 +32,13 @@ pub const LINK_OFF: [u8; 3] = [0x5e, 0x5d, 0x66];
 
 #[rustfmt::skip]
 const WIFI: Rows = [
-    "..###..",
-    ".#...#.",
-    "#.....#",
-    "..###..",
-    ".#...#.",
-    ".......",
-    "...#...",
+    "..#####..",
+    ".#.....#.",
+    "#..###..#",
+    "..#...#..",
+    "...#.#...",
+    ".........",
+    "....#....",
 ];
 
 #[rustfmt::skip]
@@ -84,7 +84,7 @@ pub struct Links {
 }
 
 /// One item's face, on or off in the ink of `colours`, one texel to an art pixel: an icon one
-/// cell square, or "ssh" in bold cut to its ink.
+/// cell tall (Wi-Fi is nine pixels wide), or "ssh" in bold cut to its ink.
 pub fn link_face(link: Link, on: bool, colours: &ChromeColours) -> UndoFace {
     let ink = colours.link_ink(on);
     match link.sprite() {

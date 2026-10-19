@@ -278,14 +278,21 @@ fn inked_rows(face: &omega_ui::UndoFace) -> Vec<u32> {
 }
 
 #[test]
-fn every_icon_is_one_square_cell_of_pixel_art() {
+fn icons_keep_the_same_height_and_hard_pixel_edges() {
     let cell = CELL;
     let white = ChromeColours::default();
-    for face in [
-        link_face(Link::Wifi, true, &white),
-        link_face(Link::Bluetooth, true, &white),
-        bolt_face(LINK_ON),
-    ] {
+    let wifi = link_face(Link::Wifi, true, &white);
+    assert_eq!((wifi.w, wifi.h), (9, cell));
+    for y in 0..wifi.h as usize {
+        for x in 0..wifi.w as usize {
+            assert_eq!(
+                wifi.rgba[(y * 9 + x) * 4 + 3],
+                wifi.rgba[(y * 9 + 8 - x) * 4 + 3],
+                "Wi-Fi arcs must be centred"
+            );
+        }
+    }
+    for face in [link_face(Link::Bluetooth, true, &white), bolt_face(LINK_ON)] {
         assert_eq!((face.w, face.h), (cell, cell), "an icon is not one cell");
         assert!(
             face.rgba.chunks(4).all(|p| p[3] == 0 || p[3] == 255),

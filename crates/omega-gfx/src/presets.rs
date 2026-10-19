@@ -38,8 +38,8 @@ void main() {
 "#;
 
 pub(crate) struct Presets {
-    programs: [Option<u32>; 4],
-    failed: [bool; 4],
+    programs: [Option<u32>; 7],
+    failed: [bool; 7],
     copy: u32,
     neutral: u32,
     targets: [(u32, u32); 2],
@@ -48,6 +48,7 @@ pub(crate) struct Presets {
     pub saturation: f32,
     pub palette: u8,
     pub lcd_darkness: f32,
+    pub antialias: bool,
     mask: crate::lcd_mask::Mask,
 }
 fn loc(p: u32, n: &str) -> i32 {
@@ -56,8 +57,8 @@ fn loc(p: u32, n: &str) -> i32 {
 impl Presets {
     pub fn new() -> Result<Self, GfxError> {
         Ok(Self {
-            programs: [None; 4],
-            failed: [false; 4],
+            programs: [None; 7],
+            failed: [false; 7],
             copy: crate::shaders::program(crate::shaders::RECT_VERT, COPY)?,
             neutral: crate::gl::texture(
                 1,
@@ -73,6 +74,7 @@ impl Presets {
             saturation: 1.0,
             palette: 0,
             lcd_darkness: 1.0,
+            antialias: false,
             mask: crate::lcd_mask::Mask::new(),
         })
     }
@@ -120,6 +122,9 @@ impl Presets {
             4 => &[3],
             5 => &[0, 3],
             6 => &[1, 3],
+            8 => &[4],
+            9 => &[5],
+            10 => &[6],
             _ => &[3],
         };
         // Compile only the programs in the selected preset, once per GL context.
@@ -129,6 +134,9 @@ impl Presets {
             include_str!("../shaders/lcd3x.frag"),
             include_str!("../shaders/pixel-grid.frag"),
             include_str!("../shaders/pixel_transparency.frag"),
+            include_str!("../shaders/crt-scanlines.frag"),
+            include_str!("../shaders/zfast-crt.frag"),
+            include_str!("../shaders/crt-pi.frag"),
         ];
         for &index in chain {
             if self.failed[index] {
@@ -137,7 +145,12 @@ impl Presets {
             if self.programs[index].is_none() {
                 match crate::shaders::program(
                     VERT,
-                    &format!("{}\n{}", crate::shaders::GAME_PALETTE, sources[index]),
+                    &format!(
+                        "{}\n{}\n{}",
+                        crate::shaders::GAME_PALETTE,
+                        include_str!("../shaders/sampling.glsl"),
+                        sources[index]
+                    ),
                 ) {
                     Ok(p) => self.programs[index] = Some(p),
                     Err(e) => {
@@ -169,7 +182,7 @@ impl Presets {
             2 | 6 => 1,
             _ => 2,
         };
-        let direct = mode <= 3;
+        let direct = mode <= 3 || mode >= 8;
         let key = crate::lcd_mask::Key {
             size,
             raster: [raster.0.to_bits(), raster.1.to_bits()],
@@ -180,7 +193,7 @@ impl Presets {
         unsafe {
             gl::ActiveTexture(gl::TEXTURE2);
         }
-        let mask = if mode == 4 {
+        let mask = if mode == 4 || mode >= 8 {
             self.neutral
         } else {
             self.mask.get(key, quad)
@@ -210,6 +223,32 @@ impl Presets {
                     loc(p, "u_target"),
                     crate::out_w() as f32,
                     crate::out_h() as f32,
+                );
+                gl::Uniform1f(
+                    loc(p, "u_aa"),
+                    if self.antialias || mode >= 8 {
+                        1.0
+                    } else {
+                        0.0
+                    },
+                );
+                let sample_size = if pass == 0 {
+                    (source.0 as f32, source.1 as f32)
+                } else {
+                    (size.0 as f32, size.1 as f32)
+                };
+                let sample_scale = if pass == 0 {
+                    (size.0 as f32 / orig.0, size.1 as f32 / orig.1)
+                } else {
+                    (1.0, 1.0)
+                };
+                gl::Uniform2f(loc(p, "u_sample_size"), sample_size.0, sample_size.1);
+                gl::Uniform2f(loc(p, "u_sample_scale"), sample_scale.0, sample_scale.1);
+                gl::Uniform2f(loc(p, "u_original_size"), source.0 as f32, source.1 as f32);
+                gl::Uniform2f(
+                    loc(p, "u_original_scale"),
+                    size.0 as f32 / orig.0,
+                    size.1 as f32 / orig.1,
                 );
                 gl::Uniform1f(loc(p, "u_direct"), if direct { 1.0 } else { 0.0 });
                 gl::Uniform1f(loc(p, "u_post"), if direct { 1.0 } else { 0.0 });
@@ -275,8 +314,13 @@ impl Presets {
                 gl::ActiveTexture(gl::TEXTURE1);
                 gl::BindTexture(gl::TEXTURE_2D, original);
                 gl::ActiveTexture(gl::TEXTURE0);
-                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
-                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
+                let filter = if self.antialias || mode >= 8 {
+                    gl::LINEAR
+                } else {
+                    gl::NEAREST
+                };
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, filter as i32);
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, filter as i32);
                 quad.draw();
                 if direct {
                     if blend {

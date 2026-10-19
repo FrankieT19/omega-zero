@@ -185,6 +185,9 @@ impl Compositor {
         self.game.set_lcd_darkness(value);
     }
 
+    pub fn set_game_antialias(&mut self, enabled: bool) {
+        self.game.set_antialias(enabled);
+    }
     pub fn set_game_display(&mut self, saturation: f32, panel_raster: bool, palette: u8) {
         self.game.set_display(saturation, panel_raster, palette);
     }

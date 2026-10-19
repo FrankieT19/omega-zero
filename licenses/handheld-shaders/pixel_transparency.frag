@@ -9,8 +9,8 @@ uniform sampler2D Texture;
 uniform sampler2D OrigTexture;
 uniform vec4 u_crop;
 uniform vec4 u_orig_crop;
-vec4 input_sample(vec2 uv) { return vec4(palette_rgb(texture2D(Texture, u_crop.xy + clamp(uv,0.0,1.0)*u_crop.zw).rgb,u_palette),1.0); }
-vec4 original_sample(vec2 uv) { return vec4(palette_rgb(texture2D(OrigTexture, u_orig_crop.xy + clamp(uv,0.0,1.0)*u_orig_crop.zw).rgb,u_orig_palette),1.0); }
+vec4 input_sample(vec2 uv) { return vec4(palette_rgb(game_sample(Texture, u_crop.xy + clamp(uv,0.0,1.0)*u_crop.zw).rgb,u_palette),1.0); }
+vec4 original_sample(vec2 uv) { return vec4(palette_rgb(original_sample_aa(OrigTexture, u_orig_crop.xy + clamp(uv,0.0,1.0)*u_orig_crop.zw).rgb,u_orig_palette),1.0); }
 
 
 
