@@ -139,6 +139,9 @@ impl App {
             }
             _ => return,
         }
+        self.persist_picture();
+    }
+    pub(crate) fn persist_picture(&self) {
         if let (Some(root), Phase::Playing { cart }) = (self.root(), &self.phase) {
             let p = self.picture_adjust;
             let mut value = format!(

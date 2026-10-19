@@ -1041,6 +1041,8 @@ impl App {
         }
         self.video_mode = mode;
         self.state.scales[self.platform as usize] = mode.scale();
+        self.picture_adjust.scaling = Some(mode.scale());
+        self.persist_picture();
         self.persist();
         let (Some(root), Phase::Playing { cart }) = (self.root.clone(), &self.phase) else {
             return;

@@ -2457,3 +2457,26 @@ fn snes_scaling_is_global_and_ignores_legacy_per_game_scale_overrides() {
         Some(omega_zero::list_view::RowValue::Name("110%".into()))
     );
 }
+
+#[test]
+fn gb_shoulders_cycle_all_four_modes_and_restore_the_new_mode_after_reopening() {
+    let d = common::tmp_root_with_gb_carts(&["Tetris"]);
+    let mut s = session_playing(d.path());
+    let mut now = 100;
+    for wanted in [
+        VideoMode::IntegerWide,
+        VideoMode::Fit,
+        VideoMode::Stretch,
+        VideoMode::Integer,
+        VideoMode::IntegerWide,
+    ] {
+        s.feed([RawEvent::Down(Btn::R1)], now);
+        now += 20;
+        s.feed([RawEvent::Up(Btn::R1)], now);
+        now += 20;
+        assert_eq!(s.app().video_mode, wanted);
+    }
+    drop(s);
+    let s = session_playing(d.path());
+    assert_eq!(s.app().video_mode, VideoMode::IntegerWide);
+}
