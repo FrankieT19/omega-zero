@@ -710,7 +710,7 @@ fn shader_hotkey_is_per_system_persisted_and_uses_the_existing_toast_timeout() {
     app.set_platform(omega_store::Platform::Snes);
     assert_eq!(app.shader_settings().0, 0);
     app.apply_at(Action::ShaderNext, 1100);
-    assert_eq!(read_app_state(d.path()).shaders[3], 1);
+    assert_eq!(read_app_state(d.path()).shaders[3], 8);
     app.tick_ms(1100 + omega_ui::HUD_MS + 300);
     assert_eq!(app.toast(), None);
     app.set_platform(omega_store::Platform::Gba);
