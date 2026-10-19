@@ -6,16 +6,17 @@ use crate::{pipeline::GameView, quad::Quad, surface::GfxError};
 const VERT: &str = r#"
 attribute vec2 a_pos;
 uniform vec2 TextureSize, OrigTextureSize, OutputSize;
-uniform vec4 u_rect;
+uniform vec4 u_rect, u_crop;
 uniform vec2 u_target;
 uniform float u_direct;
 varying vec4 TEX0;
-varying vec2 texel, orig_texel, orig_coord;
+varying vec2 texel, orig_texel, orig_coord, source_coord;
 varying float shadow_scale_factor;
 void main() {
     TEX0=vec4(a_pos,0.0,1.0);
     texel=1.0/TextureSize; orig_texel=1.0/OrigTextureSize;
     orig_coord=a_pos;
+    source_coord=u_crop.xy+a_pos*u_crop.zw;
     shadow_scale_factor=sqrt(OutputSize.x/640.0*OutputSize.y/480.0);
     vec2 p=(u_rect.xy+a_pos*u_rect.zw)/u_target;
     gl_Position=u_direct>0.5 ? vec4(p.x*2.0-1.0,1.0-p.y*2.0,0.0,1.0) : vec4(a_pos*2.0-1.0,0.0,1.0);
@@ -40,6 +41,7 @@ pub(crate) struct Presets {
     programs: [Option<u32>; 4],
     failed: [bool; 4],
     copy: u32,
+    neutral: u32,
     targets: [(u32, u32); 2],
     size: (u32, u32),
     pub shadow: (f32, f32),
@@ -57,6 +59,14 @@ impl Presets {
             programs: [None; 4],
             failed: [false; 4],
             copy: crate::shaders::program(crate::shaders::RECT_VERT, COPY)?,
+            neutral: crate::gl::texture(
+                1,
+                1,
+                gl::NEAREST,
+                gl::CLAMP_TO_EDGE,
+                gl::RGBA,
+                Some(&[255; 4]),
+            ),
             targets: [(0, 0); 2],
             size: (0, 0),
             shadow: (1.0, 1.0),
@@ -171,7 +181,7 @@ impl Presets {
             gl::ActiveTexture(gl::TEXTURE2);
         }
         let mask = if mode == 4 {
-            0
+            self.neutral
         } else {
             self.mask.get(key, quad)
         };
@@ -391,6 +401,7 @@ impl Drop for Presets {
                 gl::DeleteProgram(*p);
             }
             gl::DeleteProgram(self.copy);
+            gl::DeleteTextures(1, &self.neutral);
         }
     }
 }

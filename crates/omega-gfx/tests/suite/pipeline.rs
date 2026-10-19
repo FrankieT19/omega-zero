@@ -1533,7 +1533,7 @@ fn grid_darkness_is_separator_opacity_and_leaves_the_other_pixels_unchanged() {
                     for (got, source) in px(&grid, x, y).into_iter().zip(px(&plain, x, y)) {
                         assert!(
                             (got as f32 - source as f32 * gain).abs() <= 2.0,
-                            "grid opacity {opacity}, mode {mode}, at {x},{y}"
+                            "grid opacity {opacity}, mode {mode}, at {x},{y}: {got} vs underlying {source}, expected gain {gain}"
                         );
                     }
                 }
