@@ -29,6 +29,8 @@ pub struct AppState {
     pub favourites: Vec<String>,
     pub scales: [u8; 5],
     pub low_poly_labels: bool,
+    /// Reduce the PS1 display to a 240x160 raster before scaling and shaders.
+    pub ps1_gba_pixels: bool,
     pub shaders: [u8; 5],
     /// Pixel Transparency shadow offsets, in half-pixel steps.
     pub saturation: [u8; 5],
@@ -87,6 +89,7 @@ impl Default for AppState {
             favourites: Vec::new(),
             scales: [0, 0, 0, 1, 1],
             low_poly_labels: false,
+            ps1_gba_pixels: false,
             shaders: [2, 2, 2, 0, 0],
             saturation: [100; 5],
             lcd_darkness: [100; 5],
@@ -168,6 +171,7 @@ pub fn write_app_state(root: &Path, s: &AppState) -> std::io::Result<()> {
         s.all_systems as u8,
         s.low_poly_labels as u8
     ));
+    text.push_str(&format!("ps1_gba_pixels={}\n", s.ps1_gba_pixels as u8));
     text.push_str(&format!("dim={}\n", s.dim));
     text.push_str(&format!("carousel={}\n", s.carousel));
     for key in &s.recent {
@@ -227,6 +231,7 @@ fn parse(text: &str) -> Option<AppState> {
             continue;
         };
         match key {
+            "ps1_gba_pixels" => extra.ps1_gba_pixels = flag(value).unwrap_or(false),
             "display_version" => display_version = value.parse::<u8>().unwrap_or(0),
             "carousel" => extra.carousel = level(value, 3).unwrap_or(0),
             "recent" if extra.recent.len() < 10 => {

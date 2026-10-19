@@ -1,4 +1,4 @@
-// Slang LCD mask factors are cached by lcd_mask.rs; upstream sources retain attribution.
+// Native omega-zero LCD mask factors are cached by lcd_mask.rs.
 #ifdef GL_ES
 precision highp float;
 #endif

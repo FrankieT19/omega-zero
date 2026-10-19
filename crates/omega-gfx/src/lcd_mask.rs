@@ -1,6 +1,6 @@
-//! Cached viewport masks sampled at exact pixel centres. Slang LCD equations are evaluated
-//! only when geometry changes, never once per display pixel on every frame.
-use crate::{quad::Quad, slang::Slang, surface::GfxError};
+//! Native LCD coefficient masks, cached when geometry changes. The original omega-zero
+//! sine mask follows source pixels; Grid follows physical display pixels.
+use crate::quad::Quad;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Key {
@@ -13,26 +13,16 @@ pub(crate) struct Key {
 pub(crate) struct Mask {
     key: Option<Key>,
     tex: u32,
-    pub lcd: Slang,
 }
 impl Mask {
-    pub fn new() -> Result<Self, GfxError> {
-        Ok(Self {
-            key: None,
-            tex: 0,
-            lcd: Slang::new()?,
-        })
+    pub fn new() -> Self {
+        Self { key: None, tex: 0 }
     }
-    pub fn get(&mut self, key: Key, quad: &Quad) -> u32 {
+    pub fn get(&mut self, key: Key, _quad: &Quad) -> u32 {
         if self.key == Some(key) {
             return self.tex;
         }
-        let table = if key.kind == 2 {
-            None
-        } else {
-            Some(self.lcd.table(key.kind, quad))
-        };
-        let data = pixels(key, table);
+        let data = pixels(key);
         unsafe {
             if self.tex != 0 {
                 gl::DeleteTextures(1, &self.tex);
@@ -72,7 +62,7 @@ fn phase(at: u32, n: u32, raster: f32, origin: f32, snap: bool) -> f32 {
         p
     }
 }
-fn pixels(key: Key, table: Option<&[u8]>) -> Vec<u8> {
+fn pixels(key: Key) -> Vec<u8> {
     let (w, h) = key.size;
     let raster = key.raster.map(f32::from_bits);
     let origin = key.origin.map(f32::from_bits);
@@ -85,24 +75,14 @@ fn pixels(key: Key, table: Option<&[u8]>) -> Vec<u8> {
     let mut data = Vec::with_capacity((w * h * 4) as usize);
     for y in ys {
         for x in &xs {
-            if let Some(table) = table {
-                // Bilinear interpolation of coefficients only; game pixels always use nearest.
-                let xx = x * 384.0 - 0.5;
-                let yy = y * 384.0 - 0.5;
-                let ix = xx.floor() as i32;
-                let iy = yy.floor() as i32;
-                let fx = xx - xx.floor();
-                let fy = yy - yy.floor();
+            if key.kind < 2 {
+                // Same coefficients and phase as the original 3x omega-zero mask.
+                // LCD1x shares the monochrome mask; LCD3x offsets its RGB columns.
+                let yfactor = (16.0 + (std::f32::consts::TAU * y).sin()) / 17.0;
                 for c in 0..3 {
-                    let at = |dx: i32, dy: i32| {
-                        table[((iy + dy).rem_euclid(384) as usize * 384
-                            + (ix + dx).rem_euclid(384) as usize)
-                            * 4
-                            + c] as f32
-                    };
-                    let a = at(0, 0) * (1.0 - fx) + at(1, 0) * fx;
-                    let b = at(0, 1) * (1.0 - fx) + at(1, 1) * fx;
-                    data.push((a * (1.0 - fy) + b * fy).round() as u8);
+                    let offset = if key.kind == 1 { c as f32 / 3.0 } else { 0.0 };
+                    let xfactor = (4.0 + (std::f32::consts::TAU * (*x + offset)).sin()) / 5.0;
+                    data.push((255.0 * xfactor * yfactor).round() as u8);
                 }
             } else {
                 data.extend_from_slice(
@@ -121,6 +101,17 @@ fn pixels(key: Key, table: Option<&[u8]>) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_lcd3x_is_the_original_omega_zero_three_by_three_mask() {
+        let key = Key {
+            size: (3, 3),
+            raster: [1.0_f32.to_bits(); 2],
+            origin: [0.0_f32.to_bits(); 2],
+            kind: 1,
+            source_grid: false,
+        };
+        assert_eq!(pixels(key), crate::lcd3x::mask_texture_rgba8());
+    }
     #[test]
     fn integer_pixel_cells_repeat_exactly_even_at_half_step_quantization() {
         for x in 0..720 {

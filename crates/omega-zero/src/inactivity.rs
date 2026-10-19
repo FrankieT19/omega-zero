@@ -10,7 +10,7 @@ use omega_ui::SettingsRow;
 pub(crate) struct Idle {
     last: Millis,
     context: Option<usize>,
-    pub(crate) gain: f32,
+    gain: f32,
 }
 impl Default for Idle {
     fn default() -> Self {
@@ -22,17 +22,10 @@ impl Default for Idle {
     }
 }
 impl Idle {
-    pub(crate) fn touch(&mut self, now: Millis) {
+    fn touch(&mut self, now: Millis) {
         self.last = now;
     }
-    pub(crate) fn step(
-        &mut self,
-        now: Millis,
-        dt: f32,
-        context: usize,
-        dim: u16,
-        sleep: u16,
-    ) -> bool {
+    fn step(&mut self, now: Millis, dt: f32, context: usize, dim: u16, sleep: u16) -> bool {
         if self.context != Some(context) {
             self.context = Some(context);
             self.touch(now);

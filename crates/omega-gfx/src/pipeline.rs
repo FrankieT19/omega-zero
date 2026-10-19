@@ -139,13 +139,6 @@ impl GamePass {
         })
     }
 
-    #[cfg(feature = "test-support")]
-    pub fn draw_slang_reference(&self, mode: u8, quad: &Quad) {
-        let view = self.view.unwrap_or_else(|| GameView::canvas(WHOLE_TEXTURE));
-        self.presets
-            .borrow()
-            .reference(mode, self.game, self.size, view, quad);
-    }
     pub fn set_source_grid(&mut self, _enabled: bool) {
         // Kept for callers of older builds. Each preset now determines its own raster.
     }

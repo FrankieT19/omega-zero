@@ -960,3 +960,28 @@ fn inactivity_menu_saves_separate_menu_and_game_timings() {
     assert_eq!(state.idle_dim, [120, 120]);
     assert_eq!(state.idle_sleep, [120, 900]);
 }
+
+#[test]
+fn ps1_gba_display_pixels_are_optional_saved_and_do_not_affect_other_systems() {
+    let (d, mut app, _) = on_carousel();
+    assert!(!read_app_state(d.path()).ps1_gba_pixels);
+    display_at(&mut app, 0);
+    for _ in 0..4 {
+        press(&mut app, Btn::Right);
+    }
+    for _ in 0..8 {
+        press(&mut app, Btn::Down);
+    }
+    press(&mut app, Btn::Right);
+    assert!(read_app_state(d.path()).ps1_gba_pixels);
+    let mut reboot = App::boot(d.path());
+    for system in omega_store::Platform::ALL {
+        reboot.set_platform(system);
+        assert_eq!(
+            reboot.ps1_gba_pixels(),
+            system == omega_store::Platform::Ps1
+        );
+    }
+    press(&mut app, Btn::Left);
+    assert!(!read_app_state(d.path()).ps1_gba_pixels);
+}

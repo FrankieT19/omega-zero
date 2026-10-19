@@ -1,4 +1,4 @@
-//! RetroArch handheld presets at viewport resolution, with the original frame available
+//! Native handheld effects at viewport resolution, with the original frame available
 //! to Pixel Transparency's backing tint and shadows. Targets are reused between frames.
 use crate::power::{screen_brightness, screen_glow, screen_rect_in};
 use crate::{pipeline::GameView, quad::Quad, surface::GfxError};
@@ -62,7 +62,7 @@ impl Presets {
             saturation: 1.0,
             palette: 0,
             lcd_darkness: 1.0,
-            mask: crate::lcd_mask::Mask::new()?,
+            mask: crate::lcd_mask::Mask::new(),
         })
     }
     fn resize(&mut self, size: (u32, u32)) {
@@ -291,17 +291,6 @@ impl Presets {
             quad.draw();
         }
         true
-    }
-    #[cfg(feature = "test-support")]
-    pub fn reference(&self, mode: u8, source: u32, size: (u32, u32), view: GameView, quad: &Quad) {
-        self.mask.lcd.draw(
-            mode - 1,
-            source,
-            size,
-            view,
-            (crate::out_w(), crate::out_h()),
-            quad,
-        );
     }
     fn clear(&mut self) {
         unsafe {

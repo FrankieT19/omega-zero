@@ -109,3 +109,44 @@ impl Drop for FrameRef {
         self.frames.recycle(std::mem::take(&mut self.buf));
     }
 }
+
+/// Centre-sampled nearest reduction before display effects. The emulator still renders normally.
+/// Reuses the destination allocation and supports PS1 resolution changes between frames.
+pub fn gba_raster(frame: &[u8], size: (u32, u32), output: &mut Vec<u8>) {
+    let (w, h) = (size.0 as usize, size.1 as usize);
+    output.resize(240 * 160 * 4, 0);
+    if w == 0 || h == 0 || frame.len() < w * h * 4 {
+        return;
+    }
+    for y in 0..160 {
+        let sy = ((2 * y + 1) * h / 320).min(h - 1);
+        for x in 0..240 {
+            let sx = ((2 * x + 1) * w / 480).min(w - 1);
+            let from = (sy * w + sx) * 4;
+            let to = (y * 240 + x) * 4;
+            output[to..to + 4].copy_from_slice(&frame[from..from + 4]);
+        }
+    }
+}
+#[cfg(test)]
+mod raster_tests {
+    #[test]
+    fn reduction_preserves_orientation_channels_and_changes_in_source_resolution() {
+        let mut output = Vec::new();
+        for (w, h) in [(320, 240), (640, 480), (256, 224)] {
+            let source: Vec<u8> = (0..h)
+                .flat_map(|y| (0..w).flat_map(move |x| [x as u8, y as u8, 70, 0]))
+                .collect();
+            super::gba_raster(&source, (w, h), &mut output);
+            assert_eq!(output.len(), 240 * 160 * 4);
+            for (x, y) in [(0, 0), (119, 79), (239, 159)] {
+                let sx = (2 * x + 1) * w as usize / 480;
+                let sy = (2 * y + 1) * h as usize / 320;
+                assert_eq!(
+                    &output[(y * 240 + x) * 4..(y * 240 + x) * 4 + 4],
+                    &[sx as u8, sy as u8, 70, 0]
+                );
+            }
+        }
+    }
+}

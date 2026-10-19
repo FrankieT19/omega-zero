@@ -126,6 +126,9 @@ impl App {
             .toast(omega_ui::Toast::Palette(self.state.palettes[i]), self.now());
         self.persist();
     }
+    pub fn ps1_gba_pixels(&self) -> bool {
+        self.state.ps1_gba_pixels && self.platform() == omega_store::Platform::Ps1
+    }
     pub fn shader_saturation(&self) -> f32 {
         self.state.saturation[self.platform() as usize] as f32 / 100.0
     }
@@ -170,11 +173,11 @@ impl App {
                 return;
             }
             Action::GbaDown(Btn::Up) => {
-                screen.display_row = (screen.display_row + 9) % 10;
+                screen.display_row = (screen.display_row + 8) % 9;
                 return;
             }
             Action::GbaDown(Btn::Down) => {
-                screen.display_row = (screen.display_row + 1) % 10;
+                screen.display_row = (screen.display_row + 1) % 9;
                 return;
             }
             Action::GbaDown(Btn::Left) => false,
@@ -201,31 +204,6 @@ impl App {
                 self.state.shadow_y[i] =
                     (self.state.shadow_y[i] + if forward { 1 } else { -1 }).clamp(-60, 60)
             }
-            8 => {
-                if let Some(root) = self.root() {
-                    let value = if crate::retroarch::requested(root) {
-                        "native\n"
-                    } else {
-                        "retroarch\n"
-                    };
-                    if let Err(e) = omega_store::atomic_write(
-                        &root.join("Config/backend.txt"),
-                        value.as_bytes(),
-                    ) {
-                        eprintln!("omega-zero: backend: {e}");
-                    }
-                }
-            }
-            9 => {
-                if self
-                    .root()
-                    .is_some_and(|root| root.join("System/retroarch").is_file())
-                {
-                    self.retroarch_setup = Some(omega_store::Platform::ALL[i]);
-                } else {
-                    self.refuse();
-                }
-            }
             7 => {
                 self.state.lcd_darkness[i] = (self.state.lcd_darkness[i] as i16
                     + if forward { 10 } else { -10 })
@@ -235,6 +213,9 @@ impl App {
                 self.state.saturation[i] = (self.state.saturation[i] as i16
                     + if forward { 10 } else { -10 })
                 .clamp(0, 200) as u8;
+            }
+            8 if i == omega_store::Platform::Ps1 as usize => {
+                self.state.ps1_gba_pixels = !self.state.ps1_gba_pixels;
             }
             5 => {
                 self.state.low_poly_labels = !self.state.low_poly_labels;
@@ -295,15 +276,15 @@ impl App {
                     "LCD darkness",
                     RowValue::Name(format!("{}%", self.state.lcd_darkness[i])),
                 ),
-                row(
-                    "Game backend",
-                    RowValue::Choice(if self.root().is_some_and(crate::retroarch::requested) {
-                        "RetroArch"
+                ViewRow {
+                    label: RowLabel::Setting("PS1 pixels"),
+                    value: Some(RowValue::Choice(if self.state.ps1_gba_pixels {
+                        "GBA 240x160"
                     } else {
                         "Native"
-                    }),
-                ),
-                row("Shader settings", RowValue::Choice("Open RetroArch")),
+                    })),
+                    dim: i != omega_store::Platform::Ps1 as usize,
+                },
             ],
             lit: Some(screen.display_row),
             status: Vec::new(),

@@ -163,9 +163,6 @@ pub fn run() {
         pacer.wait();
         let began = Instant::now();
         frontend.advance(&mut input);
-        if let Some(launch) = frontend.take_external_game() {
-            omega_zero::retroarch::enter(launch);
-        }
         if frontend.restarting() {
             frontend.restart();
         }

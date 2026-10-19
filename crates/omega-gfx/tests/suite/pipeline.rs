@@ -1074,9 +1074,9 @@ fn reference_lcd1x_matches_its_default_formula_at_viewport_scale() {
     let frame = c.read_frame();
     for (x, y) in [(5, 8), (122, 101), (321, 250)] {
         let angle_x =
-            2.0 * std::f32::consts::PI * ((x as f32 + 0.5) / out_w() as f32 * SRC_W as f32 - 0.25);
+            2.0 * std::f32::consts::PI * ((x as f32 + 0.5) / out_w() as f32 * SRC_W as f32);
         let angle_y =
-            2.0 * std::f32::consts::PI * ((y as f32 + 0.5) / out_h() as f32 * SRC_H as f32 - 0.25);
+            2.0 * std::f32::consts::PI * ((y as f32 + 0.5) / out_h() as f32 * SRC_H as f32);
         let expected =
             (200.0 * (4.0 + angle_x.sin()) / 5.0 * (16.0 + angle_y.sin()) / 17.0).round() as i32;
         for value in px(&frame, x, y) {
@@ -1400,30 +1400,6 @@ fn stretched_console_grid_keeps_three_physical_pixel_cells() {
 }
 
 #[test]
-fn cached_lcd_matches_the_compiled_unmodified_slang_shader_on_actual_game_pixels() {
-    let Some((_g, _s, mut c)) = compositor() else {
-        return;
-    };
-    let (src, _) = located(240, 160);
-    c.upload_game(&src);
-    c.set_game_view(sharp([0.0, 0.0, out_w() as f32, out_h() as f32]));
-    for mode in [1, 2] {
-        c.set_game_effect(mode, 1.0, 1.0);
-        c.begin_frame();
-        c.draw_game();
-        let cached = c.read_frame();
-        c.begin_frame();
-        c.draw_slang_reference(mode);
-        let stock = c.read_frame();
-        for (index, (a, b)) in cached.iter().zip(&stock).enumerate() {
-            assert!(
-                a.abs_diff(*b) <= 2,
-                "Slang LCD {mode} differs at channel {index}: {a} vs {b}"
-            );
-        }
-    }
-}
-#[test]
 fn cropping_a_game_does_not_move_the_physical_grid() {
     let Some((_g, _s, mut c)) = compositor() else {
         return;
@@ -1500,15 +1476,21 @@ fn lcd_uses_game_pixels_in_gb_fit_and_stretch_even_with_the_old_panel_flag() {
             c.set_game_effect(mode, 1.0, 1.0);
             c.begin_frame();
             c.draw_game();
-            let cached = c.read_frame();
-            c.begin_frame();
-            c.draw_slang_reference(mode);
-            let source = c.read_frame();
-            for (a, b) in cached.iter().zip(&source) {
-                assert!(
-                    a.abs_diff(*b) <= 2,
-                    "LCD {mode} was detached from GB game pixels"
-                );
+            let actual = c.read_frame();
+            let left = (out_w() - width) / 2;
+            for (x, y) in [(2, 3), (80, 90), (width - 2, out_h() - 3)] {
+                let phase_x = ((x as f32 + 0.5) * 160.0 / width as f32).fract();
+                let phase_y = ((y as f32 + 0.5) * 144.0 / out_h() as f32).fract();
+                let yf = (16.0 + (std::f32::consts::TAU * phase_y).sin()) / 17.0;
+                let pixel = px(&actual, (left + x) as usize, y as usize);
+                for (channel, value) in pixel.into_iter().enumerate() {
+                    let offset = if mode == 2 { channel as f32 / 3.0 } else { 0.0 };
+                    let xf = (4.0 + (std::f32::consts::TAU * (phase_x + offset)).sin()) / 5.0;
+                    assert!(
+                        (value as f32 - 200.0 * xf * yf).abs() <= 2.0,
+                        "LCD {mode} detached from GB pixels at {x},{y}: {value}"
+                    );
+                }
             }
         }
     }
