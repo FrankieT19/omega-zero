@@ -37,3 +37,11 @@ or Grid's fixed physical 3x3 raster. PT's original and intermediate inputs use
 their own texture sizes/scales. GBA keeps its upstream LCD sampling unchanged.
 CRT presets perform their own lightweight interpolation; no additional AA pass
 is stacked on zfast/CRT Pi. H700 frame rate and appearance require device testing.
+
+
+Console CRT beam phase is computed from physical output-pixel centres and the
+cropped source-row origin/step, rather than interpolated source coordinates.
+This keeps repeated integer-scaled scanlines consistent across the viewport.
+Console darkness adjusts the beam independently of the aperture mask. PS1
+Integer and SNES Integer H 4:3 re-fit quantized crop/zoom windows at integer row
+scales; Fit remains continuous and may equal Integer at an exact 2x height.

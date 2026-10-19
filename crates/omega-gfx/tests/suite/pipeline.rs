@@ -1663,3 +1663,59 @@ fn sharp_sampling_removes_uneven_texel_edges_without_blurring_integer_pixels_or_
         }
     }
 }
+
+#[test]
+fn crt_scanlines_repeat_exactly_for_each_integer_scaled_row_and_darkness_changes_contrast() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    for source in [(320, 240), (640, 240), (256, 224)] {
+        c.upload_game_sized(&vec![160; (source.0 * source.1 * 4) as usize], source);
+        let height = source.1 * 2;
+        let top = (out_h() - height) / 2;
+        let width = (height as f32 * 4.0 / 3.0).round();
+        c.set_game_view(sharp([
+            ((out_w() as f32 - width) / 2.0).round(),
+            top as f32,
+            width,
+            height as f32,
+        ]));
+        for mode in [8, 9, 10] {
+            c.set_game_effect(mode, 1.0, 1.0);
+            c.set_lcd_darkness(1.0);
+            c.begin_frame();
+            c.draw_game();
+            let full = c.read_frame();
+            for phase in [0, 1] {
+                let first = px(&full, out_w() as usize / 2, top as usize + phase);
+                for row in 1..source.1 as usize {
+                    let next = px(&full, out_w() as usize / 2, top as usize + row * 2 + phase);
+                    assert!(
+                        first.iter().zip(next).all(|(&a, b)| a.abs_diff(b) <= 1),
+                        "banding CRT {mode} {source:?} row {row}: {first:?} vs {next:?}"
+                    );
+                }
+            }
+            let contrast = |frame: &[u8]| {
+                let a = px(frame, out_w() as usize / 2, top as usize + 20);
+                let b = px(frame, out_w() as usize / 2, top as usize + 21);
+                a.iter()
+                    .zip(b)
+                    .map(|(&a, b)| a.abs_diff(b) as u32)
+                    .sum::<u32>()
+            };
+            let mut last = contrast(&full);
+            assert!(last > 0);
+            for darkness in [0.5, 0.0] {
+                c.set_lcd_darkness(darkness);
+                c.begin_frame();
+                c.draw_game();
+                let frame = c.read_frame();
+                let current = contrast(&frame);
+                assert!(current <= last, "darkness inverted for CRT {mode}");
+                last = current;
+            }
+            assert_eq!(last, 0, "0% must remove beam contrast");
+        }
+    }
+}

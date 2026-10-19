@@ -25,7 +25,9 @@ START on the selector opens Settings. Display chooses the system and its shared 
 
 SELECT+X during play pauses gameplay and opens Picture. B, START or SELECT+X closes it. Zoom is 100-200% in 5% steps; crop each edge by 0-20% in 1% steps. Crop/zoom are saved per system/ROM in `Config/picture.ini` and reapplied after resolution changes. Reset restores the picture controls; it does not clear a shader override.
 
-Enable the Shader override checkbox to capture the current shader for this game, then change its Shader row. Outside the popup, SELECT+Right also changes the override while enabled. Disable the checkbox to restore the shared system default immediately. With the checkbox off, the Shader row and hotkey edit the shared preset. Display always edits the shared default. Overrides are stored by system and ROM filename stem in `Config/shaders.ini`.
+Enable the Shader override checkbox to capture the current shader for this game, then change its Shader row. Outside the popup, SELECT+Right also changes the override while enabled. Disable the checkbox to restore the shared system default immediately. With the checkbox off, the Shader row and hotkey edit the shared preset. Display always edits the shared default. The override also captures colour correction on GBA/GB/GBC. SELECT+Y or the Picture colour-correction row edits that game while enabled; disabling restores the shared default. Old shader-only entries remain readable. Overrides are stored by system and ROM filename stem in `Config/shaders.ini`.
+
+Picture also exposes LCD/Grid darkness for GBA/GB/GBC and Scanline darkness for SNES/PS1, from 0-200% in 10% steps. These edit the same per-system preference as Display, independently of the override checkbox. Console darkness now adjusts the beam without fading out the aperture mask.
 
 ## Scaling
 
@@ -34,7 +36,7 @@ Enable the Shader override checkbox to capture the current shader for this game,
 - **SNES:** Integer, **Integer H 4:3**, Fit 4:3, Stretch. Integer retains the raw frame's square pixels. Integer H 4:3 selects the largest whole-number source-row scale that fits and adjusts width to the TV's 4:3 aspect: a 224-line frame becomes about 597x448 on both 720x480 and 640x480. Hi-res 512-pixel-wide frames retain the same display shape; 239-line frames become about 637x478. This preference is global, including when changed in Picture; old per-game SNES scaling overrides are ignored.
 - **PS1:** Integer, Fit 4:3, Stretch. Integer uses whole-number height scaling with 4:3 display correction rather than treating the framebuffer as square pixels. For example, 320x240, 512x240 and 640x240 all display at 640x480 on either 480-line landscape panel. This avoids a wide, short rectangle when games switch horizontal resolution. PS1 scaling can still be saved per game through Picture.
 
-Integer height modes fall back to Fit 4:3 if even 1x source height cannot fit. Width is rounded to an output pixel; only height is constrained to an integer multiplier. Crop/zoom adjustments can deliberately change the effective pixel scale. Decorative overlays, wordmarks and grey console borders are removed; unused screen space is black.
+Integer height modes fall back to Fit 4:3 if even 1x source height cannot fit. Width is rounded to an output pixel; only height is constrained to an integer multiplier. In PS1 Integer and SNES Integer H 4:3, crop/zoom snap the sampled window to whole source rows/columns and recompute the viewport from the visible rows, preserving an integer vertical multiplier. Other modes allow arbitrary crop/zoom scaling. Decorative overlays, wordmarks and grey console borders are removed; unused screen space is black.
 
 Core geometry references: [PCSX ReARMed](https://docs.libretro.com/library/pcsx_rearmed/) (4:3 display aspect), [Snes9x](https://docs.libretro.com/library/snes9x/) (224/239-line base height and selectable display aspect).
 

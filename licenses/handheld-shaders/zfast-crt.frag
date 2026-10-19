@@ -10,6 +10,8 @@ uniform sampler2D Texture;
 uniform vec2 FullSourceSize, OutputSize;
 uniform float u_lcd_darkness, u_saturation, u_bright, u_glow;
 varying vec2 source_coord;
+uniform vec2 u_crt_origin, u_crt_rows;
+float crt_row() { return u_crt_rows.x+(floor(u_crt_origin.y-gl_FragCoord.y-u_crt_origin.x)+0.5)*u_crt_rows.y; }
 vec3 finish_crt(vec3 rgb) {
     rgb=mix(vec3(dot(rgb,vec3(0.299,0.587,0.114))),rgb,u_saturation);
     return mix(rgb*u_bright,vec3(1.0),u_glow);
@@ -21,13 +23,13 @@ void main() {
     vec2 tc=(i+4.0*f*f*f)/FullSourceSize;
     tc.x=mix(tc.x,source_coord.x,0.45);
     vec3 colour=texture2D(Texture,tc).rgb;
-    float beam=fract(p.y+0.5/max(u_sample_scale.y,1.0))-0.5;
+    float beam=fract(crt_row()+0.5/max(u_sample_scale.y,1.0))-0.5;
     float y=beam*beam, yy=y*y;
     float mask=1.0-float(fract(floor(gl_FragCoord.x)*-0.5)<0.5)*0.25;
     float low=1.25-5.0*(y-2.05*yy);
     float high=1.0-10.0*(yy-2.8*yy*y);
     float weight=mix(low*mask,high,dot(colour,vec3(0.3333*0.8)));
     weight=mix(1.0,weight,clamp(u_sample_scale.y-1.0,0.0,1.0));
-    colour*=max(0.0,1.0-u_lcd_darkness*(1.0-weight));
+    colour*=max(0.0,mix(mask,weight,u_lcd_darkness));
     FRAG_COLOR=vec4(finish_crt(colour),1.0);
 }
