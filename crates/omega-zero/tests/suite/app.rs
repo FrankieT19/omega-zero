@@ -2474,9 +2474,15 @@ fn gb_shoulders_cycle_all_four_modes_and_restore_the_new_mode_after_reopening() 
         now += 20;
         s.feed([RawEvent::Up(Btn::R1)], now);
         now += 20;
-        assert_eq!(s.app().video_mode, wanted);
+        assert_eq!(
+            s.app().screen(),
+            omega_zero::video_mode::screen(Platform::Gb, wanted)
+        );
     }
     drop(s);
     let s = session_playing(d.path());
-    assert_eq!(s.app().video_mode, VideoMode::IntegerWide);
+    assert_eq!(
+        s.app().screen(),
+        omega_zero::video_mode::screen(Platform::Gb, VideoMode::IntegerWide)
+    );
 }
