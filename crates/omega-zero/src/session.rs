@@ -482,7 +482,7 @@ impl Session {
             Platform::Snes | Platform::Ps1 => Setup::Console,
             Platform::Gba | Platform::Gb | Platform::Gbc => Setup::Handheld {
                 serial,
-                colour: self.app.colour_correction(),
+                colour: self.app.game_colour_correction(),
                 link: player,
             },
         };

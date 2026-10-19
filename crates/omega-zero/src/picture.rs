@@ -21,6 +21,44 @@ impl Default for Picture {
     }
 }
 impl Picture {
+    pub fn apply_screen(
+        self,
+        screen: &mut crate::video_mode::Screen,
+        platform: omega_store::Platform,
+        mode: crate::video_mode::VideoMode,
+        size: (u32, u32),
+    ) {
+        self.apply(&mut screen.view);
+        self.apply(&mut screen.still);
+        if (platform == omega_store::Platform::Ps1 && mode == crate::video_mode::VideoMode::Integer)
+            || (platform == omega_store::Platform::Snes
+                && mode == crate::video_mode::VideoMode::IntegerAspect)
+        {
+            let uv = screen.view.uv;
+            let x = (uv[0] * size.0 as f32).round();
+            let y = (uv[1] * size.1 as f32).round();
+            let right = ((uv[0] + uv[2]) * size.0 as f32)
+                .round()
+                .clamp(x + 1.0, size.0 as f32);
+            let bottom = ((uv[1] + uv[3]) * size.1 as f32)
+                .round()
+                .clamp(y + 1.0, size.1 as f32);
+            let window = [
+                x / size.0 as f32,
+                y / size.1 as f32,
+                (right - x) / size.0 as f32,
+                (bottom - y) / size.1 as f32,
+            ];
+            *screen = crate::video_mode::screen_on_frame(
+                omega_gfx::canvas(),
+                platform,
+                mode,
+                ((right - x) as u32, (bottom - y) as u32),
+            );
+            screen.view.uv = window;
+            screen.still = screen.view;
+        }
+    }
     pub fn apply(self, view: &mut GameView) {
         let [left, right, top, bottom] = self.edges.map(|v| v as f32 / 100.0);
         let [u, v, w, h] = view.uv;
@@ -76,17 +114,36 @@ impl App {
             .scaling
             .map(|n| crate::video_mode::VideoMode::from_scale(n, self.platform()))
             .unwrap_or_else(|| self.preferred_video_mode());
-        self.shader_override = self
-            .root()
-            .and_then(|root| {
-                omega_store::ini::value(
-                    root,
-                    "Config/shaders.ini",
-                    &format!("{}/{}", self.platform().dir_name(), stem),
-                )
-            })
-            .and_then(|value| value.parse::<u8>().ok())
+        let saved_shader = self.root().and_then(|root| {
+            omega_store::ini::value(
+                root,
+                "Config/shaders.ini",
+                &format!("{}/{}", self.platform().dir_name(), stem),
+            )
+        });
+        self.shader_override = saved_shader
+            .as_deref()
+            .and_then(|value| value.split(',').next()?.parse::<u8>().ok())
             .filter(|value| omega_store::shader_choices(self.platform()).contains(value));
+        self.colour_override =
+            if self.shader_override.is_some() && self.platform().colour_correction() {
+                Some(
+                    saved_shader
+                        .as_deref()
+                        .and_then(|value| value.split(',').nth(1))
+                        .and_then(|value| match value {
+                            "0" => Some(false),
+                            "1" => Some(true),
+                            _ => None,
+                        })
+                        .unwrap_or(self.state.colour_correction),
+                )
+            } else {
+                None
+            };
+        if self.platform().colour_correction() {
+            self.colour_pending = Some(self.game_colour_correction());
+        }
         self.picture_menu = None;
     }
     pub(crate) fn persist_shader_override(&self) {
@@ -94,7 +151,12 @@ impl App {
             // A non-numeric inherit marker disables this entry without touching other games.
             let value = self
                 .shader_override
-                .map(|n| n.to_string())
+                .map(|n| match self.colour_override {
+                    Some(colour) if self.platform().colour_correction() => {
+                        format!("{n},{}", u8::from(colour))
+                    }
+                    _ => n.to_string(),
+                })
                 .unwrap_or_else(|| "inherit".into());
             if let Err(e) = omega_store::ini::write(
                 root,
@@ -119,11 +181,11 @@ impl App {
                 return;
             }
             Action::GbaDown(Btn::Up) => {
-                self.picture_menu = Some((row + 9) % 10);
+                self.picture_menu = Some((row + 11) % 12);
                 return;
             }
             Action::GbaDown(Btn::Down) => {
-                self.picture_menu = Some((row + 1) % 10);
+                self.picture_menu = Some((row + 1) % 12);
                 return;
             }
             Action::GbaDown(Btn::Left | Btn::Right | Btn::A) => {
@@ -156,11 +218,18 @@ impl App {
                             (self.picture_adjust.edges[row - 2] as i32 + by).clamp(0, 20) as u8
                     }
                     6 => {
+                        let colour = self.colour_correction();
                         self.shader_override = if self.shader_override.is_some() {
                             None
                         } else {
                             Some(self.shader_settings().0)
                         };
+                        self.colour_override = self
+                            .shader_override
+                            .and_then(|_| self.platform().colour_correction().then_some(colour));
+                        if self.platform().colour_correction() {
+                            self.colour_pending = Some(self.colour_correction());
+                        }
                         self.persist_shader_override();
                     }
                     7 => {
@@ -175,6 +244,17 @@ impl App {
                         }
                     }
                     8 => {
+                        if self.platform().colour_correction() {
+                            self.toggle_colour_correction();
+                        }
+                    }
+                    9 => {
+                        let i = self.platform() as usize;
+                        self.state.lcd_darkness[i] =
+                            (self.state.lcd_darkness[i] as i32 + by * 10).clamp(0, 200) as u8;
+                        self.persist();
+                    }
+                    10 => {
                         self.picture_adjust = Picture::default();
                         self.video_mode = self.preferred_video_mode();
                     }
@@ -219,6 +299,12 @@ impl App {
             "Crop bottom",
             "Shader override",
             "Shader",
+            "Colour correction",
+            if self.platform().colour_correction() {
+                "LCD/Grid darkness"
+            } else {
+                "Scanline darkness"
+            },
             "Reset",
             "Close",
         ];
@@ -239,9 +325,17 @@ impl App {
                         7 => Some(RowValue::Choice(
                             omega_store::SHADER_NAMES[self.shader_settings().0 as usize],
                         )),
+                        8 if self.platform().colour_correction() => {
+                            Some(RowValue::Setting(self.colour_correction()))
+                        }
+                        9 => Some(RowValue::Name(format!(
+                            "{}%",
+                            self.state.lcd_darkness[self.platform() as usize]
+                        ))),
                         _ => None,
                     },
-                    dim: i == 0 && self.platform() == omega_store::Platform::Gba,
+                    dim: (i == 0 && self.platform() == omega_store::Platform::Gba)
+                        || (i == 8 && !self.platform().colour_correction()),
                 })
                 .collect(),
             lit: Some(row),
@@ -263,5 +357,38 @@ mod tests {
         assert!(view.uv[0] > 0.26 && view.uv[1] > 0.116);
         assert!(Picture::parse("99,0,0,0,0").is_none());
         assert!(Picture::parse("100,21,0,0,0").is_none());
+    }
+}
+
+#[cfg(test)]
+mod integer_tests {
+    use super::*;
+    use crate::video_mode::{screen_for, VideoMode};
+    use omega_store::Platform;
+    #[test]
+    fn crop_and_zoom_cannot_silently_make_integer_rows_fractional() {
+        for (platform, mode) in [
+            (Platform::Ps1, VideoMode::Integer),
+            (Platform::Snes, VideoMode::IntegerAspect),
+        ] {
+            for size in [(320, 240), (640, 240), (256, 224), (512, 239)] {
+                for value in ["100,0,0,0,0", "125,3,4,7,2", "150,0,0,0,0"] {
+                    let mut s = screen_for(platform, mode, size);
+                    Picture::parse(value)
+                        .unwrap()
+                        .apply_screen(&mut s, platform, mode, size);
+                    let rows = (s.view.uv[3] * size.1 as f32).round();
+                    assert!(
+                        (s.view.uv[1] * size.1 as f32 - (s.view.uv[1] * size.1 as f32).round())
+                            .abs()
+                            < 0.0001
+                    );
+                    let scale = s.view.rect[3] / rows;
+                    assert_eq!(scale, scale.floor(), "{platform:?} {size:?} {value}");
+                    assert_eq!(s.view, s.still);
+                    assert!((s.view.rect[2] / s.view.rect[3] - 4.0 / 3.0).abs() < 0.002);
+                }
+            }
+        }
     }
 }

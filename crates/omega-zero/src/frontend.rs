@@ -301,8 +301,12 @@ impl Frontend {
         };
         let mut screen =
             crate::video_mode::screen_for(platform, self.session.app().video_mode, size);
-        self.session.app().picture_adjust.apply(&mut screen.view);
-        self.session.app().picture_adjust.apply(&mut screen.still);
+        self.session.app().picture_adjust.apply_screen(
+            &mut screen,
+            platform,
+            self.session.app().video_mode,
+            size,
+        );
         let (mode, strength, blend) = self.session.app().shader_settings();
         compositor.set_game_effect(mode, strength, blend);
         // At integer scales sharp sampling equals nearest. GBA retains stock LCD sampling.

@@ -219,6 +219,12 @@ impl Presets {
                 }
                 let (x, y, w, h) = screen_rect_in(power, view.rect);
                 gl::Uniform4f(loc(p, "u_rect"), x, y, w, h);
+                gl::Uniform2f(loc(p, "u_crt_origin"), y, crate::out_h() as f32);
+                gl::Uniform2f(
+                    loc(p, "u_crt_rows"),
+                    source.1 as f32 * view.uv[1],
+                    orig.1 / h.max(1.0),
+                );
                 gl::Uniform2f(
                     loc(p, "u_target"),
                     crate::out_w() as f32,

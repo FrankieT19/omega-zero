@@ -2380,7 +2380,7 @@ fn picture_popup_saves_crop_and_zoom_per_game_and_resets() {
         a.background_view().unwrap().rows[1].value,
         Some(omega_zero::list_view::RowValue::Name("105%".into()))
     );
-    for _ in 0..8 {
+    for _ in 0..10 {
         a.apply(Action::GbaDown(Btn::Down));
     }
     a.apply(Action::GbaDown(Btn::A));
@@ -2580,4 +2580,88 @@ fn snes_integer_aspect_is_global_and_survives_reboot_and_changing_games() {
     let mut reboot = App::boot(d.path());
     reboot.set_platform(Platform::Snes);
     assert_eq!(reboot.preferred_video_mode(), VideoMode::IntegerAspect);
+}
+
+#[test]
+fn shader_override_captures_and_restores_colour_without_changing_the_default() {
+    let d = common::tmp_root_with_carts(&["Emerald", "Fusion"]);
+    for platform in [Platform::Gba, Platform::Gbc] {
+        let mut a = common::app_playing_in(d.path(), "Emerald");
+        a.set_platform(platform);
+        a.load_picture("Emerald");
+        a.apply(Action::PictureMenu);
+        for _ in 0..6 {
+            a.apply(Action::GbaDown(Btn::Down));
+        }
+        a.apply(Action::GbaDown(Btn::A));
+        a.apply(Action::GbaDown(Btn::B));
+        assert!(!a.colour_correction());
+        a.apply(Action::ColourCorrectionToggle);
+        assert!(a.colour_correction());
+        assert_eq!(a.take_colour_correction(), Some(true));
+        assert!(!omega_store::read_app_state(d.path()).colour_correction);
+        let mut reboot = common::app_playing_with_state(
+            d.path(),
+            "Emerald",
+            omega_store::read_app_state(d.path()),
+        );
+        reboot.set_platform(platform);
+        reboot.load_picture("Emerald");
+        assert!(reboot.colour_correction());
+        reboot.load_picture("Fusion");
+        assert!(!reboot.colour_correction());
+        reboot.load_picture("Emerald");
+        reboot.apply(Action::PictureMenu);
+        for _ in 0..6 {
+            reboot.apply(Action::GbaDown(Btn::Down));
+        }
+        reboot.apply(Action::GbaDown(Btn::A));
+        assert!(!reboot.colour_correction());
+        assert_eq!(reboot.take_colour_correction(), Some(false));
+    }
+}
+#[test]
+fn console_scanline_darkness_is_available_in_picture_and_saved_per_system() {
+    let d = common::tmp_root_with_carts(&["Emerald"]);
+    let mut a = common::app_playing_in(d.path(), "Emerald");
+    for platform in [Platform::Ps1, Platform::Snes] {
+        a.set_platform(platform);
+        a.load_picture("Emerald");
+        a.apply(Action::PictureMenu);
+        for _ in 0..9 {
+            a.apply(Action::GbaDown(Btn::Down));
+        }
+        a.apply(Action::GbaDown(Btn::Left));
+        assert_eq!(
+            omega_store::read_app_state(d.path()).lcd_darkness[platform as usize],
+            90
+        );
+        assert_eq!(a.lcd_darkness(), 0.9);
+        a.apply(Action::GbaDown(Btn::B));
+    }
+}
+
+#[test]
+fn handheld_picture_popup_controls_the_same_darkness_as_display_settings() {
+    let d = common::tmp_root_with_carts(&["Emerald"]);
+    let mut a = common::app_playing_in(d.path(), "Emerald");
+    for platform in [Platform::Gba, Platform::Gb, Platform::Gbc] {
+        a.set_platform(platform);
+        a.load_picture("Emerald");
+        a.apply(Action::PictureMenu);
+        for _ in 0..9 {
+            a.apply(Action::GbaDown(Btn::Down));
+        }
+        a.apply(Action::GbaDown(Btn::Left));
+        assert_eq!(
+            omega_store::read_app_state(d.path()).lcd_darkness[platform as usize],
+            90
+        );
+        assert_eq!(
+            a.background_view().unwrap().rows[9].label,
+            omega_zero::list_view::RowLabel::Setting("LCD/Grid darkness")
+        );
+        assert_eq!(a.lcd_darkness(), 0.9);
+        a.apply(Action::GbaDown(Btn::B));
+    }
 }

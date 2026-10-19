@@ -147,6 +147,10 @@ impl App {
     }
 
     pub(crate) fn change_setting(&mut self, row: SettingsRow, right: bool) {
+        if row == SettingsRow::ColourCorrection {
+            self.toggle_colour_correction();
+            return;
+        }
         let s = &mut self.state;
         match row {
             SettingsRow::FastForward => {
@@ -157,10 +161,7 @@ impl App {
                 s.ff_speed = to;
             }
             SettingsRow::FastForwardSound => s.ff_sound = !s.ff_sound,
-            SettingsRow::ColourCorrection => {
-                s.colour_correction = !s.colour_correction;
-                self.colour_pending = Some(s.colour_correction);
-            }
+            SettingsRow::ColourCorrection => unreachable!("handled above"),
             SettingsRow::Rumble => s.rumble = !s.rumble,
             SettingsRow::Inactivity
             | SettingsRow::Display

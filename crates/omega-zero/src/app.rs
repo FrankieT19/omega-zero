@@ -328,6 +328,7 @@ pub struct App {
     pub(crate) picture_adjust: crate::picture::Picture,
     pub(crate) picture_menu: Option<usize>,
     pub(crate) shader_override: Option<u8>,
+    pub(crate) colour_override: Option<bool>,
     pub(crate) colour_pending: Option<bool>,
     pub(crate) palette_pending: bool,
     pub(crate) link_player: Option<u8>,
@@ -495,6 +496,7 @@ impl App {
             picture_adjust: crate::picture::Picture::default(),
             picture_menu: None,
             shader_override: None,
+            colour_override: None,
             colour_pending: None,
             palette_pending: false,
             link_player: None,
@@ -1192,7 +1194,35 @@ impl App {
     }
 
     pub fn colour_correction(&self) -> bool {
-        self.state.colour_correction
+        if matches!(self.phase, Phase::Playing { .. })
+            && self.shader_override.is_some()
+            && self.platform.colour_correction()
+        {
+            self.game_colour_correction()
+        } else {
+            self.state.colour_correction
+        }
+    }
+    pub(crate) fn game_colour_correction(&self) -> bool {
+        if self.shader_override.is_some() && self.platform.colour_correction() {
+            self.colour_override.unwrap_or(self.state.colour_correction)
+        } else {
+            self.state.colour_correction
+        }
+    }
+    pub(crate) fn toggle_colour_correction(&mut self) {
+        let next = !self.colour_correction();
+        if matches!(self.phase, Phase::Playing { .. })
+            && self.shader_override.is_some()
+            && self.platform.colour_correction()
+        {
+            self.colour_override = Some(next);
+            self.persist_shader_override();
+        } else {
+            self.state.colour_correction = next;
+            self.persist();
+        }
+        self.colour_pending = Some(next);
     }
 
     pub fn powering_off(&self) -> bool {
@@ -1661,7 +1691,7 @@ impl App {
         }
         if action == Action::ColourCorrectionToggle {
             self.change_setting(SettingsRow::ColourCorrection, true);
-            let said = match self.state.colour_correction {
+            let said = match self.colour_correction() {
                 true => Toast::ColourOn,
                 false => Toast::ColourOff,
             };
