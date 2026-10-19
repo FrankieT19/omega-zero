@@ -45,6 +45,7 @@ pub enum RowLabel {
 pub enum RowValue {
     /// On or Off, changed with left and right.
     Setting(bool),
+    Checkbox(bool),
     /// One of a few named choices, changed with left and right.
     Choice(&'static str),
     Said(&'static str),

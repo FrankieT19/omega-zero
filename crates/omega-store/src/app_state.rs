@@ -313,7 +313,10 @@ fn parse(text: &str) -> Option<AppState> {
                             .unwrap_or(2);
                     }
                     if key == format!("shader_{i}") {
-                        extra.shaders[i] = level(value, 7).unwrap_or(extra.shaders[i]);
+                        extra.shaders[i] = crate::shader_for(
+                            crate::Platform::ALL[i],
+                            level(value, 10).unwrap_or(extra.shaders[i]),
+                        );
                     }
                     if key == format!("mask_{i}") {
                         extra.mask_strength[i] = level(value, 10).unwrap_or(5);

@@ -1581,3 +1581,85 @@ fn lcd_matches_unmodified_upstream_defaults_across_systems_scaling_and_crop() {
         }
     }
 }
+
+#[test]
+fn flat_crt_presets_cover_the_view_and_produce_distinct_scanlines() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let mut frames = Vec::new();
+    for source in [(256, 224), (320, 240), (640, 480)] {
+        c.upload_game_sized(&vec![160; (source.0 * source.1 * 4) as usize], source);
+        c.set_game_view(sharp([0.0, 0.0, out_w() as f32, out_h() as f32]));
+        c.set_game_antialias(true);
+        for mode in [8, 9, 10] {
+            c.set_game_effect(mode, 1.0, 1.0);
+            c.begin_frame();
+            c.draw_game();
+            let frame = c.read_frame();
+            for (x, y) in [
+                (0, 0),
+                (out_w() as usize - 1, 0),
+                (0, out_h() as usize - 1),
+                (out_w() as usize - 1, out_h() as usize - 1),
+            ] {
+                assert!(
+                    px(&frame, x, y).iter().any(|&v| v > 0),
+                    "CRT {mode} curved or blanked corner at {x},{y}"
+                );
+            }
+            if source == (320, 240) {
+                assert_ne!(
+                    px(&frame, 100, 100),
+                    px(&frame, 100, 101),
+                    "CRT {mode} has no scanlines"
+                );
+                frames.push(frame);
+            }
+        }
+    }
+    assert_ne!(frames[0], frames[1]);
+    assert_ne!(frames[1], frames[2]);
+}
+#[test]
+fn sharp_sampling_removes_uneven_texel_edges_without_blurring_integer_pixels_or_moving_masks() {
+    let Some((_g, _s, mut c)) = compositor() else {
+        return;
+    };
+    let source = (160, 144);
+    let pixels: Vec<u8> = (0..source.0 * source.1)
+        .flat_map(|i| {
+            let v = if (i % source.0) % 2 == 0 { 0 } else { 240 };
+            [v, v, v, 255]
+        })
+        .collect();
+    c.upload_game_sized(&pixels, source);
+    for (w, h) in [(480, 432), (533, 480)] {
+        c.set_game_view(sharp([0.0, 0.0, w as f32, h as f32]));
+        c.set_game_antialias(true);
+        c.set_lcd_darkness(0.0);
+        c.set_game_effect(0, 1.0, 1.0);
+        c.begin_frame();
+        c.draw_game();
+        let clean = c.read_frame();
+        for mode in [1, 2, 3] {
+            c.set_game_effect(mode, 1.0, 1.0);
+            c.begin_frame();
+            c.draw_game();
+            let frame = c.read_frame();
+            for y in 1..h as usize - 1 {
+                for x in 1..w as usize - 1 {
+                    let a = px(&frame, x, y);
+                    let b = px(&clean, x, y);
+                    assert!(
+                        a.iter().zip(b).all(|(&a, b)| a.abs_diff(b) <= 2),
+                        "AA {mode} at {x},{y}: {a:?} vs {b:?}"
+                    );
+                    if w == 480 {
+                        assert!(a[0] <= 2 || a[0] >= 238, "integer pixel blurred");
+                    }
+                }
+            }
+        }
+    }
+}

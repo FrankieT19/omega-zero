@@ -2380,7 +2380,7 @@ fn picture_popup_saves_crop_and_zoom_per_game_and_resets() {
         a.background_view().unwrap().rows[1].value,
         Some(omega_zero::list_view::RowValue::Name("105%".into()))
     );
-    for _ in 0..6 {
+    for _ in 0..8 {
         a.apply(Action::GbaDown(Btn::Down));
     }
     a.apply(Action::GbaDown(Btn::A));
@@ -2485,4 +2485,75 @@ fn gb_shoulders_cycle_all_four_modes_and_restore_the_new_mode_after_reopening() 
         s.app().screen(),
         omega_zero::video_mode::screen(Platform::Gb, VideoMode::IntegerWide)
     );
+}
+
+#[test]
+fn game_shader_override_is_optional_persistent_and_does_not_change_the_system_default() {
+    use omega_zero::list_view::RowValue;
+    let d = common::tmp_root_with_carts(&["Emerald", "Fusion"]);
+    let mut a = common::app_playing_in(d.path(), "Emerald");
+    a.load_picture("Emerald");
+    // LCD3x -> Grid becomes the shared GBA default.
+    a.apply(Action::ShaderNext);
+    assert_eq!(a.shader_settings().0, 3);
+    a.apply(Action::PictureMenu);
+    for _ in 0..6 {
+        a.apply(Action::GbaDown(Btn::Down));
+    }
+    assert_eq!(
+        a.background_view().unwrap().rows[6].value,
+        Some(RowValue::Checkbox(false))
+    );
+    a.apply(Action::GbaDown(Btn::A));
+    assert_eq!(
+        a.background_view().unwrap().rows[6].value,
+        Some(RowValue::Checkbox(true))
+    );
+    a.apply(Action::GbaDown(Btn::B));
+    for _ in 0..4 {
+        a.apply(Action::ShaderNext);
+    }
+    assert_eq!(a.shader_settings().0, 7);
+    assert_eq!(omega_store::read_app_state(d.path()).shaders[0], 3);
+    drop(a);
+    let mut a =
+        common::app_playing_with_state(d.path(), "Emerald", omega_store::read_app_state(d.path()));
+    a.load_picture("Emerald");
+    assert_eq!(a.shader_settings().0, 7);
+    a.load_picture("Fusion");
+    assert_eq!(a.shader_settings().0, 3);
+    a.set_platform(Platform::Gb);
+    a.load_picture("Emerald");
+    assert_eq!(
+        a.shader_settings().0,
+        2,
+        "same stem in another system must not inherit an override"
+    );
+    a.set_platform(Platform::Gba);
+    a.load_picture("Emerald");
+    a.apply(Action::PictureMenu);
+    for _ in 0..6 {
+        a.apply(Action::GbaDown(Btn::Down));
+    }
+    a.apply(Action::GbaDown(Btn::A));
+    assert_eq!(a.shader_settings().0, 3);
+    a.load_picture("Emerald");
+    assert_eq!(
+        a.shader_settings().0,
+        3,
+        "disabled override returned after reopening"
+    );
+}
+#[test]
+fn console_shader_hotkey_cycles_only_clean_and_flat_crt_presets() {
+    let d = common::tmp_root_with_carts(&["Emerald"]);
+    for platform in [Platform::Snes, Platform::Ps1] {
+        let mut a = common::app_playing_in(d.path(), "Emerald");
+        a.set_platform(platform);
+        a.load_picture("Emerald");
+        for mode in [8, 9, 10, 0] {
+            a.apply(Action::ShaderNext);
+            assert_eq!(a.shader_settings().0, mode);
+        }
+    }
 }

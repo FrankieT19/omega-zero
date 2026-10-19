@@ -305,6 +305,8 @@ impl Frontend {
         self.session.app().picture_adjust.apply(&mut screen.still);
         let (mode, strength, blend) = self.session.app().shader_settings();
         compositor.set_game_effect(mode, strength, blend);
+        // At integer scales sharp sampling equals nearest. GBA retains stock LCD sampling.
+        compositor.set_game_antialias(platform != omega_store::Platform::Gba);
         compositor.set_lcd_darkness(self.session.app().lcd_darkness());
         let (shadow_x, shadow_y) = self.session.app().shader_shadow();
         compositor.set_game_shadow(shadow_x, shadow_y);

@@ -76,7 +76,35 @@ impl App {
             .scaling
             .map(|n| crate::video_mode::VideoMode::from_scale(n, self.platform()))
             .unwrap_or_else(|| self.preferred_video_mode());
+        self.shader_override = self
+            .root()
+            .and_then(|root| {
+                omega_store::ini::value(
+                    root,
+                    "Config/shaders.ini",
+                    &format!("{}/{}", self.platform().dir_name(), stem),
+                )
+            })
+            .and_then(|value| value.parse::<u8>().ok())
+            .filter(|value| omega_store::shader_choices(self.platform()).contains(value));
         self.picture_menu = None;
+    }
+    pub(crate) fn persist_shader_override(&self) {
+        if let (Some(root), Phase::Playing { cart }) = (self.root(), &self.phase) {
+            // A non-numeric inherit marker disables this entry without touching other games.
+            let value = self
+                .shader_override
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| "inherit".into());
+            if let Err(e) = omega_store::ini::write(
+                root,
+                "Config/shaders.ini",
+                &format!("{}/{}", self.platform().dir_name(), cart),
+                &value,
+            ) {
+                eprintln!("omega-zero: shader override: {e}");
+            }
+        }
     }
     pub fn picture_menu_open(&self) -> bool {
         self.picture_menu.is_some()
@@ -91,11 +119,11 @@ impl App {
                 return;
             }
             Action::GbaDown(Btn::Up) => {
-                self.picture_menu = Some((row + 7) % 8);
+                self.picture_menu = Some((row + 9) % 10);
                 return;
             }
             Action::GbaDown(Btn::Down) => {
-                self.picture_menu = Some((row + 1) % 8);
+                self.picture_menu = Some((row + 1) % 10);
                 return;
             }
             Action::GbaDown(Btn::Left | Btn::Right | Btn::A) => {
@@ -128,6 +156,25 @@ impl App {
                             (self.picture_adjust.edges[row - 2] as i32 + by).clamp(0, 20) as u8
                     }
                     6 => {
+                        self.shader_override = if self.shader_override.is_some() {
+                            None
+                        } else {
+                            Some(self.shader_settings().0)
+                        };
+                        self.persist_shader_override();
+                    }
+                    7 => {
+                        let next =
+                            omega_store::next_shader(self.platform(), self.shader_settings().0, by);
+                        if self.shader_override.is_some() {
+                            self.shader_override = Some(next);
+                            self.persist_shader_override();
+                        } else {
+                            self.state.shaders[self.platform() as usize] = next;
+                            self.persist();
+                        }
+                    }
+                    8 => {
                         self.picture_adjust = Picture::default();
                         self.video_mode = self.preferred_video_mode();
                     }
@@ -170,6 +217,8 @@ impl App {
             "Crop right",
             "Crop top",
             "Crop bottom",
+            "Shader override",
+            "Shader",
             "Reset",
             "Close",
         ];
@@ -186,6 +235,10 @@ impl App {
                             "{}%",
                             self.picture_adjust.edges[i - 2]
                         ))),
+                        6 => Some(RowValue::Checkbox(self.shader_override.is_some())),
+                        7 => Some(RowValue::Choice(
+                            omega_store::SHADER_NAMES[self.shader_settings().0 as usize],
+                        )),
                         _ => None,
                     },
                     dim: i == 0 && self.platform() == omega_store::Platform::Gba,

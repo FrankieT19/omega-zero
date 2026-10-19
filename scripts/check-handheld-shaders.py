@@ -16,5 +16,5 @@ with tempfile.TemporaryDirectory() as folder:
         selected=vertex
         vert.write_text("#version 100\n"+selected)
         print(source.name, flush=True)
-        frag.write_text("#version 100\n#define FRAG_COLOR gl_FragColor\n" + (root / "shaders/palette.glsl").read_text() + source.read_text())
+        frag.write_text("#version 100\n#define FRAG_COLOR gl_FragColor\n" + (root / "shaders/palette.glsl").read_text() + (root / "shaders/sampling.glsl").read_text() + source.read_text())
         subprocess.run([sys.argv[1] if len(sys.argv) > 1 else "glslangValidator", "-l", str(vert), str(frag)], check=True)

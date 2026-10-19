@@ -3,7 +3,7 @@ mod atomic;
 mod backdrop;
 pub mod cart_shell;
 
-pub const SHADER_NAMES: [&str; 8] = [
+pub const SHADER_NAMES: [&str; 11] = [
     "Clean",
     "LCD1x",
     "LCD3x",
@@ -12,7 +12,30 @@ pub const SHADER_NAMES: [&str; 8] = [
     "LCD1x + PT",
     "LCD3x + PT",
     "Grid + PT",
+    "CRT scanlines",
+    "zfast CRT",
+    "CRT Pi (flat)",
 ];
+
+/// Stable preset IDs: handheld configurations keep their original numeric values.
+pub fn shader_choices(platform: Platform) -> &'static [u8] {
+    match platform {
+        Platform::Ps1 | Platform::Snes => &[0, 8, 9, 10],
+        _ => &[0, 1, 2, 3, 4, 5, 6, 7],
+    }
+}
+pub fn shader_for(platform: Platform, value: u8) -> u8 {
+    if shader_choices(platform).contains(&value) {
+        value
+    } else {
+        0
+    }
+}
+pub fn next_shader(platform: Platform, current: u8, by: i32) -> u8 {
+    let choices = shader_choices(platform);
+    let index = choices.iter().position(|&n| n == current).unwrap_or(0) as i32;
+    choices[(index + by).rem_euclid(choices.len() as i32) as usize]
+}
 mod config;
 mod core;
 mod font;
@@ -68,3 +91,22 @@ pub use stamp::{
     civil_from_days, days_from_civil, days_in_month, format_stamp, parse_stamp, stamp_now,
 };
 pub use theme::{Theme, THEME_FILE};
+
+#[cfg(test)]
+mod shader_tests {
+    use super::*;
+    #[test]
+    fn shader_ids_keep_handheld_settings_and_migrate_console_lcd_choices() {
+        for platform in Platform::ALL {
+            for mode in 0..=10 {
+                let value = shader_for(platform, mode);
+                assert!(shader_choices(platform).contains(&value));
+                let next = next_shader(platform, value, 1);
+                assert_eq!(next_shader(platform, next, -1), value);
+            }
+        }
+        assert_eq!(shader_for(Platform::Gba, 7), 7);
+        assert_eq!(shader_for(Platform::Snes, 2), 0);
+        assert_eq!(shader_for(Platform::Ps1, 10), 10);
+    }
+}
