@@ -35,7 +35,6 @@ pub struct Session {
     running: Option<(Platform, String)>,
     /// The card notes the core as opening, until it has run a moment.
     starting: bool,
-    external: Option<crate::retroarch::Launch>,
 }
 
 impl Drop for Session {
@@ -69,7 +68,6 @@ impl Session {
             driven: false,
             running: None,
             starting: false,
-            external: None,
         }
     }
 
@@ -102,10 +100,6 @@ impl Session {
 
     pub fn core_rumble(&self) -> Option<&Rumble> {
         self.emu.as_ref().map(EmuHandle::rumble)
-    }
-
-    pub fn take_external(&mut self) -> Option<crate::retroarch::Launch> {
-        self.external.take()
     }
 
     pub fn app(&self) -> &App {
@@ -319,28 +313,6 @@ impl Session {
         if let Some(sfx) = self.app.take_sfx() {
             self.play_sfx(sfx);
         }
-        if let Some(platform) = self.app.retroarch_setup.take() {
-            let cart = self
-                .app
-                .carts()
-                .filter(|c| c.platform == platform)
-                .find(|c| Some(c.stem.as_str()) == self.app.state.last_cart.as_deref())
-                .or_else(|| self.app.carts().find(|c| c.platform == platform))
-                .cloned();
-            if let Some(cart) = cart {
-                let core = omega_store::core_for_platform(&self.root, &cart.stem, platform);
-                self.external = Some(crate::retroarch::Launch {
-                    root: self.root.clone(),
-                    rom: cart.rom,
-                    platform,
-                    core,
-                    clean: false,
-                    menu: true,
-                });
-            } else {
-                self.app.refuse();
-            }
-        }
         self.sync_core();
         self.settle_start();
         self.sync_reload();
@@ -477,9 +449,6 @@ impl Session {
             let (_, serial) = self.app.link_mode(&stem);
             self.spawn_core(&stem, serial);
         }
-        if self.external.is_some() {
-            return;
-        }
         match self.emu.as_ref().map(EmuHandle::state) {
             Some(CoreState::Loading) => {}
             Some(CoreState::Ready) => self.app.on_core_ready(),
@@ -505,18 +474,6 @@ impl Session {
         self.app.set_video_mode(self.app.preferred_video_mode());
         self.app.load_picture(stem);
         self.app.set_link_loaded(serial);
-        if crate::retroarch::enabled(&self.root) && !self.app.link_active() {
-            self.app.on_core_ready();
-            self.external = Some(crate::retroarch::Launch {
-                root: self.root.clone(),
-                rom,
-                platform,
-                core,
-                clean: self.app.starting_clean(),
-                menu: false,
-            });
-            return;
-        }
         let resume = (!self.app.starting_clean())
             .then(|| persist::read_resume(&self.root, platform, core, stem))
             .flatten();

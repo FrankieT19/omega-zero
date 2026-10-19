@@ -1,10 +1,15 @@
-## Frankie v7 — RetroArch gameplay backend
+## Display corrections (v9)
 
-- Run games through bundled RetroArch with its real Slang pipeline, upstream LCD1x/LCD3x/PT sources, Mali ES3 and nearest filtering. Keep a Native backend option for the original in-game UI and link play.
-- Keep Grid / Grid + PT on a fixed three-screen-pixel pattern in every system and scaling mode. Other shader patterns follow game pixels.
-- Bridge the existing hotkeys, per-system display settings, GB palettes, battery saves, brightness, rumble, inactivity and lid/power handling. Open RetroArch shader settings from Display or SELECT+X during gameplay.
-- Return to a fresh carousel process after gameplay so emulator graphics, audio and held-input state cannot leak into menu navigation. Preserve hover, carousel, recent games and favourites.
-- Preserve native states and one-time battery backups; keep RetroArch states separately. V6 is tagged `backup/pre-retroarch-v6`.
+- Remove the PS1 240x160 display reduction and its setting.
+- Replace the approximate native LCD masks with upstream default continuous phases: LCD1x quarter-cell alignment, LCD3x RGB offsets, and source-pixel scaling at every resolution/crop. Add comparisons against the actual upstream GLSL rendering.
+- LCD/Grid darkness now controls Grid and Grid+PT separator opacity (100% black, 50% half underlying colour, 0% no separators), keeping the physical 3-pixel raster.
+- GB/GBC L/R cycles Integer, Integer height/full width, Fit height with aspect ratio, and full Stretch. Preserve legacy saved Fit/Stretch encodings.
+
+## Native gameplay restoration (v8)
+
+- Restore the pre-RetroArch native core integration, in-game UI and hotkeys; remove the RetroArch process/Slang backend and its build dependency.
+- Restore the original omega-zero LCD mask approach. LCD1x/LCD3x and their PT combinations follow the current visible game pixels; Grid/Grid+PT use fixed 3x3 physical display cells across all systems/scales/crops.
+- Add optional Display > PS1 pixels > GBA 240x160. This is centre-sampled display reduction before shaders, not an internal GPU resolution or performance improvement. Fit 4:3, Stretch and Integer remain available.
 
 # Changelog
 

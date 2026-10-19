@@ -285,10 +285,6 @@ impl Frontend {
         compositor.end_frame(window);
     }
 
-    pub fn take_external_game(&mut self) -> Option<crate::retroarch::Launch> {
-        self.session.take_external()
-    }
-
     pub fn compose(&mut self, compositor: &mut Compositor) {
         compositor.set_blue_light(self.session.app().blue_light());
         compositor.set_dim(self.session.app().dim_gain() * self.session.app().inactivity_gain());

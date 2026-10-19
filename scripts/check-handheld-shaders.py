@@ -12,10 +12,8 @@ with tempfile.TemporaryDirectory() as folder:
     vert = folder / "preset.vert"
     frag = folder / "preset.frag"
     vert.write_text("#version 100\n" + vertex)
-    for source in sorted(list((root / "shaders").glob("*.frag"))+list((root / "shaders").glob("*.generated.glsl"))):
+    for source in sorted((root / "shaders").glob("*.frag")):
         selected=vertex
-        if source.name.endswith('.generated.glsl'):
-            selected=re.search(r'const VERT:\s*&str\s*=\s*r#"(.*?)"#;', (root / "src/slang.rs").read_text(), re.S)[1]
         vert.write_text("#version 100\n"+selected)
         print(source.name, flush=True)
         frag.write_text("#version 100\n#define FRAG_COLOR gl_FragColor\n" + (root / "shaders/palette.glsl").read_text() + source.read_text())

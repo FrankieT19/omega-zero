@@ -357,7 +357,6 @@ pub struct App {
     pub(crate) game_ready: bool,
     pub(crate) clock: f64,
     pub(crate) inactivity: crate::inactivity::Idle,
-    pub(crate) retroarch_setup: Option<Platform>,
     pub(crate) power: Option<Power>,
     pub(crate) dozed_at: Millis,
     pub(crate) woke_on_press: bool,
@@ -518,7 +517,6 @@ impl App {
             game_ready: false,
             clock: 0.0,
             inactivity: crate::inactivity::Idle::default(),
-            retroarch_setup: None,
             power: None,
             dozed_at: 0,
             woke_on_press: false,
@@ -983,18 +981,11 @@ impl App {
         if self.platform == Platform::Gba {
             return VideoMode::Actual;
         }
-        [VideoMode::Integer, VideoMode::Fit, VideoMode::Stretch]
-            [self.state.scales[self.platform as usize].min(2) as usize]
+        VideoMode::from_scale(self.state.scales[self.platform as usize], self.platform)
     }
 
     fn cycle_picture(&mut self, by: i32) {
-        let index = match self.video_mode {
-            VideoMode::Actual | VideoMode::Integer => 0,
-            VideoMode::Fit => 1,
-            VideoMode::Stretch => 2,
-        };
-        let index = (index + by).rem_euclid(3) as usize;
-        self.set_picture([VideoMode::Integer, VideoMode::Fit, VideoMode::Stretch][index]);
+        self.set_picture(self.video_mode.cycle(self.platform, by));
     }
 
     pub fn set_video_mode(&mut self, mode: VideoMode) {
@@ -1049,11 +1040,9 @@ impl App {
             return;
         }
         self.video_mode = mode;
-        self.state.scales[self.platform as usize] = match mode {
-            VideoMode::Actual | VideoMode::Integer => 0,
-            VideoMode::Fit => 1,
-            VideoMode::Stretch => 2,
-        };
+        self.state.scales[self.platform as usize] = mode.scale();
+        self.picture_adjust.scaling = Some(mode.scale());
+        self.persist_picture();
         self.persist();
         let (Some(root), Phase::Playing { cart }) = (self.root.clone(), &self.phase) else {
             return;

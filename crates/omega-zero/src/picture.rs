@@ -43,7 +43,7 @@ impl Picture {
         if !(5..=6).contains(&n.len())
             || !(100..=200).contains(&n[0])
             || n[1..5].iter().any(|v| *v > 20)
-            || n.get(5).is_some_and(|v| *v > 2)
+            || n.get(5).is_some_and(|v| *v > 3)
         {
             return None;
         }
@@ -74,13 +74,7 @@ impl App {
         self.video_mode = self
             .picture_adjust
             .scaling
-            .map(|n| {
-                [
-                    crate::video_mode::VideoMode::Integer,
-                    crate::video_mode::VideoMode::Fit,
-                    crate::video_mode::VideoMode::Stretch,
-                ][n as usize]
-            })
+            .map(|n| crate::video_mode::VideoMode::from_scale(n, self.platform()))
             .unwrap_or_else(|| self.preferred_video_mode());
         self.picture_menu = None;
     }
@@ -112,14 +106,9 @@ impl App {
                 };
                 match row {
                     0 => {
-                        use crate::video_mode::VideoMode;
                         if self.platform() != omega_store::Platform::Gba {
-                            let current: i32 = match self.video_mode {
-                                VideoMode::Actual | VideoMode::Integer => 0,
-                                VideoMode::Fit => 1,
-                                VideoMode::Stretch => 2,
-                            };
-                            let index = (current + by).rem_euclid(3) as u8;
+                            let next = self.video_mode.cycle(self.platform(), by);
+                            let index = next.scale();
                             if self.platform() == omega_store::Platform::Snes {
                                 self.state.scales[omega_store::Platform::Snes as usize] = index;
                                 self.picture_adjust.scaling = None;
@@ -127,9 +116,7 @@ impl App {
                             } else {
                                 self.picture_adjust.scaling = Some(index);
                             }
-                            self.video_mode =
-                                [VideoMode::Integer, VideoMode::Fit, VideoMode::Stretch]
-                                    [index as usize];
+                            self.video_mode = next;
                         }
                     }
                     1 => {
@@ -152,6 +139,9 @@ impl App {
             }
             _ => return,
         }
+        self.persist_picture();
+    }
+    pub(crate) fn persist_picture(&self) {
         if let (Some(root), Phase::Playing { cart }) = (self.root(), &self.phase) {
             let p = self.picture_adjust;
             let mut value = format!(
@@ -190,21 +180,7 @@ impl App {
                 .map(|(i, label)| ViewRow {
                     label: RowLabel::Setting(label),
                     value: match i {
-                        0 => Some(RowValue::Choice(match self.video_mode {
-                            crate::video_mode::VideoMode::Actual
-                            | crate::video_mode::VideoMode::Integer => "Integer",
-                            crate::video_mode::VideoMode::Fit => {
-                                if matches!(
-                                    self.platform(),
-                                    omega_store::Platform::Snes | omega_store::Platform::Ps1
-                                ) {
-                                    "Fit 4:3"
-                                } else {
-                                    "Fit"
-                                }
-                            }
-                            crate::video_mode::VideoMode::Stretch => "Stretch",
-                        })),
+                        0 => Some(RowValue::Choice(self.video_mode.label(self.platform()))),
                         1 => Some(RowValue::Name(format!("{}%", self.picture_adjust.zoom))),
                         2..=5 => Some(RowValue::Name(format!(
                             "{}%",

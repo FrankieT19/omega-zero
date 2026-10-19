@@ -170,11 +170,11 @@ impl App {
                 return;
             }
             Action::GbaDown(Btn::Up) => {
-                screen.display_row = (screen.display_row + 9) % 10;
+                screen.display_row = (screen.display_row + 7) % 8;
                 return;
             }
             Action::GbaDown(Btn::Down) => {
-                screen.display_row = (screen.display_row + 1) % 10;
+                screen.display_row = (screen.display_row + 1) % 8;
                 return;
             }
             Action::GbaDown(Btn::Left) => false,
@@ -192,7 +192,13 @@ impl App {
         match screen.display_row {
             0 => screen.display_system = step(i as u8, 5) as usize,
             1 => self.state.shaders[i] = step(self.state.shaders[i], 8),
-            2 if i > 0 => self.state.scales[i] = step(self.state.scales[i], 3),
+            2 if i > 0 => {
+                let platform = omega_store::Platform::ALL[i];
+                self.state.scales[i] =
+                    crate::video_mode::VideoMode::from_scale(self.state.scales[i], platform)
+                        .cycle(platform, if forward { 1 } else { -1 })
+                        .scale();
+            }
             3 => {
                 self.state.shadow_x[i] =
                     (self.state.shadow_x[i] + if forward { 1 } else { -1 }).clamp(-60, 60)
@@ -200,31 +206,6 @@ impl App {
             4 => {
                 self.state.shadow_y[i] =
                     (self.state.shadow_y[i] + if forward { 1 } else { -1 }).clamp(-60, 60)
-            }
-            8 => {
-                if let Some(root) = self.root() {
-                    let value = if crate::retroarch::requested(root) {
-                        "native\n"
-                    } else {
-                        "retroarch\n"
-                    };
-                    if let Err(e) = omega_store::atomic_write(
-                        &root.join("Config/backend.txt"),
-                        value.as_bytes(),
-                    ) {
-                        eprintln!("omega-zero: backend: {e}");
-                    }
-                }
-            }
-            9 => {
-                if self
-                    .root()
-                    .is_some_and(|root| root.join("System/retroarch").is_file())
-                {
-                    self.retroarch_setup = Some(omega_store::Platform::ALL[i]);
-                } else {
-                    self.refuse();
-                }
             }
             7 => {
                 self.state.lcd_darkness[i] = (self.state.lcd_darkness[i] as i16
@@ -266,11 +247,11 @@ impl App {
                 ViewRow {
                     label: RowLabel::Setting("Scaling"),
                     value: Some(RowValue::Choice(
-                        ["Integer", "Fit", "Stretch"][if i == 0 {
-                            0
-                        } else {
-                            self.state.scales[i] as usize
-                        }],
+                        crate::video_mode::VideoMode::from_scale(
+                            self.state.scales[i],
+                            omega_store::Platform::ALL[i],
+                        )
+                        .label(omega_store::Platform::ALL[i]),
                     )),
                     dim: i == 0,
                 },
@@ -292,18 +273,9 @@ impl App {
                     dim: false,
                 },
                 row(
-                    "LCD darkness",
+                    "LCD/Grid darkness",
                     RowValue::Name(format!("{}%", self.state.lcd_darkness[i])),
                 ),
-                row(
-                    "Game backend",
-                    RowValue::Choice(if self.root().is_some_and(crate::retroarch::requested) {
-                        "RetroArch"
-                    } else {
-                        "Native"
-                    }),
-                ),
-                row("Shader settings", RowValue::Choice("Open RetroArch")),
             ],
             lit: Some(screen.display_row),
             status: Vec::new(),

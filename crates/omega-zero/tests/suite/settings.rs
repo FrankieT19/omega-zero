@@ -867,7 +867,10 @@ fn scaling_choices_are_saved_independently_for_each_non_gba_system() {
         }
         press(&mut app, Btn::Down);
         press(&mut app, Btn::Down);
-        if read_app_state(d.path()).scales[platform as usize] != 1 {
+        for _ in 0..4 {
+            if read_app_state(d.path()).scales[platform as usize] == 1 {
+                break;
+            }
             press(&mut app, Btn::Right);
         }
         app.set_platform(platform);
@@ -959,4 +962,27 @@ fn inactivity_menu_saves_separate_menu_and_game_timings() {
     let state = read_app_state(d.path());
     assert_eq!(state.idle_dim, [120, 120]);
     assert_eq!(state.idle_sleep, [120, 900]);
+}
+
+#[test]
+fn gb_integer_height_stretch_is_saved_without_changing_old_fit_and_stretch_values() {
+    let (d, mut app, _) = on_carousel();
+    display_at(&mut app, 0);
+    press(&mut app, Btn::Right);
+    press(&mut app, Btn::Down);
+    press(&mut app, Btn::Down);
+    press(&mut app, Btn::Right);
+    assert_eq!(read_app_state(d.path()).scales[1], 3);
+    let mut reboot = App::boot(d.path());
+    reboot.set_platform(omega_store::Platform::Gb);
+    assert_eq!(
+        reboot.preferred_video_mode(),
+        omega_zero::video_mode::VideoMode::IntegerWide
+    );
+    press(&mut app, Btn::Right);
+    assert_eq!(read_app_state(d.path()).scales[1], 1);
+    press(&mut app, Btn::Right);
+    assert_eq!(read_app_state(d.path()).scales[1], 2);
+    press(&mut app, Btn::Right);
+    assert_eq!(read_app_state(d.path()).scales[1], 0);
 }

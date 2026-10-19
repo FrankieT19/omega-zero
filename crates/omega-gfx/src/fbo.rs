@@ -174,8 +174,8 @@ impl Compositor {
     }
 
     #[cfg(feature = "test-support")]
-    pub fn draw_slang_reference(&self, mode: u8) {
-        self.game.draw_slang_reference(mode, &self.quad);
+    pub fn draw_lcd_reference(&self, mode: u8) {
+        self.game.draw_lcd_reference(mode, &self.quad);
     }
     pub fn set_source_grid(&mut self, enabled: bool) {
         self.game.set_source_grid(enabled);

@@ -1,4 +1,4 @@
-//! RetroArch handheld presets at viewport resolution, with the original frame available
+//! Native handheld effects at viewport resolution, with the original frame available
 //! to Pixel Transparency's backing tint and shadows. Targets are reused between frames.
 use crate::power::{screen_brightness, screen_glow, screen_rect_in};
 use crate::{pipeline::GameView, quad::Quad, surface::GfxError};
@@ -6,16 +6,17 @@ use crate::{pipeline::GameView, quad::Quad, surface::GfxError};
 const VERT: &str = r#"
 attribute vec2 a_pos;
 uniform vec2 TextureSize, OrigTextureSize, OutputSize;
-uniform vec4 u_rect;
+uniform vec4 u_rect, u_crop;
 uniform vec2 u_target;
 uniform float u_direct;
 varying vec4 TEX0;
-varying vec2 texel, orig_texel, orig_coord;
+varying vec2 texel, orig_texel, orig_coord, source_coord;
 varying float shadow_scale_factor;
 void main() {
     TEX0=vec4(a_pos,0.0,1.0);
     texel=1.0/TextureSize; orig_texel=1.0/OrigTextureSize;
     orig_coord=a_pos;
+    source_coord=u_crop.xy+a_pos*u_crop.zw;
     shadow_scale_factor=sqrt(OutputSize.x/640.0*OutputSize.y/480.0);
     vec2 p=(u_rect.xy+a_pos*u_rect.zw)/u_target;
     gl_Position=u_direct>0.5 ? vec4(p.x*2.0-1.0,1.0-p.y*2.0,0.0,1.0) : vec4(a_pos*2.0-1.0,0.0,1.0);
@@ -25,11 +26,12 @@ const COPY: &str = r#"
 #ifdef GL_ES
 precision highp float;
 #endif
-uniform sampler2D u_game;
-uniform float u_bright, u_glow, u_saturation;
+uniform sampler2D u_game, u_grid_mask;
+uniform float u_bright, u_glow, u_saturation, u_grid_opacity;
 varying vec2 v_uv;
 void main() {
     vec3 rgb=texture2D(u_game,v_uv).rgb;
+    if (u_grid_opacity>0.0) rgb*=vec3(1.0)-u_grid_opacity*(vec3(1.0)-texture2D(u_grid_mask,v_uv).rgb);
     rgb=mix(vec3(dot(rgb,vec3(0.299,0.587,0.114))),rgb,u_saturation);
     FRAG_COLOR=vec4(mix(rgb*u_bright,vec3(1.0),u_glow),1.0);
 }
@@ -39,6 +41,7 @@ pub(crate) struct Presets {
     programs: [Option<u32>; 4],
     failed: [bool; 4],
     copy: u32,
+    neutral: u32,
     targets: [(u32, u32); 2],
     size: (u32, u32),
     pub shadow: (f32, f32),
@@ -56,13 +59,21 @@ impl Presets {
             programs: [None; 4],
             failed: [false; 4],
             copy: crate::shaders::program(crate::shaders::RECT_VERT, COPY)?,
+            neutral: crate::gl::texture(
+                1,
+                1,
+                gl::NEAREST,
+                gl::CLAMP_TO_EDGE,
+                gl::RGBA,
+                Some(&[255; 4]),
+            ),
             targets: [(0, 0); 2],
             size: (0, 0),
             shadow: (1.0, 1.0),
             saturation: 1.0,
             palette: 0,
             lcd_darkness: 1.0,
-            mask: crate::lcd_mask::Mask::new()?,
+            mask: crate::lcd_mask::Mask::new(),
         })
     }
     fn resize(&mut self, size: (u32, u32)) {
@@ -170,7 +181,7 @@ impl Presets {
             gl::ActiveTexture(gl::TEXTURE2);
         }
         let mask = if mode == 4 {
-            0
+            self.neutral
         } else {
             self.mask.get(key, quad)
         };
@@ -224,7 +235,14 @@ impl Presets {
                 for name in ["OrigInputSize", "OrigTextureSize"] {
                     gl::Uniform2f(loc(p, name), orig.0, orig.1);
                 }
-                gl::Uniform1f(loc(p, "u_grid"), if mode == 7 { 1.0 } else { 0.0 });
+                gl::Uniform1f(
+                    loc(p, "u_grid"),
+                    if mode == 7 && self.lcd_darkness >= 1.0 {
+                        1.0
+                    } else {
+                        0.0
+                    },
+                );
                 let raster = if screen_grid {
                     (size.0 as f32 / 3.0, size.1 as f32 / 3.0)
                 } else {
@@ -285,6 +303,19 @@ impl Presets {
             gl::Uniform1f(loc(p, "u_saturation"), self.saturation);
             gl::Uniform1f(loc(p, "u_bright"), screen_brightness(power));
             gl::Uniform1f(loc(p, "u_glow"), screen_glow(power));
+            // Partial Grid opacity is applied to the visible RGBA8 PT result, so it
+            // passes exactly that fraction of the colour without altering PT inputs.
+            gl::Uniform1i(loc(p, "u_grid_mask"), 2);
+            gl::Uniform1f(
+                loc(p, "u_grid_opacity"),
+                if mode == 7 && self.lcd_darkness < 1.0 {
+                    self.lcd_darkness
+                } else {
+                    0.0
+                },
+            );
+            gl::ActiveTexture(gl::TEXTURE2);
+            gl::BindTexture(gl::TEXTURE_2D, mask);
             gl::Uniform1i(loc(p, "u_game"), 0);
             gl::ActiveTexture(gl::TEXTURE0);
             gl::BindTexture(gl::TEXTURE_2D, input);
@@ -293,15 +324,63 @@ impl Presets {
         true
     }
     #[cfg(feature = "test-support")]
-    pub fn reference(&self, mode: u8, source: u32, size: (u32, u32), view: GameView, quad: &Quad) {
-        self.mask.lcd.draw(
-            mode - 1,
-            source,
-            size,
-            view,
-            (crate::out_w(), crate::out_h()),
-            quad,
-        );
+    pub fn reference(
+        &self,
+        mode: u8,
+        original: u32,
+        source: (u32, u32),
+        view: GameView,
+        quad: &Quad,
+    ) {
+        let vertex = r#"
+attribute vec2 a_pos;
+uniform vec4 u_rect, u_crop;
+uniform vec2 u_target;
+varying vec4 TEX0;
+void main() {
+    TEX0 = vec4(u_crop.xy + a_pos * u_crop.zw, 0.0, 1.0);
+    vec2 p = (u_rect.xy + a_pos * u_rect.zw) / u_target;
+    gl_Position = vec4(p.x*2.0-1.0, 1.0-p.y*2.0, 0.0, 1.0);
+}
+"#;
+        let fragment = if mode == 1 {
+            include_str!("../shaders/lcd1x.upstream.glsl")
+        } else {
+            include_str!("../shaders/lcd3x.upstream.glsl")
+        };
+        let p = crate::shaders::program(vertex, &format!("#define FRAGMENT\n{fragment}"))
+            .expect("upstream LCD compiles");
+        unsafe {
+            gl::UseProgram(p);
+            gl::Uniform4f(
+                loc(p, "u_rect"),
+                view.rect[0],
+                view.rect[1],
+                view.rect[2],
+                view.rect[3],
+            );
+            gl::Uniform4f(
+                loc(p, "u_crop"),
+                view.uv[0],
+                view.uv[1],
+                view.uv[2],
+                view.uv[3],
+            );
+            gl::Uniform2f(
+                loc(p, "u_target"),
+                crate::out_w() as f32,
+                crate::out_h() as f32,
+            );
+            for n in ["OrigInputSize", "TextureSize", "InputSize"] {
+                gl::Uniform2f(loc(p, n), source.0 as f32, source.1 as f32);
+            }
+            gl::Uniform2f(loc(p, "OutputSize"), view.rect[2], view.rect[3]);
+            gl::Uniform1i(loc(p, "Texture"), 0);
+            gl::ActiveTexture(gl::TEXTURE0);
+            gl::BindTexture(gl::TEXTURE_2D, original);
+            quad.draw();
+            gl::DeleteProgram(p);
+        }
     }
     fn clear(&mut self) {
         unsafe {
@@ -322,6 +401,7 @@ impl Drop for Presets {
                 gl::DeleteProgram(*p);
             }
             gl::DeleteProgram(self.copy);
+            gl::DeleteTextures(1, &self.neutral);
         }
     }
 }

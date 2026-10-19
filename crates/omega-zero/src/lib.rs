@@ -34,7 +34,6 @@ pub mod opening;
 pub mod persist;
 mod picture;
 pub mod resample;
-pub mod retroarch;
 pub mod rewind;
 pub mod root;
 pub mod screens;
