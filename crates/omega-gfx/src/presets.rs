@@ -25,11 +25,12 @@ const COPY: &str = r#"
 #ifdef GL_ES
 precision highp float;
 #endif
-uniform sampler2D u_game;
-uniform float u_bright, u_glow, u_saturation;
+uniform sampler2D u_game, u_grid_mask;
+uniform float u_bright, u_glow, u_saturation, u_grid_opacity;
 varying vec2 v_uv;
 void main() {
     vec3 rgb=texture2D(u_game,v_uv).rgb;
+    if (u_grid_opacity>0.0) rgb*=vec3(1.0)-u_grid_opacity*(vec3(1.0)-texture2D(u_grid_mask,v_uv).rgb);
     rgb=mix(vec3(dot(rgb,vec3(0.299,0.587,0.114))),rgb,u_saturation);
     FRAG_COLOR=vec4(mix(rgb*u_bright,vec3(1.0),u_glow),1.0);
 }
@@ -224,7 +225,14 @@ impl Presets {
                 for name in ["OrigInputSize", "OrigTextureSize"] {
                     gl::Uniform2f(loc(p, name), orig.0, orig.1);
                 }
-                gl::Uniform1f(loc(p, "u_grid"), if mode == 7 { 1.0 } else { 0.0 });
+                gl::Uniform1f(
+                    loc(p, "u_grid"),
+                    if mode == 7 && self.lcd_darkness >= 1.0 {
+                        1.0
+                    } else {
+                        0.0
+                    },
+                );
                 let raster = if screen_grid {
                     (size.0 as f32 / 3.0, size.1 as f32 / 3.0)
                 } else {
@@ -285,6 +293,19 @@ impl Presets {
             gl::Uniform1f(loc(p, "u_saturation"), self.saturation);
             gl::Uniform1f(loc(p, "u_bright"), screen_brightness(power));
             gl::Uniform1f(loc(p, "u_glow"), screen_glow(power));
+            // Partial Grid opacity is applied to the visible RGBA8 PT result, so it
+            // passes exactly that fraction of the colour without altering PT inputs.
+            gl::Uniform1i(loc(p, "u_grid_mask"), 2);
+            gl::Uniform1f(
+                loc(p, "u_grid_opacity"),
+                if mode == 7 && self.lcd_darkness < 1.0 {
+                    self.lcd_darkness
+                } else {
+                    0.0
+                },
+            );
+            gl::ActiveTexture(gl::TEXTURE2);
+            gl::BindTexture(gl::TEXTURE_2D, mask);
             gl::Uniform1i(loc(p, "u_game"), 0);
             gl::ActiveTexture(gl::TEXTURE0);
             gl::BindTexture(gl::TEXTURE_2D, input);

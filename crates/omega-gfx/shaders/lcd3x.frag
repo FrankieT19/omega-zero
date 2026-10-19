@@ -8,8 +8,7 @@ uniform vec2 FullSourceSize;
 uniform float u_lcd_darkness, u_post, u_saturation, u_bright, u_glow;
 varying vec4 TEX0;
 void main() {
-    vec2 p=floor((u_crop.xy+TEX0.xy*u_crop.zw)*FullSourceSize);
-    vec3 rgb=palette_rgb(texture2D(Texture,(p+0.5)/FullSourceSize).rgb,u_palette);
+    vec3 rgb=palette_rgb(texture2D(Texture,u_crop.xy+TEX0.xy*u_crop.zw).rgb,u_palette);
     vec3 mask=texture2D(Mask,TEX0.xy).rgb;
     rgb*=max(vec3(0.0),vec3(1.0)-u_lcd_darkness*(vec3(1.0)-mask));
     if (u_post>0.5) {

@@ -2,7 +2,7 @@
 #ifdef GL_ES
 precision highp float;
 #endif
-uniform float u_grid, u_lcd_darkness;
+uniform float u_grid;
 uniform sampler2D Mask;
 uniform vec2 RasterSize;
 uniform sampler2D Texture;
@@ -168,7 +168,7 @@ vec3 generateProceduralBackground(vec2 uv) {
 void main()
 {
     // Grid + PT is fused: separators stay literally black, without shadow/noise work.
-    if (u_grid > 0.5 && u_lcd_darkness >= 1.0 && texture2D(Mask,TEX0.xy).r < 0.5) {
+    if (u_grid > 0.5 && texture2D(Mask,TEX0.xy).r < 0.5) {
         FRAG_COLOR=vec4(0.0,0.0,0.0,1.0); return;
     }
     // Cache texture samples
@@ -185,10 +185,7 @@ void main()
 
     // Early exit if shader is disabled
     if (PT_ENABLE < 0.5) {
-        if (u_grid > 0.5) {
-        output_color.rgb *= max(vec3(0.0), vec3(1.0)-u_lcd_darkness*(vec3(1.0)-texture2D(Mask,TEX0.xy).rgb));
-    }
-    FRAG_COLOR = output_color;
+        FRAG_COLOR = output_color;
         return;
     }
 
@@ -329,8 +326,5 @@ void main()
         output_color.rgb = mix(lcd_color.rgb, background.rgb, pixel_alpha);
     }
 
-    if (u_grid > 0.5) {
-        output_color.rgb *= max(vec3(0.0), vec3(1.0)-u_lcd_darkness*(vec3(1.0)-texture2D(Mask,TEX0.xy).rgb));
-    }
     FRAG_COLOR = output_color;
 }
