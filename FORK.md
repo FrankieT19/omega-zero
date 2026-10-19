@@ -1,107 +1,72 @@
-# FrankieT19 fork
+# Omega Zero FrankieT's personal edition
 
-Based on omega-zero 1.2.0. This frontend hosts libretro cores directly, so there is no RetroArch process or RetroArch shader menu to open.
+A personal fork of omega-zero 1.2.0 for Anbernic H700 handhelds running BaseOS. This frontend hosts libretro cores directly, using its native GLES renderer. It does not launch RetroArch. See [the README](README.md) for the feature overview and upstream credits.
 
-## Controls and settings
+## Startup and carousels
 
-START on the selector opens Settings. **Display** chooses the system's shader, adjusts Pixel Transparency Shadow X / Shadow Y, and enables Low poly labels.
+The frontend intro is skipped. Powering off in the menus remembers the hovered game and current carousel; powering off during gameplay resumes that game, with the existing crash-loop protection. A single-game card still waits at the selector unless that game was active at shutdown.
 
-- L/R cycles the populated system shelves, **All Systems**, **Recent**, and **Favourites**. All Systems and Favourites sort alphabetically; Recent contains the last 10 launched games, newest first, with repeats moved to the front. Press Y on the hovered game to add/remove a favourite, including removal directly from Favourites. Empty Recent/Favourites remain accessible. This preserves each cart/disc model and emulator. There is no All Systems setting.
+L/R cycles populated system shelves, All Systems, Recent and Favourites. Recent holds the last 10 launched games, newest first without duplicates. All Systems and Favourites sort alphabetically. Y adds or removes the hovered game as a favourite. Empty Recent/Favourites remain accessible.
 
-- Turning off in the menus restores the hovered game and current carousel. It does not launch a game. Turning off during play resumes that active game, with the original crash-loop protection. A card with only one game also waits on the selector unless that game was active.
+`System/bootlogo.png` is the replaceable Anbernic wordmark on black. Replace that PNG with your own image; arbitrary dimensions are fitted proportionally with black letterboxing and transparency is composited onto black. After running once with the replacement, the next power-on uses the converted bootloader logo. Invalid PNGs fall back to the bundled panel BMP. The original boot logo backup is retained.
 
-- SELECT+Left cycles blue-light levels 0 through 9. SELECT+Right cycles Clean, LCD1x, LCD3x, Grid (black 3x separators), Pixel Transparency, LCD1x + PT, LCD3x + PT, and Grid + PT for the current system. Names use the existing toast design and duration.
+## Display, shaders and palettes
 
-- Effects now use the upstream libretro GLSL shaders with RetroArch's pragma/preset defaults, at the actual game viewport dimensions. LCD+PT uses two passes, with the original frame supplied to PT. The former Mask and Pixel blend attenuation controls have been removed. Shadow X and Shadow Y use the real PT shader parameters, saved independently per system, from -30 to +30 in 0.5-pixel steps. This fork defaults both to 1 pixel as requested (upstream defaults to 3); choose 3.0 for upstream offsets. Offscreen targets are reused; no per-frame texture allocation. Sources and adaptation notes are in `crates/omega-gfx/shaders/`.
+START on the selector opens Settings. Display chooses the system and its shared shader, scaling, saturation and darkness settings. Pixel Transparency Shadow X/Y are saved per system in half-pixel steps, defaulting to 1 pixel each (upstream uses 3).
 
-- The frontend hosts cores directly; there is no RetroArch process or RetroArch settings menu. These presets run in omega-zero's renderer.
+- SELECT+Right cycles shaders, using the normal notification look and duration. Handhelds offer Clean, LCD1x, LCD3x, Grid, Pixel Transparency, LCD1x + PT, LCD3x + PT and Grid + PT.
+- SNES/PS1 instead offer Clean, CRT Scanlines, zfast CRT and CRT Pi (flat). There is no curvature or decorative border. Each CRT uses a single native GLES pass. They are adaptations of the upstream formulas with output-aligned beam phase and darkness control; source/licences are in `crates/omega-gfx/shaders/` and the packaged `System/licenses/handheld-shaders/`.
+- LCD masks follow the current game pixels and crop, while Grid is fixed to the physical screen: one black row and column per 3x3 cell, including in Fit/Stretch and Grid+PT. LCD/Grid darkness controls separator opacity (100% black, 50% half the underlying colour, 0% removed); consoles show this control as Scanline darkness. Saturation is independent for all systems.
+- Clean uses sharp bilinear scaling. GB/GBC apply the same boundary blend to fractional scaling with effects, preserving integer pixel interiors. Console CRTs have their own lightweight interpolation. GBA LCD sampling retains the upstream reference behavior. LCD+PT reuses viewport targets rather than allocating them each frame.
+- Gambatte is the default for GB/GBC; mGBA remains selectable. SELECT+B cycles the supported GBC hardware/game palettes and classic Pocket, DMG, Light and grayscale choices for GB games only. GBC games retain full colour.
+- SELECT+Left cycles blue-light levels 0-9.
 
-- Brightness retains hardware levels 1–9, with four extra steps below level 1: 25%, 50%, 75%, and 87.5% black. These are implemented by multiplying the final display output, mathematically equivalent to an opaque-black overlay at those opacities, across both games and menus. Dimming is saved and restored. The panel is never set to hardware 0.
+## Per-game picture and shader override
 
-- Low poly labels pixelates scans in four-texel blocks with 5-bit colour channels. Workers bake this into cartridge textures, including discs, when loaded or changed; it adds no per-frame pass and does not write the styled image to your scans.
+SELECT+X during play pauses gameplay and opens Picture. B, START or SELECT+X closes it. Zoom is 100-200% in 5% steps; crop each edge by 0-20% in 1% steps. Crop/zoom are saved per system/ROM in `Config/picture.ini` and reapplied after resolution changes. Reset restores the picture controls; it does not clear a shader override.
 
-### Scaling
+Enable the Shader override checkbox to capture the current shader for this game, then change its Shader row. Outside the popup, SELECT+Right also changes the override while enabled. Disable the checkbox to restore the shared system default immediately. With the checkbox off, the Shader row and hotkey edit the shared preset. Display always edits the shared default. Overrides are stored by system and ROM filename stem in `Config/shaders.ini`.
 
-Display settings saves **Scaling** independently for GB, GBC, SNES and PS1: **Integer**, **Fit**, or **Stretch**. Fit fills the available height while keeping the handheld aspect ratio (160:144) or the consoles' 4:3 display aspect ratio. Stretch fills the screen. Integer uses the largest whole scale that fits the native frame, centring it; frames larger than the panel fall back to proportional downscaling. GB/GBC L/R cycles these modes during play. Console shoulder buttons remain with their games; change their scaling in Display settings. GBA retains its original layout, which is an exact 3× at 720×480.
+## Scaling
 
-### Replaceable splash
+- **GBA:** retains its original layout, exactly 3x on 720x480.
+- **GB/GBC:** Integer, Integer H stretch, Fit, Stretch. L/R cycles them during play. Integer H stretch keeps integer height and fills the width (720x432 on 720x480, with 24 pixels of black above/below). Fit keeps 160:144 aspect while filling the available height. Stretch fills the panel.
+- **SNES:** Integer, **Integer H 4:3**, Fit 4:3, Stretch. Integer retains the raw frame's square pixels. Integer H 4:3 selects the largest whole-number source-row scale that fits and adjusts width to the TV's 4:3 aspect: a 224-line frame becomes about 597x448 on both 720x480 and 640x480. Hi-res 512-pixel-wide frames retain the same display shape; 239-line frames become about 637x478. This preference is global, including when changed in Picture; old per-game SNES scaling overrides are ignored.
+- **PS1:** Integer, Fit 4:3, Stretch. Integer uses whole-number height scaling with 4:3 display correction rather than treating the framebuffer as square pixels. For example, 320x240, 512x240 and 640x240 all display at 640x480 on either 480-line landscape panel. This avoids a wide, short rectangle when games switch horizontal resolution. PS1 scaling can still be saved per game through Picture.
 
-`System/bootlogo.png` is the white Anbernic wordmark on black. Replace that PNG with your own image; arbitrary dimensions are fitted proportionally with black letterboxing. PNG transparency is composited onto black. The frontend converts it to the panel-sized BMP required by the bootloader, retaining the original boot logo backup. The new logo takes effect at the next power-on after omega-zero has run once with the replacement. Invalid PNGs fall back to the bundled panel BMP. The terminal intro stays disabled; first-run clock setup remains.
+Integer height modes fall back to Fit 4:3 if even 1x source height cannot fit. Width is rounded to an output pixel; only height is constrained to an integer multiplier. Crop/zoom adjustments can deliberately change the effective pixel scale. Decorative overlays, wordmarks and grey console borders are removed; unused screen space is black.
 
-The wordmark is derived from the official Anbernic website logo, rendered white on black. Anbernic is a trademark of its owner.
+Core geometry references: [PCSX ReARMed](https://docs.libretro.com/library/pcsx_rearmed/) (4:3 display aspect), [Snes9x](https://docs.libretro.com/library/snes9x/) (224/239-line base height and selectable display aspect).
 
-## Slot Studio shells
+## Brightness, Sleep and input
 
-Copy Studio's `cart_shell.txt` to `Labels/cart_shell.txt` on the card containing the games. The Windows drive letter is whichever drive that card uses; no drive letter is hard-coded. Keys are ROM filenames without extensions. The existing `outline RRGGBB finish` format is unchanged, for example:
+Brightness has hardware levels 1-9 and four lower software steps equivalent to black overlays at 25%, 50%, 75% and 87.5%. The final output is dimmed across games and menus, without setting hardware brightness to 0. The indicator represents all 13 steps.
+
+Sleep settings separately configure menu/game Dim after and Sleep after: Off, 15s, 30s, 1/2/5/10/15/30/60 minutes. Defaults are menu dim 1 minute/sleep 5 minutes and game dim 5 minutes/sleep 15 minutes. In-game overlays use menu timers; any input, including held buttons, resets inactivity. Dimming fades to 25% of the chosen brightness and activity fades back. Sleep fades to black, then uses the existing save/pause, radio cool-down and backlight-off path used by lid close. Power wakes during the three-minute doze window; after power-down the normal boot/resume rules apply.
+
+Carousel animation handles long frames; core exit clears held movement, chords, fast-forward and rewind state. Repeated Down reports for an already-held key are discarded. Input timing uses the presentation's monotonic clock. Device navigation saves use an ordered, coalescing writer, with durable fences for settings and shutdown. These changes address software causes of stalls/skipping; repeated GBA/CTR exits still need physical-device verification.
+
+## Slot Studio shells and labels
+
+Copy Studio's `cart_shell.txt` to `Labels/cart_shell.txt` on the card containing the games. The Windows drive letter is whichever drive the card uses. Keys are ROM filenames without extensions; the existing `outline RRGGBB finish` format remains, for example:
 
 ```ini
-
 Pokemon - Emerald Version (USA, Europe) = auto 00aa66 clear
-
 Tetris = notched 888888 solid
-
 ```
 
-`Config/cart_shell.ini` < `Config/cart_shell.txt` < `Labels/cart_shell.ini` < `Labels/cart_shell.txt`. User labels override defaults. `Game = auto` removes a shell override. Legacy files remain readable and are never renamed or overwritten. UTF-8 BOM and Windows line endings are accepted.
+Precedence: `Config/cart_shell.ini` < `Config/cart_shell.txt` < `Labels/cart_shell.ini` < `Labels/cart_shell.txt`. User labels override defaults; `Game = auto` removes a shell override. UTF-8 BOM and Windows line endings are accepted.
 
-## Build
+Low poly labels pixelates scans in four-texel blocks with 5-bit colour channels. Workers bake styled cartridge/disc textures when loaded or changed, without changing the original scans or adding a per-frame pass. The selected cart draws above its neighbours. The Wi-Fi icon is nine art pixels wide, seven tall and aligned with the UI's integer pixel grid.
 
-Use the upstream pinned Rust toolchain and build workflow. Device compile check:
+## Install and build
+
+Custom builds are artifacts in [this fork's build workflow](https://github.com/FrankieT19/omega-zero/actions/workflows/release.yml), not the upstream release downloads. This is a frontend update for an existing BaseOS card, not a flashable OS image. Back up Saves, States and Config; replace the package's System files, preserving your custom boot PNG and card data. Native save states remain usable; states from the withdrawn RetroArch backend are not automatically imported. v10 and the pre-RetroArch backup remain available separately.
+
+Use the pinned Rust toolchain and upstream build workflow. Local device check:
 
 ```sh
-
 cargo check -p omega-zero --no-default-features --features device --target aarch64-unknown-linux-gnu
-
 ```
 
-Full rendering tests require macOS, as in upstream CI. Hardware validation is still required for H700 performance and visual tuning. This source change alone is not an installable firmware release.
-
-
-## v3 display changes
-
-- Grid is now a physical panel mask: each 3x3 cell has a 2x2 lit area and a one-pixel black right/bottom separator. At 720x480, GBA's 240x160 source pixels align exactly with these cells. No fractional smearing, gamma integration or RGB subpixel pattern is used. Grid+PT is a single fused effect pass, skips PT work on black separators, and retains the real upstream PT algorithm/defaults on lit pixels. This intentionally replaces the former lcd-grid-v2 appearance; LCD1x/LCD3x retain their reference formulas.
-- Stretched GB/GBC uses a panel raster of viewport/3 for LCD masks, separately from the actual source dimensions needed by PT. Stretching content therefore keeps display cells three physical pixels wide/high. The physical Grid mask uses this spacing in every scaling mode.
-- Display > GB/GBC > Saturation: 0–200%, in 10% steps; 100% preserves existing colours. Saved separately for each system; applies to Clean and every shader, without affecting menus.
-- GB already uses mGBA's game-specific GBC hardware palettes, equivalent to Gambatte's GBC game entries. For example, SML2 uses the same three sets of four colours (background cyan, orange player, blue enemies). The fallback Dark Green palette only applies without a game-specific entry. Colour Correction and LCD/PT can alter their displayed appearance.
-- SELECT+B cycles Game colours, Pocket, DMG green, Blue, Grayscale on GB/GBC, with the normal toast. Game colours preserves the core's original palette; the other options convert source luminance to four shades before applying LCD/PT. This also allows four-shade styling of native GBC games; it does not replace the emulator or change a game's internal palette data. Each system remembers its choice.
-- All decorative system overlays, wordmarks, rims and grey console borders are removed. Unused display space is plain black.
-- SELECT+X during play opens PICTURE, pausing gameplay while leaving the frame visible for adjustment. Zoom: 100–200% in 5% steps. Crop each edge independently by 0–20% in 1% steps, then apply centred zoom. Reset restores 100%/no crop. B, START or SELECT+X closes it. Values are saved per platform/ROM in Config/picture.ini and reapplied on launch, including after a core changes resolution. These are manual controls for blank pixels supplied by games/cores; there is no automatic overscan detection.
-
-Reference palette tables: [mGBA pinned source](https://github.com/libretro/mgba/blob/e31759b24e7a4e3899285ff720d7b573ac328ae7/src/gb/overrides.c), [Gambatte GBC entries](https://github.com/libretro/gambatte-libretro/blob/master/libgambatte/libretro/gbcpalettes.h).
-
-Device compilation and GLES2 compile/link validation are checked locally. CI renders pixel-level grid/alignment, saturation, palette, crop/orientation and fixed-raster regressions on both supported landscape resolutions. H700 frame rate and the exact appearance on the RG SP panel still require hardware verification.
-
-## v4: native GB palettes and display controls
-
-- GB/GBC now default to Gambatte, pinned to d9d6cd06382d1ced30de34d56d3609452323dab1. The ARM64 build runs a real-core GB palette smoke test before packaging. mGBA remains selectable with X on GB/GBC carts for existing save states and cable link play. State files remain separated by core; existing battery saves are backed up as `<game>.pre-gambatte.sav` before first loading through Gambatte. Battery saves are shared; save states do not transfer between emulators.
-- SELECT+B applies only to original GB games running Gambatte. It cycles game-specific GBC colours, Pocket, DMG, Blue, grayscale, Light, and the remaining original GBC presets (Brown, Dark Blue, Dark Brown, Dark Green, Green, Inverted, Orange, Pastel Mix, Red, Yellow). These are Gambatte's native background/sprite palettes; the v3 luminance remap is no longer used. Native GBC games always keep their full colours.
-- SELECT+X > Scaling selects per-game Integer / Fit / Stretch without leaving play. On SNES/PS1, Fit is 4:3 and fills the available height on landscape panels; Stretch fills all four screen edges. Integer uses native whole-pixel scaling, so SNES's usual 256x224 frame has its native 8:7 pixel aspect in this mode. Existing v3 SNES defaults migrate once to Fit. Per-game scaling is saved with crop/zoom; legacy five-value picture files still load.
-- Saturation 0–200% is saved independently for all five systems. LCD darkness 0–200% controls the LCD1x/LCD3x mask, including LCD+PT: 0% removes mask darkening, 100% is the original shader formula, and 200% deepens the mask. Both are in Display settings; shadows, grid spacing and PT defaults are otherwise preserved.
-- The brightness indicator has 13 cells, one per hardware/dimming step, with the darkest level still showing one cell.
-- Carousel models are drawn from farthest to nearest, so a focused SNES cart covers its GB/GBC neighbours on either side.
-
-Gambatte palette definitions: https://github.com/libretro/gambatte-libretro/blob/d9d6cd06382d1ced30de34d56d3609452323dab1/libgambatte/libretro/libretro_core_options.h
-
-
-## v5: LCD sampling, carousel recovery and inactivity
-
-- Compared LCD1x/LCD3x against the standard Libretro Slang handheld presets used from RetroArch's handheld directory: one nearest-filtered viewport pass, original phase and brightness defaults. The port now bounds sinusoidal phase within each source-pixel cell and uses high-precision copy/blit coordinates on GLES. At exact 3x, each GBA pixel receives the same repeating 3x3 mask. Optional **Display > LCD edge smoothing** uses sharp bilinear sampling only at source-pixel boundaries; it defaults off, preserves integer-scale sharpness, and adds no pass. LCD darkness 100% preserves the original formula. This frontend hosts libretro directly, so the preset is ported to GLES rather than executed by RetroArch's Slang runtime. Exact Anbernic firmware binaries were unavailable for comparison.
-- LCD and Grid masks follow stretched source pixels on GBA, SNES and PS1. Only GB/GBC Stretch keeps a fixed three-screen-pixel raster, to emulate the GBA screen. Grid+PT keeps its fused separator pass.
-- Carousel springs use the stable closed-form critically damped solution, so long core shutdown/save frames cannot make scrolling explode. Returning from a core also clears held shelf movement, gesture chords, fast-forward and rewind state.
-- **Settings > Inactivity** selects **Menus / In game**, **Dim after**, and **Sleep after** independently. Choices: Off, 15s, 30s, 1/2/5/10/15/30/60 minutes. Defaults: menu dim 1 minute / sleep 5 minutes; game dim 5 minutes / sleep 15 minutes. In-game overlays use menu timings. Any input, including a held button, resets inactivity. Dimming fades to 25% of the chosen brightness; activity fades back. Sleep fades to black before calling the same save, pause, radio cool-down and backlight-off routine as lid close. Power wakes it during the existing three-minute doze window; after that it powers down and the normal boot/resume rules apply. The setting does not simulate a Linux suspend.
-- SNES Integer / Fit 4:3 / Stretch is global. Changing it in the in-game Picture menu updates the same system preference as Display settings. Old per-game SNES scaling overrides are ignored; crop/zoom remain per-game. PS1 per-game scaling remains available.
-
-Device compilation, GLES2 linking, both landscape render suites and the ARM64 package/native-core smoke checks validate this change. Real RG SP visual quality, power behavior and the Crash Team Racing exit reproduction need hardware confirmation.
-
-
-## v6: compiled Slang LCDs and shared navigation recovery
-
-- LCD1x/LCD3x now originate from the unmodified, pinned Libretro Slang files. `scripts/compile-lcd-slang.py` runs glslang (`-V -Os`) and SPIRV-Cross (`--es --version 100`), with only GL output/version bindings changed afterward. Generated files and source hashes are included. This is Slang cross-compilation for the existing GLES2 renderer, not a Vulkan backend or a general runtime Slang preset loader.
-- The real compiled Slang shader is evaluated on white to cache its colour-modulation coefficients. Plain LCD1x/LCD3x and Grid then use one nearest-sampled drawing pass, with no per-frame trigonometry or extra viewport copy. Pixel Transparency retains its required pass ordering. An independent GPU test compares actual game pixels rendered by the original compiled shader against this cached path. The mask cache interpolates coefficients only; game pixels are explicitly fetched at nearest texel centres. LCD darkness 100% uses the original defaults. Edge smoothing and its stored preference are removed.
-- Console masks use a source-anchored 3x cell pattern warped with the game, including fractional crop/zoom origins, rather than independently stretching a screen grid. GB/GBC Stretch retains its fixed panel raster. At fractional display scales some physical columns/rows necessarily repeat or disappear, but the pattern follows the same source-pixel boundaries as the picture.
-- The Inactivity row and panel are now named **Sleep**, retaining separate menu/game settings.
-- Navigation no longer fsyncs on the main thread on the device: a single ordered writer coalesces hover updates. Settings, launch/save and normal lid/power shutdown use a durable fence through the same queue, so older hover writes cannot overwrite newer state. This addresses a shared source of stalls affecting GBA as well as PS1, rather than assuming a CTR-only defect. Repeated Down reports for an already-held button are discarded before gesture processing. Existing stable springs and exit cleanup remain.
-
-The changed rendering pipeline, speaker buzz and reported persistent navigation fault need verification on the actual RG SP. Passing software tests alone does not establish the hardware causes of those symptoms.
-
-Input/repeat timing also uses the presentation's monotonic timestamp before handling fresh input, independently of animation elapsed time. A press arriving after a long save/render frame can no longer inherit that stalled frame as held time and immediately repeat. A ten-second-stall regression covers this separate shared cause of skipping.
+CI runs host/device lint, formatting, card scripts and workspace/render suites at 720x480 and 640x480. LCD tests compare against the included unmodified upstream GLSL references. Physical H700 performance, screen appearance and power behavior still require device testing.

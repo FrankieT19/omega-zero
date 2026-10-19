@@ -2557,3 +2557,27 @@ fn console_shader_hotkey_cycles_only_clean_and_flat_crt_presets() {
         }
     }
 }
+
+#[test]
+fn snes_integer_aspect_is_global_and_survives_reboot_and_changing_games() {
+    let d = common::tmp_root_with_carts(&["Emerald", "Fusion"]);
+    let mut a = common::app_playing_in(d.path(), "Emerald");
+    a.set_platform(Platform::Snes);
+    a.load_picture("Emerald");
+    a.apply(Action::PictureMenu);
+    // Default Fit -> Integer H 4:3 when cycling backwards.
+    a.apply(Action::GbaDown(Btn::Left));
+    assert_eq!(omega_store::read_app_state(d.path()).scales[3], 4);
+    assert_eq!(
+        a.background_view().unwrap().rows[0].value,
+        Some(omega_zero::list_view::RowValue::Choice("Integer H 4:3"))
+    );
+    a.load_picture("Fusion");
+    assert_eq!(
+        a.screen(),
+        omega_zero::video_mode::screen(Platform::Snes, VideoMode::IntegerAspect)
+    );
+    let mut reboot = App::boot(d.path());
+    reboot.set_platform(Platform::Snes);
+    assert_eq!(reboot.preferred_video_mode(), VideoMode::IntegerAspect);
+}
